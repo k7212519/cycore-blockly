@@ -158,7 +158,7 @@ jobs:
       # --- 构建 + 签名 + 公证（和本地 Mac 一样） ---
       - name: Build, Sign & Notarize
         run: |
-          npm run build -- --mac
+          npm run build:mac
         env:
           NODE_ENV: production
           # electron-builder 签名配置
@@ -169,40 +169,63 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      # --- 如果 electron-builder 公证失败，手动公证 ---
+      # --- 如果 electron-builder 公证失败，手动公证（支持 arm64 + x64 多个 DMG）---
       - name: Manual Notarization (if needed)
         if: always()
         run: |
-          DMG_PATH=$(find dist/aily-blockly -name "*.dmg" -type f | head -n 1)
+          DMG_FILES=$(find dist/aily-blockly -name "*.dmg" -type f)
           
-          if [ -z "$DMG_PATH" ]; then
-            echo "❌ DMG not found!"
-            exit 1
-          fi
-          
-          echo "Checking if already notarized..."
-          if xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
-            echo "✅ Already notarized and stapled!"
+          if [ -z "$DMG_FILES" ]; then
+            echo "⚠️ No DMG files found, skipping notarization."
             exit 0
           fi
           
-          echo "Submitting for notarization: $DMG_PATH"
-          xcrun notarytool submit "$DMG_PATH" \
-            --apple-id "${{ secrets.APPLE_ID }}" \
-            --password "${{ secrets.APPLE_APP_PASSWORD }}" \
-            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --wait \
-            --timeout 30m
+          echo "Found DMG files:"
+          echo "$DMG_FILES"
+          echo ""
           
-          echo "Stapling..."
-          xcrun stapler staple "$DMG_PATH"
-          echo "✅ Notarization completed!"
+          while IFS= read -r DMG_PATH; do
+            echo ">>> Processing: $DMG_PATH"
+            
+            echo "Checking if already notarized..."
+            if xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
+              echo "✅ Already notarized and stapled: $DMG_PATH"
+              continue
+            fi
+            
+            echo "Submitting for notarization: $DMG_PATH"
+            xcrun notarytool submit "$DMG_PATH" \
+              --apple-id "${{ secrets.APPLE_ID }}" \
+              --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+              --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+              --wait \
+              --timeout 30m
+            
+            echo "Stapling..."
+            xcrun stapler staple "$DMG_PATH"
+            echo "✅ Notarization completed: $DMG_PATH"
+            echo ""
+          done <<< "$DMG_FILES"
 
       - name: Final Verification
         run: |
-          DMG_PATH=$(find dist/aily-blockly -name "*.dmg" -type f | head -n 1)
           echo "=== Verification ==="
-          xcrun stapler validate "$DMG_PATH" && echo "✅ Notarized" || echo "⚠️ Not notarized"
+          DMG_FILES=$(find dist/aily-blockly -name "*.dmg" -type f)
+          if [ -z "$DMG_FILES" ]; then
+            echo "⚠️ No DMG files found for verification."
+            exit 0
+          fi
+          FAILED=0
+          while IFS= read -r DMG_PATH; do
+            echo "Verifying: $DMG_PATH"
+            if xcrun stapler validate "$DMG_PATH"; then
+              echo "✅ Notarized: $(basename $DMG_PATH)"
+            else
+              echo "⚠️ Not notarized: $(basename $DMG_PATH)"
+              FAILED=1
+            fi
+          done <<< "$DMG_FILES"
+          exit $FAILED
       
       - name: Archive macOS Artifact
         uses: actions/upload-artifact@v4
@@ -252,136 +275,136 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # 任务 4a：上传 Windows 文件到 Cloudflare R2 存储（与Release并行执行）
-  upload-windows-to-r2:
-    needs: [build-windows]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: AilyBlockly-Windows-Package
-          path: ./artifacts/windows
+  # upload-windows-to-r2:
+  #   needs: [build-windows]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download Windows Artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: AilyBlockly-Windows-Package
+  #         path: ./artifacts/windows
 
-      - name: Ensure AWS CLI is available
-        run: |
-          if ! command -v aws &> /dev/null; then
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install
-          fi
-          aws --version
+  #     - name: Ensure AWS CLI is available
+  #       run: |
+  #         if ! command -v aws &> /dev/null; then
+  #           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  #           unzip awscliv2.zip
+  #           sudo ./aws/install
+  #         fi
+  #         aws --version
 
-      - name: Upload Windows files to Cloudflare R2
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          R2_UPLOAD_PATH: ${{ secrets.R2_UPLOAD_PATH }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-        run: |
-          # 配置 AWS CLI 使用 Cloudflare R2
-          aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
-          aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
-          aws configure set default.region auto
+  #     - name: Upload Windows files to Cloudflare R2
+  #       env:
+  #         R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+  #         R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  #         R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  #         R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+  #         R2_UPLOAD_PATH: ${{ secrets.R2_UPLOAD_PATH }}
+  #         R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+  #       run: |
+  #         # 配置 AWS CLI 使用 Cloudflare R2
+  #         aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
+  #         aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
+  #         aws configure set default.region auto
           
-          # Cloudflare R2 endpoint
-          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+  #         # Cloudflare R2 endpoint
+  #         R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           
-          echo "准备上传 Windows 文件到 Cloudflare R2..."
+  #         echo "准备上传 Windows 文件到 Cloudflare R2..."
           
-          # 先上传 Windows 安装包
-          echo "上传 Windows exe 文件..."
-          for file in ./artifacts/windows/*.exe; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              echo "  上传: $filename"
-              aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
-                --endpoint-url "$R2_ENDPOINT" \
-                --content-type "application/x-msdownload"
-            fi
-          done
+  #         # 先上传 Windows 安装包
+  #         echo "上传 Windows exe 文件..."
+  #         for file in ./artifacts/windows/*.exe; do
+  #           if [ -f "$file" ]; then
+  #             filename=$(basename "$file")
+  #             echo "  上传: $filename"
+  #             aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
+  #               --endpoint-url "$R2_ENDPOINT" \
+  #               --content-type "application/x-msdownload"
+  #           fi
+  #         done
           
-          # 最后上传 latest.yml（确保安装包已上传完成）
-          echo "上传 latest.yml 配置文件..."
-          if [ -f "./artifacts/windows/latest.yml" ]; then
-            aws s3 cp "./artifacts/windows/latest.yml" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/latest.yml" \
-              --endpoint-url "$R2_ENDPOINT" \
-              --content-type "text/yaml"
-          fi
+  #         # 最后上传 latest.yml（确保安装包已上传完成）
+  #         echo "上传 latest.yml 配置文件..."
+  #         if [ -f "./artifacts/windows/latest.yml" ]; then
+  #           aws s3 cp "./artifacts/windows/latest.yml" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/latest.yml" \
+  #             --endpoint-url "$R2_ENDPOINT" \
+  #             --content-type "text/yaml"
+  #         fi
           
-          echo "✓ Windows 文件上传到 Cloudflare R2 完成"
-          echo "公开访问地址: ${R2_PUBLIC_URL}"
+  #         echo "✓ Windows 文件上传到 Cloudflare R2 完成"
+  #         echo "公开访问地址: ${R2_PUBLIC_URL}"
 
   # 任务 4b：上传 macOS 文件到 Cloudflare R2 存储（与Release并行执行）
-  upload-macos-to-r2:
-    needs: [build-macos]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download macOS Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: AilyBlockly-macOS-Package
-          path: ./artifacts/macos
+  # upload-macos-to-r2:
+  #   needs: [build-macos]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download macOS Artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: AilyBlockly-macOS-Package
+  #         path: ./artifacts/macos
 
-      - name: Ensure AWS CLI is available
-        run: |
-          if ! command -v aws &> /dev/null; then
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip
-            sudo ./aws/install
-          fi
-          aws --version
+  #     - name: Ensure AWS CLI is available
+  #       run: |
+  #         if ! command -v aws &> /dev/null; then
+  #           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  #           unzip awscliv2.zip
+  #           sudo ./aws/install
+  #         fi
+  #         aws --version
 
-      - name: Upload macOS files to Cloudflare R2
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
-          R2_UPLOAD_PATH: ${{ secrets.R2_UPLOAD_PATH }}
-          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-        run: |
-          # 配置 AWS CLI 使用 Cloudflare R2
-          aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
-          aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
-          aws configure set default.region auto
+  #     - name: Upload macOS files to Cloudflare R2
+  #       env:
+  #         R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+  #         R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  #         R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  #         R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+  #         R2_UPLOAD_PATH: ${{ secrets.R2_UPLOAD_PATH }}
+  #         R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+  #       run: |
+  #         # 配置 AWS CLI 使用 Cloudflare R2
+  #         aws configure set aws_access_key_id "$R2_ACCESS_KEY_ID"
+  #         aws configure set aws_secret_access_key "$R2_SECRET_ACCESS_KEY"
+  #         aws configure set default.region auto
           
-          # Cloudflare R2 endpoint
-          R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+  #         # Cloudflare R2 endpoint
+  #         R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           
-          echo "准备上传 macOS 文件到 Cloudflare R2..."
+  #         echo "准备上传 macOS 文件到 Cloudflare R2..."
           
-          # 上传 macOS 安装包
-          echo "上传 macOS 文件..."
-          for file in ./artifacts/macos/*.dmg ./artifacts/macos/*.zip; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              echo "  上传: $filename"
+  #         # 上传 macOS 安装包
+  #         echo "上传 macOS 文件..."
+  #         for file in ./artifacts/macos/*.dmg ./artifacts/macos/*.zip; do
+  #           if [ -f "$file" ]; then
+  #             filename=$(basename "$file")
+  #             echo "  上传: $filename"
               
-              # 根据文件类型设置 Content-Type
-              if [[ "$filename" == *.dmg ]]; then
-                content_type="application/x-apple-diskimage"
-              else
-                content_type="application/zip"
-              fi
+  #             # 根据文件类型设置 Content-Type
+  #             if [[ "$filename" == *.dmg ]]; then
+  #               content_type="application/x-apple-diskimage"
+  #             else
+  #               content_type="application/zip"
+  #             fi
               
-              aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
-                --endpoint-url "$R2_ENDPOINT" \
-                --content-type "$content_type"
-            fi
-          done
+  #             aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
+  #               --endpoint-url "$R2_ENDPOINT" \
+  #               --content-type "$content_type"
+  #           fi
+  #         done
           
-          # 最后上传 latest-mac.yml（确保安装包已上传完成）
-          echo "上传 latest-mac.yml 配置文件..."
-          if [ -f "./artifacts/macos/latest-mac.yml" ]; then
-            aws s3 cp "./artifacts/macos/latest-mac.yml" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/latest-mac.yml" \
-              --endpoint-url "$R2_ENDPOINT" \
-              --content-type "text/yaml"
-          fi
+  #         # 最后上传 latest-mac.yml（确保安装包已上传完成）
+  #         echo "上传 latest-mac.yml 配置文件..."
+  #         if [ -f "./artifacts/macos/latest-mac.yml" ]; then
+  #           aws s3 cp "./artifacts/macos/latest-mac.yml" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/latest-mac.yml" \
+  #             --endpoint-url "$R2_ENDPOINT" \
+  #             --content-type "text/yaml"
+  #         fi
           
-          echo "✓ macOS 文件上传到 Cloudflare R2 完成"
-          echo "公开访问地址: ${R2_PUBLIC_URL}"
+  #         echo "✓ macOS 文件上传到 Cloudflare R2 完成"
+  #         echo "公开访问地址: ${R2_PUBLIC_URL}"
 
   # 原有的 SSH 上传方式已注释（备用）
   # upload-to-server:
@@ -429,18 +452,18 @@ jobs:
   #         echo "✓ 文件上传完成"
 
   # 任务 5：触发服务器脚本
-  trigger-server-script:
-    needs: [upload-windows-to-r2, upload-macos-to-r2]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Server Script
-        env:
-          SERVER_HOST: ${{ secrets.TRIGGER_SERVER_HOST }}
-          SERVER_USER: ${{ secrets.TRIGGER_SERVER_USER }}
-          SERVER_PASSWORD: ${{ secrets.TRIGGER_SERVER_PASSWORD }}
-          SERVER_SCRIPT_PATH: ${{ secrets.TRIGGER_SERVER_SCRIPT_PATH }}
-        run: |
-          sudo apt-get update && sudo apt-get install -y sshpass
-          echo "触发服务器脚本..."
-          sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" "bash $SERVER_SCRIPT_PATH"
-          echo "✓ 脚本执行完成"
+  # trigger-server-script:
+  #   needs: [upload-windows-to-r2, upload-macos-to-r2]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Trigger Server Script
+  #       env:
+  #         SERVER_HOST: ${{ secrets.TRIGGER_SERVER_HOST }}
+  #         SERVER_USER: ${{ secrets.TRIGGER_SERVER_USER }}
+  #         SERVER_PASSWORD: ${{ secrets.TRIGGER_SERVER_PASSWORD }}
+  #         SERVER_SCRIPT_PATH: ${{ secrets.TRIGGER_SERVER_SCRIPT_PATH }}
+  #       run: |
+  #         sudo apt-get update && sudo apt-get install -y sshpass
+  #         echo "触发服务器脚本..."
+  #         sshpass -p "$SERVER_PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" "bash $SERVER_SCRIPT_PATH"
+  #         echo "✓ 脚本执行完成"
