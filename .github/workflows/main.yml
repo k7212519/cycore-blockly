@@ -218,6 +218,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整 git 历史，用于对比 tag 生成 changelog
 
       - name: Extract version from package.json
         id: version
@@ -225,6 +227,99 @@ jobs:
           VERSION=$(node -e "console.log(require('./package.json').version)")
           echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
           echo "Version: v${VERSION}"
+
+      - name: Get Git Commits Since Last Tag
+        id: commits
+        run: |
+          # 获取上一个 tag（排除当前可能已打的 tag）
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^v${{ steps.version.outputs.tag }}$" | head -n 1 || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            echo "⚠️ No previous tag found, collecting last 50 commits"
+            git log --pretty=format:"- %s" --no-merges | head -50 > /tmp/commits.txt
+          else
+            echo "✓ Comparing $PREV_TAG → HEAD"
+            git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+          fi
+          COMMIT_COUNT=$(wc -l < /tmp/commits.txt | tr -d ' ')
+          echo "✓ Found ${COMMIT_COUNT} commits"
+          cat /tmp/commits.txt
+
+      - name: Generate Changelog with AI
+        id: changelog
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          RELEASE_VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          python3 << 'PYTHON_EOF'
+          import json, os, urllib.request, sys
+
+          version  = os.environ.get('RELEASE_VERSION', '')
+          api_key  = os.environ.get('AI_API_KEY', '')
+          base_url = os.environ.get('AI_BASE_URL', '').rstrip('/')
+          model    = os.environ.get('AI_MODEL', 'gpt-4o-mini')
+          commits  = open('/tmp/commits.txt').read().strip()
+
+          if not commits:
+              commits = "（无 commit 记录）"
+
+          if not base_url:
+              print("⚠️ AI_BASE_URL is not set, skipping AI generation")
+              changelog = f"## {version}\n\n### Changes\n\n{commits}"
+              with open('/tmp/changelog.md', 'w', encoding='utf-8') as f:
+                  f.write(changelog)
+              exit(0)
+
+          prompt = f"""你是一个专业的软件发布助手。请根据以下 Git commit 记录，生成一份简洁易读的版本更新说明。
+
+版本：{version}
+
+Commit 记录：
+{commits}
+
+输出要求：
+1. 中英文双语（中文在前，英文在后，各自独立段落）
+2. 按类型分类，使用以下 emoji 前缀：
+   - ✨ 新功能 / New Features
+   - 🐛 问题修复 / Bug Fixes
+   - ⚡ 性能优化 / Performance
+   - 🔧 其他改动 / Other Changes
+3. 每条描述面向普通用户，语言简洁友好
+4. 输出纯 Markdown 格式，不要包含代码块包裹
+5. 如果 commit 信息含义不明确，请合理推断"""
+
+          payload = {
+              "model": model,
+              "messages": [{"role": "user", "content": prompt}],
+              "max_tokens": 2000,
+              "temperature": 0.3
+          }
+
+          req = urllib.request.Request(
+              f'{base_url}/chat/completions',
+              data=json.dumps(payload).encode('utf-8'),
+              headers={
+                  'Content-Type': 'application/json',
+                  'Authorization': f'Bearer {api_key}'
+              }
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  data = json.loads(resp.read())
+              changelog = data['choices'][0]['message']['content'].strip()
+              print("✓ Changelog generated successfully")
+          except Exception as e:
+              print(f"⚠️ AI generation failed: {e}, using raw commits as fallback")
+              changelog = f"## {version}\n\n### Changes\n\n{commits}"
+
+          with open('/tmp/changelog.md', 'w', encoding='utf-8') as f:
+              f.write(changelog)
+
+          print("--- Changelog Preview ---")
+          print(changelog[:500])
+          PYTHON_EOF
 
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
@@ -238,13 +333,29 @@ jobs:
           name: AilyBlockly-macOS-Package
           path: ./release
 
+      - name: Prepare Changelog File
+        id: release_body
+        run: |
+          # 复制 changelog 到 release 目录，作为附件
+          cp /tmp/changelog.md ./release/CHANGELOG.md
+          echo "✓ CHANGELOG.md saved to release directory"
+
+          # 将 changelog 内容写入 GitHub Output，作为 Release body
+          {
+            echo 'body<<CHANGELOG_DELIMITER'
+            cat /tmp/changelog.md
+            echo 'CHANGELOG_DELIMITER'
+          } >> $GITHUB_OUTPUT
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          body: ${{ steps.release_body.outputs.body }}
           files: |
             ./release/*.exe
             ./release/*.dmg
+            ./release/CHANGELOG.md
           draft: false
           prerelease: false
           update_release: true
