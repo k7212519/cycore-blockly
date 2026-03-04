@@ -155,10 +155,10 @@ jobs:
             echo "✅ Found: $IDENTITY"
           fi
 
-      # --- 构建 + 签名 + 公证（和本地 Mac 一样） ---
+      # --- 构建 + 签名 + 公证（同时构建 arm64 与 x64）---
       - name: Build, Sign & Notarize
         run: |
-          npm run build -- --mac
+          npm run build:mac
         env:
           NODE_ENV: production
           # electron-builder 签名配置
@@ -169,40 +169,45 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      # --- 如果 electron-builder 公证失败，手动公证 ---
+      # --- 如果 electron-builder 公证失败，手动公证（处理 arm64 和 x64 两个 DMG）---
       - name: Manual Notarization (if needed)
-        if: always()
+        if: success() || failure()
         run: |
-          DMG_PATH=$(find dist/aily-blockly -name "*.dmg" -type f | head -n 1)
+          DMG_FILES=$(find dist/aily-blockly -name "*.dmg" -type f)
           
-          if [ -z "$DMG_PATH" ]; then
+          if [ -z "$DMG_FILES" ]; then
             echo "❌ DMG not found!"
             exit 1
           fi
           
-          echo "Checking if already notarized..."
-          if xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
-            echo "✅ Already notarized and stapled!"
-            exit 0
-          fi
-          
-          echo "Submitting for notarization: $DMG_PATH"
-          xcrun notarytool submit "$DMG_PATH" \
-            --apple-id "${{ secrets.APPLE_ID }}" \
-            --password "${{ secrets.APPLE_APP_PASSWORD }}" \
-            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --wait \
-            --timeout 30m
-          
-          echo "Stapling..."
-          xcrun stapler staple "$DMG_PATH"
-          echo "✅ Notarization completed!"
+          while IFS= read -r DMG_PATH; do
+            echo "=== Processing: $DMG_PATH ==="
+            
+            echo "Checking if already notarized..."
+            if xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
+              echo "✅ Already notarized and stapled: $DMG_PATH"
+              continue
+            fi
+            
+            echo "Submitting for notarization: $DMG_PATH"
+            xcrun notarytool submit "$DMG_PATH" \
+              --apple-id "${{ secrets.APPLE_ID }}" \
+              --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+              --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+              --wait \
+              --timeout 30m
+            
+            echo "Stapling..."
+            xcrun stapler staple "$DMG_PATH"
+            echo "✅ Notarization completed: $DMG_PATH"
+          done <<< "$DMG_FILES"
 
       - name: Final Verification
         run: |
-          DMG_PATH=$(find dist/aily-blockly -name "*.dmg" -type f | head -n 1)
           echo "=== Verification ==="
-          xcrun stapler validate "$DMG_PATH" && echo "✅ Notarized" || echo "⚠️ Not notarized"
+          while IFS= read -r DMG_PATH; do
+            xcrun stapler validate "$DMG_PATH" && echo "✅ Notarized: $DMG_PATH" || echo "⚠️ Not notarized: $DMG_PATH"
+          done < <(find dist/aily-blockly -name "*.dmg" -type f)
       
       - name: Archive macOS Artifact
         uses: actions/upload-artifact@v4
@@ -232,7 +237,7 @@ jobs:
         id: commits
         run: |
           # 获取上一个 tag（排除当前可能已打的 tag）
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^v${{ steps.version.outputs.tag }}$" | head -n 1 || echo "")
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ steps.version.outputs.tag }}$" | head -n 1 || echo "")
           if [ -z "$PREV_TAG" ]; then
             echo "⚠️ No previous tag found, collecting last 50 commits"
             git log --pretty=format:"- %s" --no-merges | head -50 > /tmp/commits.txt
@@ -271,23 +276,21 @@ jobs:
                   f.write(changelog)
               exit(0)
 
-          prompt = f"""你是一个专业的软件发布助手。请根据以下 Git commit 记录，生成一份简洁易读的版本更新说明。
-
-版本：{version}
-
-Commit 记录：
-{commits}
-
-输出要求：
-1. 中英文双语（中文在前，英文在后，各自独立段落）
-2. 按类型分类，使用以下 emoji 前缀：
-   - ✨ 新功能 / New Features
-   - 🐛 问题修复 / Bug Fixes
-   - ⚡ 性能优化 / Performance
-   - 🔧 其他改动 / Other Changes
-3. 每条描述面向普通用户，语言简洁友好
-4. 输出纯 Markdown 格式，不要包含代码块包裹
-5. 如果 commit 信息含义不明确，请合理推断"""
+          prompt = (
+              f"你是一个专业的软件发布助手。请根据以下 Git commit 记录，生成一份简洁易读的版本更新说明。\n\n"
+              f"版本：{version}\n\n"
+              f"Commit 记录：\n{commits}\n\n"
+              "输出要求：\n"
+              "1. 中英文双语（中文在前，英文在后，各自独立段落）\n"
+              "2. 按类型分类，使用以下 emoji 前缀：\n"
+              "   - ✨ 新功能 / New Features\n"
+              "   - 🐛 问题修复 / Bug Fixes\n"
+              "   - ⚡ 性能优化 / Performance\n"
+              "   - 🔧 其他改动 / Other Changes\n"
+              "3. 每条描述面向普通用户，语言简洁友好\n"
+              "4. 输出纯 Markdown 格式，不要包含代码块包裹\n"
+              "5. 如果 commit 信息含义不明确，请合理推断"
+          )
 
           payload = {
               "model": model,
@@ -358,7 +361,7 @@ Commit 记录：
             ./release/CHANGELOG.md
           draft: false
           prerelease: false
-          update_release: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
