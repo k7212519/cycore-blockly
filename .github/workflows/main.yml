@@ -368,9 +368,11 @@ jobs:
           echo "✓ CHANGELOG.md saved to release directory"
 
           # 将 changelog 内容写入 GitHub Output，作为 Release body
+          # 注意：cat 后补一个空行，防止文件末尾无换行导致分隔符被拼接
           {
             echo 'body<<CHANGELOG_DELIMITER'
             cat /tmp/changelog.md
+            echo ''
             echo 'CHANGELOG_DELIMITER'
           } >> $GITHUB_OUTPUT
 
