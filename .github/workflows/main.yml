@@ -470,51 +470,6 @@ jobs:
           echo "✓ macOS 文件上传到 Cloudflare R2 完成"
           echo "公开访问地址: ${R2_PUBLIC_URL}"
 
-  # 原有的 SSH 上传方式已注释（备用）
-  # upload-to-server:
-  #   needs: [build-windows, build-macos]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Download Windows Artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: AilyBlockly-Windows-Package
-  #         path: ./artifacts/windows
-  #
-  #     - name: Download macOS Artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: AilyBlockly-macOS-Package
-  #         path: ./artifacts/macos
-  #
-  #     - name: Upload files to Server (non-yml files first, yml files last)
-  #       env:
-  #         SERVER_HOST: ${{ secrets.SERVER_HOST }}
-  #         SERVER_USER: ${{ secrets.SERVER_USER }}
-  #         SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-  #         SERVER_PATH: ${{ secrets.SERVER_PATH }}
-  #       run: |
-  #         sudo apt-get update && sudo apt-get install -y sshpass
-  #         mkdir -p ./upload-temp
-  #         echo "准备Windows文件..."
-  #         cp ./artifacts/windows/*.exe ./upload-temp/ 2>/dev/null || echo "未找到Windows exe文件"
-  #         echo "准备macOS文件..."
-  #         cp ./artifacts/macos/*.dmg ./upload-temp/ 2>/dev/null || echo "未找到macOS dmg文件"
-  #         cp ./artifacts/macos/*.zip ./upload-temp/ 2>/dev/null || echo "未找到macOS zip文件"
-  #         if [ -n "$(ls -A ./upload-temp/)" ]; then
-  #           echo "上传非yml文件到服务器..."
-  #           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no -r ./upload-temp/* "$SERVER_USER@$SERVER_HOST:$SERVER_PATH"
-  #         fi
-  #         echo "准备yml配置文件..."
-  #         mkdir -p ./yml-files
-  #         cp ./artifacts/windows/latest.yml ./yml-files/ 2>/dev/null || echo "未找到Windows latest.yml"
-  #         cp ./artifacts/macos/latest-mac.yml ./yml-files/ 2>/dev/null || echo "未找到macOS latest-mac.yml"
-  #         if [ -n "$(ls -A ./yml-files/)" ]; then
-  #           echo "上传yml配置文件到服务器..."
-  #           sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no -r ./yml-files/* "$SERVER_USER@$SERVER_HOST:$SERVER_PATH"
-  #         fi
-  #         echo "✓ 文件上传完成"
-
   # 任务 5：触发服务器脚本
   trigger-server-script:
     needs: [upload-windows-to-r2]
