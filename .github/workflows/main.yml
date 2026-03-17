@@ -17,12 +17,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-          cache: 'yarn'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
 
       - name: Install Dependencies
         run: |
           npm install -g @angular/cli
-          yarn install --frozen-lockfile
+          npm ci
           cd electron && npm ci --force
 
       - name: Build Angular App
@@ -158,12 +161,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-          cache: 'yarn'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
 
       - name: Install Dependencies
         run: |
           npm install -g @angular/cli
-          yarn install --frozen-lockfile
+          npm ci
           cd electron && npm ci --force
 
       # --- 导入代码签名证书到 Keychain ---
