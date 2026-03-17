@@ -161,9 +161,10 @@ export class MenuManagerService {
           if (remaining?.sessionId) {
             this.chatService.currentSessionId = remaining.sessionId;
             const entry = this.chatHistoryService.findEntry(remaining.sessionId);
+            const _curPath1 = AilyHost.get().project.currentProjectPath;
+            const _rootPath1 = AilyHost.get().project.projectRootPath;
             this.chatService.currentSessionPath = entry?.projectPath
-              || AilyHost.get().project.currentProjectPath
-              || AilyHost.get().project.projectRootPath;
+              || (_curPath1 && _curPath1 !== _rootPath1 ? _curPath1 : '');
             callbacks.onGetHistory();
           } else {
             callbacks.onNewChat();
@@ -192,9 +193,10 @@ export class MenuManagerService {
     callbacks.onSaveCurrentSession();
     this.chatService.currentSessionId = sessionId;
     const entry = this.chatHistoryService.findEntry(sessionId);
+    const _curPath2 = AilyHost.get().project.currentProjectPath;
+    const _rootPath2 = AilyHost.get().project.projectRootPath;
     this.chatService.currentSessionPath = entry?.projectPath
-      || AilyHost.get().project.currentProjectPath
-      || AilyHost.get().project.projectRootPath;
+      || (_curPath2 && _curPath2 !== _rootPath2 ? _curPath2 : '');
     callbacks.onGetHistory();
     callbacks.onSetCompleted();
     callbacks.onSetServerSessionInactive();

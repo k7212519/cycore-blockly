@@ -45,7 +45,19 @@ export interface FunctionTypeDef {
   textColor: string;
 }
 
-/** 组件完整配置（来自 *_config.json） */
+/** 同库下的类似组件（来自 pinmap_catalog.json） */
+export interface SimilarComponent {
+  fullId: string;
+  modelId: string;
+  variantId: string;
+  name: string;
+  modelName?: string;
+  pinmapFile?: string;
+  /** 对应 pinmapFile 的完整配置内容 */
+  data?: ComponentConfig;
+}
+
+/** 组件完整配置（来自 *_config.json 或 pinmaps/xxx.json） */
 export interface ComponentConfig {
   id: string;
   name: string;
@@ -54,6 +66,8 @@ export interface ComponentConfig {
   images: ComponentImage[];
   pins: ConfigPin[];
   functionTypes: FunctionTypeDef[];
+  /** 同库下的类似组件列表（来自 pinmap_catalog.json，仅 pinmapId 加载时有） */
+  similarComponents?: SimilarComponent[];
 }
 
 /** 连线端点 */
@@ -394,14 +408,50 @@ export class ConnectionGraphService {
     this.setupIpcListeners();
   }
 
-  /** 设置 IPC 监听器 */
+  /** 设置 IPC 监听器（规范：iframe-message-connection-graph，参数 {type, data}） */
   private setupIpcListeners(): void {
     if (this.electronService.isElectron && window['ipcRenderer']) {
-      window['ipcRenderer'].on('save-connection-graph', (_event: any, data: any) => {
-        console.log('[ConnectionGraphService] 收到子窗口保存请求');
-        if (data && data.components && data.connections) {
-          // 静默保存，不触发 IPC 通知（避免循环）
-          this.saveConnectionGraphSilent(data);
+      window['ipcRenderer'].on('iframe-message-connection-graph', async (_event: any, payload: { type: string; data?: any }) => {
+        const { type, data } = payload ?? {};
+        switch (type) {
+          case 'save-graph-data': {
+            console.log('[ConnectionGraphService] 收到子窗口保存请求');
+            const messageId = data?.messageId;
+            let success = false;
+            if (data && data.components && data.connections) {
+              const { messageId: _m, ...toSave } = data;
+              success = this.saveConnectionGraphSilent(toSave);
+            }
+            if (window['ipcRenderer']) {
+              window['ipcRenderer'].send('iframe-message-connection-graph', {
+                type: 'save-graph-data-result',
+                data: { messageId, success },
+              });
+            }
+            break;
+          }
+          case 'get-graph-data': {
+            // 子窗口请求：data 仅有 messageId 无 payload；主窗口响应：返回 messageId + payload
+            const messageId = data?.messageId;
+            if (!messageId || 'payload' in (data ?? {})) break;
+            try {
+              const boardPackagePath = await this.projectService.getBoardPackagePath();
+              const graphPayload = boardPackagePath
+                ? this.buildPayload(boardPackagePath)
+                : null;
+              window['ipcRenderer'].send('iframe-message-connection-graph', {
+                type: 'set-graph-data',
+                data: { messageId, payload: graphPayload },
+              });
+            } catch (e) {
+              console.error('[ConnectionGraphService] 实时构建 payload 失败:', e);
+              window['ipcRenderer'].send('iframe-message-connection-graph', {
+                type: 'set-graph-data',
+                data: { messageId, payload: null },
+              });
+            }
+            break;
+          }
         }
       });
     }
@@ -552,12 +602,32 @@ export class ConnectionGraphService {
   }
 
   /**
-   * 读取库的 pinmap_catalog.json
+   * 解析 pinmap_catalog.json 的实际路径（兼容新旧两种位置）
+   * 优先检查 pinmaps/pinmap_catalog.json（新版），回退到根目录 pinmap_catalog.json（旧版）
+   * @param packagePath 库或开发板包的完整路径
+   * @returns 实际存在的 catalog 文件路径，若均不存在返回 null
+   */
+  resolveCatalogPath(packagePath: string): string | null {
+    // 新版：pinmaps/pinmap_catalog.json
+    const newPath = this.electronService.pathJoin(packagePath, 'pinmaps', 'pinmap_catalog.json');
+    if (this.electronService.exists(newPath)) {
+      return newPath;
+    }
+    // 旧版：根目录 pinmap_catalog.json
+    const legacyPath = this.electronService.pathJoin(packagePath, 'pinmap_catalog.json');
+    if (this.electronService.exists(legacyPath)) {
+      return legacyPath;
+    }
+    return null;
+  }
+
+  /**
+   * 读取库的 pinmap_catalog.json（兼容根目录和 pinmaps/ 子目录两种位置）
    * @param packagePath 库或开发板包的完整路径
    */
   readPinmapCatalog(packagePath: string): PinmapCatalog | null {
-    const catalogPath = this.electronService.pathJoin(packagePath, 'pinmap_catalog.json');
-    if (!this.electronService.exists(catalogPath)) {
+    const catalogPath = this.resolveCatalogPath(packagePath);
+    if (!catalogPath) {
       return null;
     }
     try {
@@ -619,6 +689,50 @@ export class ConnectionGraphService {
     }
 
     return null;
+  }
+
+  /**
+   * 从 pinmap_catalog.json 构建同库下的类似组件列表（含自身）
+   * @param packagePath 库包路径 (如 .../node_modules/@aily-project/lib-dht)
+   * @param currentFullId 当前组件的 fullId（用于构建 fullId，自身也会包含在列表中）
+   */
+  private buildSimilarComponentsFromCatalog(
+    packagePath: string,
+    currentFullId: string
+  ): SimilarComponent[] {
+    const catalog = this.readPinmapCatalog(packagePath);
+    if (!catalog?.models?.length) return [];
+
+    const result: SimilarComponent[] = [];
+    const { packageSlug } = this.parsePinmapId(currentFullId);
+
+    for (const model of catalog.models) {
+      for (const variant of model.variants || []) {
+        const fullId = this.buildPinmapId(packageSlug, model.id, variant.id);
+
+        let pinmapFile = variant.pinmapFile;
+        if (!pinmapFile && variant.pinmapRef && catalog.sharedPinmaps?.[variant.pinmapRef]) {
+          pinmapFile = catalog.sharedPinmaps[variant.pinmapRef].file;
+        }
+
+        let data: ComponentConfig | undefined;
+        if (pinmapFile) {
+          const pinmapPath = this.electronService.pathJoin(packagePath, pinmapFile);
+          data = this.readComponentConfig(pinmapPath) || undefined;
+        }
+
+        result.push({
+          fullId,
+          modelId: model.id,
+          variantId: variant.id,
+          name: variant.name,
+          modelName: model.name,
+          pinmapFile: pinmapFile || undefined,
+          data,
+        });
+      }
+    }
+    return result;
   }
 
   /**
@@ -1196,8 +1310,8 @@ export class ConnectionGraphService {
           theme: 'dark',
         };
         
-        window['ipcRenderer'].send('connection-graph-updated', payload);
-        console.log('[ConnectionGraphService] 已发送 connection-graph-updated IPC (完整 payload)');
+        window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-updated', data: payload });
+        console.log('[ConnectionGraphService] 已发送 iframe-message-connection-graph (generate-graph-updated)');
       } catch (e) {
         console.warn('[ConnectionGraphService] 发送 IPC 失败:', e);
       }
@@ -1354,8 +1468,16 @@ export class ConnectionGraphService {
           console.log('[getComponentConfigs] trying loadPinmapById:', comp.pinmapId);
           const config = this.loadPinmapById(comp.pinmapId, inferredBasePath);
           if (config) {
-            configs[comp.refId] = config;
-            console.log('[getComponentConfigs] loaded via pinmapId:', comp.refId, config.name);
+            // 从 pinmap_catalog.json 合并类似组件列表
+            const { packageSlug } = this.parsePinmapId(comp.pinmapId);
+            const packagePath = this.electronService.pathJoin(inferredBasePath, '@aily-project', packageSlug);
+            const similarComponents = this.buildSimilarComponentsFromCatalog(packagePath, comp.pinmapId);
+            if (similarComponents.length > 0) {
+              configs[comp.refId] = { ...config, similarComponents };
+            } else {
+              configs[comp.refId] = config;
+            }
+            console.log('[getComponentConfigs] loaded via pinmapId:', comp.refId, config.name, 'similarComponents:', similarComponents.length);
             continue;
           } else {
             console.log('[getComponentConfigs] loadPinmapById returned null');
@@ -1426,10 +1548,8 @@ export class ConnectionGraphService {
     console.log('[buildPayload] componentConfigs keys:', Object.keys(componentConfigs));
 
     return {
+      ...connectionData,
       componentConfigs,
-      components: connectionData.components,
-      connections: connectionData.connections,
-      theme: 'dark',
     };
   }
 
@@ -1736,7 +1856,9 @@ export class ConnectionGraphService {
     try {
       const ref = this.parsePinmapId(pinmapId);
       const packagePath = `${packagesBasePath}/@aily-project/${ref.packageSlug}`;
-      const catalogPath = this.electronService.pathJoin(packagePath, 'pinmap_catalog.json');
+      // 兼容新旧路径：优先使用已存在的位置，新建时使用根目录（旧版）
+      const catalogPath = this.resolveCatalogPath(packagePath)
+        || this.electronService.pathJoin(packagePath, 'pinmap_catalog.json');
 
       let catalog: PinmapCatalog;
 

@@ -19,6 +19,7 @@ import { getDirectoryTreeTool as getDirectoryTreeHandler } from '../getDirectory
 import { grepTool as grepHandler } from '../grepTool';
 import { AilyHost } from '../../core/host';
 import globHandler from '../globTool';
+import { replaceStringInFileTool as replaceStringHandler, multiReplaceStringInFileTool as multiReplaceHandler } from '../replaceStringTool';
 import { TOOLS as LEGACY_TOOLS } from '../tools';
 
 // ============================
@@ -59,36 +60,25 @@ class ReadFileTool implements IAilyTool {
   private resolveLibInfo(path: string): { isLib: boolean; libNickName: string } {
     if (!path) return { isLib: false, libNickName: '' };
 
-    const hasLibPrefix = path.includes('lib-') && (path.endsWith('README.md') || path.endsWith('readme.md'));
-    if (!hasLibPrefix) return { isLib: false, libNickName: '' };
+    const normalized = path.replace(/\\/g, '/');
+    // 检测路径是否在 @aily-project/lib-* 库目录下
+    const libMatch = normalized.match(/@aily-project\/(lib-[^/]+)/);
+    if (!libMatch) return { isLib: false, libNickName: '' };
+
+    const libName = libMatch[1];
 
     // Try to read nickname from package.json
     let nickname = '';
     try {
-      const normalized = path.replace(/\\/g, '/');
       const ailyIdx = normalized.indexOf('/@aily-project/');
-      if (ailyIdx !== -1) {
-        const after = normalized.substring(ailyIdx + '/@aily-project/'.length);
-        const libName = after.split('/')[0];
-        if (libName) {
-          const pkgPath = normalized.substring(0, ailyIdx) + '/@aily-project/' + libName + '/package.json';
-          if (typeof window !== 'undefined' && AilyHost.get().fs?.existsSync?.(pkgPath)) {
-            const pkg = JSON.parse(AilyHost.get().fs.readFileSync(pkgPath, 'utf-8'));
-            nickname = pkg.nickname || '';
-          }
-        }
+      const pkgPath = normalized.substring(0, ailyIdx) + '/@aily-project/' + libName + '/package.json';
+      if (typeof window !== 'undefined' && AilyHost.get().fs?.existsSync?.(pkgPath)) {
+        const pkg = JSON.parse(AilyHost.get().fs.readFileSync(pkgPath, 'utf-8'));
+        nickname = pkg.nickname || '';
       }
     } catch { /* ignore */ }
 
-    // Fallback: extract lib-xxx from path
-    if (!nickname) {
-      const parts = path.split(/[/\\]/);
-      for (const part of parts) {
-        if (part.startsWith('lib-')) { nickname = part; break; }
-      }
-    }
-
-    return { isLib: true, libNickName: nickname };
+    return { isLib: true, libNickName: nickname || libName };
   }
 
   async invoke(args: any, ctx: ToolContext): Promise<ToolUseResult> {
@@ -420,6 +410,56 @@ class GlobTool implements IAilyTool {
 }
 
 // ============================
+// replace_string_in_file
+// ============================
+
+class ReplaceStringInFileTool implements IAilyTool {
+  readonly name = 'replace_string_in_file';
+  readonly schema = findLegacySchema('replace_string_in_file');
+
+  async invoke(args: any, _ctx: ToolContext): Promise<ToolUseResult> {
+    return replaceStringHandler(args);
+  }
+
+  getStartText(args: any): string {
+    let fileName = getFileName(args?.path);
+    if (fileName === 'project.abs') fileName = '项目文件';
+    return `替换: ${fileName}`;
+  }
+
+  getResultText(args: any, result?: ToolUseResult): string {
+    let fileName = getFileName(args?.path);
+    if (fileName === 'project.abs') fileName = '项目文件';
+    if (result?.is_error) return `替换 ${fileName} 异常, 即将重试`;
+    return `替换 ${fileName} 成功`;
+  }
+}
+
+// ============================
+// multi_replace_string_in_file
+// ============================
+
+class MultiReplaceStringInFileTool implements IAilyTool {
+  readonly name = 'multi_replace_string_in_file';
+  readonly schema = findLegacySchema('multi_replace_string_in_file');
+
+  async invoke(args: any, _ctx: ToolContext): Promise<ToolUseResult> {
+    return multiReplaceHandler(args);
+  }
+
+  getStartText(args: any): string {
+    const count = Array.isArray(args?.replacements) ? args.replacements.length : 0;
+    return `批量替换: ${count} 处修改`;
+  }
+
+  getResultText(args: any, result?: ToolUseResult): string {
+    const count = Array.isArray(args?.replacements) ? args.replacements.length : 0;
+    if (result?.is_error) return `批量替换异常, 即将重试`;
+    return `批量替换 ${count} 处修改成功`;
+  }
+}
+
+// ============================
 // 注册所有文件操作类工具
 // ============================
 
@@ -427,6 +467,8 @@ ToolRegistry.register(new ReadFileTool());
 ToolRegistry.register(new CreateFileTool());
 ToolRegistry.register(new CreateFolderTool());
 ToolRegistry.register(new EditFileTool());
+ToolRegistry.register(new ReplaceStringInFileTool());
+ToolRegistry.register(new MultiReplaceStringInFileTool());
 ToolRegistry.register(new DeleteFileTool());
 ToolRegistry.register(new DeleteFolderTool());
 ToolRegistry.register(new CheckExistsTool());

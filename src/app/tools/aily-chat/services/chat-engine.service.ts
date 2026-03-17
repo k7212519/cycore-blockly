@@ -33,6 +33,8 @@ import { AilyHost } from '../core/host';
 import { ToolRegistry } from '../core/tool-registry';
 import { createSecurityContext } from './security.service';
 import { TOOLS } from '../tools/tools';
+import { registerAskUserCallback, unregisterAskUserCallback, AskUserQuestion, AskUserFullResponse, AskUserAnswer } from '../tools/askUserTool';
+import { cleanupAllTerminalSessions } from '../tools/terminalSessionTool';
 
 import { AILY_CHAT_ONBOARDING_CONFIG } from '../../../configs/onboarding.config';
 
@@ -101,6 +103,14 @@ export class ChatEngineService {
   _pendingModelSwitch: ModelConfig | null = null;
   _pendingModeSwitch: string | null = null;
 
+  /** autoSend 消息在 sessionId 未就绪时的暂存区，startSession 完成后自动冲刷 */
+  private _pendingAutoSendText: string | null = null;
+
+  /** ask_user 工具的 Promise resolve 回调（等待用户在聊天界面输入） */
+  _resolveAskUser: ((response: AskUserFullResponse | undefined) => void) | null = null;
+  /** 当前 ask_user 的问题列表（用于事件回调时组装答案） */
+  private _askUserQuestions: AskUserQuestion[] | null = null;
+
   // ==================== 订阅 ====================
   messageSubscription: any;
   private textMessageSubscription: Subscription;
@@ -111,6 +121,7 @@ export class ChatEngineService {
   private configChangedSubscription: Subscription;
   private blockSelectionSubscription: Subscription;
   private subagentProgressSubscription: Subscription;
+  private uiChatMessageSubscription: Subscription;
   private taskActionHandler: ((event: Event) => void) | null = null;
 
   // ==================== 外部引用 ====================
@@ -132,6 +143,7 @@ export class ChatEngineService {
   get isWaiting() { return this._isWaiting; }
   set isWaiting(value: boolean) {
     this._isWaiting = value;
+    this.chatService.isWaiting = value;
     AilyHost.get().blockly.aiWaiting = value;
     if (!value) {
       this.aiWriting = false;
@@ -175,10 +187,22 @@ export class ChatEngineService {
    */
   init(chatTextareaRef: ElementRef | null): void {
     this.chatTextareaRef = chatTextareaRef;
+    this.chatService.isWaiting = this._isWaiting;
 
     this.prjPath = AilyHost.get().project.currentProjectPath === AilyHost.get().project.projectRootPath
       ? '' : AilyHost.get().project.currentProjectPath;
     this.prjRootPath = AilyHost.get().project.projectRootPath;
+
+    // 初始化时：如果项目已打开，立即执行孤儿领养（订阅的 skip(1) 会跳过初始值）
+    if (this.prjPath) {
+      const adopted = this.chatHistoryService.adoptOrphanSessions(this.prjPath, this.prjRootPath);
+      if (adopted > 0) {
+        console.log(`[ChatEngine] 初始化时领养 ${adopted} 个孤儿会话到: ${this.prjPath}`);
+      }
+    }
+
+    // 注册 ask_user 回调：在聊天界面显示全部问题并等待用户回答
+    registerAskUserCallback((questions) => this._handleAskUser(questions));
 
     this.setupSubscriptions();
   }
@@ -187,8 +211,13 @@ export class ChatEngineService {
    * 引擎销毁 — 由 Component 的 ngOnDestroy 调用
    */
   destroy(): void {
+    this.chatService.isWaiting = false;
     this.session.saveCurrentSession();
     this.chatHistoryService.flushAll();
+
+    unregisterAskUserCallback();
+    cleanupAllTerminalSessions();
+    this._resolveAskUser = null;
 
     this.cleanupSubscriptions();
     this.session.disconnect();
@@ -201,12 +230,22 @@ export class ChatEngineService {
   // ==================== 订阅管理 ====================
 
   private setupSubscriptions(): void {
-    // 订阅外部文本消息
+    // 订阅外部文本消息（ChatService 内部 Subject）
     this.textMessageSubscription = this.chatService.getTextMessages().subscribe(
       message => {
         this.receiveTextFromExternal(message.text, message.options);
       }
     );
+
+    // 订阅通过 UiService 从外部发来的聊天消息（通过 AilyHost 抽象层解耦）
+    const uiChatMessage$ = AilyHost.get().ui?.chatMessage$;
+    if (uiChatMessage$) {
+      this.uiChatMessageSubscription = uiChatMessage$.subscribe(
+        (message: any) => {
+          this.receiveTextFromExternal(message.text, message.options);
+        }
+      );
+    }
 
     AilyHost.get().authFull?.initializeAuth().then(() => {
       AilyHost.get().authFull?.userInfo$.subscribe(userInfo => {
@@ -259,6 +298,8 @@ export class ChatEngineService {
             this.msg.appendMessage('aily', `\n\n> ❌ ${event.content}\n\n`, agentSource);
             break;
         }
+        // 子Agent内容更新后，驱动外部消息容器也滚动到底部
+        this.scrollManager.scrollToBottom();
       });
 
     // 订阅项目路径变化
@@ -268,6 +309,11 @@ export class ChatEngineService {
       const rootPath = AilyHost.get().project.projectRootPath;
       this.prjPath = newPath === rootPath ? '' : newPath;
       this.prjRootPath = rootPath;
+
+      // 同步更新 currentSessionPath，防止保存到旧路径/rootPath
+      if (newPath && newPath !== rootPath) {
+        this.chatService.currentSessionPath = newPath;
+      }
 
       // 新建项目时自动领养根目录下的孤儿会话
       if (newPath && newPath !== rootPath) {
@@ -293,6 +339,13 @@ export class ChatEngineService {
           this.session.startSession().then(() => {
             this.session.getHistory();
             this.checkFirstUsage();
+            // 冲刷因 sessionId 未就绪而暂存的 autoSend 消息
+            if (this._pendingAutoSendText) {
+              const txt = this._pendingAutoSendText;
+              this._pendingAutoSendText = null;
+              this.inputValue = txt;
+              setTimeout(() => this.send('user', txt, true), 50);
+            }
           }).catch(() => {});
         }
 
@@ -344,6 +397,7 @@ export class ChatEngineService {
     if (this.configChangedSubscription) { this.configChangedSubscription.unsubscribe(); this.configChangedSubscription = null; }
     if (this.blockSelectionSubscription) { this.blockSelectionSubscription.unsubscribe(); this.blockSelectionSubscription = null; }
     if (this.subagentProgressSubscription) { this.subagentProgressSubscription.unsubscribe(); this.subagentProgressSubscription = null; }
+    if (this.uiChatMessageSubscription) { this.uiChatMessageSubscription.unsubscribe(); this.uiChatMessageSubscription = null; }
     if (this.taskActionHandler) { document.removeEventListener('aily-task-action', this.taskActionHandler); this.taskActionHandler = null; }
     this.isSessionStarting = false;
     this.mcpInitialized = false;
@@ -465,6 +519,11 @@ Do not create non-existent boards and libraries.
       this.scrollManager.scrollToBottom();
       return;
     }
+    // 当前有对话正在执行时，拦截 autoSend 请求并提示用户
+    if (options?.autoSend && this.isWaiting) {
+      this.message.warning('当前对话正在执行中，请等待完成后再试');
+      return;
+    }
     if (options?.cover === false) {
       this.inputValue = this.inputValue ? this.inputValue + '\n' + text : text;
     } else {
@@ -476,7 +535,16 @@ Do not create non-existent boards and libraries.
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
       }
-      if (options?.autoSend) { this.send('user', this.inputValue, true); }
+      if (options?.autoSend) {
+        if (this.sessionId) {
+          // sessionId 已就绪，直接发送
+          this.send('user', this.inputValue, true);
+        } else {
+          // sessionId 尚未就绪（startSession 仍在进行 / 未登录）
+          // 暂存文本，等待 startSession 完成后自动冲刷
+          this._pendingAutoSendText = this.inputValue;
+        }
+      }
     }, 100);
   }
 
@@ -524,6 +592,22 @@ Do not create non-existent boards and libraries.
       this.repetitionDetectionService.resetStreamTokens();
       this.insideThink = false;
       this.generateTitle(text);
+
+      // @agentName 直连路由：跳过 mainAgent，直接与子 Agent 对话
+      const atMatch = text.match(/^@(\w+)\s+([\s\S]+)/);
+      if (atMatch) {
+        const targetAgent = atMatch[1];
+        const agentText = atMatch[2].trim();
+        const availableAgents = SubagentSessionService.getAvailableAgents();
+        if (availableAgents.includes(targetAgent) && agentText) {
+          this.isWaiting = true;
+          this.msg.appendMessage('user', text);
+          this.msg.appendMessage('aily', '[thinking...]', targetAgent);
+          if (clear) { this.inputValue = ''; }
+          this.sendToSubagentDirect(targetAgent, agentText);
+          return;
+        }
+      }
 
       const resourcesText = this.resourceManager.getResourcesText();
       if (resourcesText) {
@@ -585,6 +669,40 @@ Do not create non-existent boards and libraries.
   }
 
   resetChat(): Promise<void> { return this.session.startSession(); }
+
+  // ==================== @agent 直连对话 ====================
+
+  /**
+   * 用户通过 @agentName 直接与 subagent 对话
+   * 跳过 mainAgent 调度，直连目标 agent
+   */
+  private async sendToSubagentDirect(agentName: string, userText: string): Promise<void> {
+    this.isWaiting = true;
+    this.currentMessageSource = agentName;
+
+    // 将 user message 记录到主对话历史（保持对话完整性）
+    this.conversationMessages.push({ role: 'user', content: `@${agentName} ${userText}` });
+
+    try {
+      const result = await this.subagentSessionService.directChat(agentName, userText);
+
+      // 将 subagent 回复记录到主对话历史
+      this.conversationMessages.push({ role: 'assistant', content: `[${agentName}] ${result}` });
+
+      // 确保最后一条消息标记完成
+      if (this.list.length > 0 && this.list[this.list.length - 1].role === 'aily') {
+        this.list[this.list.length - 1].state = 'done';
+      }
+    } catch (error: any) {
+      const errMsg = error?.message || `${agentName} 执行失败`;
+      this.msg.appendMessage('aily', `\n\`\`\`aily-error\n{\n  "message": "${this.msg.makeJsonSafe(errMsg)}"}\n\`\`\`\n\n`, agentName);
+    } finally {
+      this.currentMessageSource = 'mainAgent';
+      this.isWaiting = false;
+      this.isCompleted = true;
+      this.session.saveCurrentSession();
+    }
+  }
 
   // ==================== 停止 ====================
 
@@ -795,5 +913,117 @@ Do not create non-existent boards and libraries.
   private onOnboardingClosed(): void {
     AilyHost.get().config.data.ailyChatOnboardingCompleted = true;
     AilyHost.get().config.save?.();
+  }
+
+  // ==================== ask_user 交互处理 ====================
+
+  /**
+   * ask_user 工具的 UI 层回调。
+   * 在聊天界面显示全部问题，等待用户逐题回答后 resolve 完整结果。
+   */
+  private _handleAskUser(questions: AskUserQuestion[]): Promise<AskUserFullResponse | undefined> {
+    return new Promise<AskUserFullResponse | undefined>((resolve) => {
+      this._askUserQuestions = questions;
+
+      const questionBlockData = { questions };
+      this.msg.appendMessage('aily',
+        `\n\`\`\`aily-question\n${JSON.stringify(questionBlockData)}\n\`\`\`\n\n`
+      );
+
+      this._resolveAskUser = resolve;
+
+      const handler = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (!detail || !this._resolveAskUser) return;
+        document.removeEventListener('aily-question-answer', handler);
+
+        // 将用户回答写回 aily-question 块，供历史恢复时显示
+        if (detail.answers) {
+          this._patchAilyQuestionBlock(detail.answers);
+        }
+
+        const resolveRef = this._resolveAskUser;
+        this._resolveAskUser = null;
+        this._askUserQuestions = null;
+        resolveRef(detail as AskUserFullResponse);
+      };
+      document.addEventListener('aily-question-answer', handler);
+    });
+  }
+
+  /**
+   * 将用户的回答数据写回 chatList 中的 aily-question 块，
+   * 使其在历史模式加载时能恢复选择状态。
+   * 使用 indexOf 替代 regex 以避免转义/匹配问题。
+   */
+  private _patchAilyQuestionBlock(answers: Record<string, any>): void {
+    const MARKER = '```aily-question';
+    const FENCE = '```';
+
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const item = this.list[i];
+      if (item.role !== 'aily') continue;
+
+      // 使用 lastIndexOf 找最后一个（最新的）aily-question 块
+      const markerIdx = item.content.lastIndexOf(MARKER);
+      if (markerIdx === -1) continue;
+
+      // 找到 marker 后面的换行（JSON 起始位置）
+      const jsonStart = item.content.indexOf('\n', markerIdx) + 1;
+      if (jsonStart <= 0) continue;
+
+      // 找到闭合 ``` （JSON 结束位置）
+      const fenceEnd = item.content.indexOf(FENCE, jsonStart);
+      if (fenceEnd <= jsonStart) continue;
+
+      const jsonStr = item.content.substring(jsonStart, fenceEnd).trim();
+      try {
+        const data = JSON.parse(jsonStr);
+        data.answers = answers;
+        const patched = item.content.substring(0, jsonStart)
+          + JSON.stringify(data) + '\n'
+          + item.content.substring(fenceEnd);
+        item.content = patched;
+        console.log('[ChatEngine] aily-question block patched with answers, keys:', Object.keys(answers));
+      } catch (e) {
+        console.warn('[ChatEngine] Failed to patch aily-question JSON:', e);
+      }
+      break;
+    }
+
+    // 标记脏数据确保 autoSave 能捕获
+    if (this.sessionId) {
+      this.chatHistoryService.markDirty(this.sessionId);
+    }
+  }
+
+  /**
+   * 用户在聊天界面回答 ask_user 问题后调用此方法（兼容外部调用）。
+   */
+  resolveAskUserResponse(answer: string, wasFreeform: boolean): void {
+    if (this._resolveAskUser && this._askUserQuestions) {
+      const resolve = this._resolveAskUser;
+      this._resolveAskUser = null;
+
+      const q = this._askUserQuestions[0];
+      const questionKey = q?.question || 'unknown';
+      const ans: AskUserAnswer = wasFreeform
+        ? { selected: [], freeText: answer, skipped: false }
+        : { selected: [answer], freeText: null, skipped: false };
+      this._askUserQuestions = null;
+      resolve({ answers: { [questionKey]: ans } });
+    }
+  }
+
+  /**
+   * 用户跳过/取消 ask_user 问题。
+   */
+  skipAskUserResponse(): void {
+    if (this._resolveAskUser) {
+      const resolve = this._resolveAskUser;
+      this._resolveAskUser = null;
+      this._askUserQuestions = null;
+      resolve(undefined);
+    }
   }
 }

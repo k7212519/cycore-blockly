@@ -27,7 +27,6 @@ import {
   ContextBudgetService,
   TiktokenService,
   createSecurityContext,
-  ChatService,
   TOOLS,
   ToolUseResult,
   // 连线图工具
@@ -258,14 +257,20 @@ export class BackgroundAgentService implements OnDestroy {
   private setupIpcListeners(): void {
     if (!this.electronService.isElectron || !window['ipcRenderer']) return;
 
-    window['ipcRenderer'].on('schematic-regenerate-request', () => {
-      console.log('[BackgroundAgent] 收到重新生成请求');
-      this.generateSchematic();
-    });
-
-    window['ipcRenderer'].on('schematic-sync-to-code-request', () => {
-      console.log('[BackgroundAgent] 收到同步到代码请求');
-      this.handleSyncToCodeRequest();
+    window['ipcRenderer'].on('iframe-message-connection-graph', (_event: any, payload: { type: string; data?: unknown }) => {
+      // send-to-chat：子窗口发送文本到 aily-chat
+      if (payload?.type === 'send-to-chat') {
+        const { text, autoSend } = (payload.data || {}) as { text?: string; autoSend?: boolean };
+        if (text && window.openAndSendToAilyChat) {
+          window.openAndSendToAilyChat(text, { autoSend: autoSend !== false });
+        }
+        return;
+      }
+      // generate-graph-code：兼容旧调用，转发到 aily-chat
+      if (payload?.type === 'generate-graph-code') {
+        console.log('[BackgroundAgent] 收到同步到代码请求');
+        this.handleSyncToCodeRequest();
+      }
     });
   }
 
@@ -751,8 +756,10 @@ ${(connectionData.connections || []).length} 条连线
 
 请分析连线图，在代码中添加或修改对应的传感器初始化和引脚配置代码。`;
 
-    // 通过 ChatService 静态方法发送到 aily-chat 并自动发送
-    ChatService.sendToChat(prompt, { cover: true, autoSend: true });
+    // 通过全局 API 发送到 aily-chat 并自动发送
+    if (window.openAndSendToAilyChat) {
+      window.openAndSendToAilyChat(prompt, { autoSend: true });
+    }
   }
 
   // =========================================================================
@@ -774,9 +781,9 @@ ${(connectionData.connections || []).length} 条连线
     // RxJS Subject（供主窗口内组件订阅）
     this.progress$.next(event);
 
-    // IPC 推送到连线图子窗口
+    // IPC 推送到连线图子窗口（规范：iframe-message-connection-graph）
     if (this.electronService.isElectron && window['ipcRenderer']) {
-      window['ipcRenderer'].send('schematic-generation-progress', event);
+      window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-progress', data: event });
     }
   }
 }
