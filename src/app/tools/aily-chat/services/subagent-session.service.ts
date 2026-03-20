@@ -149,7 +149,7 @@ export class SubagentSessionService implements OnDestroy {
    */
   async executeSubagentToolCall(
     request: SubagentToolCallRequest,
-    timeout: number = 120000,
+    timeout?: number,
   ): Promise<string> {
     const { tool_id, tool_name, agent_name } = request;
 
@@ -171,8 +171,9 @@ export class SubagentSessionService implements OnDestroy {
       ? `上下文信息:\n${context}\n\n任务:\n${task}`
       : task;
 
-    // 通过 per-agent 队列串行化执行
-    return this.enqueueAgentWork(agent_name, tool_id, userContent, timeout);
+    // 通过 per-agent 队列串行化执行（未指定 timeout 则使用配置值）
+    const effectiveTimeout = timeout ?? this.ailyChatConfigService.subagentTimeout;
+    return this.enqueueAgentWork(agent_name, tool_id, userContent, effectiveTimeout);
   }
 
   /**
@@ -204,12 +205,13 @@ export class SubagentSessionService implements OnDestroy {
   async directChat(
     agentName: string,
     userText: string,
-    timeout: number = 120000,
+    timeout?: number,
   ): Promise<string> {
     const toolId = `direct_${agentName}_${Date.now()}`;
 
-    // 通过 per-agent 队列串行化执行
-    return this.enqueueAgentWork(agentName, toolId, userText, timeout);
+    // 通过 per-agent 队列串行化执行（未指定 timeout 则使用配置值）
+    const effectiveTimeout = timeout ?? this.ailyChatConfigService.subagentTimeout;
+    return this.enqueueAgentWork(agentName, toolId, userText, effectiveTimeout);
   }
 
   // =========================================================================
