@@ -55,10 +55,12 @@ import { ScrollManagerService } from './services/scroll-manager.service';
 import { ResourceManagerService } from './services/resource-manager.service';
 import { MenuManagerService } from './services/menu-manager.service';
 import { ChatEngineService } from './services/chat-engine.service';
+import { EditCheckpointService } from './services/edit-checkpoint.service';
 
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { AuthService } from '../../services/auth.service';
 import { FloatingTodoComponent } from './components/floating-todo/floating-todo.component';
+import { AilyEditsViewerComponent } from './components/aily-edits-viewer/aily-edits-viewer.component';
 import { TodoUpdateService } from './services/todoUpdate.service';
 import { ArduinoLintService } from './services/arduino-lint.service';
 import { BlocklyService } from '../../editors/blockly-editor/services/blockly.service';
@@ -88,20 +90,20 @@ export { ToolCallState };
     FormsModule,
     CommonModule,
     XDialogComponent,
-    DialogComponent,
     NzButtonModule,
     ToolContainerComponent,
     NzResizableModule,
     NzToolTipModule,
     MenuComponent,
     FloatingTodoComponent,
+    AilyEditsViewerComponent,
     TranslateModule,
     LoginComponent,
     AilyChatSettingsComponent
   ],
   templateUrl: './aily-chat.component.html',
   styleUrl: './aily-chat.component.scss',
-  providers: [ScrollManagerService, ResourceManagerService, MenuManagerService, ChatEngineService],
+  providers: [ScrollManagerService, ResourceManagerService, MenuManagerService, EditCheckpointService, ChatEngineService],
 })
 export class AilyChatComponent implements OnDestroy {
   options = {
@@ -154,6 +156,7 @@ export class AilyChatComponent implements OnDestroy {
 
   bottomHeight = 180;
   showSettings = false;
+  activeCheckpointAnchorIndex: number | null = null;
 
   constructor(
     private uiService: UiService,
@@ -234,6 +237,10 @@ export class AilyChatComponent implements OnDestroy {
 
     // 初始化引擎（订阅、路径等）
     this.engine.init(this.chatTextarea);
+  }
+
+  onCheckpointHoverChange(anchorIndex: number | null): void {
+    this.activeCheckpointAnchorIndex = anchorIndex;
   }
 
   ngAfterViewInit(): void {

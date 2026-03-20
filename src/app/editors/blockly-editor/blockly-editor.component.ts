@@ -1,5 +1,4 @@
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { LibManagerComponent } from './components/lib-manager/lib-manager.component';
 import { NotificationComponent } from '../../components/notification/notification.component';
 import { UiService } from '../../services/ui.service';
@@ -22,8 +21,7 @@ import { HistoryService } from './services/history.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { BLOCKLY_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 import { NoticeService } from '../../services/notice.service';
-import { NzTabsModule } from 'ng-zorro-antd/tabs';
-import { GraphEditorComponent } from '../graph-editor/graph-editor.component';
+import { FloatSiderComponent } from '../../components/float-sider/float-sider.component';
 
 @Component({
   selector: 'app-blockly-editor',
@@ -33,34 +31,18 @@ import { GraphEditorComponent } from '../graph-editor/graph-editor.component';
     NotificationComponent,
     TranslateModule,
     DevToolComponent,
-    NzTabsModule,
-    GraphEditorComponent,
+    FloatSiderComponent,
   ],
   providers: [_BuilderService, _UploaderService, BitmapUploadService],
   templateUrl: './blockly-editor.component.html',
   styleUrl: './blockly-editor.component.scss',
 })
-export class BlocklyEditorComponent implements OnInit, OnDestroy {
+export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   showLibraryManager = false;
+  showFloatSider = false;
 
-  tabs: any = [
-    {
-      key: 'blockly',
-      title: 'Blockly',
-      component: BlocklyComponent,
-      closable: false,
-      display: true,
-    },
-    // {
-    //   key: 'graph',
-    //   title: '连线图',
-    //   component: GraphEditorComponent,
-    //   closable: true,
-    //   display: false
-    // }
-  ];
-  activeTabIndex = 0;
-  private actionSubscription?: Subscription;
+  private _onMouseMoveBound = this._onMouseMove.bind(this);
+  private _onMouseLeaveBound = this._onMouseLeave.bind(this);
 
   devmode;
 
@@ -85,21 +67,11 @@ export class BlocklyEditorComponent implements OnInit, OnDestroy {
     private onboardingService: OnboardingService,
     private translate: TranslateService,
     private noticeService: NoticeService,
-  ) {}
+    private el: ElementRef,
+    private ngZone: NgZone,
+  ) { }
 
   ngOnInit(): void {
-    this.actionSubscription = this.uiService.actionSubject.subscribe(
-      (e: any) => {
-        if (
-          e.type === 'editor-tab' &&
-          e.action === 'switch' &&
-          e.data === 'graph'
-        ) {
-          this.switchToGraphTab();
-        }
-      },
-    );
-
     this.activatedRoute.queryParams.subscribe((params) => {
       if (params['path']) {
         console.log('project path', params['path']);
@@ -126,8 +98,32 @@ export class BlocklyEditorComponent implements OnInit, OnDestroy {
     window.history.pushState(null, '', window.location.href);
   }
 
+  // 用于弹出侧边栏的鼠标事件监听，放在 Zone 外避免频繁触发变更检测
+  ngAfterViewInit(): void {
+    // 在 Zone 外注册鼠标监听，避免每次移动都触发变更检测
+    this.ngZone.runOutsideAngular(() => {
+      this.el.nativeElement.addEventListener('mousemove', this._onMouseMoveBound);
+      this.el.nativeElement.addEventListener('mouseleave', this._onMouseLeaveBound);
+    });
+  }
+
+  private _onMouseMove(event: MouseEvent): void {
+    const rect = this.el.nativeElement.getBoundingClientRect();
+    const shouldShow = (rect.right - event.clientX) <= 70;
+    if (shouldShow !== this.showFloatSider) {
+      this.showFloatSider = shouldShow;
+      this.ngZone.run(() => this.cd.markForCheck());
+    }
+  }
+
+  private _onMouseLeave(): void {
+    if (this.showFloatSider) {
+      this.showFloatSider = false;
+      this.ngZone.run(() => this.cd.markForCheck());
+    }
+  }
+
   ngOnDestroy(): void {
-    this.actionSubscription?.unsubscribe();
     this._projectService.destroy();
     this._builderService.cancel();
     this._builderService.destroy();
@@ -135,6 +131,8 @@ export class BlocklyEditorComponent implements OnInit, OnDestroy {
     this._uploadService.destroy();
     this.electronService.setTitle('aily blockly');
     this.blocklyService.reset();
+    this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);
+    this.el.nativeElement.removeEventListener('mouseleave', this._onMouseLeaveBound);
   }
 
   async loadProject(projectPath) {
@@ -169,6 +167,7 @@ export class BlocklyEditorComponent implements OnInit, OnDestroy {
           title: this.translate.instant('NPM.INSTALLING_TITLE'),
           text: this.translate.instant('BLOCKLY_EDITOR.INSTALLING_DEPS'),
           state: 'doing',
+          icon: 'fa-light fa-cubes',
           showProgress: false,
         });
       }, 0);
@@ -293,39 +292,4 @@ export class BlocklyEditorComponent implements OnInit, OnDestroy {
     this.projectService.projectOpen();
   }
 
-  switchToGraphTab(): void {
-    const graphIndex = this.tabs.findIndex((t) => t.key === 'graph');
-    if (graphIndex >= 0) {
-      this.activeTabIndex = graphIndex;
-    } else {
-      // tab 被关闭后需重新添加
-      const graphTab = {
-        key: 'graph',
-        title: '连线图',
-        component: GraphEditorComponent,
-        closable: true,
-        display: true,
-      };
-      this.tabs.push(graphTab);
-      this.activeTabIndex = this.tabs.length - 1;
-    }
-    this.cd.detectChanges();
-  }
-
-  closeTab({ index }: { index: number }): void {
-    if (this.tabs[index].closable) {
-      this.tabs[index].display = false;
-    }
-    // 立即切换选中状态，使用户立即看到内容切换，避免等待 iframe 销毁
-    if (index === this.activeTabIndex) {
-      this.activeTabIndex = index > 0 ? index - 1 : 0;
-    } else if (index < this.activeTabIndex) {
-      this.activeTabIndex--;
-    }
-    // 延迟移除 tab，将 iframe 销毁放到下一帧，避免阻塞主线程导致视图卡顿
-    setTimeout(() => {
-      this.tabs.splice(index, 1);
-      this.cd.detectChanges();
-    }, 0);
-  }
 }

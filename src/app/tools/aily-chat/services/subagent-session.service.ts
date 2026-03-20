@@ -18,7 +18,7 @@
 
 import { Injectable, OnDestroy } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Subject, Observable } from 'rxjs';
+import { Subject, Observable, Subscription } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatAPI } from '../core/api-endpoints';
 import { AilyHost } from '../core/host';
@@ -31,6 +31,7 @@ import { ToolRegistry } from '../core/tool-registry';
 import '../tools/registered/register-all';
 
 import { fetchTool, FetchToolService } from '../tools/fetchTool';
+import { ChatService } from './chat.service';
 
 // ===== 类型定义 =====
 
@@ -94,16 +95,27 @@ export class SubagentSessionService implements OnDestroy {
   private sessions = new Map<string, SubagentSession>();
   /** 进度事件流（供 UI 消费，可在 subagent 面板实时展示） */
   private progress$ = new Subject<SubagentProgressEvent>();
-  /** 活跃的 fetch reader（用于取消） */
-  private activeReaders = new Map<string, ReadableStreamDefaultReader<Uint8Array>>();
+  /** 活跃的 Observable 订阅（用于取消，unsubscribe 触发 teardown 优雅关闭流） */
+  private activeSubscriptions = new Map<string, Subscription>();
   /** 取消标记 */
   private abortedToolIds = new Set<string>();
   /** 工具 fetch 服务 */
   private fetchToolService: FetchToolService;
+  /**
+   * Per-agent 串行化队列：确保同一 agentName 的调用严格顺序执行。
+   *
+   * 参考 Copilot 模型：subagent 本质上是一个 tool，父 loop await 完成后才继续。
+   * 由于我们的 subagent 从 SSE 事件中 fire-and-forget 调用，无法在调用侧 await，
+   * 因此在 SubagentSessionService 内部通过 Promise chain 实现等效的串行化保证：
+   * - 同一 agent 的多次调用排队执行，不会并发修改 session.messages
+   * - 不同 agent 之间互不影响，可并行执行
+   */
+  private agentQueues = new Map<string, Promise<any>>();
 
   constructor(
     private http: HttpClient,
     private ailyChatConfigService: AilyChatConfigService,
+    private chatService: ChatService,
   ) {
     this.fetchToolService = new FetchToolService(this.http);
   }
@@ -155,42 +167,12 @@ export class SubagentSessionService implements OnDestroy {
 
     const task = args['task'] || args['content'] || JSON.stringify(args);
     const context = args['context'] || '';
+    const userContent = context
+      ? `上下文信息:\n${context}\n\n任务:\n${task}`
+      : task;
 
-    // console.log(`[SubagentSession] 执行 subagent 工具: ${tool_name}, agent: ${agent_name}, task: ${task.substring(0, 100)}...`);
-
-    // 1. 获取或创建 subagent 会话
-    const session = await this.getOrCreateSession(agent_name);
-
-    // 标记为执行中
-    session.running = true;
-    this.emitProgress('started', agent_name, tool_id, `正在执行 ${agent_name}...`);
-
-    try {
-      // 2. 构建用户消息
-      const userContent = context
-        ? `上下文信息:\n${context}\n\n任务:\n${task}`
-        : task;
-
-      // 3. 直连 subagent 执行并收集回复
-      const result = await this.chatWithSubagent(
-        session,
-        userContent,
-        tool_id,
-        timeout,
-      );
-
-      this.emitProgress('completed', agent_name, tool_id, `${agent_name} 执行完成`);
-      // console.log(`[SubagentSession] ${agent_name} 执行完成, 结果长度: ${result.length}`);
-
-      return result;
-    } catch (error: any) {
-      const errMsg = error.message || `${agent_name} 执行失败`;
-      this.emitProgress('error', agent_name, tool_id, errMsg);
-      console.error(`[SubagentSession] ${agent_name} 执行失败:`, error);
-      throw error;
-    } finally {
-      session.running = false;
-    }
+    // 通过 per-agent 队列串行化执行
+    return this.enqueueAgentWork(agent_name, tool_id, userContent, timeout);
   }
 
   /**
@@ -226,12 +208,57 @@ export class SubagentSessionService implements OnDestroy {
   ): Promise<string> {
     const toolId = `direct_${agentName}_${Date.now()}`;
 
+    // 通过 per-agent 队列串行化执行
+    return this.enqueueAgentWork(agentName, toolId, userText, timeout);
+  }
+
+  // =========================================================================
+  // Per-agent 串行化队列
+  // =========================================================================
+
+  /**
+   * 将一次 agent 调用排入该 agent 的串行化队列。
+   *
+   * 保证同一 agentName 的调用严格顺序执行：
+   * - 上一次调用完成（成功/失败）后，下一次才开始
+   * - 不同 agentName 互不阻塞，可并行
+   * - session.running 真正作为互斥标记生效
+   */
+  private enqueueAgentWork(
+    agentName: string,
+    toolId: string,
+    userContent: string,
+    timeout: number,
+  ): Promise<string> {
+    const prevWork = this.agentQueues.get(agentName) || Promise.resolve();
+
+    const currentWork = prevWork.then(() =>
+      this.doAgentWork(agentName, toolId, userContent, timeout)
+    );
+
+    // 更新队列（catch 防止上一个的 reject 阻塞后续入队）
+    this.agentQueues.set(agentName, currentWork.catch(() => {}));
+
+    return currentWork;
+  }
+
+  /**
+   * 实际执行一次 agent 调用（串行化保证只有一个同时在跑）
+   */
+  private async doAgentWork(
+    agentName: string,
+    toolId: string,
+    userContent: string,
+    timeout: number,
+  ): Promise<string> {
     const session = await this.getOrCreateSession(agentName);
+
+    // session.running 此时一定是 false（队列串行化保证）
     session.running = true;
     this.emitProgress('started', agentName, toolId, `正在执行 ${agentName}...`);
 
     try {
-      const result = await this.chatWithSubagent(session, userText, toolId, timeout);
+      const result = await this.chatWithSubagent(session, userContent, toolId, timeout);
       this.emitProgress('completed', agentName, toolId, `${agentName} 执行完成`);
       return result;
     } catch (error: any) {
@@ -248,10 +275,10 @@ export class SubagentSessionService implements OnDestroy {
    */
   cancelToolCall(toolId: string): void {
     this.abortedToolIds.add(toolId);
-    const reader = this.activeReaders.get(toolId);
-    if (reader) {
-      reader.cancel().catch(() => {});
-      this.activeReaders.delete(toolId);
+    const sub = this.activeSubscriptions.get(toolId);
+    if (sub) {
+      sub.unsubscribe();
+      this.activeSubscriptions.delete(toolId);
     }
   }
 
@@ -260,18 +287,22 @@ export class SubagentSessionService implements OnDestroy {
    */
   cleanupAll(): void {
     // 先标记所有活跃工具为已取消（确保正在执行中的 chatWithSubagent 循环能检测到）
-    for (const toolId of this.activeReaders.keys()) {
+    for (const toolId of this.activeSubscriptions.keys()) {
       this.abortedToolIds.add(toolId);
     }
 
-    // 取消所有正在执行的 reader
-    for (const [toolId, reader] of this.activeReaders) {
-      reader.cancel().catch(() => {});
+    // 取消所有活跃订阅（unsubscribe 触发 teardown → aborted=true + reader.cancel()）
+    for (const [, sub] of this.activeSubscriptions) {
+      sub.unsubscribe();
     }
-    this.activeReaders.clear();
+    this.activeSubscriptions.clear();
+
+    // 清空所有 agent 队列（排队中的调用不再执行）
+    this.agentQueues.clear();
 
     // 关闭服务端会话
     for (const [_, session] of this.sessions) {
+      session.running = false;
       this.closeServerSession(session.sessionId);
     }
     this.sessions.clear();
@@ -286,10 +317,12 @@ export class SubagentSessionService implements OnDestroy {
   cleanupAgent(agentName: string): void {
     const session = this.sessions.get(agentName);
     if (session) {
+      session.running = false;
       this.closeServerSession(session.sessionId);
       this.sessions.delete(agentName);
-      // console.log(`[SubagentSession] 已清理 ${agentName} 的会话`);
     }
+    // 清除该 agent 的串行化队列
+    this.agentQueues.delete(agentName);
   }
 
   // =========================================================================
@@ -522,101 +555,86 @@ export class SubagentSessionService implements OnDestroy {
 
   /**
    * 发送一轮 chatRequest 并处理 SSE 流
+   *
+   * 与 mainAgent 使用相同的 ChatService.chatRequest() Observable 基础设施：
+   * - 取消 = subscription.unsubscribe() → teardown 设 aborted=true + reader.cancel()
+   * - 超时 = setTimeout → unsubscribe，不再使用 AbortController
+   * - 错误 = Observable error 回调，不会产生 BodyStreamBuffer was aborted
+   *
    * 流事件中遇到非 internal 的 tool_call_request 会立即本地执行，结果收集到 turnState
    */
-  private async processSubagentChatTurn(
+  private processSubagentChatTurn(
     session: SubagentSession,
     toolId: string,
     timeout: number,
     turnState: SubagentTurnState,
   ): Promise<void> {
-    const token = await AilyHost.get().auth.getToken!();
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let timeoutId: ReturnType<typeof setTimeout>;
 
-    const agentTools = this.getToolsForAgent(session.agentName);
-    const payload = {
-      session_id: session.sessionId,
-      messages: session.messages,
-      tools: agentTools,
-      mode: 'agent',
-      agent: session.agentName,
-    };
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        this.activeSubscriptions.delete(toolId);
+      };
+      const settleResolve = () => {
+        if (settled) return; settled = true; cleanup(); resolve();
+      };
+      const settleReject = (err: Error) => {
+        if (settled) return; settled = true; cleanup(); reject(err);
+      };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const agentTools = this.getToolsForAgent(session.agentName);
 
-    let response: Response;
-    try {
-      response = await fetch(`${ChatAPI.chatRequest}/${session.sessionId}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        throw new Error(`${session.agentName} 执行超时 (${timeout / 1000}s)`);
-      }
-      throw error;
-    }
+      // 复用 ChatService.chatRequest()，与 mainAgent 完全一致的流处理
+      const source$ = this.chatService.chatRequest(
+        session.sessionId,
+        session.messages,
+        agentTools,
+        'agent',
+        undefined, undefined, undefined,
+        session.agentName,
+      );
 
-    if (!response.ok) {
-      clearTimeout(timeoutId);
-      throw new Error(`${session.agentName} HTTP ${response.status}: ${response.statusText}`);
-    }
+      // 收集异步工具执行的 Promise（tool_call_request 触发的 handleLocalToolCall）
+      const pendingWork: Promise<void>[] = [];
 
-    const reader = response.body!.getReader();
-    this.activeReaders.set(toolId, reader);
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        if (this.abortedToolIds.has(toolId)) {
-          throw new Error(`${session.agentName} 执行被取消`);
-        }
-
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          if (this.abortedToolIds.has(toolId)) break;
-
-          try {
-            const event = JSON.parse(line);
-            await this.handleSubagentStreamEvent(event, session.agentName, toolId, turnState);
-          } catch (e) {
-            console.warn(`[SubagentSession] JSON 解析失败:`, line, e);
+      const sub = source$.subscribe({
+        next: (event: any) => {
+          if (this.abortedToolIds.has(toolId)) {
+            sub.unsubscribe();
+            settleReject(new Error(`${session.agentName} 执行被取消`));
+            return;
           }
-        }
-      }
+          const work = this.handleSubagentStreamEvent(event, session.agentName, toolId, turnState);
+          pendingWork.push(work);
+        },
+        error: (err: any) => {
+          // Observable teardown（unsubscribe）触发时不会进入 error
+          // 这里只处理真正的网络/HTTP 错误
+          if (this.abortedToolIds.has(toolId)) {
+            settleReject(new Error(`${session.agentName} 执行被取消`));
+          } else {
+            const msg = err?.preferredMessage || err?.message || `${session.agentName} 请求失败`;
+            settleReject(new Error(msg));
+          }
+        },
+        complete: () => {
+          // 流读取完成，等待所有异步工具执行结束
+          Promise.all(pendingWork)
+            .then(() => settleResolve())
+            .catch(err => settleReject(err));
+        },
+      });
 
-      if (buffer.trim() && !this.abortedToolIds.has(toolId)) {
-        try {
-          const event = JSON.parse(buffer);
-          await this.handleSubagentStreamEvent(event, session.agentName, toolId, turnState);
-        } catch { }
-      }
-    } catch (error: any) {
-      // reader.cancel() 或 AbortController.abort() 会导致挂起的 reader.read() 抛出
-      // "BodyStreamBuffer was aborted" (Chromium) 等浏览器级别错误
-      if (this.abortedToolIds.has(toolId)) {
-        throw new Error(`${session.agentName} 执行被取消`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-      this.activeReaders.delete(toolId);
-    }
+      this.activeSubscriptions.set(toolId, sub);
+
+      // 超时：与 cancelToolCall 相同的优雅取消方式（unsubscribe → teardown）
+      timeoutId = setTimeout(() => {
+        sub.unsubscribe();
+        settleReject(new Error(`${session.agentName} 执行超时 (${timeout / 1000}s)`));
+      }, timeout);
+    });
   }
 
   // =========================================================================

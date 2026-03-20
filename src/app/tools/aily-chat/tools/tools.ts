@@ -33,21 +33,21 @@ export const DEFERRED_TOOL_GROUPS: DeferredToolGroup[] = [
   },
   {
     name: '网络工具',
-    brief: '网页/API 请求(fetch)、网络搜索(web_search)',
-    tools: ['fetch', 'web_search']
+    brief: '网页/API 请求(fetch)、网络搜索(web_search)、仓库克隆(clone_repository)',
+    tools: ['fetch', 'web_search', 'clone_repository']
   },
   {
     name: '硬件/库搜索',
     brief: '搜索开发板和库、获取硬件分类、查询开发板参数',
     tools: ['search_boards_libraries', 'get_hardware_categories', 'get_board_parameters']
   },
-  {
-    name: 'ABS 工具',
-    // brief: 'ABS 文件同步、版本控制、ABS 语法参考、库块定义分析',
-    // tools: ['sync_abs_file', 'abs_version_control', 'get_abs_syntax', 'analyze_library_blocks']
-    brief: '版本控制',
-    tools: ['abs_version_control']
-  },
+//   {
+//     name: 'ABS 工具',
+//     // brief: 'ABS 文件同步、版本控制、ABS 语法参考、库块定义分析',
+//     // tools: ['sync_abs_file', 'abs_version_control', 'get_abs_syntax', 'analyze_library_blocks']
+//     brief: '版本控制',
+//     tools: ['abs_version_control']
+//   },
   {
     name: '接线图工具',
     brief: '生成/验证/保存接线图、组件目录、引脚映射',
@@ -55,8 +55,8 @@ export const DEFERRED_TOOL_GROUPS: DeferredToolGroup[] = [
   },
   {
     name: '项目管理',
-    brief: '创建项目、重新加载项目',
-    tools: ['create_project', 'reload_project']
+    brief: '创建项目、重新加载项目、切换开发板、开发板配置',
+    tools: ['create_project', 'reload_project', 'switch_board', 'get_board_config', 'set_board_config']
   },
   {
     name: '终端工具',
@@ -1242,6 +1242,47 @@ Query and return specific content (for detailed info)
         agents: ["mainAgent", "schematicAgent"]
     },
     {
+        name: 'clone_repository',
+        description: `克隆/下载远程 Git 仓库到本地。通过平台 zip 下载 API 获取整个仓库代码并解压，无需本地安装 git。
+
+支持平台：GitHub、Gitee、GitLab、Bitbucket
+
+使用场景：
+- 用户提供了一个仓库 URL，需要获取其完整源码
+- 需要参考某个开源项目的代码结构
+- 下载示例项目或模板项目
+
+注意：
+- 仓库 zip 大小限制 50MB
+- 默认尝试 main 分支，失败后自动回退到 master
+- 支持 sparse_paths 只下载指定子目录`,
+        input_schema: {
+            type: 'object',
+            properties: {
+                url: {
+                    type: 'string',
+                    description: '仓库 URL，如 https://github.com/owner/repo'
+                },
+                branch: {
+                    type: 'string',
+                    description: '分支名称（默认 main，失败自动回退 master）',
+                    default: 'main'
+                },
+                target_dir: {
+                    type: 'string',
+                    description: '目标目录路径（相对项目根或绝对路径，默认为项目根下以仓库名命名的目录）'
+                },
+                sparse_paths: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: '仅下载指定子目录（稀疏检出），如 ["src", "docs"]'
+                }
+            },
+            required: ['url']
+        },
+        agents: ["mainAgent"]
+    },
+    {
         name: "web_search",
         description: `搜索网络以获取最新信息。使用 DuckDuckGo 搜索引擎，返回搜索结果列表（标题、摘要、链接）。
 适用场景：
@@ -2084,40 +2125,40 @@ Query and return specific content (for detailed info)
             required: ['operation']
         }
     },
-    {
-        name: "abs_version_control",
-        description: `🕐 ABS 版本控制工具 - 管理 Blockly 代码的版本历史。
+//     {
+//         name: "abs_version_control",
+//         description: `🕐 ABS 版本控制工具 - 管理 Blockly 代码的版本历史。
 
-**操作类型：**
-1. \`list\` - 列出所有版本历史
-2. \`get\` - 获取指定版本的内容
-3. \`rollback\` - 回滚到指定版本
-4. \`save\` - 手动保存当前版本（带描述）
+// **操作类型：**
+// 1. \`list\` - 列出所有版本历史
+// 2. \`get\` - 获取指定版本的内容
+// 3. \`rollback\` - 回滚到指定版本
+// 4. \`save\` - 手动保存当前版本（带描述）
 
-**使用场景：**
-- 修改代码前先保存版本，方便回滚
-- 查看历史版本对比差异
-- 恢复到之前的代码状态`,
-        input_schema: {
-            type: 'object',
-            properties: {
-                operation: {
-                    type: 'string',
-                    enum: ['list', 'get', 'rollback', 'save'],
-                    description: '操作类型：list=列出版本，get=获取内容，rollback=回滚，save=保存新版本'
-                },
-                versionId: {
-                    type: 'string',
-                    description: '版本 ID（get 和 rollback 操作时必需）'
-                },
-                description: {
-                    type: 'string',
-                    description: '版本描述（save 操作时使用）'
-                }
-            },
-            required: ['operation']
-        }
-    },
+// **使用场景：**
+// - 修改代码前先保存版本，方便回滚
+// - 查看历史版本对比差异
+// - 恢复到之前的代码状态`,
+//         input_schema: {
+//             type: 'object',
+//             properties: {
+//                 operation: {
+//                     type: 'string',
+//                     enum: ['list', 'get', 'rollback', 'save'],
+//                     description: '操作类型：list=列出版本，get=获取内容，rollback=回滚，save=保存新版本'
+//                 },
+//                 versionId: {
+//                     type: 'string',
+//                     description: '版本 ID（get 和 rollback 操作时必需）'
+//                 },
+//                 description: {
+//                     type: 'string',
+//                     description: '版本描述（save 操作时使用）'
+//                 }
+//             },
+//             required: ['operation']
+//         }
+//     },
     // {
     //     name: "variable_manager_tool",
     //     description: `变量管理工具。创建、删除、重命名工作区中的变量。支持不同类型的变量和作用域管理。`,
@@ -2822,6 +2863,92 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
             type: 'object',
             properties: {},
             required: []
+        },
+        agents: ["mainAgent"]
+    },
+    // =============================================================================
+    // 切换开发板工具
+    // =============================================================================
+    {
+        name: 'switch_board',
+        description: `在当前项目中切换开发板。需要提供新的开发板包名称（如 "@aily-project/board-esp32_devkitc"）。
+切换过程会自动卸载当前开发板包、安装新开发板包、更新项目配置并重新加载项目。
+
+注意：
+- 切换开发板会重置编译缓存
+- 项目中非开发板相关的依赖库会被保留
+- 如果不确定开发板名称，可先使用 search_boards_libraries 工具搜索`,
+        input_schema: {
+            type: 'object',
+            properties: {
+                board_name: {
+                    type: 'string',
+                    description: '开发板包名称，如 "@aily-project/board-esp32_devkitc"、"@aily-project/board-arduino_uno"'
+                },
+                board_version: {
+                    type: 'string',
+                    description: '开发板包版本号（可选，不指定则使用最新版）'
+                }
+            },
+            required: ['board_name']
+        },
+        agents: ["mainAgent"]
+    },
+    // =============================================================================
+    // 获取开发板编译/烧录配置
+    // =============================================================================
+    {
+        name: 'get_board_config',
+        description: `获取当前开发板的编译/烧录配置选项及其当前值。
+
+返回信息包括：
+- 当前开发板名称和类型
+- 所有可配置项及其可选值（如上传速度、Flash模式、Flash大小、分区方案等）
+- 每个配置项的当前选中值
+
+支持的开发板配置：
+- **ESP32**: 上传速度(UploadSpeed)、上传模式(UploadMode)、Flash模式(FlashMode)、Flash大小(FlashSize)、分区方案(PartitionScheme)、CDC启动(CDCOnBoot)、PSRAM
+- **STM32**: 开发板型号(pnum)、USB配置(usb)
+- **nRF5**: SoftDevice
+
+如果当前开发板没有额外配置选项（如 Arduino UNO），会返回空列表。`,
+        input_schema: {
+            type: 'object',
+            properties: {},
+            required: []
+        },
+        agents: ["mainAgent"]
+    },
+    // =============================================================================
+    // 设置开发板编译/烧录配置
+    // =============================================================================
+    {
+        name: 'set_board_config',
+        description: `修改当前开发板的编译/烧录配置项。需先通过 get_board_config 工具获取可用的配置项和可选值。
+
+使用方式：
+1. 先调用 get_board_config 获取当前配置和可选值
+2. 根据返回的 config_key 和 options 中的 value，调用此工具设置
+
+示例：
+- 设置ESP32上传速度: set_board_config({ config_key: "UploadSpeed", config_value: "921600" })
+- 设置Flash大小: set_board_config({ config_key: "FlashSize", config_value: "16M" })
+- 设置分区方案: set_board_config({ config_key: "PartitionScheme", config_value: "default" })
+
+注意：配置变更后会自动触发预编译检查。`,
+        input_schema: {
+            type: 'object',
+            properties: {
+                config_key: {
+                    type: 'string',
+                    description: '配置项键名（从 get_board_config 返回的 config_key），如 UploadSpeed, FlashMode, FlashSize, PartitionScheme 等'
+                },
+                config_value: {
+                    type: 'string',
+                    description: '配置项的值（从 get_board_config 返回的 options 中的 value），如 "921600", "qio", "16M"'
+                }
+            },
+            required: ['config_key', 'config_value']
         },
         agents: ["mainAgent"]
     },
