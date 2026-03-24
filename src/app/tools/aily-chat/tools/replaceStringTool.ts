@@ -11,6 +11,7 @@ import { ToolUseResult } from './tools';
 import { normalizePath } from '../services/security.service';
 import { lintAndFormat, shouldLint } from '../services/lintService';
 import { AilyHost } from '../core/host';
+import { readFile as asyncReadFile, writeFile as asyncWriteFile, exists as asyncExists, mkdir as asyncMkdir } from '../core/async-fs';
 
 function createResultWithLint(filePath: string, content: string, successMessage: string): ToolUseResult {
   let lintMessage = '';
@@ -23,13 +24,13 @@ function createResultWithLint(filePath: string, content: string, successMessage:
   return { is_error: false, content: successMessage };
 }
 
-function detectEncoding(filePath: string): BufferEncoding {
+async function detectEncoding(filePath: string): Promise<BufferEncoding> {
   try {
-    AilyHost.get().fs.readFileSync(filePath, 'utf-8');
+    await asyncReadFile(filePath, 'utf-8');
     return 'utf-8';
   } catch {
     try {
-      AilyHost.get().fs.readFileSync(filePath, 'utf16le');
+      await asyncReadFile(filePath, 'utf16le');
       return 'utf16le';
     } catch { return 'utf-8'; }
   }
@@ -70,23 +71,23 @@ export async function replaceStringInFileTool(args: ReplaceStringArgs): Promise<
 
     // 新建文件（old_string 为空）
     if (old_string === '') {
-      if (fs.existsSync(normalized)) {
+      if (await asyncExists(normalized)) {
         return { is_error: true, content: `文件已存在: ${normalized}。old_string 为空仅用于创建新文件` };
       }
       const dir = pathUtil.dirname ? pathUtil.dirname(normalized) : normalized.substring(0, normalized.lastIndexOf('\\'));
-      if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
-      fs.writeFileSync(normalized, new_string, 'utf-8');
+      if (!await asyncExists(dir)) { await asyncMkdir(dir, { recursive: true }); }
+      await asyncWriteFile(normalized, new_string, 'utf-8');
       const msg = `✅ 新文件创建成功\n文件: ${normalized}\n行数: ${new_string.split('\n').length}`;
       return createResultWithLint(normalized, new_string, msg);
     }
 
     // 文件必须存在
-    if (!fs.existsSync(normalized)) {
+    if (!await asyncExists(normalized)) {
       return { is_error: true, content: `文件不存在: ${normalized}` };
     }
 
-    const encoding = detectEncoding(normalized);
-    const content = fs.readFileSync(normalized, encoding);
+    const encoding = await detectEncoding(normalized);
+    const content = await asyncReadFile(normalized, encoding);
 
     if (!content.includes(old_string)) {
       return {
@@ -104,7 +105,7 @@ export async function replaceStringInFileTool(args: ReplaceStringArgs): Promise<
     }
 
     const updated = content.replace(old_string, new_string);
-    fs.writeFileSync(normalized, updated, encoding);
+    await asyncWriteFile(normalized, updated, encoding);
 
     const beforeLines = content.substring(0, content.indexOf(old_string)).split('\n').length;
     const oldLines = old_string.split('\n').length;

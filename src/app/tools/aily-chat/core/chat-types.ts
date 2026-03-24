@@ -34,7 +34,9 @@ export enum ToolCallState {
   DOING = 'doing',
   DONE = 'done',
   WARN = 'warn',
-  ERROR = 'error'
+  ERROR = 'error',
+  /** 等待用户审批（工具执行前拦截） */
+  PENDING_APPROVAL = 'pending_approval'
 }
 
 export interface ToolCallInfo {

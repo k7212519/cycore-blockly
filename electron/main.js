@@ -1,7 +1,7 @@
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
-const windowStateKeeper = require('electron-window-state');
+const WinState = require('electron-win-state').default;
 const { app, BrowserWindow, ipcMain, dialog, screen, shell, net } = require("electron");
 
 const { isWin32, isDarwin, isLinux } = require("./platform");
@@ -762,7 +762,9 @@ function initFastestServersAsync() {
 // 环境变量加载
 function loadEnv() {
   // 将child目录添加到环境变量PATH中
-  const childPath = path.join(__dirname, "..", "child");
+  const childPath = serve
+    ? path.join(__dirname, "..", "child")
+    : path.join(process.resourcesPath, "child");
   const nodePath = path.join(childPath, isDarwin ? "node/bin" : "node");
 
   // 只保留PowerShell路径，移除其他系统PATH
@@ -1018,17 +1020,17 @@ function updateMainWindowWithPendingData() {
 }
 
 function createWindow() {
-  const mainWindowState = windowStateKeeper({
+  const winState = new WinState({
     defaultWidth: 1200,
     defaultHeight: 780,
-    path: path.join(process.env.AILY_APPDATA_PATH),
+    electronStoreOptions: {
+      name: 'window-state',
+      cwd: process.env.AILY_APPDATA_PATH,
+    },
   })
 
   mainWindow = new BrowserWindow({
-    x: mainWindowState.x,
-    y: mainWindowState.y,
-    width: mainWindowState.width,
-    height: mainWindowState.height,
+    ...winState.winOptions,
     show: false,
     minWidth: 800,
     minHeight: 600,
@@ -1036,7 +1038,7 @@ function createWindow() {
     titleBarStyle: isDarwin ? 'hiddenInset' : 'default',
     alwaysOnTop: false,
     autoHideMenuBar: true,
-    icon: path.join(__dirname, "../public/icon.ico"),
+    icon: serve ? path.join(__dirname, "../public/icon.ico") : path.join(process.resourcesPath, "icon.ico"),
     webPreferences: {
       nodeIntegration: true,
       webSecurity: false,
@@ -1046,12 +1048,7 @@ function createWindow() {
     },
   });
 
-  mainWindow.setBounds({
-    height: mainWindowState.height,
-    width: mainWindowState.width,
-  });
-
-  mainWindowState.manage(mainWindow);
+  winState.manage(mainWindow);
 
   // mainWindow.setMenu(null);
 
@@ -1612,7 +1609,7 @@ ipcMain.handle("open-new-instance", async (event, data) => {
     // 启动新实例
     const { spawn } = require('child_process');
     const execPath = process.execPath;
-    const appPath = __dirname;
+    const appPath = app.getAppPath();
 
     // 构建完整的启动参数
     const spawnArgs = [appPath, ...args];
@@ -1746,4 +1743,86 @@ ipcMain.handle("ripgrep-search-content", async (event, params) => {
       error: error.message
     };
   }
+});
+
+// ============================================
+// 异步文件系统 IPC（在主进程执行，不阻塞渲染进程 UI）
+// ============================================
+const fsPromises = require('fs').promises;
+const fsSync = require('fs');
+
+ipcMain.handle("fs-readFile", async (_event, filePath, encoding) => {
+  return await fsPromises.readFile(filePath, encoding || 'utf8');
+});
+
+ipcMain.handle("fs-writeFile", async (_event, filePath, data, encoding) => {
+  await fsPromises.writeFile(filePath, data, encoding || 'utf8');
+});
+
+ipcMain.handle("fs-exists", async (_event, filePath) => {
+  try {
+    await fsPromises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("fs-stat", async (_event, filePath) => {
+  const s = await fsPromises.stat(filePath);
+  return {
+    size: s.size,
+    mtime: s.mtime.toISOString(),
+    birthtime: s.birthtime.toISOString(),
+    _isDirectory: s.isDirectory(),
+    _isFile: s.isFile(),
+  };
+});
+
+ipcMain.handle("fs-readdir", async (_event, dirPath) => {
+  return await fsPromises.readdir(dirPath);
+});
+
+ipcMain.handle("fs-readDir", async (_event, dirPath) => {
+  const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+  return entries.map(e => ({
+    name: e.name,
+    _isDirectory: e.isDirectory(),
+    _isFile: e.isFile(),
+  }));
+});
+
+ipcMain.handle("fs-mkdir", async (_event, dirPath, options) => {
+  await fsPromises.mkdir(dirPath, options || { recursive: true });
+});
+
+ipcMain.handle("fs-unlink", async (_event, filePath) => {
+  await fsPromises.unlink(filePath);
+});
+
+// ============================================
+// Glob IPC（在主进程执行，避免 preload 中 require 解析问题）
+// ============================================
+ipcMain.handle("glob-search", async (_event, pattern, options) => {
+  const glob = require("glob");
+  // glob v7: glob.sync exists; glob v10: globSync
+  if (typeof glob.sync === 'function') {
+    return glob.sync(pattern, options || {});
+  } else if (typeof glob.globSync === 'function') {
+    return glob.globSync(pattern, options || {});
+  }
+  throw new Error('glob module API not recognized');
+});
+
+ipcMain.handle("glob-search-async", async (_event, pattern, options) => {
+  const glob = require("glob");
+  // glob v7: default export is callable; glob v10: named export
+  if (typeof glob === 'function') {
+    return new Promise((resolve, reject) => {
+      glob(pattern, options || {}, (err, files) => err ? reject(err) : resolve(files));
+    });
+  } else if (typeof glob.glob === 'function') {
+    return await glob.glob(pattern, options || {});
+  }
+  throw new Error('glob module API not recognized');
 });

@@ -1,8 +1,11 @@
 /**
  * ChatHistoryService - Copilot 风格的聊天历史管理服务
  *
- * 采用「全局索引 + 分项目/全局兜底数据」双轨架构：
- * - 全局索引：~/.aily/chat_history_index.json（用户级，永远可用）
+ * 采用「全局索引 + 项目级索引 + 分项目/全局兜底数据」三轨架构：
+ * - 全局索引：~/.aily/chat_history_index.json（用户级，永远可用，包含所有条目）
+ * - 项目索引：{projectPath}/.chat_history/chat_history_index.json（项目级，仅该项目的条目）
+ *   · 项目索引优先：加载时项目级条目覆盖全局同 ID 条目
+ *   · 项目索引条目不含冗余的 projectPath / projectName（已隐含于存储路径）
  * - 聊天数据：有项目 → {projectPath}/.chat_history/{sessionId}.json
  *             无项目 → ~/.aily/chat_history/{sessionId}.json
  *
@@ -15,11 +18,16 @@
  * 数据范围：UI 列表 + conversationMessages + 元数据
  * - 支持恢复对话上下文继续聊天
  *
+ * 索引写入策略（双写）：
+ * - 每次 writeIndex() 同时写全局索引和项目级索引
+ * - 项目切换时调用 reloadProjectIndex() 合并新项目的本地索引
+ *
  * @see Copilot 使用全局 globalStorageUri 不分项目，我们在此基础上加了 projectPath 标记
  */
 
 import { Injectable, OnDestroy } from '@angular/core';
 import { AilyHost } from '../core/host';
+import { EditCheckpointService } from './edit-checkpoint.service';
 
 // ===== 类型定义 =====
 
@@ -50,10 +58,12 @@ export interface SubagentHistoryEntry {
 export interface SessionData {
   /** UI 显示列表 */
   chatList: ChatListItem[];
-  /** 完整对话历史（用于恢复继续对话） */
+  /** @deprecated 由 turns 派生，仅用于兼容旧格式读取 */
   conversationMessages: any[];
   /** 会话元数据 */
   metadata: SessionMetadata;
+  /** Turn 结构化存储（source of truth） */
+  turns?: any;
   /** Subagent 对话历史（可选，方案 C 压缩后持久化） */
   subagentHistories?: Record<string, SubagentHistoryEntry>;
   /** 文件变更 checkpoint（可选，用于跨会话回滚） */
@@ -84,6 +94,9 @@ export interface SessionMetadata {
   /** 工具调用迭代次数 */
   toolCallingIteration: number;
 }
+
+/** 项目级索引条目（不含冗余的 projectPath/projectName，存储在项目目录时使用） */
+export type ProjectIndexEntry = Omit<SessionIndexEntry, 'projectPath' | 'projectName'>;
 
 /** 历史列表的筛选模式 */
 export type HistoryFilterMode = 'all' | 'current-project';
@@ -172,12 +185,11 @@ export class ChatHistoryService implements OnDestroy {
   saveSession(
     sessionId: string,
     chatList: ChatListItem[],
-    conversationMessages: any[],
+    turns: any,
     metadata: Partial<SessionMetadata> & { sessionId: string },
     subagentHistories?: Record<string, SubagentHistoryEntry>,
-    editCheckpoints?: any,
   ): void {
-    if (!sessionId || (chatList.length === 0 && conversationMessages.length === 0)) {
+    if (!sessionId || chatList.length === 0) {
       return;
     }
 
@@ -198,17 +210,15 @@ export class ChatHistoryService implements OnDestroy {
       toolCallingIteration: metadata.toolCallingIteration || 0,
     };
 
-    // 构建 SessionData
+    // 构建 SessionData（conversationMessages 由 turns 派生，保持兼容）
     const sessionData: SessionData = {
       chatList,
-      conversationMessages,
+      conversationMessages: [], // deprecated: 由 turns 派生
       metadata: fullMetadata,
+      turns,
     };
     if (subagentHistories && Object.keys(subagentHistories).length > 0) {
       sessionData.subagentHistories = subagentHistories;
-    }
-    if (editCheckpoints) {
-      sessionData.editCheckpoints = editCheckpoints;
     }
 
     // 更新内存缓存
@@ -504,15 +514,33 @@ export class ChatHistoryService implements OnDestroy {
   }
 
   // =========================================================================
+  // 公共 API - 项目切换时重新加载项目索引
+  // =========================================================================
+
+  /**
+   * 项目切换后重新加载项目级索引并合并到内存。
+   * 在 currentProjectPath$ 变化时调用，确保新项目的本地索引被加载。
+   * @param projectPath 新项目的绝对路径
+   */
+  reloadProjectIndex(projectPath: string): void {
+    this.mergeProjectIndex(projectPath);
+  }
+
+  // =========================================================================
   // 公共 API - 删除
   // =========================================================================
 
   /**
-   * 删除会话（索引 + 数据文件 + 缓存）
+   * 删除会话（索引 + 数据文件 + checkpoint 文件 + 缓存）
    */
   deleteSession(sessionId: string): void {
     this.ensureIndexLoaded();
     const entry = this.index.find(e => e.sessionId === sessionId);
+
+    // 删除 checkpoint 文件（.aily_checkpoints/{sessionId}/）
+    if (entry?.projectPath) {
+      EditCheckpointService.cleanSessionCheckpoints(entry.projectPath, sessionId);
+    }
 
     // 删除数据文件
     if (entry) {
@@ -607,7 +635,7 @@ export class ChatHistoryService implements OnDestroy {
   // =========================================================================
 
   /**
-   * 加载全局索引
+   * 加载索引（全局 + 项目级合并，项目级优先）
    */
   private ensureIndexLoaded(): void {
     if (this.indexLoaded) return;
@@ -615,6 +643,7 @@ export class ChatHistoryService implements OnDestroy {
 
     if (!this.hasFs()) return;
 
+    // 1. 加载全局索引（基线）
     try {
       const indexPath = this.getGlobalIndexPath();
       if (this.fileExists(indexPath)) {
@@ -629,14 +658,135 @@ export class ChatHistoryService implements OnDestroy {
       console.warn('[ChatHistory] 加载全局索引失败:', error);
       this.index = [];
     }
+
+    // 2. 如果当前有项目，合并项目级索引（项目级条目覆盖全局同 ID 条目）
+    this.mergeProjectIndex();
   }
 
   /**
-   * 写入全局索引
+   * 合并项目级索引到内存索引（项目级条目优先覆盖全局同 ID 条目）。
+   * 项目索引文件中的条目不含 projectPath / projectName，加载时自动还原。
+   * 如果项目下有 .chat_history/ 数据文件但无索引文件，则从数据文件重建项目索引。
+   * @param projectPath 指定项目路径；不传则取当前活跃项目
+   */
+  private mergeProjectIndex(projectPath?: string | null): void {
+    if (!this.hasFs()) return;
+
+    const prjPath = projectPath ?? this.getCurrentProjectPath();
+    if (!prjPath) return;
+
+    const chatDir = this.joinPath(prjPath, this.PROJECT_CHAT_DIR);
+    const projectIndexPath = this.joinPath(chatDir, this.INDEX_FILE);
+
+    if (this.fileExists(projectIndexPath)) {
+      // 项目索引存在，直接加载合并
+      this.mergeProjectIndexFromFile(prjPath, projectIndexPath);
+    } else if (this.fileExists(chatDir)) {
+      // 索引不存在但目录存在 → 扫描数据文件重建索引
+      this.rebuildProjectIndexFromDataFiles(prjPath, chatDir);
+    }
+  }
+
+  /**
+   * 从已有的项目索引文件加载并合并
+   */
+  private mergeProjectIndexFromFile(prjPath: string, projectIndexPath: string): void {
+    try {
+      const content = this.readFileSync(projectIndexPath);
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed)) return;
+
+      const projectEntries: ProjectIndexEntry[] = parsed;
+      const projectName = this.extractProjectName(prjPath);
+
+      // 用 Map 做合并：全局条目为基础，项目条目覆盖同 sessionId 的全局条目
+      const indexMap = new Map<string, SessionIndexEntry>();
+      for (const entry of this.index) {
+        indexMap.set(entry.sessionId, entry);
+      }
+
+      for (const pe of projectEntries) {
+        // 还原 projectPath / projectName
+        const fullEntry: SessionIndexEntry = {
+          ...pe,
+          projectPath: prjPath,
+          projectName: projectName,
+        };
+        indexMap.set(pe.sessionId, fullEntry);
+      }
+
+      this.index = Array.from(indexMap.values());
+      console.log(`[ChatHistory] 已合并项目索引 (${projectEntries.length} 条), 总计 ${this.index.length} 条`);
+    } catch (error) {
+      console.warn('[ChatHistory] 加载项目索引失败:', error);
+    }
+  }
+
+  /**
+   * 扫描项目 .chat_history/ 目录中的数据文件，重建项目级索引并合并到内存。
+   * 仅处理 {sessionId}.json 格式的文件（跳过索引文件本身和 _arch.md 等）。
+   */
+  private rebuildProjectIndexFromDataFiles(prjPath: string, chatDir: string): void {
+    try {
+      const files: string[] = AilyHost.get().fs.readdirSync(chatDir);
+      const sessionFiles = files.filter(f =>
+        f.endsWith('.json') && f !== this.INDEX_FILE
+      );
+      if (sessionFiles.length === 0) return;
+
+      const projectName = this.extractProjectName(prjPath);
+      const indexMap = new Map<string, SessionIndexEntry>();
+      for (const entry of this.index) {
+        indexMap.set(entry.sessionId, entry);
+      }
+
+      let rebuilt = 0;
+      for (const file of sessionFiles) {
+        const sessionId = file.replace(/\.json$/, '');
+        // 如果全局索引已有该条目且 projectPath 匹配，跳过
+        const existing = indexMap.get(sessionId);
+        if (existing && this.isSamePath(existing.projectPath, prjPath)) continue;
+
+        // 读取数据文件提取 metadata
+        const data = this.readSessionData(sessionId, prjPath);
+        if (!data?.metadata) continue;
+
+        const meta = data.metadata;
+        const entry: SessionIndexEntry = {
+          sessionId,
+          title: meta.title || '',
+          projectPath: prjPath,
+          projectName: projectName,
+          createdAt: meta.createdAt || Date.now(),
+          updatedAt: meta.updatedAt || Date.now(),
+          messageCount: data.chatList?.length || 0,
+          mode: meta.mode || 'agent',
+          model: meta.model ?? null,
+          dataAvailable: true,
+        };
+        indexMap.set(sessionId, entry);
+        rebuilt++;
+      }
+
+      if (rebuilt > 0) {
+        this.index = Array.from(indexMap.values());
+        this.indexDirty = true;
+        // 写出重建的项目索引，下次启动不用再扫描
+        this.writeProjectIndex(prjPath);
+        console.log(`[ChatHistory] 已从数据文件重建项目索引 (${rebuilt} 条), 总计 ${this.index.length} 条`);
+      }
+    } catch (error) {
+      console.warn('[ChatHistory] 重建项目索引失败:', error);
+    }
+  }
+
+  /**
+   * 写入索引（双写：全局 + 项目级）
    */
   private writeIndex(): void {
     if (!this.hasFs()) return;
 
+    // 1. 全局索引（所有条目，完整字段）
     try {
       const indexPath = this.getGlobalIndexPath();
       this.ensureDir(this.getGlobalAilyDir());
@@ -644,6 +794,35 @@ export class ChatHistoryService implements OnDestroy {
       this.indexDirty = false;
     } catch (error) {
       console.warn('[ChatHistory] 写入全局索引失败:', error);
+    }
+
+    // 2. 项目级索引（仅当前项目的条目，去除冗余 projectPath / projectName）
+    this.writeProjectIndex();
+  }
+
+  /**
+   * 写入项目级索引（仅包含当前项目的条目，去除冗余的 projectPath / projectName）
+   * @param projectPath 指定项目路径；不传则取当前活跃项目
+   */
+  private writeProjectIndex(projectPath?: string | null): void {
+    if (!this.hasFs()) return;
+
+    const prjPath = projectPath ?? this.getCurrentProjectPath();
+    if (!prjPath) return;
+
+    try {
+      const projectEntries: ProjectIndexEntry[] = this.index
+        .filter(e => this.isSamePath(e.projectPath, prjPath))
+        .map(({ projectPath: _pp, projectName: _pn, ...rest }) => rest);
+
+      if (projectEntries.length === 0) return;
+
+      const dir = this.joinPath(prjPath, this.PROJECT_CHAT_DIR);
+      this.ensureDir(dir);
+      const projectIndexPath = this.joinPath(dir, this.INDEX_FILE);
+      this.writeFileSync(projectIndexPath, JSON.stringify(projectEntries, null, 2));
+    } catch (error) {
+      console.warn('[ChatHistory] 写入项目索引失败:', error);
     }
   }
 
@@ -831,6 +1010,22 @@ export class ChatHistoryService implements OnDestroy {
   private getGlobalProjectRootPath(): string | null {
     try {
       return AilyHost.get().project?.projectRootPath || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 获取当前活跃项目路径（排除项目根目录）
+   */
+  private getCurrentProjectPath(): string | null {
+    try {
+      const currentPath = AilyHost.get().project?.currentProjectPath;
+      const rootPath = AilyHost.get().project?.projectRootPath;
+      if (currentPath && (!rootPath || !this.isSamePath(currentPath, rootPath))) {
+        return currentPath;
+      }
+      return null;
     } catch {
       return null;
     }

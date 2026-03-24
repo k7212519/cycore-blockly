@@ -5,6 +5,22 @@
 export type { IAilyTool, ToolContext, ToolSchema, ToolUseResult, ToolExecutionCallbacks } from './tool-types';
 export { ToolRegistry } from './tool-registry';
 
+// 工具审批系统
+export {
+  toolRequiresApproval,
+  addToolRequiringApproval,
+  removeToolApprovalRequirement,
+  registerToolApprovalCallback,
+  unregisterToolApprovalCallback,
+  approveToolForSession,
+  clearSessionApprovals,
+} from './tool-approval';
+export type { ToolApprovalRequest, ToolApprovalResult, ToolApprovalCallback } from './tool-approval';
+
+// Skills 系统
+export type { IAilySkill, SkillMetadata, SkillOrigin, SkillSearchResult } from './skill-types';
+export { SkillRegistry } from './skill-registry';
+
 // 宿主环境接口
 export type {
   IAilyHostAPI,

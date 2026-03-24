@@ -107,6 +107,17 @@ export interface IFileSystem {
   /** 带文件类型信息的目录读取 */
   readDirSync?(path: string): IDirent[];
   realpathSync?(path: string): string;
+
+  // ---- 异步方法（可选，优先使用以避免阻塞 UI） ----
+  readFile?(path: string, encoding?: string): Promise<string>;
+  writeFile?(path: string, data: string, encoding?: string): Promise<void>;
+  exists?(path: string): Promise<boolean>;
+  stat?(path: string): Promise<IFileStat>;
+  readdir?(path: string): Promise<string[]>;
+  /** 异步带文件类型信息的目录读取 */
+  readDir?(path: string): Promise<IDirent[]>;
+  mkdir?(path: string, options?: { recursive?: boolean }): Promise<void>;
+  unlink?(path: string): Promise<void>;
 }
 
 // ============================================================

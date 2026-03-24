@@ -23,7 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ChatAPI } from '../core/api-endpoints';
 import { AilyHost } from '../core/host';
 import { AilyChatConfigService } from './aily-chat-config.service';
-import { TOOLS, ToolUseResult } from '../tools/tools';
+import { TOOLS, ToolUseResult, isDeferredTool, searchDeferredTools, getDeferredToolsListing } from '../tools/tools';
 import { getRegisteredSubagents } from '../tools/runSubagentTool';
 import { createSecurityContext } from './security.service';
 // ToolRegistry: 统一工具调度
@@ -95,10 +95,12 @@ export class SubagentSessionService implements OnDestroy {
   private sessions = new Map<string, SubagentSession>();
   /** 进度事件流（供 UI 消费，可在 subagent 面板实时展示） */
   private progress$ = new Subject<SubagentProgressEvent>();
-  /** 活跃的 Observable 订阅（用于取消，unsubscribe 触发 teardown 优雅关闭流） */
-  private activeSubscriptions = new Map<string, Subscription>();
+  /** 活跃的 Observable 订阅 + 立即中止回调（unsubscribe + settleReject） */
+  private activeSubscriptions = new Map<string, { sub: Subscription; abort: () => void }>();
   /** 取消标记 */
   private abortedToolIds = new Set<string>();
+  /** 会话级：已激活的 deferred 工具名称（通过 search_available_tools 加载） */
+  private activatedDeferredTools = new Set<string>();
   /** 工具 fetch 服务 */
   private fetchToolService: FetchToolService;
   /**
@@ -277,9 +279,9 @@ export class SubagentSessionService implements OnDestroy {
    */
   cancelToolCall(toolId: string): void {
     this.abortedToolIds.add(toolId);
-    const sub = this.activeSubscriptions.get(toolId);
-    if (sub) {
-      sub.unsubscribe();
+    const entry = this.activeSubscriptions.get(toolId);
+    if (entry) {
+      entry.abort();  // 立即 unsubscribe + reject Promise
       this.activeSubscriptions.delete(toolId);
     }
   }
@@ -293,18 +295,22 @@ export class SubagentSessionService implements OnDestroy {
       this.abortedToolIds.add(toolId);
     }
 
-    // 取消所有活跃订阅（unsubscribe 触发 teardown → aborted=true + reader.cancel()）
-    for (const [, sub] of this.activeSubscriptions) {
-      sub.unsubscribe();
+    // 立即中止所有活跃的 turn Promise（unsubscribe + settleReject）
+    for (const [, entry] of this.activeSubscriptions) {
+      entry.abort();
     }
     this.activeSubscriptions.clear();
 
     // 清空所有 agent 队列（排队中的调用不再执行）
     this.agentQueues.clear();
 
-    // 关闭服务端会话
+    // 清空已激活的 deferred 工具
+    this.activatedDeferredTools.clear();
+
+    // 取消服务端任务并关闭会话
     for (const [_, session] of this.sessions) {
       session.running = false;
+      this.chatService.cancelTask(session.sessionId).subscribe({ error: () => {} });
       this.closeServerSession(session.sessionId);
     }
     this.sessions.clear();
@@ -474,7 +480,8 @@ export class SubagentSessionService implements OnDestroy {
   ): Promise<string> {
     session.messages.push({ role: 'user', content: userContent });
 
-    const deadline = Date.now() + timeout;
+    const startTime = Date.now();
+    const deadline = startTime + timeout;
     const toolCallLimit = this.ailyChatConfigService?.maxCount || 30;
     let iteration = 0;
     let finalText = '';
@@ -484,7 +491,8 @@ export class SubagentSessionService implements OnDestroy {
 
       const remaining = deadline - Date.now();
       if (remaining <= 0) {
-        throw new Error(`${session.agentName} 执行超时 (${timeout / 1000}s)`);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        throw new Error(`${session.agentName} 执行超时 (已用 ${elapsed}s，上限 ${timeout / 1000}s)`);
       }
 
       const turnState: SubagentTurnState = {
@@ -629,12 +637,18 @@ export class SubagentSessionService implements OnDestroy {
         },
       });
 
-      this.activeSubscriptions.set(toolId, sub);
+      this.activeSubscriptions.set(toolId, {
+        sub,
+        abort: () => {
+          sub.unsubscribe();
+          settleReject(new Error(`${session.agentName} 执行被取消`));
+        },
+      });
 
       // 超时：与 cancelToolCall 相同的优雅取消方式（unsubscribe → teardown）
       timeoutId = setTimeout(() => {
         sub.unsubscribe();
-        settleReject(new Error(`${session.agentName} 执行超时 (${timeout / 1000}s)`));
+        settleReject(new Error(`${session.agentName} 执行超时`));
       }, timeout);
     });
   }
@@ -747,7 +761,7 @@ export class SubagentSessionService implements OnDestroy {
 
     let result: ToolUseResult;
     try {
-      result = await this.executeTool(toolName, toolArgs);
+      result = await this.executeTool(toolName, toolArgs, agentName);
     } catch (error: any) {
       result = { is_error: true, content: `工具执行异常: ${error.message}` };
     }
@@ -770,7 +784,12 @@ export class SubagentSessionService implements OnDestroy {
    * 路由工具调用到具体的处理函数。
    * 优先通过 ToolRegistry 统一调度，减少重复 switch/case。
    */
-  private async executeTool(toolName: string, args: any): Promise<ToolUseResult> {
+  private async executeTool(toolName: string, args: any, agentName?: string): Promise<ToolUseResult> {
+    // 元工具：search_available_tools — 搜索并激活 deferred 工具
+    if (toolName === 'search_available_tools') {
+      return this.handleSearchAvailableTools(args, agentName);
+    }
+
     // 已注册工具：通过 ToolRegistry 统一调度
     if (ToolRegistry.has(toolName)) {
       const ctx = {
@@ -782,6 +801,25 @@ export class SubagentSessionService implements OnDestroy {
 
     // 未注册工具：返回错误
     return { is_error: true, content: `Subagent 不支持工具: ${toolName}` };
+  }
+
+  /**
+   * 处理 search_available_tools 元工具调用
+   * 搜索匹配的 deferred 工具并激活，下一轮 chatRequest 会自动包含
+   */
+  private handleSearchAvailableTools(args: any, agentName?: string): ToolUseResult {
+    const query = args?.query || '';
+    const agentConfig = this.ailyChatConfigService.getAgentToolsConfig(agentName || '');
+    const excludeTools = new Set(agentConfig.disabledTools || []);
+    const allTools = TOOLS as any[];
+    const matched = searchDeferredTools(query, allTools, agentName, excludeTools);
+
+    if (matched.length > 0) {
+      matched.forEach(t => this.activatedDeferredTools.add(t.name));
+      const listing = matched.map(t => `- **${t.name}**: ${(t.description || '').split('\n')[0].slice(0, 80)}`).join('\n');
+      return { is_error: false, content: `已加载 ${matched.length} 个工具，可在后续对话中直接调用：\n${listing}` };
+    }
+    return { is_error: false, content: `未找到匹配 "${query}" 的工具。\n${getDeferredToolsListing(agentName, excludeTools)}` };
   }
 
   // =========================================================================
@@ -841,6 +879,10 @@ export class SubagentSessionService implements OnDestroy {
     if (disabledTools.size > 0) {
       tools = tools.filter(tool => !disabledTools.has(tool.name));
     }
+    // 3. 过滤 deferred 工具（仅发送 core 工具 + 已激活的 deferred 工具）
+    tools = tools.filter(tool =>
+      !isDeferredTool(tool.name) || this.activatedDeferredTools.has(tool.name)
+    );
     return tools;
   }
 }

@@ -88,6 +88,8 @@ export interface AilyChatConfig {
     compressionThresholdRatio?: number;
     /** LLM 摘要阈值比例 (0-1，占上下文窗口的百分比，默认 0.75) */
     summarizationThresholdRatio?: number;
+    /** 默认自动保存变更（AI编辑完成后自动保留，不弹出变更面板） */
+    autoSaveEdits?: boolean;
 }
 
 /**
@@ -127,7 +129,8 @@ const DEFAULT_CONFIG: AilyChatConfig = {
     models: DEFAULT_MODELS,
     contextWindowSize: 0,
     compressionThresholdRatio: 0.5,
-    summarizationThresholdRatio: 0.75
+    summarizationThresholdRatio: 0.75,
+    autoSaveEdits: true
 };
 
 /**
@@ -336,6 +339,16 @@ export class AilyChatConfigService {
 
     set summarizationThresholdRatio(value: number) {
         this.config.summarizationThresholdRatio = Math.max(0, Math.min(1, value));
+    }
+
+    // ==================== 自动保存变更 ====================
+
+    get autoSaveEdits(): boolean {
+        return this.config.autoSaveEdits ?? false;
+    }
+
+    set autoSaveEdits(value: boolean) {
+        this.config.autoSaveEdits = value;
     }
 
     /**

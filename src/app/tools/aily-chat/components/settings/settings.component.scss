@@ -316,3 +316,16 @@
         margin-left: 15px;
     }
 }
+
+.setting-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+
+    .setting-hint {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.45);
+        padding-left: 24px;
+    }
+}

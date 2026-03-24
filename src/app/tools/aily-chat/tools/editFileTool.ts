@@ -2,6 +2,13 @@
 import { normalizePath } from "../services/security.service";
 import { lintAndFormat, shouldLint } from "../services/lintService";
 import { AilyHost } from '../core/host';
+import {
+  readFile as asyncReadFile,
+  writeFile as asyncWriteFile,
+  exists as asyncExists,
+  stat as asyncStat,
+  mkdir as asyncMkdir,
+} from '../core/async-fs';
 
 /**
  * 辅助函数：检查编辑后的文件是否有 lint 错误
@@ -88,19 +95,15 @@ function createEditResultWithLint(
  * 检测文件编码（简单版）
  * 尝试以UTF-8读取，失败时尝试其他编码
  */
-function detectFileEncoding(filePath: string): BufferEncoding {
+async function detectFileEncoding(filePath: string): Promise<BufferEncoding> {
     try {
-        const fs = AilyHost.get().fs;
-        fs.readFileSync(filePath, 'utf-8');
+        await asyncReadFile(filePath, 'utf-8');
         return 'utf-8';
     } catch (error) {
-        // 尝试 utf16le
         try {
-            const fs = AilyHost.get().fs;
-            fs.readFileSync(filePath, 'utf16le');
+            await asyncReadFile(filePath, 'utf16le');
             return 'utf16le';
         } catch {
-            // 默认返回 utf-8
             return 'utf-8';
         }
     }
@@ -167,11 +170,11 @@ export async function editFileTool(
         }
         
         // 检查文件是否存在
-        let fileExists = fs.existsSync(normalizedFilePath);
+        let fileExists = await asyncExists(normalizedFilePath);
         
         // 验证是否为文件（不是目录）
         if (fileExists) {
-            const stats = fs.statSync(normalizedFilePath);
+            const stats = await asyncStat(normalizedFilePath);
             if (stats.isDirectory?.()) {
                 const toolResult = {
                     is_error: true,
@@ -211,10 +214,10 @@ export async function editFileTool(
                 
                 // 创建新文件
                 const dir = path.dirname ? path.dirname(normalizedFilePath) : normalizedFilePath.substring(0, normalizedFilePath.lastIndexOf('\\'));
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
+                if (!await asyncExists(dir)) {
+                    await asyncMkdir(dir, { recursive: true });
                 }
-                fs.writeFileSync(normalizedFilePath, newString, 'utf-8');
+                await asyncWriteFile(normalizedFilePath, newString, 'utf-8');
                 
                 // lint 检测新创建的文件
                 const successMsg = `✅ 新文件创建成功\n文件: ${normalizedFilePath}\n行数: ${newString.split('\n').length}`;
@@ -232,8 +235,8 @@ export async function editFileTool(
             }
             
             // 检测文件编码
-            const encoding = specifiedEncoding || detectFileEncoding(normalizedFilePath);
-            const originalContent = fs.readFileSync(normalizedFilePath, encoding);
+            const encoding = specifiedEncoding || await detectFileEncoding(normalizedFilePath);
+            const originalContent = await asyncReadFile(normalizedFilePath, encoding);
             
             // 检查 old_string 是否在文件中
             if (!originalContent.includes(oldString)) {
@@ -256,7 +259,7 @@ export async function editFileTool(
             
             // 执行替换
             const updatedContent = originalContent.replace(oldString, newString);
-            fs.writeFileSync(normalizedFilePath, updatedContent, encoding);
+            await asyncWriteFile(normalizedFilePath, updatedContent, encoding);
             
             // 计算修改的行信息
             const beforeLines = originalContent.substring(0, originalContent.indexOf(oldString)).split('\n').length;
@@ -280,14 +283,14 @@ export async function editFileTool(
         
         if (!fileExists && createIfNotExists) {
             const dir = path.dirname ? path.dirname(normalizedFilePath) : normalizedFilePath.substring(0, Math.max(normalizedFilePath.lastIndexOf('\\'), normalizedFilePath.lastIndexOf('/')));
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
+            if (!await asyncExists(dir)) {
+                await asyncMkdir(dir, { recursive: true });
             }
-            fs.writeFileSync(normalizedFilePath, '', 'utf-8');
+            await asyncWriteFile(normalizedFilePath, '', 'utf-8');
         }
         
         // 检测文件编码
-        const encoding = specifiedEncoding || detectFileEncoding(normalizedFilePath);
+        const encoding = specifiedEncoding || await detectFileEncoding(normalizedFilePath);
         
         let finalContent: string;
         let operationDescription: string;
@@ -299,7 +302,7 @@ export async function editFileTool(
         } 
         // Line-based operations
         else if (replaceStartLine !== undefined) {
-            const existingContent = fs.readFileSync(normalizedFilePath, encoding);
+            const existingContent = await asyncReadFile(normalizedFilePath, encoding);
             const lines = existingContent.split('\n');
             
             if (replaceStartLine < 1) {
@@ -349,7 +352,7 @@ export async function editFileTool(
         } 
         // Insert at specific line
         else if (insertLine !== undefined) {
-            const existingContent = fs.readFileSync(normalizedFilePath, encoding);
+            const existingContent = await asyncReadFile(normalizedFilePath, encoding);
             const lines = existingContent.split('\n');
             
             if (insertLine < 1) {
@@ -378,7 +381,7 @@ export async function editFileTool(
         } 
         // Append mode
         else {
-            const existingContent = fs.readFileSync(normalizedFilePath, encoding);
+            const existingContent = await asyncReadFile(normalizedFilePath, encoding);
             const hasTrailingNewline = existingContent.endsWith('\n');
             finalContent = hasTrailingNewline 
                 ? existingContent + (content || '')
@@ -387,7 +390,7 @@ export async function editFileTool(
         }
         
         // 写入文件
-        fs.writeFileSync(normalizedFilePath, finalContent, encoding);
+        await asyncWriteFile(normalizedFilePath, finalContent, encoding);
         
         // lint 检测编辑后的文件
         const successMsg = `✅ 文件编辑成功\n文件: ${normalizedFilePath}\n操作: ${operationDescription}`;

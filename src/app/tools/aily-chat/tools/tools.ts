@@ -241,6 +241,79 @@ export const TOOLS = [
         agents: ["mainAgent", "schematicAgent"]
     },
     // =============================================================================
+    // 技能工具 - load_skill（始终可用，用于加载领域知识/最佳实践指南）
+    // =============================================================================
+    {
+        name: 'load_skill',
+        description: `激活或卸载领域技能。激活后的技能内容会持久注入到每轮请求中，直到卸载。
+使用示例：
+- load_skill({query: "abs-syntax"}) — 激活 ABS 语法参考技能
+- load_skill({query: "abs-syntax", action: "unload"}) — 卸载技能
+- load_skill({url: "https://example.com/SKILL.md"}) — 从 URL 加载并激活`,
+        input_schema: {
+            type: 'object',
+            properties: {
+                query: {
+                    type: 'string',
+                    description: '技能名称或搜索关键词'
+                },
+                action: {
+                    type: 'string',
+                    enum: ['load', 'unload'],
+                    description: '操作类型：load（激活，默认）或 unload（卸载）'
+                },
+                url: {
+                    type: 'string',
+                    description: '直接从 URL 加载 SKILL.md 文件（一次性使用）'
+                }
+            },
+            required: ['query']
+        },
+        agents: ["mainAgent"]
+    },
+    // =============================================================================
+    // 技能管理工具 - manage_skills（Hub 搜索/安装/卸载）
+    // TODO: 后续以 npm 包形式实现 Skills Hub，暂不启用
+    // =============================================================================
+    /*
+    {
+        name: 'manage_skills',
+        description: `管理技能：搜索/安装/卸载/列出技能。当用户提到安装技能、查找最佳实践、管理领域知识包时使用。
+
+操作类型：
+- list_available — 列出所有已注册的技能
+- list_installed — 列出从 Hub 安装的技能
+- search_hub — 在 Skills Hub 中搜索可用技能
+- install — 从 Hub 安装技能到全局或项目
+- uninstall — 卸载已安装的技能`,
+        input_schema: {
+            type: 'object',
+            properties: {
+                action: {
+                    type: 'string',
+                    enum: ['search_hub', 'install', 'uninstall', 'list_installed', 'list_available'],
+                    description: '操作类型'
+                },
+                query: {
+                    type: 'string',
+                    description: '搜索关键词或技能名称'
+                },
+                download_url: {
+                    type: 'string',
+                    description: '技能包下载 URL（install 时需要）'
+                },
+                scope: {
+                    type: 'string',
+                    enum: ['global', 'project'],
+                    description: '安装范围：global 全局 / project 项目级'
+                }
+            },
+            required: ['action']
+        },
+        agents: ["mainAgent"]
+    },
+    */
+    // =============================================================================
     // 子代理工具 - 始终发送给 LLM（core）
     // =============================================================================
     {
@@ -2541,28 +2614,29 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
         },
         agents: ["mainAgent"]
     },
-    {
-        name: 'get_abs_syntax',
-        description: `Get the ABS (Aily Block Syntax) syntax specification. Returns a concise but complete reference for writing ABS code. Use this tool when you need to understand ABS syntax rules, block connection types, parameter mapping, or control flow structures before generating ABS code.`,
-        input_schema: {
-            type: 'object',
-            properties: {},
-            required: []
-        },
-        agents: ["mainAgent"]
-    },
+    // {
+    //     name: 'get_abs_syntax',
+    //     description: `Get the ABS (Aily Block Syntax) syntax specification. Returns a concise but complete reference for writing ABS code. Use this tool when you need to understand ABS syntax rules, block connection types, parameter mapping, or control flow structures before generating ABS code.`,
+    //     input_schema: {
+    //         type: 'object',
+    //         properties: {},
+    //         required: []
+    //     },
+    //     agents: ["mainAgent"]
+    // },
     // =============================================================================
     // 硬件接线图工具 (Schematic / Wiring Diagram)
     // =============================================================================
     {
         name: 'generate_schematic',
-        description: `生成硬件接线图的核心工具。分析开发板与外设的引脚映射，返回引脚摘要和生成规则，你需要根据返回内容输出标准格式的接线图 JSON，再调用 validate_schematic 保存。
+        description: `生成硬件接线图的核心工具。分析开发板与外设的引脚映射，返回引脚摘要和生成规则。你需要根据返回内容编写 AWS (Aily Wiring Syntax) 连线，再先调用 validate_schematic 预检，最后调用 apply_schematic 完成最终保存与 JSON 生成。
 
 **完整工作流：**
 1. （可选）不知道有哪些组件可用时，先调用 get_component_catalog 获取 pinmapId
 2. 调用本工具，传入 pinmapIds
-3. 工具返回引脚摘要（pinSummaries）和生成规则（instructions），你根据此生成接线图 JSON
-4. 调用 validate_schematic 验证并保存
+3. 工具返回引脚摘要（pinSummaries）和生成规则（instructions），你根据此生成 AWS 连线内容
+4. 调用 validate_schematic(aws: "...") 做安全/语义预检
+5. 调用 apply_schematic(aws: "...") 从 AWS 生成并保存 JSON 连线图
 
 **触发时机：** 用户说"帮我接线"、"怎么接 DHT20"、"生成接线图"、"连接传感器"等
 
@@ -2684,9 +2758,12 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
     },
     {
         name: 'validate_schematic',
-        description: `验证并保存接线图。
+        description: `验证 AWS 接线图的安全性与正确性。
 
 **AWS 格式：** 通过 aws 参数传入 AWS (Aily Wiring Syntax) 语法
+
+    **定位：** 这是预检/诊断工具，重点是发现语法、引脚、冲突、电压等问题。
+    **与 apply_schematic 的关系：** 两者有部分重叠；但在工作流上，应将本工具视为“验证”，将 apply_schematic 视为“最终落盘并生成 JSON”。
 
 **调用时机：** generate_schematic 返回引脚摘要后，你生成连线后调用本工具。
 
@@ -2695,7 +2772,8 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
 2. **get_component_catalog(includeBoards: true)**：获取开发板 + 组件的 pinmapId 列表
 3. **generate_schematic(pinmapIds: [...])**：获取引脚摘要和连线规则
 4. **你生成连线**：输出 AWS 格式
-5. **validate_schematic**：验证并保存`,
+5. **validate_schematic**：验证 AWS 是否正确
+6. **apply_schematic**：最终从 AWS 生成/保存 JSON`,
         input_schema: {
             type: 'object',
             properties: {
@@ -2737,14 +2815,18 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
     },
     {
         name: 'apply_schematic',
-        description: `将 AWS 格式连线转换为 JSON 并保存。这是 AWS 工作流的核心工具。
+        description: `将 AWS 格式连线转换为 JSON 并保存。这是 AWS 工作流的最终落盘工具。
 
 **功能：**
 - 不传参数：读取项目中的 connection.aws 文件，解析并保存到 connection_output.json
 - 传 aws 参数：直接解析传入的 AWS 内容，同时保存为 connection.aws 和 connection_output.json
 
-**成功：** 保存文件并通知接线图界面刷新
+**成功：** 保存 AWS 文件、生成 connection_output.json，并通知接线图界面刷新
 **失败：** 返回解析错误 + 完整 AWS 语法参考
+
+**与 validate_schematic 的区别：**
+- validate_schematic：用于预检和安全校验
+- apply_schematic：用于最终持久化和 JSON 生成
 
 **AWS 编辑流程（推荐）：**
 1. read_file 读取 connection.aws
@@ -2766,7 +2848,7 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
         name: 'get_current_schematic',
         description: `读取当前项目已保存的连线图完整内容。
 
-**用于编辑流程：** 用户想修改/添加/删除连线时，先调用本工具获取当前状态，然后编写新的 AWS 内容调用 validate_schematic 保存。
+    **用于编辑流程：** 用户想修改/添加/删除连线时，先调用本工具获取当前状态，然后编写新的 AWS 内容，先调用 validate_schematic 检查，再调用 apply_schematic 最终保存。
 
 **典型编辑场景：**
 - “删除 DHT20 的 VCC 连线”
@@ -2777,7 +2859,8 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
 1. **get_current_schematic()**：获取当前连线图数据
 2. **修改连线**：基于当前连线信息编写新的 AWS 格式内容
    - 新增组件时：先调用 generate_schematic 获取新组件引脚信息
-3. **validate_schematic(aws: "修改后的AWS内容")**：验证并保存`,
+3. **validate_schematic(aws: "修改后的AWS内容")**：验证 AWS
+4. **apply_schematic(aws: "修改后的AWS内容")**：最终保存并生成 JSON`,
         input_schema: {
             type: 'object',
             properties: {},
@@ -2839,13 +2922,20 @@ IMPORTANT: 任务ID为简单的递增数字（1, 2, 3...），请使用正确的
     // =============================================================================
     {
         name: 'build_project',
-        description: `编译当前项目，检测代码是否能正常编译通过。用于代码编写完成后验证语法和链接是否正确。编译耗时较长（可能数十秒到数分钟），请仅在需要验证时调用。`,
+        description: `编译当前项目，检测代码是否能正常编译通过。用于代码编写完成后验证语法和链接是否正确。编译耗时较长（可能数十秒到数分钟），请仅在需要验证时调用。
+
+如果编译出现异常（如缓存损坏、切换开发板后残留旧缓存），可设置 clear_cache=true 在编译前清除缓存。`,
         input_schema: {
             type: 'object',
             properties: {
                 preprocess_only: {
                     type: 'boolean',
                     description: '是否仅做预编译检查（更快但不生成完整产物，且为异步操作不会返回编译结果）',
+                    default: false
+                },
+                clear_cache: {
+                    type: 'boolean',
+                    description: '编译前是否清除编译缓存（解决缓存损坏或切换开发板后的残留问题）',
                     default: false
                 }
             },

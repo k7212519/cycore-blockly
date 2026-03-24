@@ -48,6 +48,9 @@ export interface ToolContext {
     publishCurrentSummary(): void;
   };
 
+  /** 中止信号，工具在长时间操作中应定期检查 signal.aborted */
+  abortSignal?: AbortSignal;
+
   /** 通用获取方法，用于获取未列出的服务 */
   getService?<T>(name: string): T | undefined;
 }

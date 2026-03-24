@@ -19,6 +19,7 @@ import { XAilyBlocklyViewerComponent } from './x-aily-blockly-viewer/x-aily-bloc
 import { XAilyErrorViewerComponent } from './x-aily-error-viewer/x-aily-error-viewer.component';
 import { XAilyTaskActionViewerComponent } from './x-aily-task-action-viewer/x-aily-task-action-viewer.component';
 import { XAilyQuestionViewerComponent } from './x-aily-question-viewer/x-aily-question-viewer.component';
+import { XAilyApprovalViewerComponent } from './x-aily-approval-viewer/x-aily-approval-viewer.component';
 import { XAilyCodeViewerComponent } from './x-aily-code-viewer/x-aily-code-viewer.component';
 import { XAilyDefaultViewerComponent } from './x-aily-default-viewer/x-aily-default-viewer.component';
 import { NzModalService } from 'ng-zorro-antd/modal';
@@ -35,7 +36,7 @@ import { ChatService } from '../../services/chat.service';
 const AILY_TYPES = [
   'aily-state', 'aily-button', 'aily-board', 'aily-library',
   'aily-think', 'aily-mermaid', 'aily-context', 'aily-blockly',
-  'aily-error', 'aily-task-action', 'aily-question',
+  'aily-error', 'aily-task-action', 'aily-question', 'aily-approval',
 ] as const;
 
 /**
@@ -74,6 +75,7 @@ const AILY_TYPES = [
     XAilyErrorViewerComponent,
     XAilyTaskActionViewerComponent,
     XAilyQuestionViewerComponent,
+    XAilyApprovalViewerComponent,
     XAilyCodeViewerComponent,
     XAilyDefaultViewerComponent,
   ],
@@ -158,6 +160,9 @@ const AILY_TYPES = [
     @if (isType('aily-question') && (parsedData || parsedArray)) {
       <x-aily-question-viewer [data]="parsedData || parsedArray" [streamStatus]="streamStatus" />
     }
+    @if (isType('aily-approval') && parsedData) {
+      <x-aily-approval-viewer [data]="parsedData" />
+    }
     @if (isRegularCode) {
       <x-aily-code-viewer [children]="children" [block]="block" [lang]="lang" />
     }
@@ -166,7 +171,7 @@ const AILY_TYPES = [
     }
   `,
   styles: [`
-    :host { display: block; padding: 0.5em 0; }
+    :host { display: block; padding: 0.5em 0; overflow: hidden; min-width: 0; max-width: 100%; }
     .aily-mermaid-wrapper {
       position: relative;
       cursor: pointer;

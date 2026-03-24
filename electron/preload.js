@@ -23,7 +23,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getAilyBuilderBuildPath: () => process.env.AILY_BUILDER_BUILD_PATH,
     getUserDocuments: () => require("os").homedir() + `${pt}Documents`,
     isExists: (path) => existsSync(path),
-    getElectronPath: () => __dirname,
+    getElectronPath: () => {
+      // 当 preload.js 从 asar 解包后，将路径重定向到 asar 内部以便 fs 操作正常工作
+      if (__dirname.includes('app.asar.unpacked')) {
+        return __dirname.replace('app.asar.unpacked', 'app.asar');
+      }
+      return __dirname;
+    },
     isDir: (path) => statSync(path).isDirectory(),
     join: (...args) => require("path").join(...args),
     dirname: (path) => require("path").dirname(path),
@@ -194,7 +200,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const buffer = require("fs").readFileSync(path);
       return buffer.toString('base64');
     },
-    readDirSync: (path) => require("fs").readdirSync(path, { withFileTypes: true }),
+    readDirSync: (path) => {
+      const entries = require("fs").readdirSync(path, { withFileTypes: true });
+      return entries.map(e => ({ name: e.name, _isDirectory: e.isDirectory(), _isFile: e.isFile() }));
+    },
     readdirSync: (path) => require("fs").readdirSync(path),
     writeFileSync: (path, data) => require("fs").writeFileSync(path, data),
     writeBase64File: (path, base64Data) => {
@@ -204,7 +213,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     mkdirSync: (path) => require("fs").mkdirSync(path, { recursive: true }),
     copySync: (src, dest) => require("fs").cpSync(src, dest, { recursive: true }),
     existsSync: (path) => require("fs").existsSync(path),
-    statSync: (path) => require("fs").statSync(path),
+    statSync: (path) => {
+      const s = require("fs").statSync(path);
+      return { size: s.size, mtime: s.mtime.toISOString(), birthtime: s.birthtime.toISOString(), _isDirectory: s.isDirectory(), _isFile: s.isFile() };
+    },
     isDirectory: (path) => require("fs").statSync(path).isDirectory(),
     unlinkSync: (path, cb) => require("fs").unlinkSync(path, cb),
     rmdirSync: (path) => require("fs").rmdirSync(path, { recursive: true, force: true }),
@@ -213,34 +225,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
     linkSync: (existingPath, newPath) => require("fs").linkSync(existingPath, newPath),
     chmodSync: (path, mode) => require("fs").chmodSync(path, mode),
     appendFileSync: (path, data) => require("fs").appendFileSync(path, data),
+    // ---- 异步方法（通过 IPC 在主进程执行，不阻塞渲染进程） ----
+    readFile: (path, encoding) => ipcRenderer.invoke("fs-readFile", path, encoding),
+    writeFile: (path, data, encoding) => ipcRenderer.invoke("fs-writeFile", path, data, encoding),
+    exists: (path) => ipcRenderer.invoke("fs-exists", path),
+    stat: (path) => ipcRenderer.invoke("fs-stat", path),
+    readdir: (path) => ipcRenderer.invoke("fs-readdir", path),
+    readDir: (path) => ipcRenderer.invoke("fs-readDir", path),
+    mkdir: (path, options) => ipcRenderer.invoke("fs-mkdir", path, options),
+    unlink: (path) => ipcRenderer.invoke("fs-unlink", path),
   },
   glob: {
-    // 使用glob模式查找文件
+    // 同步版本 - 通过 IPC 在主进程执行
     sync: (pattern, options = {}) => {
-      try {
-        const glob = require("glob");
-        return glob.sync(pattern, options);
-      } catch (error) {
-        console.error("Glob sync error:", error);
-        return [];
-      }
+      // 降级为异步调用（无法真正同步 IPC），返回 Promise
+      return ipcRenderer.invoke("glob-search", pattern, options);
     },
-    // 异步版本
+    // 异步版本 - 通过 IPC 在主进程执行
     async: (pattern, options = {}) => {
-      return new Promise((resolve, reject) => {
-        try {
-          const glob = require("glob");
-          glob(pattern, options, (error, files) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(files);
-            }
-          });
-        } catch (error) {
-          reject(error);
-        }
-      });
+      return ipcRenderer.invoke("glob-search-async", pattern, options);
     }
   },
   ble: {
@@ -493,60 +496,57 @@ contextBridge.exposeInMainWorld("electronAPI", {
           .catch((error) => reject(error));
       });
     },
-    // Glob 工具 - 直接使用 glob API，不需要 IPC
-    globTool: (params) => {
-      return new Promise((resolve, reject) => {
-        try {
-          const { pattern, path: searchPath, limit = 100 } = params;
-          const glob = require("glob");
+    // Glob 工具 - 通过 IPC 在主进程执行
+    globTool: async (params) => {
+      try {
+        const { pattern, path: searchPath, limit = 100 } = params;
 
-          const options = {
-            absolute: true,
-            nodir: true,
-            ignore: [
-              '**/node_modules/**',
-              '**/.git/**',
-              '**/dist/**',
-              '**/build/**',
-              '**/.angular/**'
-            ]
-          };
+        const options = {
+          absolute: true,
+          nodir: true,
+          ignore: [
+            '**/node_modules/**',
+            '**/.git/**',
+            '**/dist/**',
+            '**/build/**',
+            '**/.angular/**'
+          ]
+        };
 
-          if (searchPath) {
-            options.cwd = searchPath;
-          }
-
-          const startTime = Date.now();
-          const files = glob.sync(pattern, options);
-          const durationMs = Date.now() - startTime;
-
-          const truncated = files.length > limit;
-          const limitedFiles = files.slice(0, limit);
-
-          resolve({
-            is_error: false,
-            content: limitedFiles.join('\n'),
-            metadata: {
-              pattern,
-              path: searchPath,
-              numFiles: limitedFiles.length,
-              totalFiles: files.length,
-              durationMs,
-              truncated
-            }
-          });
-        } catch (error) {
-          reject({
-            is_error: true,
-            content: `Glob 搜索失败: ${error.message}`,
-            metadata: {
-              pattern: params.pattern,
-              path: params.path,
-              error: error.message
-            }
-          });
+        if (searchPath) {
+          options.cwd = searchPath;
         }
-      });
+
+        const startTime = Date.now();
+        const files = await ipcRenderer.invoke("glob-search-async", pattern, options);
+        const durationMs = Date.now() - startTime;
+
+        const truncated = files.length > limit;
+        const limitedFiles = files.slice(0, limit);
+
+        return {
+          is_error: false,
+          content: limitedFiles.join('\n'),
+          metadata: {
+            pattern,
+            path: searchPath,
+            numFiles: limitedFiles.length,
+            totalFiles: files.length,
+            durationMs,
+            truncated
+          }
+        };
+      } catch (error) {
+        return {
+          is_error: true,
+          content: `Glob 搜索失败: ${error.message}`,
+          metadata: {
+            pattern: params.pattern,
+            path: params.path,
+            error: error.message
+          }
+        };
+      }
     }
   },
   // Ripgrep 搜索 API

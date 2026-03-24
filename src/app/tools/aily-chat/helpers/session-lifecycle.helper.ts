@@ -6,6 +6,8 @@
 
 import type { ChatEngineService } from '../services/chat-engine.service';
 import { AilyHost } from '../core/host';
+import { SkillRegistry } from '../core/skill-registry';
+import { clearSessionApprovals } from '../core/tool-approval';
 import { markContentAsHistory as _markContentAsHistory } from '../services/content-sanitizer.service';
 
 export class SessionLifecycleHelper {
@@ -32,17 +34,20 @@ export class SessionLifecycleHelper {
       // 导出 subagent 会话数据（Plan C 压缩：保留最近 3 轮对话）
       const subagentHistories = this.engine.subagentSessionService.exportSessions(3);
 
-      // checkpoint 数据独立存储到 .aily_checkpoints/ 目录（不再放入 session JSON）
+      // checkpoint 数据独立存储到 .aily_checkpoints/{sessionId}/ 目录
       if (prjPath && this.engine.editCheckpointService?.getTotalEditCount() > 0) {
         try {
-          this.engine.editCheckpointService.saveToDisk(prjPath);
+          // 提交当前 turn 的快照（确保 stops 完整），防止 stop() 后未提交导致基线错误
+          this.engine.editCheckpointService.commitCurrentTurn();
+          this.engine.editCheckpointService.saveToDisk(prjPath, this.engine.sessionId);
         } catch (err) {
           console.warn('[SessionLifecycle] checkpoint saveToDisk failed:', err);
         }
       }
 
       this.engine.chatHistoryService.saveSession(
-        this.engine.sessionId, this.engine.list, this.engine.conversationMessages || [],
+        this.engine.sessionId, this.engine.list,
+        this.engine.turnManager.serialize(),
         {
           sessionId: this.engine.sessionId,
           title: this.engine.sessionTitle || '',
@@ -93,7 +98,7 @@ export class SessionLifecycleHelper {
     this.engine.isCancelled = false;
 
     if (this.engine.useStatelessMode) {
-      this.engine.conversationMessages = [];
+      this.engine.turnManager.clear();
       this.engine.pendingToolResults = [];
       this.engine.currentTurnAssistantContent = '';
       this.engine.currentTurnToolCalls = [];
@@ -104,8 +109,14 @@ export class SessionLifecycleHelper {
     this.engine.sessionAllowedPaths = [];
     this.engine.repetitionDetectionService.resetAll();
     this.engine.insideThink = false;
-    this.engine.rulesInjectedThisSession = false;
     this.engine.activatedDeferredTools.clear();
+    SkillRegistry.clearSessionState();
+
+    // 初始化 Skills 系统（扫描全局 + 项目级 skills）
+    const projectRoot = AilyHost.get().project?.currentProjectPath || AilyHost.get().project?.projectRootPath;
+    SkillRegistry.initialize(projectRoot).catch(err => {
+      console.warn('[AilyChat] Skills 初始化失败:', err);
+    });
 
     if (!this.engine.mcpInitialized) {
       this.engine.mcpInitialized = true;
@@ -189,7 +200,7 @@ export class SessionLifecycleHelper {
   }
 
   async ensureServerSession(): Promise<void> {
-    const savedMessages = [...this.engine.conversationMessages];
+    const savedTurns = this.engine.turnManager.serialize();
     const savedIteration = this.engine.toolCallingIteration;
     const savedTitle = this.engine.chatService.currentSessionTitle;
     const savedPath = this.engine.chatService.currentSessionPath;
@@ -197,12 +208,12 @@ export class SessionLifecycleHelper {
     const oldSessionId = this.engine.sessionId;
     try { await this.startSession(); } catch (err) {
       console.warn('[AilyChat] 重新注册服务端会话失败:', err);
-      this.engine.conversationMessages = savedMessages;
+      this.engine.turnManager.deserialize(savedTurns);
       this.engine.toolCallingIteration = savedIteration;
       this.engine.list = savedList;
       throw err;
     }
-    this.engine.conversationMessages = savedMessages;
+    this.engine.turnManager.deserialize(savedTurns);
     this.engine.toolCallingIteration = savedIteration;
     this.engine.chatService.currentSessionTitle = savedTitle;
     this.engine.chatService.currentSessionPath = savedPath;
@@ -267,14 +278,12 @@ export class SessionLifecycleHelper {
     this.engine.isCompleted = false;
     this.engine.isCancelled = true;
     this.engine.editCheckpointService.clear();
-    // 清理项目目录下的 checkpoint 文件
-    const cpPath = AilyHost.get().project.currentProjectPath;
-    if (cpPath) {
-      try { this.engine.editCheckpointService.cleanDisk(cpPath); } catch {}
-    }
+    this.engine.editCheckpointService.dismissSummary();
+    // 旧会话的 checkpoint 文件保留在磁盘（随会话历史删除时清除）
     if (this.engine.messageSubscription) { this.engine.messageSubscription.unsubscribe(); this.engine.messageSubscription = null; }
     this.engine.activeToolExecutions = 0;
     this.engine.sseStreamCompleted = false;
+    clearSessionApprovals();
     try {
       await this.stopAndCloseSession(true);
       this.engine.chatService.currentSessionId = '';
@@ -293,7 +302,7 @@ export class SessionLifecycleHelper {
   getHistory(): void {
     if (!this.engine.sessionId) return;
     this.engine.list = [];
-    this.engine.conversationMessages = [];
+    this.engine.turnManager.clear();
     this.engine.toolCallingIteration = 0;
     this.engine.contextBudgetService?.reset();
     const currentPrjPath = AilyHost.get().project.currentProjectPath || AilyHost.get().project.projectRootPath;
@@ -311,8 +320,9 @@ export class SessionLifecycleHelper {
         const indexEntry = this.engine.chatHistoryService.findEntry(this.engine.sessionId);
         if (indexEntry?.title) { this.engine.chatService.currentSessionTitle = indexEntry.title; }
       }
-      if (sessionData.conversationMessages && sessionData.conversationMessages.length > 0) {
-        this.engine.conversationMessages = sessionData.conversationMessages;
+      // 从 turns 恢复 Turn 结构
+      if (sessionData.turns) {
+        this.engine.turnManager.deserialize(sessionData.turns);
         this.engine.toolCallingIteration = sessionData.metadata?.toolCallingIteration || 0;
         this.engine.contextBudgetService?.updateBudget(this.engine.conversationMessages, this.engine.turnLoop.getCurrentTools());
       } else {
@@ -324,10 +334,12 @@ export class SessionLifecycleHelper {
         this.engine.subagentSessionService.importSessions(sessionData.subagentHistories);
       }
 
-      // 恢复文件变更 checkpoint — 优先从 .aily_checkpoints/ 目录加载
+      // 恢复文件变更 checkpoint — 先清除旧状态，再从磁盘加载新会话的 checkpoint
+      this.engine.editCheckpointService?.clear();
       const cpProjectPath = sessionData.metadata?.projectPath;
-      if (cpProjectPath) {
-        const loaded = this.engine.editCheckpointService?.loadFromDisk(cpProjectPath);
+      const cpSessionId = this.engine.sessionId;
+      if (cpProjectPath && cpSessionId) {
+        const loaded = this.engine.editCheckpointService?.loadFromDisk(cpProjectPath, cpSessionId);
         if (!loaded && sessionData.editCheckpoints) {
           // 兼容旧 JSON 格式
           this.engine.editCheckpointService?.restoreFromJSON(sessionData.editCheckpoints);
@@ -336,7 +348,24 @@ export class SessionLifecycleHelper {
         this.engine.editCheckpointService?.restoreFromJSON(sessionData.editCheckpoints);
       }
 
+      // 恢复后刷新编辑摘要面板 — 仅当存在未保留的变更时才显示
+      // 自动保存模式下直接保留，不弹面板
+      if (this.engine.editCheckpointService?.hasUnsavedEdits()) {
+        if (this.engine.ailyChatConfigService.autoSaveEdits) {
+          this.engine.editCheckpointService.acceptAllAsBaseline();
+          this.engine.editCheckpointService.dismissSummary();
+        } else {
+          this.engine.editCheckpointService.publishCurrentSummary();
+        }
+      } else {
+        this.engine.editCheckpointService?.dismissSummary();
+      }
+
       this.engine.scrollManager.scrollToBottom('auto');
+    } else {
+      // 新会话无历史数据，确保清除旧 checkpoint 状态
+      this.engine.editCheckpointService?.clear();
+      this.engine.editCheckpointService?.dismissSummary();
     }
   }
 

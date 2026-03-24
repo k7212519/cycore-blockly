@@ -119,7 +119,7 @@ export function estimateToolsTokens(tools: any[]): number {
  * 参考 Copilot 的 Context Window 面板，分 System / Tools / Messages 三部分展示占用
  */
 export interface ContextBudgetSnapshot {
-  /** 总占用 token 数（system + tools + messages） */
+  /** 总占用 token 数（system + tools + context + messages） */
   currentTokens: number;
   /** 模型上下文窗口总 token 数 */
   maxContextTokens: number;
@@ -139,12 +139,16 @@ export interface ContextBudgetSnapshot {
   systemTokens: number;
   /** 工具定义占用 token 数 */
   toolsTokens: number;
+  /** 瞬态上下文注入占用 token 数（<aily-context>: skills + memory + deferred tools listing） */
+  contextTokens: number;
   /** 对话消息占用 token 数 */
   messagesTokens: number;
   /** 系统提示词占比 (0-100) */
   systemPercent: number;
   /** 工具定义占比 (0-100) */
   toolsPercent: number;
+  /** 瞬态上下文注入占比 (0-100) */
+  contextPercent: number;
   /** 对话消息占比 (0-100) */
   messagesPercent: number;
 }
@@ -240,7 +244,8 @@ export class ContextBudgetService {
   private static readonly INFO_TOOLS = new Set([
     'read_file', 'fetch', 'web_search', 'grep', 'grep_tool', 'glob_tool',
     'get_directory_tree', 'list_directory', 'search_boards_libraries',
-    'get_abs_syntax', 'get_workspace_overview_tool',
+    // 'get_abs_syntax', 
+    'get_workspace_overview_tool',
   ]);
 
   /** 保留最近 N 条消息不压缩（确保最近上下文完整） */
@@ -370,6 +375,8 @@ export class ContextBudgetService {
   private _cachedSystemTokens: number = 0;
   /** 缓存的工具定义 token 估算值 */
   private _cachedToolsTokens: number = 0;
+  /** 缓存的瞬态上下文注入 token 估算值（<aily-context>: skills + memory + deferred tools listing） */
+  private _cachedContextTokens: number = 0;
   /** 上一次工具数组长度（用于判断是否需要重新估算） */
   private _lastToolsCount: number = 0;
 
@@ -403,9 +410,23 @@ export class ContextBudgetService {
   }
 
   /**
+   * 更新瞬态上下文注入（<aily-context>）的 token 估算值
+   *
+   * 由 StreamProcessorHelper.buildContextMessage() 构建后调用，
+   * 确保 budget 计量中包含 skills/memory/deferred tools listing 的占用。
+   *
+   * @param contextMessage buildContextMessage() 返回的消息对象（可为 null）
+   */
+  updateContextTokens(contextMessage: any | null): void {
+    this._cachedContextTokens = contextMessage
+      ? estimateMessageTokens(contextMessage)
+      : 0;
+  }
+
+  /**
    * 更新上下文预算状态（每次 conversationMessages 变化时调用）
    *
-   * 参考 Copilot 的 Context Window 面板，完整上下文 = System + Tools + Messages
+   * 参考 Copilot 的 Context Window 面板，完整上下文 = System + Tools + Context + Messages
    *
    * @param messages 当前完整对话历史
    * @param tools 可选，当前工具数组（传入时会更新工具 token 缓存）
@@ -419,7 +440,8 @@ export class ContextBudgetService {
     const messagesTokens = estimateMessagesTokens(messages);
     const systemTokens = this._cachedSystemTokens;
     const toolsTokens = this._cachedToolsTokens;
-    const currentTokens = systemTokens + toolsTokens + messagesTokens;
+    const contextTokens = this._cachedContextTokens;
+    const currentTokens = systemTokens + toolsTokens + contextTokens + messagesTokens;
     const max = this.maxContextTokens;
 
     const snapshot: ContextBudgetSnapshot = {
@@ -433,9 +455,11 @@ export class ContextBudgetService {
       // 分项明细
       systemTokens,
       toolsTokens,
+      contextTokens,
       messagesTokens,
       systemPercent: max > 0 ? Math.round((systemTokens / max) * 1000) / 10 : 0,
       toolsPercent: max > 0 ? Math.round((toolsTokens / max) * 1000) / 10 : 0,
+      contextPercent: max > 0 ? Math.round((contextTokens / max) * 1000) / 10 : 0,
       messagesPercent: max > 0 ? Math.round((messagesTokens / max) * 1000) / 10 : 0,
     };
     this.budgetSubject.next(snapshot);
@@ -595,8 +619,9 @@ export class ContextBudgetService {
     const maxTokens = this.maxContextTokens;
     const systemTokens = this._cachedSystemTokens;
     const toolsTokens = this._cachedToolsTokens;
+    const contextTokens = this._cachedContextTokens;
     const outputReserve = Math.floor(maxTokens * ContextBudgetService.OUTPUT_RESERVE_RATIO);
-    const availableForMessages = maxTokens - systemTokens - toolsTokens - outputReserve;
+    const availableForMessages = maxTokens - systemTokens - toolsTokens - contextTokens - outputReserve;
 
     // Step 1: 找到用户最新消息（Priority 900）
     let lastUserIdx = -1;
@@ -724,7 +749,7 @@ export class ContextBudgetService {
         continue;
       }
 
-      // user / system 消息保持原样（保留完整用户意图链）
+      // user / system 消息：保持原样
       if (msg.role === 'user' || msg.role === 'system') {
         result.push(msg);
         continue;
@@ -853,9 +878,11 @@ export class ContextBudgetService {
       updatedAt: Date.now(),
       systemTokens: 0,
       toolsTokens: 0,
+      contextTokens: 0,
       messagesTokens: 0,
       systemPercent: 0,
       toolsPercent: 0,
+      contextPercent: 0,
       messagesPercent: 0,
     };
   }
@@ -864,8 +891,10 @@ export class ContextBudgetService {
    * 重置状态（新会话时调用）
    */
   reset(): void {
-    // 注意：不清除 _cachedSystemTokens，因为系统提示词在会话间不变
+    // 切换模型/新会话时，系统提示词 token 数可能不同，需重置为默认估算
+    this._cachedSystemTokens = ContextBudgetService.ESTIMATED_SYSTEM_PROMPT_TOKENS;
     this._cachedToolsTokens = 0;
+    this._cachedContextTokens = 0;
     this._lastToolsCount = 0;
     this.budgetSubject.next(this.createEmptySnapshot());
     this.compressionEventSubject.next(null);

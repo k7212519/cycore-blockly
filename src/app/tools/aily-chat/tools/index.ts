@@ -49,6 +49,10 @@ export { registerSubagent, getRegisteredSubagents, getSubagentDefinition, buildR
 export { syncAbsFileHandler } from './syncAbsFileTool';
 export { absVersionControlHandler } from './absVersionControlTool';
 export { getAbsSyntaxTool } from './getAbsSyntaxTool';
+
+// Skill 工具
+export { loadSkillHandler, LOAD_SKILL_SCHEMA } from './loadSkillTool';
+// export { manageSkillsHandler, MANAGE_SKILLS_SCHEMA } from './manageSkillsTool'; // TODO: Skills Hub 后续完善
 // export { reloadAbiJsonTool, reloadAbiJsonToolSimple, reloadAbiJsonToolDirect, ReloadAbiJsonToolService } from './reloadAbiJsonTool';
 
 // 安全服务

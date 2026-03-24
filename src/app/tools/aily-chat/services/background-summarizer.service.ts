@@ -188,8 +188,11 @@ export class BackgroundSummarizerService {
   /** 正在执行的摘要 Promise（用于 await） */
   private _pendingPromise: Promise<BackgroundSummaryResult | null> | null = null;
 
-  /** 当前活跃的 subscription（用于取消） */
+  /** 当前活跃的 subscription（用于取消后台摘要） */
   private _activeSubscription: Subscription | null = null;
+
+  /** 前台摘要的 subscription（用于取消前台摘要） */
+  private _foregroundSubscription: Subscription | null = null;
 
   /** 状态 Observable */
   private stateSubject = new BehaviorSubject<BackgroundSummarizationState>(BackgroundSummarizationState.Idle);
@@ -324,7 +327,7 @@ export class BackgroundSummarizerService {
    * 重置状态（新会话时调用）
    */
   reset(): void {
-    this.cancel();
+    this.cancelActive();
     this.resetToIdle();
   }
 
@@ -541,6 +544,7 @@ export class BackgroundSummarizerService {
         complete: () => {
           if (!resolved) {
             resolved = true;
+            this._foregroundSubscription = null;
             resolve(summaryText.trim());
           }
           subscription.unsubscribe();
@@ -548,11 +552,15 @@ export class BackgroundSummarizerService {
         error: (err) => {
           if (!resolved) {
             resolved = true;
+            this._foregroundSubscription = null;
             reject(err);
           }
           subscription.unsubscribe();
         }
       });
+
+      // 跟踪前台订阅，以便 cancel() 时取消
+      this._foregroundSubscription = subscription;
 
       // 前台 30s 超时（比后台更短）
       setTimeout(() => {
@@ -665,12 +673,17 @@ export class BackgroundSummarizerService {
   }
 
   /**
-   * 取消正在进行的摘要
+   * 取消所有正在进行的摘要（前台 + 后台）
+   * 供外部在 stop() 时调用，避免用户取消后摘要仍消耗资源
    */
-  private cancel(): void {
+  cancelActive(): void {
     if (this._activeSubscription) {
       this._activeSubscription.unsubscribe();
       this._activeSubscription = null;
+    }
+    if (this._foregroundSubscription) {
+      this._foregroundSubscription.unsubscribe();
+      this._foregroundSubscription = null;
     }
     this._pendingPromise = null;
   }

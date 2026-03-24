@@ -57,7 +57,15 @@
             [sessionId]="sessionId"
             [msgIndex]="$index"
             [activeCheckpointAnchorIndex]="activeCheckpointAnchorIndex"
-            (checkpointHoverChange)="onCheckpointHoverChange($event)">
+            [currentMode]="currentMode"
+            [currentModelName]="currentModelName"
+            [isWaiting]="isWaiting"
+            (checkpointHoverChange)="onCheckpointHoverChange($event)"
+            (editAndResend)="onEditAndResend($event)"
+            (editModeToggle)="onEditModeToggle($event)"
+            (editModelToggle)="onEditModelToggle($event)"
+            (editAddFile)="onEditAddFile($index)"
+            (editAddFolder)="onEditAddFolder($index)">
           </aily-x-dialog>
           }
       </div>
@@ -67,7 +75,7 @@
         <i class="fa-light fa-star-christmas"></i>
         <div class="title">{{ 'AILY_CHAT.SERVICE_TITLE' | translate }}</div>
         <div class="text">{{ 'AILY_CHAT.DISCLAIMER' | translate }}</div>
-        <div></div>
+        <div class="btn link" (click)="openUrl()">{{ 'AILY_CHAT.USAGE_GUIDE' | translate }}</div>
       </div>
       }
     </div>
@@ -182,7 +190,8 @@
                   </div>
                   <div><span style="color:#98c379">■</span> System: {{ (contextBudgetSnapshot.systemTokens / 1000) | number:'1.1-1' }}K <span style="opacity:0.6">({{ contextBudgetSnapshot.systemPercent | number:'1.1-1' }}%)</span></div>
                   <div><span style="color:#61afef">■</span> Tools: {{ (contextBudgetSnapshot.toolsTokens / 1000) | number:'1.1-1' }}K <span style="opacity:0.6">({{ contextBudgetSnapshot.toolsPercent | number:'1.1-1' }}%)</span></div>
-                  <div><span style="color:#c678dd">■</span> Messages: {{ (contextBudgetSnapshot.messagesTokens / 1000) | number:'1.1-1' }}K <span style="opacity:0.6">({{ contextBudgetSnapshot.messagesPercent | number:'1.1-1' }}%)</span></div>
+                  <!-- <div><span style="color:#e5c07b">■</span> Context: {{ (contextBudgetSnapshot.contextTokens / 1000) | number:'1.1-1' }}K <span style="opacity:0.6">({{ contextBudgetSnapshot.contextPercent | number:'1.1-1' }}%)</span></div> -->
+                  <div><span style="color:#c678dd">■</span> Messages: {{ ((contextBudgetSnapshot.messagesTokens + contextBudgetSnapshot.contextTokens) / 1000) | number:'1.1-1' }}K <span style="opacity:0.6">({{ (contextBudgetSnapshot.messagesPercent + contextBudgetSnapshot.contextPercent) | number:'1.1-1' }}%)</span></div>
                 </div>
               </ng-template>
               <svg viewBox="0 0 24 24" class="token-ring">

@@ -2,31 +2,51 @@
 import { normalizePath } from "../services/security.service";
 import { AilyHost } from '../core/host';
 
-// 构建目录树的递归函数
+// 构建目录树的递归函数（真异步，通过 IPC 在主进程执行 fs 操作）
 async function buildDirectoryTree(dirPath: string, currentDepth: number = 0, maxDepth: number = 3) {
     if (currentDepth > maxDepth) {
         return null;
     }
 
     try {
-        const stats = await AilyHost.get().fs.statSync(dirPath);
-        const isDirectory = await AilyHost.get().fs.isDirectory(dirPath);
-        const name = AilyHost.get().path.basename(dirPath);
+        const fs = AilyHost.get().fs;
+        const pathUtils = AilyHost.get().path;
+
+        let stats: { isDirectory(): boolean; isFile(): boolean; size: number; mtime: Date };
+        if (fs.stat) {
+            stats = await fs.stat(dirPath);
+        } else {
+            stats = fs.statSync(dirPath);
+        }
+        const isDir = stats.isDirectory();
+        const name = pathUtils.basename(dirPath);
 
         const node = {
             name,
             path: dirPath,
-            isDirectory,
+            isDirectory: isDir,
             size: stats.size,
             modifiedTime: stats.mtime,
             children: [] as any[]
         };
 
-        if (isDirectory && currentDepth < maxDepth) {
+        if (isDir && currentDepth < maxDepth) {
             try {
-                const files = await AilyHost.get().fs.readDirSync(dirPath);
+                let files: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+                if (fs.readDir) {
+                    files = await fs.readDir(dirPath);
+                } else if (fs.readDirSync) {
+                    files = fs.readDirSync(dirPath);
+                } else {
+                    const names = fs.readdirSync(dirPath);
+                    files = [];
+                    for (const n of names) {
+                        const childStat = fs.stat ? await fs.stat(pathUtils.join(dirPath, n)) : fs.statSync(pathUtils.join(dirPath, n));
+                        files.push({ name: n, isDirectory: () => childStat.isDirectory(), isFile: () => childStat.isFile() });
+                    }
+                }
                 for (const file of files) {
-                    const childPath = AilyHost.get().path.join(dirPath, file.name);
+                    const childPath = pathUtils.join(dirPath, file.name);
                     const childNode = await buildDirectoryTree(childPath, currentDepth + 1, maxDepth);
                     if (childNode) {
                         node.children.push(childNode);
@@ -89,7 +109,7 @@ export async function getDirectoryTreeTool(
         }
 
         // 检查是否为目录
-        const isDirectory = await AilyHost.get().fs.isDirectory(dirPath);
+        const isDirectory = AilyHost.get().fs.isDirectory(dirPath);
         if (!isDirectory) {
             const toolResult = {
                 is_error: true,

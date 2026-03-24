@@ -29,13 +29,15 @@ import { ScrollManagerService } from './scroll-manager.service';
 import { ResourceManagerService } from './resource-manager.service';
 import { MenuManagerService } from './menu-manager.service';
 
-import { ChatMessage, Tool, ToolCallState } from '../core/chat-types';
+import { ChatMessage, Tool, ToolCallState, ResourceItem } from '../core/chat-types';
 import { AilyHost } from '../core/host';
 import { ToolRegistry } from '../core/tool-registry';
 import { createSecurityContext } from './security.service';
 import { TOOLS } from '../tools/tools';
+import { syncAbsFileHandler } from '../tools/syncAbsFileTool';
 import { registerAskUserCallback, unregisterAskUserCallback, AskUserQuestion, AskUserFullResponse, AskUserAnswer } from '../tools/askUserTool';
 import { cleanupAllTerminalSessions } from '../tools/terminalSessionTool';
+import { toolRequiresApproval, requestToolApproval, registerToolApprovalCallback, unregisterToolApprovalCallback, approveToolForSession, clearSessionApprovals, ToolApprovalRequest, ToolApprovalResult } from '../core/tool-approval';
 
 import { AILY_CHAT_ONBOARDING_CONFIG } from '../../../configs/onboarding.config';
 
@@ -43,6 +45,7 @@ import { MessageDisplayHelper } from '../helpers/message-display.helper';
 import { SessionLifecycleHelper } from '../helpers/session-lifecycle.helper';
 import { StreamProcessorHelper } from '../helpers/stream-processor.helper';
 import { ToolCallLoopHelper } from '../helpers/tool-call-loop.helper';
+import { TurnManager } from '../core/turn-manager';
 
 @Injectable()
 export class ChatEngineService {
@@ -52,6 +55,10 @@ export class ChatEngineService {
   readonly session = new SessionLifecycleHelper(this);
   readonly stream = new StreamProcessorHelper(this);
   readonly turnLoop = new ToolCallLoopHelper(this);
+
+  // ==================== Turn 结构化存储（source of truth） ====================
+  /** Copilot 风格 Turn[] 存储管理器，唯一 source of truth */
+  readonly turnManager = new TurnManager();
 
   // ==================== 公共状态（模板绑定） ====================
   list: ChatMessage[] = [];
@@ -77,7 +84,8 @@ export class ChatEngineService {
   hasInitializedForThisLogin = false;
   isCancelled = false;
   useStatelessMode = true;
-  conversationMessages: any[] = [];
+  /** 只读视图：从 Turn[] 派生的消息数组（不要直接修改） */
+  get conversationMessages(): any[] { return this.turnManager.buildMessages(); }
   pendingToolResults: any[] = [];
   currentTurnAssistantContent = '';
   currentTurnToolCalls: any[] = [];
@@ -89,6 +97,8 @@ export class ChatEngineService {
 
   /** 缓存的编辑反馈（用户保留/撤销变更后，在下次发送时注入上下文） */
   private pendingEditFeedback: string | null = null;
+  /** 用于中止当前轮次中工具执行的 AbortController */
+  private abortController: AbortController | null = null;
 
   setServerSessionInactive() { this.serverSessionActive = false; }
   pendingUserInput = false;
@@ -98,8 +108,6 @@ export class ChatEngineService {
   mcpInitialized = false;
   private _aiNoticeShown = false;
   lastStopReason = '';
-  /** 会话级标记：规则/角色提示词是否已注入（仅首次工具调用时注入） */
-  rulesInjectedThisSession = false;
   /** 会话级：已激活的 deferred 工具名称集合（通过 search_available_tools 加载） */
   activatedDeferredTools = new Set<string>();
 
@@ -114,6 +122,9 @@ export class ChatEngineService {
   _resolveAskUser: ((response: AskUserFullResponse | undefined) => void) | null = null;
   /** 当前 ask_user 的问题列表（用于事件回调时组装答案） */
   private _askUserQuestions: AskUserQuestion[] | null = null;
+
+  /** 工具审批 Promise resolve 回调（等待用户在聊天界面确认） */
+  _resolveToolApproval: ((result: ToolApprovalResult) => void) | null = null;
 
   // ==================== 订阅 ====================
   messageSubscription: any;
@@ -209,6 +220,9 @@ export class ChatEngineService {
     // 注册 ask_user 回调：在聊天界面显示全部问题并等待用户回答
     registerAskUserCallback((questions) => this._handleAskUser(questions));
 
+    // 注册工具审批回调：在聊天界面显示确认 UI 并等待用户批准
+    registerToolApprovalCallback((request) => this._handleToolApproval(request));
+
     this.setupSubscriptions();
   }
 
@@ -222,8 +236,10 @@ export class ChatEngineService {
     this.editCheckpointService.clear();
 
     unregisterAskUserCallback();
+    unregisterToolApprovalCallback();
     cleanupAllTerminalSessions();
     this._resolveAskUser = null;
+    this._resolveToolApproval = null;
 
     this.cleanupSubscriptions();
     this.session.disconnect();
@@ -323,6 +339,8 @@ export class ChatEngineService {
 
       // 新建项目时自动领养根目录下的孤儿会话
       if (newPath && newPath !== rootPath) {
+        // 先加载新项目的本地索引（项目级优先）
+        this.chatHistoryService.reloadProjectIndex(newPath);
         const adopted = this.chatHistoryService.adoptOrphanSessions(newPath, rootPath);
         if (adopted > 0) {
           console.log(`[ChatEngine] 项目切换，自动领养 ${adopted} 个孤儿会话到: ${newPath}`);
@@ -432,6 +450,7 @@ export class ChatEngineService {
       securityContext: this.securityContext,
       sessionId: this.sessionId,
       editCheckpoint: this.editCheckpointService,
+      abortSignal: this.abortController?.signal,
     };
   }
 
@@ -444,14 +463,48 @@ export class ChatEngineService {
     }
     const displayMode = tool.displayMode || 'toolCall';
     const startText = ToolRegistry.getStartText(toolName, toolArgs);
-    if (displayMode === 'appendMessage') {
-      const safeText = startText.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, ' ');
-      if (safeText) {
-        this.msg.appendMessage('aily', `\n\`\`\`aily-state\n{\n  "state": "doing",\n  "text": "${safeText}",\n  "id": "${toolCallId}"\n}\n\`\`\`\n\n`);
+
+    // ── 工具审批拦截 ──
+    // 对需要审批的工具，等待用户确认后再执行（审批 UI 由 aily-approval 块提供，不需要额外 aily-state）
+    if (toolRequiresApproval(toolName)) {
+      const approval = await requestToolApproval(toolCallId, toolName, toolArgs);
+      if (!approval.approved) {
+        const rejectReason = approval.reason || '用户拒绝执行';
+        const rejectResult = { is_error: false, content: `操作已取消: ${rejectReason}` };
+        if (displayMode === 'toolCall') {
+          this.msg.startToolCall(toolCallId, toolName, `已取消: ${startText}`, toolArgs);
+          this.msg.completeToolCall(toolCallId, toolName, ToolCallState.WARN, `已取消: ${startText}`);
+        } else if (displayMode === 'appendMessage') {
+          const safeText = this.msg.makeJsonSafe(`已取消: ${startText}`);
+          this.msg.appendMessage('aily', `\n\`\`\`aily-state\n{\n  "state": "warn",\n  "text": "${safeText}",\n  "id": "${toolCallId}"\n}\n\`\`\`\n\n`);
+        }
+        return { toolResult: rejectResult, resultState: 'warn', resultText: `已取消: ${startText}` };
       }
-    } else if (displayMode === 'toolCall') {
-      if (startText) { this.msg.startToolCall(toolCallId, toolName, startText, toolArgs); }
+      // 用户已批准，处理会话级授权
+      if (approval.scope === 'session') {
+        approveToolForSession(toolName);
+      }
+      // 批准后显示正常执行状态
+      if (displayMode === 'toolCall') {
+        if (startText) { this.msg.startToolCall(toolCallId, toolName, startText, toolArgs); }
+      } else if (displayMode === 'appendMessage') {
+        const safeText = startText.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, ' ');
+        if (safeText) {
+          this.msg.appendMessage('aily', `\n\`\`\`aily-state\n{\n  "state": "doing",\n  "text": "${safeText}",\n  "id": "${toolCallId}"\n}\n\`\`\`\n\n`);
+        }
+      }
+    } else {
+      // 不需要审批的工具，直接显示正常执行状态
+      if (displayMode === 'appendMessage') {
+        const safeText = startText.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, ' ');
+        if (safeText) {
+          this.msg.appendMessage('aily', `\n\`\`\`aily-state\n{\n  "state": "doing",\n  "text": "${safeText}",\n  "id": "${toolCallId}"\n}\n\`\`\`\n\n`);
+        }
+      } else if (displayMode === 'toolCall') {
+        if (startText) { this.msg.startToolCall(toolCallId, toolName, startText, toolArgs); }
+      }
     }
+
     const ctx = this.buildToolContext();
     const toolResult = await ToolRegistry.execute(toolName, toolArgs, ctx);
     const resultText = ToolRegistry.getResultText(toolName, toolArgs, toolResult);
@@ -638,16 +691,23 @@ Do not create non-existent boards and libraries.
       this.msg.appendMessage('user', displayText);
 
       if (this.useStatelessMode) {
-        this.conversationMessages.push({ role: 'user', content: llmText });
+        this.turnManager.startTurn(llmText);
         this.isWaiting = true;
         this.msg.appendMessage('aily', '[thinking...]');
         this.currentMessageSource = 'mainAgent';
         this.toolCallingIteration = 0;
-        // 启动新 turn 的 checkpoint（记录 conversationMessages 和 list 的当前位置）
+        // 创建新的 AbortController 用于本轮工具执行中止
+        this.abortController = new AbortController();
+        // Turn 开始前自动导出 ABS，确保磁盘态与图形工作区同步
+        this.ensureAbsExport();
+        // 同步自动保存配置
+        this.editCheckpointService.autoSaveEdits = this.ailyChatConfigService.autoSaveEdits;
+        // 启动新 turn 的 checkpoint
         this.editCheckpointService.startTurn(
           0,
           this.conversationMessages.length - 1,
-          this.list.length - 1
+          this.list.length - 1,
+          this.turnManager.currentTurnId
         );
         this.contextBudgetService.updateBudget(this.conversationMessages, this.turnLoop.getCurrentTools());
         if (clear) { this.inputValue = ''; }
@@ -703,23 +763,25 @@ Do not create non-existent boards and libraries.
     this.isWaiting = true;
     this.currentMessageSource = agentName;
 
-    // 将 user message 记录到主对话历史（保持对话完整性）
-    this.conversationMessages.push({ role: 'user', content: `@${agentName} ${userText}` });
+    // Turn 结构化存储
+    this.turnManager.startTurn(`@${agentName} ${userText}`);
 
     try {
       const result = await this.subagentSessionService.directChat(agentName, userText);
 
-      // 将 subagent 回复记录到主对话历史
-      this.conversationMessages.push({ role: 'assistant', content: `[${agentName}] ${result}` });
-
-      // 确保最后一条消息标记完成
+      this.turnManager.finalizeTurn(`[${agentName}] ${result}`);
+    } catch (error: any) {
+      this.turnManager.finalizeTurn('');
+      // 用户主动停止时不显示错误消息
+      if (!this.isCancelled) {
+        const errMsg = error?.message || `${agentName} 执行失败`;
+        this.msg.appendMessage('aily', `\n\`\`\`aily-error\n{\n  "message": "${this.msg.makeJsonSafe(errMsg)}"}\n\`\`\`\n\n`, agentName);
+      }
+    } finally {
+      // 确保最后一条消息标记完成（包括超时/错误场景）
       if (this.list.length > 0 && this.list[this.list.length - 1].role === 'aily') {
         this.list[this.list.length - 1].state = 'done';
       }
-    } catch (error: any) {
-      const errMsg = error?.message || `${agentName} 执行失败`;
-      this.msg.appendMessage('aily', `\n\`\`\`aily-error\n{\n  "message": "${this.msg.makeJsonSafe(errMsg)}"}\n\`\`\`\n\n`, agentName);
-    } finally {
       this.currentMessageSource = 'mainAgent';
       this.isWaiting = false;
       this.isCompleted = true;
@@ -731,6 +793,13 @@ Do not create non-existent boards and libraries.
 
   stop(): void {
     this.isCancelled = true;
+    // 中止正在进行的异步工具操作
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    // 取消正在进行的前台/后台摘要（避免 stop 后仍消耗 LLM 资源）
+    this.contextBudgetService.backgroundSummarizer.cancelActive();
     const wasStatelessTurn = this.currentStatelessMode;
     if (this.messageSubscription) { this.messageSubscription.unsubscribe(); this.messageSubscription = null; }
     this.pendingUserInput = false;
@@ -741,25 +810,38 @@ Do not create non-existent boards and libraries.
     if (this.messageSubscription) { this.messageSubscription.unsubscribe(); this.messageSubscription = null; }
     this.subagentSessionService.cleanupAll();
 
-    if (wasStatelessTurn && this.currentTurnAssistantContent) {
-      const assistantMessage: any = {
-        role: 'assistant',
-        content: this.msg.sanitizeAssistantContent(this.currentTurnAssistantContent)
-      };
-      if (this.currentTurnToolCalls.length > 0) {
-        assistantMessage.tool_calls = this.currentTurnToolCalls.map(tc => ({
-          id: tc.tool_id, type: 'function',
-          function: { name: tc.tool_name, arguments: typeof tc.tool_args === 'string' ? tc.tool_args : JSON.stringify(tc.tool_args) }
-        }));
-      }
-      this.conversationMessages.push(assistantMessage);
-      if (this.pendingToolResults.length > 0) {
-        for (const result of this.pendingToolResults) {
-          this.conversationMessages.push({
-            role: 'tool', tool_call_id: result.tool_id, name: result.tool_name,
-            content: this.msg.truncateToolResult(this.msg.sanitizeToolContent(result.content), result.tool_name)
-          });
+    if (wasStatelessTurn) {
+      // 保存已收到的 assistant 内容和工具结果到 TurnManager
+      const hasAssistantContent = !!this.currentTurnAssistantContent;
+      const hasToolCalls = this.currentTurnToolCalls.length > 0;
+      const hasToolResults = this.pendingToolResults.length > 0;
+
+      if (hasAssistantContent || hasToolCalls) {
+        if (hasToolCalls) {
+          this.turnManager.addToolCallRound(
+            this.currentTurnAssistantContent || '',
+            this.currentTurnToolCalls.map(tc => ({
+              id: tc.tool_id,
+              name: tc.tool_name,
+              arguments: typeof tc.tool_args === 'string' ? tc.tool_args : JSON.stringify(tc.tool_args),
+            }))
+          );
         }
+
+        if (hasToolResults) {
+          for (const result of this.pendingToolResults) {
+            this.turnManager.addToolResult(result.tool_id, {
+              content: result.content,
+              isError: result.is_error ?? false,
+              toolName: result.tool_name,
+            });
+          }
+        }
+
+        this.turnManager.finalizeTurn(this.currentTurnAssistantContent || '');
+      } else {
+        // 没有 assistant 输出也没有工具调用，移除未完成的 turn
+        this.turnManager.removeIncompleteLast();
       }
       this.currentTurnAssistantContent = '';
       this.currentTurnToolCalls = [];
@@ -771,6 +853,9 @@ Do not create non-existent boards and libraries.
         this.sessionId, this.turnLoop.getCurrentLLMConfig(), this.currentModel?.model || undefined
       );
     }
+
+    // stop 时提交当前 turn 的快照，确保 checkpoint 数据完整
+    this.editCheckpointService.commitCurrentTurn();
 
     if (this.list.length > 0 && this.list[this.list.length - 1].role === 'aily') {
       this.list[this.list.length - 1].state = 'done';
@@ -786,6 +871,21 @@ Do not create non-existent boards and libraries.
 
     // 停止后应用延迟切换
     this.applyPendingSwitch();
+  }
+
+  /**
+   * 确保 absAutoSyncService 已初始化并执行导出
+   */
+  private ensureAbsExport(): void {
+    const projectPath = this.getCurrentProjectPath()
+      || AilyHost.get().project.currentProjectPath
+      || AilyHost.get().project.projectRootPath;
+    if (projectPath) {
+      this.absAutoSyncService.initialize(projectPath);
+    }
+    this.absAutoSyncService.exportToAbs().catch(err => {
+      console.warn('[ChatEngine] ABS 自动导出失败:', err);
+    });
   }
 
   // ==================== 模式 / 模型切换 ====================
@@ -806,7 +906,7 @@ Do not create non-existent boards and libraries.
   /** 实际执行模型切换（重建会话） */
   private async _doSwitchModel(model: ModelConfig): Promise<void> {
     this.chatService.saveChatModel(model);
-    const savedMessages = [...this.conversationMessages];
+    const savedTurns = this.turnManager.serialize();
     const savedIteration = this.toolCallingIteration;
     const savedTitle = this.chatService.currentSessionTitle;
     const savedPath = this.chatService.currentSessionPath;
@@ -815,12 +915,12 @@ Do not create non-existent boards and libraries.
     await this.session.stopAndCloseSession();
     try { await this.session.startSession(); } catch (err) {
       console.error('切换模型失败:', err);
-      this.conversationMessages = savedMessages;
+      this.turnManager.deserialize(savedTurns);
       this.toolCallingIteration = savedIteration;
       this.list = savedList;
       return;
     }
-    this.conversationMessages = savedMessages;
+    this.turnManager.deserialize(savedTurns);
     this.toolCallingIteration = savedIteration;
     this.chatService.currentSessionTitle = savedTitle;
     this.chatService.currentSessionPath = savedPath;
@@ -848,7 +948,7 @@ Do not create non-existent boards and libraries.
   /** 实际执行模式切换（重建会话） */
   private async _doSwitchMode(mode: string): Promise<void> {
     this.chatService.saveChatMode(mode as 'agent' | 'ask');
-    const savedMessages = [...this.conversationMessages];
+    const savedTurns = this.turnManager.serialize();
     const savedIteration = this.toolCallingIteration;
     const savedTitle = this.chatService.currentSessionTitle;
     const savedPath = this.chatService.currentSessionPath;
@@ -857,13 +957,13 @@ Do not create non-existent boards and libraries.
     await this.session.stopAndCloseSession();
     try { await this.session.startSession(); } catch (err) {
       console.error('切换模式失败:', err);
-      this.conversationMessages = savedMessages;
+      this.turnManager.deserialize(savedTurns);
       this.toolCallingIteration = savedIteration;
       this.list = savedList;
       this.chatService.saveChatMode('agent');
       return;
     }
-    this.conversationMessages = savedMessages;
+    this.turnManager.deserialize(savedTurns);
     this.toolCallingIteration = savedIteration;
     this.chatService.currentSessionTitle = savedTitle;
     this.chatService.currentSessionPath = savedPath;
@@ -928,8 +1028,9 @@ Do not create non-existent boards and libraries.
 
   /**
    * 回滚/还原后重新同步 ABS 到 Blockly 工作区。
-   * 使用 forceImportFromAbs 绕过 isSyncing 互斥锁，
-   * 确保 undo/redo 写盘后能立即重新加载。
+   * 复用 sync_abs_file 工具的导入逻辑（BlocklyAbsParser + createBlockFromConfig），
+   * 而非简化版的 convertAbsToAbi + Blockly.serialization.workspaces.load，
+   * 确保动态块、扩展、mutator 等能正确加载。
    */
   private async reloadAbsWorkspace(): Promise<void> {
     const projectPath = this.getCurrentProjectPath()
@@ -939,9 +1040,19 @@ Do not create non-existent boards and libraries.
       this.absAutoSyncService.initialize(projectPath);
     }
     try {
-      const imported = await this.absAutoSyncService.forceImportFromAbs();
-      if (!imported) {
-        console.warn('[reloadAbsWorkspace] ABS 强制导入失败（文件不存在或解析错误），projectPath:', projectPath);
+      const fsCompat = {
+        exists: (p: string) => AilyHost.get().fs.existsSync(p),
+        readFile: (p: string) => AilyHost.get().fs.readFileSync(p, 'utf-8'),
+        writeFile: (p: string, data: string) => AilyHost.get().fs.writeFileSync(p, data),
+      };
+      const result = await syncAbsFileHandler(
+        { operation: 'import' },
+        AilyHost.get().project,
+        fsCompat,
+        this.absAutoSyncService
+      );
+      if (result.is_error) {
+        console.warn('[reloadAbsWorkspace] ABS 导入失败:', result.content);
       }
     } catch (err) {
       console.warn('[reloadAbsWorkspace] ABS 导入异常:', err);
@@ -949,11 +1060,12 @@ Do not create non-existent boards and libraries.
   }
 
   /**
-   * 用户保留文件变更 — 保存反馈状态，待下轮发送时注入上下文
+   * 用户保留文件变更 — 将当前状态设为新基线，保存反馈状态
    */
   private onKeepEdits(detail: any): void {
     const { fileCount, totalAdded, totalRemoved } = detail || {};
     this.pendingEditFeedback = `[用户已确认保留上一轮的文件变更：${fileCount || 0} 个文件，+${totalAdded || 0} / -${totalRemoved || 0} 行]`;
+    this.editCheckpointService.acceptAllAsBaseline();
   }
 
   /**
@@ -1044,9 +1156,17 @@ Do not create non-existent boards and libraries.
 
     await this.reloadAbsWorkspace();
 
-    const convCutIndex = target.conversationStartIndex;
-    if (convCutIndex >= 0 && convCutIndex < this.conversationMessages.length) {
-      this.conversationMessages.splice(convCutIndex);
+    // Turn-native 截断：直接删除该 Turn 及之后的所有 Turn
+    if (target.turnId) {
+      this.turnManager.removeFromTurn(target.turnId);
+    } else {
+      // 兼容旧快照：fallback 到消息级截断
+      const convCutIndex = target.conversationStartIndex;
+      const messages = [...this.turnManager.buildMessages()];
+      if (convCutIndex >= 0 && convCutIndex < messages.length) {
+        messages.splice(convCutIndex);
+        this.turnManager.rebuildFromMessages(messages);
+      }
     }
 
     if (listIndex >= 0 && listIndex < this.list.length) {
@@ -1056,6 +1176,23 @@ Do not create non-existent boards and libraries.
     this.isCompleted = false;
     this.isCancelled = false;
     this.editCheckpointService.dismissSummary();
+  }
+
+  /**
+   * 编辑并重新发送 — 回滚到指定消息的检查点 + 用新内容重新发送
+   */
+  async editAndResendFromTurn(listIndex: number, newText: string, resources: ResourceItem[]): Promise<void> {
+    if (this.isWaiting) { this.message.warning('正在处理中，请稍候...'); return; }
+    await this.restoreToCheckpoint(listIndex);
+
+    // 临时设置 resourceManager 的 items，send 会消费它们
+    this.resourceManager.items = resources;
+    await this.send('user', newText, false);
+    this.resourceManager.mergePathsTo(this.sessionAllowedPaths);
+    this.resourceManager.items = [];
+
+    this.scrollManager.autoScrollEnabled = true;
+    this.scrollManager.scrollToBottom();
   }
 
   /**
@@ -1085,10 +1222,17 @@ Do not create non-existent boards and libraries.
       console.log(`[Regenerate] 回滚了 ${rolledBackFiles} 个文件变更`);
     }
 
-    // 3. 截断 conversationMessages（回到用户消息发送时的位置）
-    const convCutIndex = target.conversationStartIndex;
-    if (convCutIndex >= 0 && convCutIndex < this.conversationMessages.length) {
-      this.conversationMessages.splice(convCutIndex + 1);
+    // 3. Turn-native 截断：保留该 Turn 的 request，清除 response
+    if (target.turnId) {
+      this.turnManager.truncateToTurn(target.turnId);
+    } else {
+      // 兼容旧快照：fallback 到消息级截断
+      const convCutIndex = target.conversationStartIndex;
+      const messages = [...this.turnManager.buildMessages()];
+      if (convCutIndex >= 0 && convCutIndex < messages.length) {
+        messages.splice(convCutIndex + 1);
+        this.turnManager.rebuildFromMessages(messages);
+      }
     }
 
     // 4. 截断 UI list（回到 assistant 回复起始位置）
@@ -1109,11 +1253,16 @@ Do not create non-existent boards and libraries.
     // 添加新的助手消息占位
     this.msg.appendMessage('aily', '[thinking...]');
 
+    // Turn 开始前自动导出 ABS，确保磁盘态与图形工作区同步
+    this.ensureAbsExport();
+    // 同步自动保存配置
+    this.editCheckpointService.autoSaveEdits = this.ailyChatConfigService.autoSaveEdits;
     // 创建新的 checkpoint
     this.editCheckpointService.startTurn(
       0,
       this.conversationMessages.length - 1,
-      this.list.length - 1
+      this.list.length - 1,
+      this.turnManager.currentTurnId
     );
 
     this.contextBudgetService.updateBudget(this.conversationMessages, this.turnLoop.getCurrentTools());
@@ -1249,6 +1398,118 @@ Do not create non-existent boards and libraries.
       this._resolveAskUser = null;
       this._askUserQuestions = null;
       resolve(undefined);
+    }
+  }
+
+  // ==================== 工具审批交互处理 ====================
+
+  /**
+   * 工具审批的 UI 层回调。
+   * 在聊天界面显示确认按钮，等待用户批准或拒绝后 resolve。
+   */
+  private _handleToolApproval(request: ToolApprovalRequest): Promise<ToolApprovalResult> {
+    return new Promise<ToolApprovalResult>((resolve) => {
+      this._resolveToolApproval = resolve;
+
+      // 将审批请求以 aily-approval 块的形式追加到聊天界面
+      // 注意：不包含 args 字段，args 中可能含有换行/特殊字符，
+      // 经 fixContent 的 \n→newline 全局替换后会破坏 JSON 解析
+      const approvalBlockData = {
+        toolCallId: request.toolCallId,
+        toolName: request.toolName,
+        title: request.title,
+        message: request.message,
+      };
+      this.msg.appendMessage('aily',
+        `\n\`\`\`aily-approval\n${JSON.stringify(approvalBlockData)}\n\`\`\`\n\n`
+      );
+
+      // 监听审批结果事件
+      const handler = (e: Event) => {
+        const detail = (e as CustomEvent).detail;
+        if (!detail || !this._resolveToolApproval) return;
+        // 检查事件是否对应当前审批请求
+        if (detail.toolCallId && detail.toolCallId !== request.toolCallId) return;
+
+        document.removeEventListener('aily-approval-result', handler);
+
+        // 更新审批块为已处理状态
+        this._patchAilyApprovalBlock(request.toolCallId, detail.approved, detail.scope);
+
+        const resolveRef = this._resolveToolApproval;
+        this._resolveToolApproval = null;
+        resolveRef({
+          approved: !!detail.approved,
+          reason: detail.reason || (detail.approved ? undefined : '用户拒绝执行'),
+          scope: detail.scope || 'once'
+        });
+      };
+      document.addEventListener('aily-approval-result', handler);
+    });
+  }
+
+  /**
+   * 将审批结果写回 chatList 中的 aily-approval 块，
+   * 使其在历史模式加载时能恢复状态。
+   */
+  private _patchAilyApprovalBlock(toolCallId: string, approved: boolean, scope?: string): void {
+    const MARKER = '```aily-approval';
+    const FENCE = '```';
+
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const item = this.list[i];
+      if (item.role !== 'aily') continue;
+
+      const markerIdx = item.content.lastIndexOf(MARKER);
+      if (markerIdx === -1) continue;
+
+      const jsonStart = item.content.indexOf('\n', markerIdx) + 1;
+      if (jsonStart <= 0) continue;
+
+      const fenceEnd = item.content.indexOf(FENCE, jsonStart);
+      if (fenceEnd <= jsonStart) continue;
+
+      const jsonStr = item.content.substring(jsonStart, fenceEnd).trim();
+      try {
+        const data = JSON.parse(jsonStr);
+        if (data.toolCallId !== toolCallId) continue;
+        data.resolved = true;
+        data.approved = approved;
+        if (scope) data.scope = scope;
+        const patched = item.content.substring(0, jsonStart)
+          + JSON.stringify(data) + '\n'
+          + item.content.substring(fenceEnd);
+        item.content = patched;
+      } catch (e) {
+        console.warn('[ChatEngine] Failed to patch aily-approval JSON:', e);
+      }
+      break;
+    }
+
+    if (this.sessionId) {
+      this.chatHistoryService.markDirty(this.sessionId);
+    }
+  }
+
+  /**
+   * 外部调用：用户批准工具执行。
+   */
+  approveToolExecution(toolCallId: string, scope: 'once' | 'session' = 'once'): void {
+    if (this._resolveToolApproval) {
+      document.dispatchEvent(new CustomEvent('aily-approval-result', {
+        detail: { toolCallId, approved: true, scope }
+      }));
+    }
+  }
+
+  /**
+   * 外部调用：用户拒绝工具执行。
+   */
+  rejectToolExecution(toolCallId: string, reason?: string): void {
+    if (this._resolveToolApproval) {
+      document.dispatchEvent(new CustomEvent('aily-approval-result', {
+        detail: { toolCallId, approved: false, reason: reason || '用户拒绝执行' }
+      }));
     }
   }
 }

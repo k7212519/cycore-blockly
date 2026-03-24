@@ -1,5 +1,6 @@
 ﻿import { ToolUseResult } from "./tools";
 import { AilyHost } from '../core/host';
+import { readFile as asyncReadFile, stat as asyncStat, exists as asyncExists } from '../core/async-fs';
 import { 
     PathSecurityContext, 
     validateFileRead,
@@ -35,12 +36,12 @@ async function analyzeFileCharacteristics(
     encoding: BufferEncoding,
     sampleSize: number = 65536 // 默认采样64KB
 ): Promise<FileCharacteristics> {
-    const stats = AilyHost.get().fs.statSync(filePath);
+    const stats = await asyncStat(filePath);
     const fileSize = stats.size;
     
     // 对于小文件直接完整读取分析
     const readSize = Math.min(sampleSize, fileSize);
-    const sampleContent = await AilyHost.get().fs.readFileSync(filePath, encoding);
+    const sampleContent = await asyncReadFile(filePath, encoding);
     const actualSample = sampleContent.substring(0, readSize);
     
     const lines = actualSample.split('\n');
@@ -138,7 +139,7 @@ export async function readFileTool(
         }
 
         // 检查文件是否存在
-        if (!AilyHost.get().fs.existsSync(filePath)) {
+        if (!await asyncExists(filePath)) {
             const toolResult = {
                 is_error: true,
                 content: `文件不存在: ${filePath}`
@@ -147,7 +148,7 @@ export async function readFileTool(
         }
 
         // 检查是否为文件（不是目录）
-        const isDirectory = await AilyHost.get().fs.isDirectory(filePath);
+        const isDirectory = AilyHost.get().fs.isDirectory(filePath);
         if (isDirectory) {
             const toolResult = {
                 is_error: true,
@@ -157,7 +158,7 @@ export async function readFileTool(
         }
 
         // 获取文件大小
-        const stats = AilyHost.get().fs.statSync(filePath);
+        const stats = await asyncStat(filePath);
         const fileSize = stats.size;
 
         // ==================== 安全验证 ====================
@@ -261,7 +262,7 @@ export async function readFileTool(
             
             // 如果文件不是很大，或者需要从头读取，可以直接读取后截取
             // 否则建议完整读取文件（Electron fs API 的限制）
-            const fullContent = await AilyHost.get().fs.readFileSync(filePath, encoding);
+            const fullContent = await asyncReadFile(filePath, encoding);
             
             // 按字符截取（更适合文本文件）
             // 注意：这里是字符偏移，不是严格的字节偏移
@@ -309,7 +310,7 @@ export async function readFileTool(
                 
                 if (byteRange) {
                     // 自动切换为字节模式读取
-                    const fullContent = await AilyHost.get().fs.readFileSync(filePath, encoding);
+                    const fullContent = await asyncReadFile(filePath, encoding);
                     const start = byteRange.startByte;
                     const count = Math.min(byteRange.byteCount, maxSize);
                     
@@ -340,7 +341,7 @@ export async function readFileTool(
                 }
             }
             
-            const fullContent = await AilyHost.get().fs.readFileSync(filePath, encoding);
+            const fullContent = await asyncReadFile(filePath, encoding);
             const lines = fullContent.split('\n');
             const start = startLine !== undefined ? Math.max(0, startLine - 1) : 0;
             const count = lineCount !== undefined ? lineCount : lines.length - start;
@@ -386,7 +387,7 @@ export async function readFileTool(
                 return toolResult;
             }
             
-            resultContent = await AilyHost.get().fs.readFileSync(filePath, encoding);
+            resultContent = await asyncReadFile(filePath, encoding);
             metadata.readMode = 'full';
             const lines = resultContent.split('\n');
             metadata.totalLines = lines.length;

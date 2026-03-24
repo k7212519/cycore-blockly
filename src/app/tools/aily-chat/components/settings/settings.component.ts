@@ -53,6 +53,9 @@ export class AilyChatSettingsComponent implements OnInit {
   // 最大循环次数
   maxCount: number = 100;
 
+  // 默认自动保存变更
+  autoSaveEdits: boolean = false;
+
   // Agent 列表配置
   readonly agentConfigs: AgentConfig[] = [
     { name: 'mainAgent', displayName: '主 Agent', description: '处理用户请求的主要Agent' },
@@ -151,6 +154,7 @@ export class AilyChatSettingsComponent implements OnInit {
   private loadAllConfig() {
     // 加载配置
     this.maxCount = this.ailyChatConfigService.maxCount;
+    this.autoSaveEdits = this.ailyChatConfigService.autoSaveEdits;
   }
 
   /**
@@ -447,6 +451,7 @@ export class AilyChatSettingsComponent implements OnInit {
   async onSave() {
     // 保存配置
     this.ailyChatConfigService.maxCount = this.maxCount;
+    this.ailyChatConfigService.autoSaveEdits = this.autoSaveEdits;
 
     // 保存每个Agent的工具配置
     for (const agentConfig of this.agentConfigs) {

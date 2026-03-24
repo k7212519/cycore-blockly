@@ -11,6 +11,9 @@ import { AilyHost } from '../core/host';
 import { isDeferredTool } from '../tools/tools';
 
 export class ToolCallLoopHelper {
+  /** 压缩后的消息（瞬态，仅在 startChatTurn → streamConnect 之间传递） */
+  _compressedMessages: any[] | null = null;
+
   constructor(private engine: ChatEngineService) {}
 
   // ==================== 工具 / LLM 配置 ====================
@@ -80,14 +83,18 @@ export class ToolCallLoopHelper {
     }
 
     try {
-      this.engine.conversationMessages = await this.engine.contextBudgetService.compressIfNeeded(
-        this.engine.conversationMessages, this.engine.sessionId, this.getCurrentLLMConfig(), this.engine.currentModel?.model || undefined
+      const currentMessages = this.engine.turnManager.buildMessages();
+      const compressed = await this.engine.contextBudgetService.compressIfNeeded(
+        currentMessages, this.engine.sessionId, this.getCurrentLLMConfig(), this.engine.currentModel?.model || undefined
       );
+      // 压缩结果仅瞬态使用，不回写 Turn[]（Turn[] 不可变）
+      this._compressedMessages = compressed;
       if (showCompressionState) {
         this.engine.msg.displayToolCallState({ id: compressionStateId, name: 'context_compression', state: ToolCallState.DONE, text: '上下文摘要完成' });
       }
     } catch (error) {
       console.warn('[无状态模式] 上下文压缩失败，使用原始历史:', error);
+      this._compressedMessages = null;
       if (showCompressionState) {
         this.engine.msg.displayToolCallState({ id: compressionStateId, name: 'context_compression', state: ToolCallState.WARN, text: '上下文摘要失败，使用原始历史继续' });
       }
@@ -99,95 +106,48 @@ export class ToolCallLoopHelper {
     this.engine.activeToolExecutions = 0;
     this.engine.sseStreamCompleted = false;
     this.engine.currentStatelessMode = true;
+
+    // 压缩期间用户可能已取消，再次检查
+    if (this.engine.isCancelled) { this.engine.isWaiting = false; return; }
+
     this.engine.stream.streamConnect(true);
   }
 
   // ==================== 循环迭代 ====================
 
   continueToolCallingLoop(): void {
-    const assistantMessage: any = {
-      role: 'assistant',
-      content: this.engine.msg.sanitizeAssistantContent(this.engine.currentTurnAssistantContent) || ''
-    };
+    // Turn 结构化存储：记录本轮工具调用
     if (this.engine.currentTurnToolCalls.length > 0) {
-      assistantMessage.tool_calls = this.engine.currentTurnToolCalls.map(tc => ({
-        id: tc.tool_id, type: 'function',
-        function: { name: tc.tool_name, arguments: typeof tc.tool_args === 'string' ? tc.tool_args : JSON.stringify(tc.tool_args) }
-      }));
-    }
-    this.engine.conversationMessages.push(assistantMessage);
-    for (const result of this.engine.pendingToolResults) {
-      this.engine.conversationMessages.push({
-        role: 'tool', tool_call_id: result.tool_id, name: result.tool_name,
-        content: this.engine.msg.truncateToolResult(this.engine.msg.sanitizeToolContent(result.content), result.tool_name)
-      });
+      this.engine.turnManager.addToolCallRound(
+        this.engine.currentTurnAssistantContent || '',
+        this.engine.currentTurnToolCalls.map(tc => ({
+          id: tc.tool_id,
+          name: tc.tool_name,
+          arguments: typeof tc.tool_args === 'string' ? tc.tool_args : JSON.stringify(tc.tool_args),
+        }))
+      );
     }
 
-    // 去重：如果新工具结果与旧结果内容相同，折叠旧结果
-    this.deduplicateToolResults();
+    // Turn 结构化存储：记录工具结果
+    for (const result of this.engine.pendingToolResults) {
+      this.engine.turnManager.addToolResult(result.tool_id, {
+        content: result.content,
+        isError: result.is_error ?? false,
+        toolName: result.tool_name,
+      });
+    }
 
     this.engine.toolCallingIteration++;
     this.engine.contextBudgetService.updateBudget(this.engine.conversationMessages, this.getCurrentTools());
     this.startChatTurn();
   }
 
-  // ==================== 工具结果去重 ====================
-
-  /**
-   * 扫描 conversationMessages 中的 tool 消息，
-   * 如果同名工具的旧结果与新结果内容相同（或高度相似），折叠旧结果以节省上下文。
-   */
-  private deduplicateToolResults(): void {
-    const messages = this.engine.conversationMessages;
-    // 按工具名收集所有 tool 消息的索引
-    const toolsByName = new Map<string, number[]>();
-    for (let i = 0; i < messages.length; i++) {
-      if (messages[i].role === 'tool' && messages[i].name) {
-        const indices = toolsByName.get(messages[i].name) || [];
-        indices.push(i);
-        toolsByName.set(messages[i].name, indices);
-      }
-    }
-
-    let foldedCount = 0;
-    for (const [name, indices] of toolsByName) {
-      if (indices.length <= 1) continue;
-      // 从最新往回比较，折叠与更新结果相同的旧结果
-      for (let i = indices.length - 1; i > 0; i--) {
-        const newerContent = messages[indices[i]].content || '';
-        for (let j = 0; j < i; j++) {
-          const olderContent = messages[indices[j]].content || '';
-          if (this.isContentDuplicate(olderContent, newerContent)) {
-            messages[indices[j]].content = `[与后续 ${name} 调用结果相同，已折叠]`;
-            foldedCount++;
-          }
-        }
-      }
-    }
-    if (foldedCount > 0) {
-      console.log(`[工具去重] 折叠了 ${foldedCount} 条重复工具结果`);
-    }
-  }
-
-  /**
-   * 判断两段内容是否为重复。
-   * 精确匹配 或 长文本首尾匹配（长度误差 ±5%）。
-   */
-  private isContentDuplicate(a: string, b: string): boolean {
-    if (!a || !b || a.length < 80) return false;
-    if (a === b) return true;
-    const ratio = a.length / b.length;
-    if (ratio < 0.95 || ratio > 1.05) return false;
-    const checkLen = Math.min(200, Math.min(a.length, b.length));
-    const suffixLen = Math.min(200, Math.min(a.length, b.length));
-    return a.substring(0, checkLen) === b.substring(0, checkLen) &&
-           a.substring(a.length - suffixLen) === b.substring(b.length - suffixLen);
-  }
-
   // ==================== 完成回调 ====================
 
   onToolExecutionComplete(): void {
     this.engine.activeToolExecutions--;
+    // 取消后不再触发循环迭代（stop() 已负责保存已完成的结果）
+    if (this.engine.isCancelled) return;
     if (this.engine.activeToolExecutions === 0 && this.engine.sseStreamCompleted) {
       this.finalizeStatelessTurn();
     }
@@ -197,10 +157,8 @@ export class ToolCallLoopHelper {
     if (this.engine.pendingToolResults.length > 0 && !this.engine.isCancelled) {
       this.continueToolCallingLoop();
     } else {
-      const sanitized = this.engine.currentTurnAssistantContent ? this.engine.msg.sanitizeAssistantContent(this.engine.currentTurnAssistantContent) : '';
-      if (this.engine.currentTurnAssistantContent) {
-        this.engine.conversationMessages.push({ role: 'assistant', content: sanitized });
-      }
+      // Turn 结构化存储：最终 assistant 响应
+      this.engine.turnManager.finalizeTurn(this.engine.currentTurnAssistantContent || '');
       this.engine.contextBudgetService.updateBudget(this.engine.conversationMessages, this.getCurrentTools());
       const budget = this.engine.contextBudgetService.getSnapshot();
       this.engine.contextBudgetService.backgroundSummarizer.checkAndTrigger(
@@ -213,8 +171,14 @@ export class ToolCallLoopHelper {
 
       // 如果本轮有文件变更，通过服务推送摘要到面板
       if (this.engine.editCheckpointService.hasEditsInCurrentTurn()) {
-        const summary = this.engine.editCheckpointService.getEditsSummary();
-        this.engine.editCheckpointService.publishSummary(summary);
+        if (this.engine.ailyChatConfigService.autoSaveEdits) {
+          // 自动保存模式：直接保留变更，不弹出面板
+          this.engine.editCheckpointService.acceptAllAsBaseline();
+          this.engine.editCheckpointService.dismissSummary();
+        } else {
+          const summary = this.engine.editCheckpointService.getEditsSummary();
+          this.engine.editCheckpointService.publishSummary(summary);
+        }
       }
 
       if (this.engine.list.length > 0 && this.engine.list[this.engine.list.length - 1].role === 'aily') {

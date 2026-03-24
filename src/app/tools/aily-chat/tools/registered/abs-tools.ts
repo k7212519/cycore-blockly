@@ -6,7 +6,6 @@ import { IAilyTool, ToolContext, ToolUseResult } from '../../core/tool-types';
 import { ToolRegistry } from '../../core/tool-registry';
 import { syncAbsFileHandler } from '../syncAbsFileTool';
 import { absVersionControlHandler } from '../absVersionControlTool';
-import { getAbsSyntaxTool as getAbsSyntaxHandler } from '../getAbsSyntaxTool';
 import { editAbiFileTool as editAbiFileHandler } from '../editAbiFileTool';
 import { reloadAbiJsonTool as reloadAbiJsonHandler, ReloadAbiJsonToolService } from '../reloadAbiJsonTool';
 import { TOOLS as LEGACY_TOOLS } from '../tools';
@@ -83,24 +82,24 @@ class SyncAbsFileTool implements IAilyTool {
 // get_abs_syntax
 // ============================
 
-class GetAbsSyntaxTool implements IAilyTool {
-  readonly name = 'get_abs_syntax';
-  readonly schema = findLegacySchema('get_abs_syntax');
-  readonly displayMode = 'appendMessage' as const;
+// class GetAbsSyntaxTool implements IAilyTool {
+//   readonly name = 'get_abs_syntax';
+//   readonly schema = findLegacySchema('get_abs_syntax');
+//   readonly displayMode = 'appendMessage' as const;
 
-  async invoke(args: any, ctx: ToolContext): Promise<ToolUseResult> {
-    return getAbsSyntaxHandler();
-  }
+//   async invoke(args: any, ctx: ToolContext): Promise<ToolUseResult> {
+//     return getAbsSyntaxHandler();
+//   }
 
-  getStartText(): string {
-    return '获取 ABS 语法规范...';
-  }
+//   getStartText(): string {
+//     return '获取 ABS 语法规范...';
+//   }
 
-  getResultText(args: any, result?: ToolUseResult): string {
-    if (result?.is_error) return 'ABS 语法规范获取失败';
-    return 'ABS 语法规范获取成功';
-  }
-}
+//   getResultText(args: any, result?: ToolUseResult): string {
+//     if (result?.is_error) return 'ABS 语法规范获取失败';
+//     return 'ABS 语法规范获取成功';
+//   }
+// }
 
 // ============================
 // edit_abi_file
@@ -220,6 +219,6 @@ class ReloadAbiJsonTool implements IAilyTool {
 
 ToolRegistry.register(new SyncAbsFileTool());
 // ToolRegistry.register(new AbsVersionControlTool());
-ToolRegistry.register(new GetAbsSyntaxTool());
+// ToolRegistry.register(new GetAbsSyntaxTool());
 ToolRegistry.register(new EditAbiFileTool());
 ToolRegistry.register(new ReloadAbiJsonTool());

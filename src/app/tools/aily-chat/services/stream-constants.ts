@@ -72,7 +72,7 @@ export const BLOCKLY_RULES_TEXT = `<rules># Blockly代码编辑流程:
 3. 使用todo_write_tool规划项目流程，明确每一步要实现的功能和使用的工具。
 4. 列出需要使用的库，必须包含\`lib-core-*\`等核心库（如lib-core-logic、lib-core-variables等）。如果需要新库，使用search_boards_libraries工具查询并安装。
 5. 逐一阅读库的readme_ai.md，了解块定义和ABS语法。没有readme的库需要直接分析库文件获取信息。
-6. 使用get_abs_syntax工具了解ABS语法规范，确保代码符合要求。
+6. 必要时使用load_skill加载\`abs-syntax-reference\` skill，确认ABS语法规范后再修改代码。
 
 【实现阶段】
 1. 完整规划代码逻辑，构思ABS结构。

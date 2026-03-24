@@ -130,7 +130,7 @@ export class MarkdownPipe implements PipeTransform {
    * 检查是否为特殊的 Aily 代码块类型
    */
   private isAilyCodeBlock(lang: string): boolean {
-    const ailyTypes = ['aily-blockly', 'aily-board', 'aily-library', 'aily-state', 'aily-button', 'aily-error', 'aily-mermaid', 'mermaid', 'aily-task-action', 'aily-think', 'aily-context'];
+    const ailyTypes = ['aily-blockly', 'aily-board', 'aily-library', 'aily-state', 'aily-button', 'aily-error', 'aily-mermaid', 'mermaid', 'aily-task-action', 'aily-think', 'aily-context', 'aily-approval'];
     // 确保 lang 被正确 trim，避免空格或换行符导致匹配失败
     const normalizedLang = lang?.trim()?.toLowerCase() || '';
     return ailyTypes.includes(normalizedLang);
@@ -307,6 +307,17 @@ export class MarkdownPipe implements PipeTransform {
             label: jsonData.label || '附加上下文',
             content: String(ctxContent),
             metadata: jsonData.metadata || {}
+          };
+        case 'aily-approval':
+          return {
+            type: 'aily-approval',
+            toolCallId: jsonData.toolCallId || '',
+            toolName: jsonData.toolName || '',
+            title: jsonData.title || '确认操作',
+            message: jsonData.message || '',
+            args: jsonData.args,
+            resolved: jsonData.resolved || false,
+            approved: jsonData.approved || false,
           };
         default:
           console.warn(`Unknown aily type: ${type}, using raw data`);
