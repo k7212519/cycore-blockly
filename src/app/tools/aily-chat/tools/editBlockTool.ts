@@ -1,4 +1,4 @@
-import { arduinoGenerator } from "../../../editors/blockly-editor/components/blockly/generators/arduino/arduino";
+﻿import { arduinoGenerator } from "../../../editors/blockly-editor/components/blockly/generators/arduino/arduino";
 import { ToolUseResult } from "./tools";
 import { jsonrepair } from 'jsonrepair';
 import { ArduinoSyntaxTool } from "./arduinoSyntaxTool";
@@ -1443,9 +1443,17 @@ function configureBlockFields(block: any, fields: FieldConfig): {
             const variableMap = workspace?.getVariableMap?.();
             let finalVariableId: string | null = null;
             
-            // � 获取字段期望的变量类型
+            // 获取字段期望的变量类型（使用公开 API，编译后的 Blockly 属性名无下划线）
             const field = block.getField(fieldName);
-            const expectedTypes: string[] = field?.variableTypes_ || [''];
+            let expectedTypes: string[] = [''];
+            if (field && typeof field.getVariableTypes === 'function') {
+              try {
+                const types = field.getVariableTypes();
+                if (Array.isArray(types) && types.length > 0) {
+                  expectedTypes = types;
+                }
+              } catch (_) { /* ignore */ }
+            }
             // console.log(`🔍 字段 ${fieldName} 期望的变量类型:`, expectedTypes);
             
             // 🎯 策略：优先使用变量名查找，因为变量ID在不同工作区中会变化
@@ -1517,7 +1525,29 @@ function configureBlockFields(block: any, fields: FieldConfig): {
                 // console.log(`🔍 从字段配置提取变量类型: ${variableType}`);
               }
               
-              // 🔧 使用变量名查找或创建变量
+              // 如果配置中无类型，从块定义的 FieldVariable 推断期望类型
+              if (!variableType) {
+                try {
+                  const field = block.getField(fieldName);
+                  if (field && typeof field.getVariable === 'function') {
+                    // 优先使用 getVariableTypes() 公开 API
+                    if (typeof field.getVariableTypes === 'function') {
+                      try {
+                        const types = field.getVariableTypes();
+                        if (Array.isArray(types) && types.length > 0 && types[0] !== '') {
+                          variableType = types[0];
+                        }
+                      } catch (_) { /* ignore */ }
+                    }
+                    // 回退到 defaultType 属性
+                    if (!variableType && field.defaultType) {
+                      variableType = field.defaultType;
+                    }
+                  }
+                } catch (_) { /* ignore */ }
+              }
+              
+              // 使用变量名查找或创建变量
               finalVariableId = handleVariableField(block, nameToUse, true, variableType, true);
             }
             
@@ -2371,14 +2401,34 @@ function handleVariableField(
     // 使用优化后的 resolveExistingVariableId 函数
     const existingVarId = resolveExistingVariableId(workspace, variableName);
     if (existingVarId) {
-      return returnId ? existingVarId : variableName;
+      // 如果调用方指定了 variableType，验证找到的变量类型是否匹配
+      if (variableType) {
+        const existingVar = variableMap.getVariableById?.(existingVarId);
+        if (existingVar && existingVar.type !== variableType) {
+          // 类型不匹配 — 尝试查找同名且类型匹配的变量
+          const typedVar = workspace.getVariable?.(variableName, variableType);
+          if (typedVar) {
+            return returnId ? typedVar.getId() : variableName;
+          }
+          // 没有匹配的，继续到创建阶段
+        } else {
+          return returnId ? existingVarId : variableName;
+        }
+      } else {
+        return returnId ? existingVarId : variableName;
+      }
     }
     
     // 尝试模糊匹配（作为回退方案）
     const fuzzyVariable = findVariableByFuzzyMatch(variableMap, variableName);
     if (fuzzyVariable) {
-      // console.log(`✅ 通过模糊匹配找到变量: "${fuzzyVariable.name}" (查找: "${variableName}")`);
-      return returnId ? fuzzyVariable.getId() : fuzzyVariable.name;
+      // 如果有类型要求，验证模糊匹配结果的类型
+      if (variableType && fuzzyVariable.type !== variableType) {
+        // 类型不匹配，跳过模糊匹配结果
+      } else {
+        // console.log(`✅ 通过模糊匹配找到变量: "${fuzzyVariable.name}" (查找: "${variableName}")`);
+        return returnId ? fuzzyVariable.getId() : fuzzyVariable.name;
+      }
     }
 
     // ========================================
@@ -4565,16 +4615,35 @@ async function applyDynamicExtraState(block: any, extraState: any, dynamicSuppor
   // 通用处理
   else {
     // console.log(`🔧 ${blockType} 使用通用 extraState 处理`);
-    Object.keys(extraState).forEach(key => {
-      if (block.hasOwnProperty(key + '_')) {
-        block[key + '_'] = extraState[key];
-        // console.log(`✅ 设置 ${key}_: ${extraState[key]}`);
-      }
-    });
     
-    if (block.updateShape_ && typeof block.updateShape_ === 'function') {
-      block.updateShape_();
-      // console.log('🔄 调用通用 updateShape_');
+    // 优先使用 loadExtraState（块自身最了解自己的 extraState 格式）
+    if (block.loadExtraState && typeof block.loadExtraState === 'function') {
+      try {
+        block.loadExtraState(extraState);
+      } catch (e) {
+        console.warn(`⚠️ ${blockType} loadExtraState 失败，回退通用处理:`, e);
+        // 回退：手动设置属性
+        Object.keys(extraState).forEach(key => {
+          if (block.hasOwnProperty(key + '_')) {
+            block[key + '_'] = extraState[key];
+          }
+        });
+        if (block.updateShape_ && typeof block.updateShape_ === 'function') {
+          block.updateShape_();
+        }
+      }
+    } else {
+      Object.keys(extraState).forEach(key => {
+        if (block.hasOwnProperty(key + '_')) {
+          block[key + '_'] = extraState[key];
+          // console.log(`✅ 设置 ${key}_: ${extraState[key]}`);
+        }
+      });
+      
+      if (block.updateShape_ && typeof block.updateShape_ === 'function') {
+        block.updateShape_();
+        // console.log('🔄 调用通用 updateShape_');
+      }
     }
   }
 }
@@ -5240,7 +5309,8 @@ async function configureBlockInputs(
               // 此时之前缓存的 input 变量指向已销毁的旧 Input 对象。
               const currentInput = block.getInput(inputName);
               if (!currentInput || !currentInput.connection) {
-                console.warn(`⚠️ 输入 "${inputName}" 在子块创建后不存在或无连接点，跳过连接`);
+                console.warn(`⚠️ 输入 "${inputName}" 在子块创建后不存在或无连接点，清理孤立块`);
+                try { childBlock.dispose(true); } catch (_) { /* ignore */ }
                 failedBlocks.push({
                   blockType: childBlock.type,
                   error: `输入 "${inputName}" 在子块创建后不存在（可能被动态更新销毁）`
@@ -5265,11 +5335,21 @@ async function configureBlockInputs(
               
               const connectionToUse = childBlock.outputConnection || childBlock.previousConnection;
               if (connectionToUse) {
-                currentInput.connection.connect(connectionToUse);
-                // console.log(`🔗 成功连接子块到输入 "${inputName}"`);
-                updatedInputs.push(inputName);
+                try {
+                  currentInput.connection.connect(connectionToUse);
+                  // console.log(`🔗 成功连接子块到输入 "${inputName}"`);
+                  updatedInputs.push(inputName);
+                } catch (connectError) {
+                  console.warn(`⚠️ 子块连接失败，清理孤立块: ${childBlock.type}`, connectError);
+                  try { childBlock.dispose(true); } catch (_) { /* ignore */ }
+                  failedBlocks.push({
+                    blockType: childBlock.type,
+                    error: `连接到输入 "${inputName}" 失败: ${connectError instanceof Error ? connectError.message : String(connectError)}`
+                  });
+                }
               } else {
-                console.warn(`⚠️ 子块 ${childBlock.type} 没有可用的连接点`);
+                console.warn(`⚠️ 子块 ${childBlock.type} 没有可用的连接点，清理孤立块`);
+                try { childBlock.dispose(true); } catch (_) { /* ignore */ }
                 failedBlocks.push({
                   blockType: childBlock.type,
                   error: `子块没有可用的连接点（outputConnection 或 previousConnection）`
@@ -5297,7 +5377,8 @@ async function configureBlockInputs(
             // 🆕 重新获取 input 引用（同 block 子块的理由）
             const currentInput = block.getInput(inputName);
             if (!currentInput || !currentInput.connection) {
-              console.warn(`⚠️ 输入 "${inputName}" 在影子块创建后不存在或无连接点，跳过连接`);
+              console.warn(`⚠️ 输入 "${inputName}" 在影子块创建后不存在或无连接点，清理孤立块`);
+              try { shadowBlock.dispose(true); } catch (_) { /* ignore */ }
               failedBlocks.push({
                 blockType: shadowBlock.type,
                 error: `输入 "${inputName}" 在影子块创建后不存在（可能被动态更新销毁）`
@@ -5320,14 +5401,24 @@ async function configureBlockInputs(
             // 正确设置影子块
             const connectionToUse = shadowBlock.outputConnection || shadowBlock.previousConnection;
             if (connectionToUse) {
-              // 先设置为影子块
-              shadowBlock.setShadow(true);
-              // 然后连接到输入
-              currentInput.connection.connect(connectionToUse);
-              // console.log(`🔗 成功设置影子块到输入 "${inputName}"`);
-              updatedInputs.push(inputName);
+              try {
+                // 先设置为影子块
+                shadowBlock.setShadow(true);
+                // 然后连接到输入
+                currentInput.connection.connect(connectionToUse);
+                // console.log(`🔗 成功设置影子块到输入 "${inputName}"`);
+                updatedInputs.push(inputName);
+              } catch (connectError) {
+                console.warn(`⚠️ 影子块连接失败，清理孤立块: ${shadowBlock.type}`, connectError);
+                try { shadowBlock.dispose(true); } catch (_) { /* ignore */ }
+                failedBlocks.push({
+                  blockType: shadowBlock.type,
+                  error: `影子块连接到输入 "${inputName}" 失败: ${connectError instanceof Error ? connectError.message : String(connectError)}`
+                });
+              }
             } else {
-              console.warn(`⚠️ 影子块 ${shadowBlock.type} 没有可用的连接点`);
+              console.warn(`⚠️ 影子块 ${shadowBlock.type} 没有可用的连接点，清理孤立块`);
+              try { shadowBlock.dispose(true); } catch (_) { /* ignore */ }
               failedBlocks.push({
                 blockType: shadowBlock.type,
                 error: `影子块没有可用的连接点`
@@ -5602,8 +5693,9 @@ export async function createBlockFromConfig(
           // console.log(`✅ next连接成功: ${block.type} -> ${nextBlock.type}`);
           totalBlocks += nextResult.totalBlocks;
         } catch (connectionError) {
-          console.warn(`⚠️ next连接失败: ${connectionError}`);
-          // 🆕 收集 next 连接失败
+          console.warn(`⚠️ next连接失败，清理孤立块: ${connectionError}`);
+          // 连接失败，销毁孤立的 next 块避免残留
+          try { nextBlock.dispose(true); } catch (_) { /* ignore */ }
           failedBlocks.push({
             blockType: `${block.type} -> ${nextBlock.type}`,
             error: `next 连接失败: ${connectionError instanceof Error ? connectionError.message : String(connectionError)}`
@@ -5614,8 +5706,9 @@ export async function createBlockFromConfig(
                        !block.nextConnection ? `${block.type} 无 nextConnection` : 
                        `${nextBlock.type} 无 previousConnection`;
         console.warn(`⚠️ next连接失败: ${reason}`);
-        // 🆕 收集 next 连接失败
         if (nextBlock) {
+          // 无法连接，销毁孤立块
+          try { nextBlock.dispose(true); } catch (_) { /* ignore */ }
           failedBlocks.push({
             blockType: `${block.type} -> ${nextBlock.type}`,
             error: `next 连接失败: ${reason}`

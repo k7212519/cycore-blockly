@@ -4,12 +4,20 @@
  * 提供 Blockly 工作区与 project.abs 文件之间的同步操作
  */
 
-import { convertAbiToAbs, convertAbsToAbi } from './abiAbsConverter';
+import { convertAbiToAbs, convertAbsToAbi, inferFieldVariableType } from './abiAbsConverter';
 import { getActiveWorkspace, createBlockFromConfig } from './editBlockTool';
 import { AbsAutoSyncService } from '../services/abs-auto-sync.service';
 import { loadProjectBlockDefinitions, parseAbs, BlocklyAbsParser } from './absParser';
 
 declare const Blockly: any;
+
+/**
+ * 让出渲染线程，允许浏览器处理 UI 更新和动画帧。
+ * 在密集的同步 DOM 操作循环中定期调用，防止 UI 冻结。
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
 
 // =============================================================================
 // 类型定义
@@ -131,9 +139,9 @@ async function exportToAbs(
     if (workspace) {
       // 直接从工作区序列化
       abiJson = Blockly.serialization.workspaces.save(workspace);
-    } else if (electronService.exists(abiFilePath)) {
+    } else if (await electronService.exists(abiFilePath)) {
       // 方法2：从 ABI 文件读取
-      const abiContent = electronService.readFile(abiFilePath);
+      const abiContent = await electronService.readFile(abiFilePath);
       abiJson = JSON.parse(abiContent);
     } else {
       return {
@@ -146,7 +154,7 @@ async function exportToAbs(
     const absContent = convertAbiToAbs(abiJson, { includeHeader });
     
     // 写入 ABS 文件
-    electronService.writeFile(absFilePath, absContent);
+    await electronService.writeFile(absFilePath, absContent);
     
     // 统计信息
     const blockCount = countBlocks(abiJson);
@@ -202,7 +210,7 @@ async function importFromAbs(
 ): Promise<SyncAbsResult> {
   try {
     // 检查 ABS 文件是否存在
-    if (!electronService.exists(absFilePath)) {
+    if (!await electronService.exists(absFilePath)) {
       return {
         is_error: true,
         content: `ABS 文件不存在: ${absFilePath}\n\n请先使用 \`sync_abs_file(operation: "export")\` 生成 ABS 文件`
@@ -226,7 +234,7 @@ async function importFromAbs(
     }
     
     // 读取 ABS 文件
-    const absContent = electronService.readFile(absFilePath);
+    const absContent = await electronService.readFile(absFilePath);
     
     // 解析 ABS（不转换为 ABI JSON，而是获取 BlockConfig）
     const parser = new BlocklyAbsParser();
@@ -259,10 +267,10 @@ async function importFromAbs(
     }
     
     // 备份当前 ABI 文件
-    if (electronService.exists(abiFilePath)) {
+    if (await electronService.exists(abiFilePath)) {
       const backupPath = `${abiFilePath}.backup`;
-      const currentAbi = electronService.readFile(abiFilePath);
-      electronService.writeFile(backupPath, currentAbi);
+      const currentAbi = await electronService.readFile(abiFilePath);
+      await electronService.writeFile(backupPath, currentAbi);
       projectService?.copyPackageJsonToTemp(projectService?.currentProjectPath);
     }
     
@@ -281,13 +289,13 @@ async function importFromAbs(
       allVariables.set(varDef.name, varDef.type);
     }
     
-    // 2. 从 $varName 引用中自动收集（扫描所有块）
+    // 2. 从 $varName 引用中自动收集（扫描所有块，带类型推断）
     // 🆕 排除会被初始化块自动创建的变量
     const inferredVars = collectVariableReferences(parseResult.rootBlocks);
-    for (const varName of inferredVars) {
+    for (const [varName, varType] of inferredVars) {
       if (!allVariables.has(varName) && !autoCreatedVars.has(varName)) {
-        allVariables.set(varName, ''); // 类型未知，使用默认
-        // console.log(`🔍 自动推断变量: "${varName}" (从 $${varName} 引用)`);
+        allVariables.set(varName, varType); // 使用推断的类型（可能来自 FieldVariable 的类型约束）
+        // console.log(`🔍 自动推断变量: "${varName}" (类型: ${varType || '默认'}, 从 $${varName} 引用)`);
       } else if (autoCreatedVars.has(varName)) {
         // console.log(`⏭️ 跳过变量: "${varName}" (将由初始化块自动创建)`);
       }
@@ -308,12 +316,29 @@ async function importFromAbs(
     }
     
     // 同步 ABS 中声明的变量到工作区（只创建不存在的，保留已有的）
+    // 注意：当推断出变量类型时，必须精确匹配（名称+类型），
+    // 否则已存在的空类型变量会导致 FieldVariable "type doesn't match" 错误
     const variableNameToId = new Map<string, string>();
     
     for (const [name, type] of allVariables) {
-      let variable = workspace.getVariable(name);
-      if (!variable) {
-        variable = workspace.createVariable(name, type || undefined);
+      let variable: any;
+      if (type) {
+        // 类型已知时，按名称+类型精确查找
+        variable = workspace.getVariable(name, type);
+        if (!variable) {
+          // 检查是否存在同名但类型不匹配的旧变量
+          const wrongTypeVar = workspace.getVariable(name);
+          if (wrongTypeVar && wrongTypeVar.type !== type) {
+            // 删除旧的错误类型变量，用正确类型重建
+            variableMap.deleteVariable(wrongTypeVar);
+          }
+          variable = workspace.createVariable(name, type);
+        }
+      } else {
+        variable = workspace.getVariable(name);
+        if (!variable) {
+          variable = workspace.createVariable(name);
+        }
       }
       variableNameToId.set(name, variable.getId());
     }
@@ -361,22 +386,37 @@ async function importFromAbs(
         }
       }
       
-      // 清空非受保护块
+      // 清空非受保护块，删除重复的受保护块
       Blockly.Events.disable();
       try {
+        let disposeCount = 0;
         for (const block of existingTopBlocks) {
           if (!PROTECTED_ROOT_BLOCKS.has(block.type)) {
             block.dispose(true);
+            disposeCount++;
+            // 每销毁 3 个块后让出事件循环，允许 UI 刷新
+            if (disposeCount % 3 === 0) {
+              Blockly.Events.enable();
+              await yieldToEventLoop();
+              Blockly.Events.disable();
+            }
           } else {
-            // 清空受保护块的子块
-            for (const input of block.inputList || []) {
-              if (input.connection?.isConnected()) {
-                const child = input.connection.targetBlock();
-                if (child && !child.isShadow()) {
-                  input.connection.disconnect();
-                  child.dispose(true);
+            // 受保护块：只保留 protectedBlocksMap 中记录的那个（第一个），删除重复的
+            const protectedInfo = protectedBlocksMap.get(block.type);
+            if (protectedInfo && protectedInfo.block === block) {
+              // 这是要保留的块，清空其子块
+              for (const input of block.inputList || []) {
+                if (input.connection?.isConnected()) {
+                  const child = input.connection.targetBlock();
+                  if (child && !child.isShadow()) {
+                    input.connection.disconnect();
+                    child.dispose(true);
+                  }
                 }
               }
+            } else {
+              // 这是重复的受保护块，删除
+              block.dispose(true);
             }
           }
         }
@@ -396,6 +436,7 @@ async function importFromAbs(
       
       let yPosition = 30;
       const processedTypes = new Set<string>();
+      let blockCreateCount = 0;
       
       for (const blockConfig of parseResult.rootBlocks) {
         // 检查是否有受保护块需要重建子块
@@ -411,6 +452,7 @@ async function importFromAbs(
               variableNameToId, preprocessVariableReferences
             );
             totalBlocks++;
+            blockCreateCount++;
             if (rebuildResult.failedBlocks?.length) {
               failedBlocks.push(...rebuildResult.failedBlocks);
             }
@@ -421,6 +463,8 @@ async function importFromAbs(
               error: error instanceof Error ? error.message : String(error)
             });
           }
+          // 每创建 2 个根块后让出事件循环，允许 UI 刷新
+          if (blockCreateCount % 2 === 0) { await yieldToEventLoop(); }
           continue;
         }
         
@@ -449,6 +493,9 @@ async function importFromAbs(
             error: error instanceof Error ? error.message : String(error)
           });
         }
+        blockCreateCount++;
+        // 每创建 2 个根块后让出事件循环，允许 UI 刷新
+        if (blockCreateCount % 2 === 0) { await yieldToEventLoop(); }
       }
     } else {
       // 使用增量更新结果
@@ -458,9 +505,64 @@ async function importFromAbs(
       }
     }
     
+    // ============ 最终清理：移除任何不应存在的孤立根块 ============
+    // 无论增量还是全量更新，都可能产生孤立块（createBlockFromConfig 创建了块但连接失败）
+    // 基于 ABS 中定义的根块类型和数量，对工作区进行最终扫描
+    {
+      // 统计 ABS 中每种根块类型的期望数量
+      const expectedRootCounts = new Map<string, number>();
+      for (const block of parseResult.rootBlocks) {
+        expectedRootCounts.set(block.type, (expectedRootCounts.get(block.type) || 0) + 1);
+      }
+      
+      // 按类型分组当前工作区的根块
+      const topBlocks = workspace.getTopBlocks(false);
+      const topBlocksByType = new Map<string, any[]>();
+      for (const block of topBlocks) {
+        if (!topBlocksByType.has(block.type)) {
+          topBlocksByType.set(block.type, []);
+        }
+        topBlocksByType.get(block.type)!.push(block);
+      }
+      
+      let orphanCleanupCount = 0;
+      for (const [type, blocks] of topBlocksByType) {
+        const expected = expectedRootCounts.get(type) || 0;
+        // 受保护块至少保留 1 个（即使 ABS 未定义），但不保留多余的
+        const minKeep = PROTECTED_ROOT_BLOCKS.has(type) ? Math.max(1, expected) : expected;
+        if (blocks.length > minKeep) {
+          // 有多余的块，删除多余的（保留前 minKeep 个）
+          const toDelete = blocks.slice(minKeep);
+          Blockly.Events.disable();
+          try {
+            for (const block of toDelete) {
+              block.dispose(true);
+              orphanCleanupCount++;
+            }
+          } finally {
+            Blockly.Events.enable();
+          }
+        }
+      }
+      
+      if (orphanCleanupCount > 0) {
+        console.log(`[syncAbsFile] 最终清理: 移除了 ${orphanCleanupCount} 个孤立块`);
+      }
+    }
+    
+    // 触发 FINISHED_LOADING 事件，让各库的初始化逻辑执行
+    // （如 _initFunctionLibOnLoad 绑定 FUNC 变量到 custom_function_def）
+    // createBlockFromConfig 路径不像 Blockly.serialization.workspaces.load 那样自动触发此事件
+    try {
+      const finishedLoadingEvent = new Blockly.Events.FinishedLoading(workspace);
+      Blockly.Events.fire(finishedLoadingEvent);
+    } catch (e) {
+      console.warn('[syncAbsFile] 触发 FINISHED_LOADING 事件失败:', e);
+    }
+    
     // 保存工作区到 ABI 文件
     const abiJson = Blockly.serialization.workspaces.save(workspace);
-    electronService.writeFile(abiFilePath, JSON.stringify(abiJson, null, 2));
+    await electronService.writeFile(abiFilePath, JSON.stringify(abiJson, null, 2));
     
     const variableCount = allVariables.size;  // 使用收集到的所有变量数量
     
@@ -530,17 +632,22 @@ async function importFromAbs(
  * 从块配置中收集所有变量引用（$varName 格式）
  * 用于自动创建 Blockly 工作区变量
  */
-function collectVariableReferences(blocks: any[]): Set<string> {
-  const varNames = new Set<string>();
+function collectVariableReferences(blocks: any[]): Map<string, string> {
+  const varMap = new Map<string, string>(); // name → type
   
   function collectFromConfig(config: any): void {
     if (!config) return;
     
-    // 从字段中收集变量引用
+    // 从字段中收集变量引用（带类型推断）
     if (config.fields) {
-      for (const value of Object.values(config.fields)) {
+      for (const [key, value] of Object.entries(config.fields)) {
         if (typeof value === 'object' && value !== null && (value as any).name) {
-          varNames.add((value as any).name);
+          const varName = (value as any).name;
+          if (!varMap.has(varName)) {
+            // 优先使用解析值中的 type，再从 Blockly 运行时推断
+            const varType = (value as any).type || inferFieldVariableType(config.type, key);
+            varMap.set(varName, varType);
+          }
         }
       }
     }
@@ -568,7 +675,7 @@ function collectVariableReferences(blocks: any[]): Set<string> {
     collectFromConfig(block);
   }
   
-  return varNames;
+  return varMap;
 }
 
 /**
@@ -649,8 +756,10 @@ function preprocessVariableReferences(
         const varName = (value as any).name;
         const varId = variableNameToId.get(varName);
         if (varId) {
-          // Blockly 需要 id 字段
-          config.fields[key] = { id: varId, name: varName, type: '' };
+          // Blockly 需要 id 字段，同时保留/推断变量类型
+          // 类型信息对 FieldVariable 验证至关重要（如 FUNC_NAME 期望 'FUNC' 类型）
+          const varType = (value as any).type || inferFieldVariableType(config.type, key);
+          config.fields[key] = { id: varId, name: varName, type: varType };
         }
       }
     }
@@ -718,8 +827,8 @@ async function getAbsStatus(
   electronService: any
 ): Promise<SyncAbsResult> {
   try {
-    const absExists = electronService.exists(absFilePath);
-    const abiExists = electronService.exists(abiFilePath);
+    const absExists = await electronService.exists(absFilePath);
+    const abiExists = await electronService.exists(abiFilePath);
     
     let content = `## ABS 文件状态\n\n`;
     content += `**ABS 文件:** ${absFilePath}\n`;
@@ -732,7 +841,7 @@ async function getAbsStatus(
     let absPreview = '';
     
     if (absExists) {
-      const absContent = electronService.readFile(absFilePath);
+      const absContent = await electronService.readFile(absFilePath);
       const lines = absContent.split('\n');
       absPreview = lines.slice(0, 20).join('\n') + 
         (lines.length > 20 ? '\n... (more lines)' : '');
@@ -745,7 +854,7 @@ async function getAbsStatus(
     }
     
     if (abiExists) {
-      const abiContent = electronService.readFile(abiFilePath);
+      const abiContent = await electronService.readFile(abiFilePath);
       const abiJson = JSON.parse(abiContent);
       blockCount = countBlocks(abiJson);
       variableCount = abiJson.variables?.length || 0;
@@ -1274,7 +1383,25 @@ async function rebuildBlockChildren(
         if (result.block) {
           const targetConnection = result.block.outputConnection || result.block.previousConnection;
           if (targetConnection) {
-            input.connection.connect(targetConnection);
+            try {
+              input.connection.connect(targetConnection);
+            } catch (connectError) {
+              // 连接失败，销毁孤立块避免残留
+              console.warn(`    ⚠️ 连接失败，清理孤立块: ${childConfig.type}`, connectError);
+              try { result.block.dispose(true); } catch (_) { /* ignore */ }
+              failedBlocks.push({
+                blockType: childConfig.type,
+                error: `连接到输入 ${inputName} 失败: ${connectError instanceof Error ? connectError.message : String(connectError)}`
+              });
+            }
+          } else {
+            // 无可用连接点，销毁孤立块
+            console.warn(`    ⚠️ ${childConfig.type} 无 outputConnection/previousConnection，清理`);
+            try { result.block.dispose(true); } catch (_) { /* ignore */ }
+            failedBlocks.push({
+              blockType: childConfig.type,
+              error: `块 ${childConfig.type} 无可用的连接点，无法连接到输入 ${inputName}`
+            });
           }
         }
         // 收集嵌套块创建失败信息
@@ -1372,6 +1499,14 @@ async function incrementalUpdate(
   const processedExistingBlocks = new Set<string>();
   const processedNewBlocks = new Set<number>();
   
+  // 🆕 追踪所有应保留在工作区的块 ID
+  // 用于最终清理阶段，移除上次导入失败残留的孤立块
+  const validBlockIds = new Set<string>();
+  
+  // 🔧 受保护块不再盲目全部加入 validBlockIds
+  // 每种类型只保留一个，多余的实例交由 Phase 6 清理
+  // 实际有效的受保护块会在 Phase 1/2a/3/4 中按需加入
+  
   // ============ 阶段 1：精确签名匹配 ============
   // 签名完全相同的块直接保留，无需任何操作
   // console.log(`🔍 阶段 1: 精确签名匹配`);
@@ -1422,6 +1557,7 @@ async function incrementalUpdate(
       // console.log(`  ✅ 精确匹配: ${currentItem.serialized.type} (${currentItem.block.id})`);
       processedExistingBlocks.add(currentItem.block.id);
       processedNewBlocks.add(matchingNewBlock.index);
+      validBlockIds.add(currentItem.block.id);
       unchangedCount++;
     }
   }
@@ -1458,11 +1594,13 @@ async function incrementalUpdate(
       }
       processedExistingBlocks.add(currentItem.block.id);
       processedNewBlocks.add(matchingNewBlock.index);
+      validBlockIds.add(currentItem.block.id);
       updatedCount++;
     }
   }
   
   // 2b: 添加所有未匹配的非 setup/loop 新块
+  await yieldToEventLoop();
   let yPosition = 30;
   const calcYPosition = () => {
     let y = 30;
@@ -1486,6 +1624,7 @@ async function incrementalUpdate(
       const result = await createBlockFromConfig(workspace, configWithPosition);
       if (result.block) {
         addedCount++;
+        validBlockIds.add(result.block.id);
         const bounds = result.block.getBoundingRectangle();
         yPosition = bounds ? bounds.bottom + 50 : yPosition + 100;
       }
@@ -1499,6 +1638,7 @@ async function incrementalUpdate(
   
   // ============ 阶段 3：处理 setup/loop 块 ============
   // 所有独立块已就绪，现在重建 setup/loop 子树
+  await yieldToEventLoop();
   // console.log(`🔍 阶段 3: 处理 setup/loop 块`);
   
   for (const currentItem of currentRootBlocks) {
@@ -1525,6 +1665,7 @@ async function incrementalUpdate(
       }
       processedExistingBlocks.add(currentItem.block.id);
       processedNewBlocks.add(matchingNewBlock.index);
+      validBlockIds.add(currentItem.block.id);
       updatedCount++;
     }
   }
@@ -1549,6 +1690,7 @@ async function incrementalUpdate(
   // console.log(`${'─'.repeat(60)}`);
   
   // ============ 阶段 4：删除无匹配的旧块（保护关键块）============
+  await yieldToEventLoop();
   // console.log(`🔍 阶段 4: 清理无匹配的旧块（保留受保护块）`);
   
   for (const item of currentRootBlocks) {
@@ -1576,8 +1718,29 @@ async function incrementalUpdate(
             failedBlocks.push({ blockType: blockType, error: error instanceof Error ? error.message : String(error) });
           }
           processedNewBlocks.add(matchingNewConfig.index);
+          validBlockIds.add(item.block.id);
         } else {
-          // ABS 中没有该块的配置，只清空子块（保留空的主块）
+          // ABS 中没有该块的配置
+          // 检查是否已有同类型的有效块（Phase 1/2a/3 已匹配的）
+          const alreadyHasValid = currentRootBlocks.some(
+            i => i.serialized.type === blockType && validBlockIds.has(i.block.id)
+          );
+          if (alreadyHasValid) {
+            // 已有同类型有效块，这是重复块，直接删除
+            // console.log(`  🗑️ 删除重复受保护块: ${blockType} (ID: ${item.block.id})`);
+            Blockly.Events.disable();
+            try {
+              item.block.dispose(true);
+              removedCount++;
+            } catch (e) {
+              console.warn(`删除重复受保护块失败: ${blockType}`, e);
+            } finally {
+              Blockly.Events.enable();
+            }
+            processedExistingBlocks.add(item.block.id);
+            continue;
+          }
+          // 没有同类型有效块，保留此块（清空子块）
           // console.log(`  🛡️ 保留受保护块: ${blockType} (ID: ${item.block.id})，清空其子块`);
           Blockly.Events.disable();
           try {
@@ -1596,6 +1759,7 @@ async function incrementalUpdate(
           } finally {
             Blockly.Events.enable();
           }
+          validBlockIds.add(item.block.id);
         }
         // 标记为已处理，避免后续再次删除
         processedExistingBlocks.add(item.block.id);
@@ -1630,6 +1794,7 @@ async function incrementalUpdate(
         const result = await createBlockFromConfig(workspace, configWithPosition);
         if (result.block) {
           addedCount++;
+          validBlockIds.add(result.block.id);
           const bounds = result.block.getBoundingRectangle();
           yPosition = bounds ? bounds.bottom + 50 : yPosition + 100;
         }
@@ -1643,71 +1808,28 @@ async function incrementalUpdate(
   
   // console.log(`📊 增量更新完成: 精确匹配 ${unchangedCount}, 递归更新 ${updatedCount}, 删除 ${removedCount}, 添加 ${addedCount}`);
   
-  // ============ 阶段 6：最终清理 - 删除所有不在 ABS 中的残留根块 ============
-  // 处理创建失败残留的孤立块：获取当前所有根块，与 ABS 定义的块类型/数量进行对比
-  // console.log(`🔍 阶段 6: 最终清理残留块`);
+  // ============ 阶段 6：最终清理 - 移除所有未被本次导入处理的残留根块 ============
+  // 基于 validBlockIds 集合进行清理，而不是类型计数
+  // 这样可以可靠地移除上次导入失败残留的孤立块
+  // console.log(`🔍 阶段 6: 最终清理残留块 (基于 ID 追踪)`);
   
-  // 统计 ABS 中每种块类型的数量
-  const expectedBlockCounts = new Map<string, number>();
-  for (const newBlock of newBlocks) {
-    expectedBlockCounts.set(newBlock.type, (expectedBlockCounts.get(newBlock.type) || 0) + 1);
-  }
-  
-  // 获取当前工作区所有根块并按类型分组
   const currentTopBlocks = workspace.getTopBlocks(false);
-  const currentBlocksByType = new Map<string, any[]>();
-  for (const block of currentTopBlocks) {
-    const type = block.type;
-    if (!currentBlocksByType.has(type)) {
-      currentBlocksByType.set(type, []);
-    }
-    currentBlocksByType.get(type)!.push(block);
-  }
-  
-  // 删除多余的块（类型不在 ABS 中，或者数量超出预期）
-  // 🆕 但保留受保护的根块类型
   let cleanupCount = 0;
-  for (const [type, blocks] of currentBlocksByType) {
-    const expectedCount = expectedBlockCounts.get(type) || 0;
-    
-    // 🆕 保护机制：受保护的根块类型不删除
-    if (PROTECTED_ROOT_BLOCKS.has(type)) {
-      // console.log(`  🛡️ 跳过受保护块类型: ${type} (${blocks.length} 个)`);
-      continue;
-    }
-    
-    if (expectedCount === 0) {
-      // 该类型完全不在 ABS 中，全部删除
-      // console.log(`  🗑️ 删除不在 ABS 中的块类型: ${type} (${blocks.length} 个)`);
-      for (const block of blocks) {
-        Blockly.Events.disable();
-        try {
-          block.dispose(true);
-          cleanupCount++;
-        } catch (e) {
-          console.warn(`清理块失败: ${type}`, e);
-        } finally {
-          Blockly.Events.enable();
-        }
-      }
-    } else if (blocks.length > expectedCount) {
-      // 数量超出预期，删除多余的（保留前 expectedCount 个）
-      const toDelete = blocks.slice(expectedCount);
-      // console.log(`  🗑️ 删除多余的 ${type} 块 (${toDelete.length} 个，保留 ${expectedCount} 个)`);
-      for (const block of toDelete) {
-        Blockly.Events.disable();
-        try {
-          block.dispose(true);
-          cleanupCount++;
-        } catch (e) {
-          console.warn(`清理块失败: ${type}`, e);
-        } finally {
-          Blockly.Events.enable();
-        }
+  
+  for (const block of currentTopBlocks) {
+    if (!validBlockIds.has(block.id)) {
+      // console.log(`  🗑️ 清理残留块: ${block.type} (ID: ${block.id})`);
+      Blockly.Events.disable();
+      try {
+        block.dispose(true);
+        cleanupCount++;
+      } catch (e) {
+        console.warn(`清理残留块失败: ${block.type}`, e);
+      } finally {
+        Blockly.Events.enable();
       }
     }
   }
-  
   if (cleanupCount > 0) {
     // console.log(`  ✅ 清理了 ${cleanupCount} 个残留块`);
     removedCount += cleanupCount;
