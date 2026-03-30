@@ -1529,6 +1529,9 @@ app.on("ready", async () => {
   if (isDarwin && app.dock) {
     setupDarwinDockMenu();
   }
+  if (isWin32) {
+    setupWindowsJumpListTasks();
+  }
 
   if (protocolUrl) {
     console.log('应用启动时检测到协议参数:', protocolUrl);
@@ -1826,6 +1829,31 @@ function setupDarwinDockMenu() {
       },
     ])
   );
+}
+
+/** Windows 任务栏图标右键「跳转列表」中的用户任务，与 macOS Dock 菜单「新实例」对应 */
+function setupWindowsJumpListTasks() {
+  if (!isWin32) {
+    return;
+  }
+  try {
+    const title = getMenuStringForMain("NEW_INSTANCE", "New Instance");
+    const appPath = app.getAppPath();
+    const arg0 =
+      /[\s"]/.test(appPath) ? `"${appPath.replace(/"/g, '\\"')}"` : appPath;
+    app.setUserTasks([
+      {
+        program: process.execPath,
+        arguments: `${arg0} --new-instance`,
+        title,
+        description: title,
+        iconPath: process.execPath,
+        iconIndex: 0,
+      },
+    ]);
+  } catch (e) {
+    console.warn("setupWindowsJumpListTasks:", e);
+  }
 }
 
 // 打开新实例
