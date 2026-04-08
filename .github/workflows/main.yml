@@ -61,7 +61,7 @@ jobs:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: 'bd01a768-a9e3-4a62-945d-fcfdc37a299e'
           project-slug: 'aily-blockly' 
-          signing-policy-slug: 'test-signing'
+          signing-policy-slug: 'release-signing'
           github-artifact-id: '${{ steps.upload_unsigned.outputs.artifact-id }}'
           wait-for-completion: true
           output-artifact-directory: 'dist/aily-blockly'
