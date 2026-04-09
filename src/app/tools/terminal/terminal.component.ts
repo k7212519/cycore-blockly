@@ -116,10 +116,10 @@ export class TerminalComponent {
 
     // 添加复制功能
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      // Ctrl+Shift+C 用于复制
+      // Ctrl+C 用于复制（当有选中文本时）
       if (event.type === 'keydown' && event.ctrlKey && event.key === 'c') {
         if (this.terminal.hasSelection()) {
-          this.clipboardAddon.copy();
+          navigator.clipboard.writeText(this.terminal.getSelection());
           return false; // 阻止事件继续传播
         }
       }
