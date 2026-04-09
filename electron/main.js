@@ -524,11 +524,15 @@ function macosInstallEnv(childPath) {
   function extractVersion(filename, keyword) {
     // node 格式：node-v22.21.0-darwin-arm64.7z → 22.21.0
     // aily-builder 格式：aily-builder-1.0.7.7z → 1.0.7
+    // probe-rs 格式：probe-rs-0.31.0.7z → 0.31.0
     if (keyword === "node") {
       const match = filename.match(/node-v(\d+\.\d+\.\d+)/);
       return match ? match[1] : null;
     } else if (keyword === "aily-builder") {
       const match = filename.match(/aily-builder-(\d+\.\d+\.\d+)/);
+      return match ? match[1] : null;
+    } else if (keyword === "probe-rs") {
+      const match = filename.match(/probe-rs-(\d+\.\d+\.\d+)/);
       return match ? match[1] : null;
     }
     return null;
@@ -645,6 +649,30 @@ function macosInstallEnv(childPath) {
       }
     } else {
       console.error(`未找到 ${ailyBuilderName}: ${ailyBuilderZipPath}，搜索目录: ${sourceDir}`);
+    }
+  }
+  const probeRsName = "probe-rs";
+  const probeRsPath = path.join(childPath, probeRsName);
+  if (!fs.existsSync(probeRsPath)) {
+    const sourceDir = path.join(childPath, serve ? "macos" : "");
+    const probeRsZipPath = findLatestVersionFile(sourceDir, probeRsName);
+    if (probeRsZipPath && fs.existsSync(probeRsZipPath)) {
+      if (!fs.existsSync(z7Path)) {
+        console.error(`解压 ${probeRsName} 需要 7zz，但未找到: ${z7Path}`);
+      } else {
+        try {
+          const escapeProbeRsPath = escapePath(probeRsPath);
+          const escapeProbeRsZipPath = escapePath(probeRsZipPath);
+          const escapeZ7Path = escapePath(z7Path);
+          child_process.execSync(`mkdir -p ${escapeProbeRsPath} && ${escapeZ7Path} x ${escapeProbeRsZipPath} -o${escapeProbeRsPath} -t7z -y`, { stdio: 'inherit' });
+          console.log(`安装解压 ${probeRsName}: ${probeRsZipPath}成功！`);
+          if (!serve) fs.unlinkSync(probeRsZipPath);
+        } catch (error) {
+          console.error(`安装解压 ${probeRsName}: ${probeRsZipPath}失败，错误码:`, error);
+        }
+      }
+    } else {
+      console.error(`未找到 ${probeRsName}: ${probeRsZipPath}，搜索目录: ${sourceDir}`);
     }
   }
 }
