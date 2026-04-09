@@ -120,11 +120,12 @@ export const getByID = function(workspace, id) {
 const collectBlockTypes = function(blockState, types) {
   if (!blockState) return;
   if (blockState.type) types.add(blockState.type);
-  // Traverse inputs (object keys with block values)
+  // Traverse inputs (object keys with block and shadow values)
   if (blockState.inputs) {
     for (const key of Object.keys(blockState.inputs)) {
       const input = blockState.inputs[key];
       if (input && input.block) collectBlockTypes(input.block, types);
+      if (input && input.shadow) collectBlockTypes(input.shadow, types);
     }
   }
   // Traverse next connection
@@ -169,7 +170,7 @@ export const dataCopyToStorage = function() {
       if (libMap) {
         allTypes.forEach((type) => {
           const info = libMap.get(type);
-          if (info) libraries[type] = { name: info.name, version: info.version };
+          if (info) libraries[type] = { name: info.name, version: info.version, localPath: info.localPath || '' };
         });
       }
       const enriched = {
@@ -237,8 +238,9 @@ export const dataCopyFromStorage = function() {
 
 /**
  * Check for missing block types in the current clipboard data.
- * Returns an array of { blockType, name, version } for blocks whose
- * definitions are not registered yet.
+ * Returns an array of { blockType, name, version, localPath } for blocks whose
+ * definitions are not registered yet and have library info in clipboard.
+ * Also returns entries without library info (name='') so paste is blocked.
  */
 export const checkMissingBlockTypes = function() {
   const allTypes = new Set();
@@ -253,7 +255,10 @@ export const checkMissingBlockTypes = function() {
       const libInfo = clipboardLibraries[type];
       if (libInfo && !seenLibs.has(libInfo.name)) {
         seenLibs.add(libInfo.name);
-        missing.push({ blockType: type, name: libInfo.name, version: libInfo.version });
+        missing.push({ blockType: type, name: libInfo.name, version: libInfo.version, localPath: libInfo.localPath || '' });
+      } else if (!libInfo) {
+        // Block type is missing and no library info available
+        missing.push({ blockType: type, name: '', version: '', localPath: '' });
       }
     }
   });

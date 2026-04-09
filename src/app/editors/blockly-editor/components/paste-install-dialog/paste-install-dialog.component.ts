@@ -10,6 +10,7 @@ export interface MissingLibInfo {
   blockType: string;
   name: string;
   version: string;
+  localPath?: string;
 }
 
 @Component({

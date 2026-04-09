@@ -800,13 +800,16 @@ const registerPaste = function(useCopyPasteCrossTab) {
       }
       // Check for missing block definitions (cross-instance paste)
       const missingLibs = checkMissingBlockTypes();
-      if (missingLibs.length > 0 && window.__ailyBlockPasteNeedsInstall) {
-        // Trigger async install dialog, paste after completion
-        window.__ailyBlockPasteNeedsInstall(missingLibs).then(() => {
-          executePaste(workspace);
-        }).catch(() => {
-          // User cancelled - do nothing
-        });
+      if (missingLibs.length > 0) {
+        if (window.__ailyBlockPasteNeedsInstall) {
+          // Trigger async install dialog, paste after completion
+          window.__ailyBlockPasteNeedsInstall(missingLibs).then(() => {
+            executePaste(workspace);
+          }).catch(() => {
+            // User cancelled - do nothing
+          });
+        }
+        // Block paste when missing libs detected
         return true;
       }
       executePaste(workspace);

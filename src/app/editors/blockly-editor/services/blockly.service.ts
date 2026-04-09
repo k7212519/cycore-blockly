@@ -31,7 +31,7 @@ export class BlocklyService {
   // 追踪已加载的库,避免重复加载
   loadedLibraries = new Set<string>(); // libPackagePath
   // blockType → 库信息映射（用于跨实例复制粘贴时携带库元信息）
-  blockTypeToLibMap = new Map<string, { name: string; version: string }>();
+  blockTypeToLibMap = new Map<string, { name: string; version: string; localPath?: string }>();
 
   codeSubject = new BehaviorSubject<string>('');
   dependencySubject = new BehaviorSubject<string>('');
@@ -140,9 +140,22 @@ export class BlocklyService {
             console.error(`[loadLibrary] generator.js 加载失败: ${libPackageName}，库将不会标记为已加载，下次可重试`);
           }
         }
+        // 检测是否为本地库（项目 package.json 中 dependencies 版本以 "file:" 开头）
+        let libLocalPath: string | undefined;
+        try {
+          const projPkgJsonPath = this.electronService.pathJoin(projectPath, 'package.json');
+          if (this.electronService.exists(projPkgJsonPath)) {
+            const projPkgJson = JSON.parse(this.electronService.readFile(projPkgJsonPath));
+            const depVersion = projPkgJson?.dependencies?.[libPackageName] || '';
+            if (typeof depVersion === 'string' && depVersion.startsWith('file:')) {
+              const relativePath = depVersion.substring(5); // 去掉 "file:" 前缀
+              libLocalPath = this.electronService.pathJoin(projectPath, relativePath);
+            }
+          }
+        } catch (e) {}
         // 替换block中静态图片路径
         const staticFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'static'));
-        this.loadLibBlocks(blocks, staticFileIsExist ? this.electronService.pathJoin(libPackagePath, 'static') : null, libPackageName, libVersion);
+        this.loadLibBlocks(blocks, staticFileIsExist ? this.electronService.pathJoin(libPackagePath, 'static') : null, libPackageName, libVersion, libLocalPath);
         // 加载toolbox
         const toolboxFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'toolbox.json'));
         if (toolboxFileIsExist) {
@@ -180,7 +193,7 @@ export class BlocklyService {
     this.removeLibrary(libPackagePath);
   }
 
-  loadLibBlocks(blocks, libStaticPath, libPackageName = '', libVersion = '') {
+  loadLibBlocks(blocks, libStaticPath, libPackageName = '', libVersion = '', libLocalPath?: string) {
     for (let index = 0; index < blocks.length; index++) {
       let block = blocks[index];
       if (block?.type && block?.icon) {
@@ -191,7 +204,7 @@ export class BlocklyService {
       }
       // 记录 blockType → 库信息映射
       if (block?.type && libPackageName) {
-        this.blockTypeToLibMap.set(block.type, { name: libPackageName, version: libVersion });
+        this.blockTypeToLibMap.set(block.type, { name: libPackageName, version: libVersion, localPath: libLocalPath });
       }
       block = processJsonVar(block, this.boardConfig); // 替换开发板相关变量
       if (libStaticPath) {
