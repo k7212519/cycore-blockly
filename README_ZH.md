@@ -48,48 +48,12 @@ AI可以根据用户程序和需求生成模组连线图，方便用户参考。
 [编译器](https://github.com/ailyProject/aily-blockly-compilers)  
 [相关工具](https://github.com/ailyProject/aily-project-tools)  
 
-## 项目赞助
-本项目由以下企业和个人赞助
-
-### 企业赞助
-<a target="_blank" href="https://www.seeedstudio.com/" >
-    <img src=".\public\sponsor\seeedstudio\logo_l.webp" alt="seeedstudio" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.seekfree.cn/" >
-    <img src=".\public\sponsor\seekfree\logo_l.webp" alt="seekfree" width=200 />
-</a><br>
-<a target="_blank" href="https://www.diandeng.tech/" >
-    <img src=".\public\sponsor\diandeng\logo_l.webp" alt="diandeng" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.openjumper.com/" >
-    <img src=".\public\sponsor\openjumper\logo.webp" alt="openjumper" width=200 />
-</a><br>
-<a target="_blank" href="https://www.pdmicro.cn/" >
-    <img src=".\public\sponsor\pengde\logo.webp" alt="pengde" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.titlab.cn/" >
-    <img src=".\public\sponsor\titlab\logo_l.webp" alt="titlab" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.emakefun.com" >
-    <img src=".\public\sponsor\emakefun\logo_l.webp" alt="emakefun" width=200 />
-</a><br>  
-<a target="_blank" href="http://www.keyes-robot.com/" >
-    <img src=".\public\sponsor\keyes\logo_l.webp" alt="keyes" width=200 />
-</a>  
-
-
-### 个人赞助   
-陶冬(天微电子)  
-夏青(蘑菇云创客空间)  
-杜忠忠Dzz(社区伙伴)  
-李端(益学汇)  
-孙俊杰(社区伙伴)  
-
 ## 项目使用到的主要开源项目
-[electron]()本项目使用electron构建桌面程序  
-[angular]()本项目使用angular作为渲染端构建主要UI逻辑  
-[node]()本项目使用npm和node进行包管理和执行必要脚本  
-[7z]()本项目使用7z减小部分包的大小（如巨大的ESP32编译器）  
+[electron](https://github.com/electron/electron)本项目使用electron构建桌面程序  
+[angular](https://github.com/angular/angular)本项目使用angular作为渲染端构建主要UI逻辑  
+[node](https://github.com/nodejs/node)本项目使用npm和node进行包管理和执行必要脚本  
+[7z](https://github.com/sparanoid/7z)本项目使用7z减小部分包的大小（如巨大的ESP32编译器）  
+[probe-rs](https://github.com/probe-rs/probe-rs)本项目使用probe-rs调用daplink等调试器  
 其他内容可见[package.json](./package.json)  
 
 ## 本项目AI功能参考了以下项目
@@ -102,7 +66,32 @@ AI可以根据用户程序和需求生成模组连线图，方便用户参考。
 3. 基于本软件的衍生品，不得移除本项目相关权利人、赞助者信息，且必须保证相关信息出现在软件启动页；
 4. 在无授权的情况下，不得移除本项目附带的线上服务内容、及用户协议。
 
-## Sponsors
+## 赞助
+
+本项目由以下企业和个人赞助
+
+### 企业赞助
+
+<table>
+  <tr>
+    <td><a target="_blank" href="https://www.seeedstudio.com/"><img src=".\public\sponsor\seeedstudio\logo_l.webp" alt="seeedstudio" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.seekfree.cn/"><img src=".\public\sponsor\seekfree\logo_l.webp" alt="seekfree" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.diandeng.tech/"><img src=".\public\sponsor\diandeng\logo_l.webp" alt="diandeng" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.openjumper.com/"><img src=".\public\sponsor\openjumper\logo.webp" alt="openjumper" width="200" /></a></td>
+  </tr>
+  <tr>
+    <td><a target="_blank" href="https://www.pdmicro.cn/"><img src=".\public\sponsor\pengde\logo.webp" alt="pengde" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.titlab.cn/"><img src=".\public\sponsor\titlab\logo_l.webp" alt="titlab" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.emakefun.com"><img src=".\public\sponsor\emakefun\logo_l.webp" alt="emakefun" width="200" /></a></td>
+    <td><a target="_blank" href="http://www.keyes-robot.com/"><img src=".\public\sponsor\keyes\logo_l.webp" alt="keyes" width="200" /></a></td>
+  </tr>
+</table>
+
+### 个人赞助
+
+陶冬(天微电子) | 夏青(蘑菇云创客空间) | 杜忠忠Dzz(社区伙伴) | 李端(益学汇) | 孙俊杰(社区伙伴)
+
+### 技术赞助
 
 <table>
   <tr>
