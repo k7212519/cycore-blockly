@@ -86,10 +86,11 @@ AI可以根据用户程序和需求生成模组连线图，方便用户参考。
 孙俊杰(社区伙伴)  
 
 ## 项目使用到的主要开源项目
-[electron]()本项目使用electron构建桌面程序  
-[angular]()本项目使用angular作为渲染端构建主要UI逻辑  
-[node]()本项目使用npm和node进行包管理和执行必要脚本  
-[7z]()本项目使用7z减小部分包的大小（如巨大的ESP32编译器）  
+[electron](https://github.com/electron/electron)本项目使用electron构建桌面程序  
+[angular](https://github.com/angular/angular)本项目使用angular作为渲染端构建主要UI逻辑  
+[node](https://github.com/nodejs/node)本项目使用npm和node进行包管理和执行必要脚本  
+[7z](https://github.com/sparanoid/7z)本项目使用7z减小部分包的大小（如巨大的ESP32编译器）  
+[probe-rs](https://github.com/probe-rs/probe-rs)本项目使用probe-rs调用daplink等调试器  
 其他内容可见[package.json](./package.json)  
 
 ## 本项目AI功能参考了以下项目
