@@ -25,7 +25,7 @@ import { NzToolTipModule } from "ng-zorro-antd/tooltip";
     NzProgressModule,
     NzInputModule,
     NzToolTipModule
-],
+  ],
   templateUrl: './user-center.component.html',
   styleUrl: './user-center.component.scss'
 })
@@ -348,6 +348,6 @@ export class UserCenterComponent {
 
 
   OpenUrl(url) {
-
+    this.message.warning('测试版期间免费使用，无需购买');
   }
 }
