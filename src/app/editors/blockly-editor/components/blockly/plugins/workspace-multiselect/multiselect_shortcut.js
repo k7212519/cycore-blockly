@@ -14,6 +14,7 @@ import {
   dataCopyToStorage, dataCopyFromStorage, registeredShortcut,
   multiDraggableWeakMap, inPasteShortcut, getByID, shortcutNames,
   incrementFieldInputValues, checkMissingBlockTypes, centerBlocksInViewport,
+  resetConsecutivePasteStagger, applyConsecutivePasteStagger,
 } from './global';
 import {MultiselectDraggable} from './multiselect_draggable';
 
@@ -183,6 +184,7 @@ const registerCopy = function(useCopyPasteCrossTab) {
       if (useCopyPasteCrossTab) {
         dataCopyToStorage();
       }
+      resetConsecutivePasteStagger(workspace);
       Blockly.Events.setGroup(false);
       return true;
     },
@@ -307,6 +309,7 @@ const registerCut = function(useCopyPasteCrossTab) {
       if (useCopyPasteCrossTab) {
         dataCopyToStorage();
       }
+      resetConsecutivePasteStagger(workspace);
       Blockly.Events.setGroup(false);
       return true;
     },
@@ -416,6 +419,7 @@ const registerPaste = function(useCopyPasteCrossTab) {
     });
     // Move pasted blocks to the center of the current viewport
     centerBlocksInViewport(blockList, workspace);
+    applyConsecutivePasteStagger(blockList, workspace);
 
     Blockly.common.setSelected(multiDraggable);
     Blockly.Events.setGroup(false);
