@@ -42,9 +42,9 @@
             <div class="right-inner">
               <div class="item">
                 <div>{{ 'SETTINGS.FIELDS.UI_THEME' | translate }}:</div>
-                <nz-radio-group [(ngModel)]="configData.theme" [nzSize]="'small'" nzButtonStyle="solid">
+                <nz-radio-group [(ngModel)]="configData.theme" [nzSize]="'small'" nzButtonStyle="solid" (ngModelChange)="onThemeChange($event)">
                   <label nz-radio-button nzValue="default">Dark</label>
-                  <label nz-radio-button nzValue="light" [nzDisabled]="true">Light</label>
+                  <label nz-radio-button nzValue="light">Light</label>
                 </nz-radio-group>
               </div>
             </div>

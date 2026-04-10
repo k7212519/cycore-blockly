@@ -23,3 +23,14 @@ export const DarkTheme = Blockly.Theme.defineTheme('dark', {
     // replacementGlowOpacity?: number;
   },
 });
+
+export const LightTheme = Blockly.Theme.defineTheme('light', {
+  name: 'light',
+  base: Blockly.Themes.Classic,
+  startHats: true,
+  componentStyles: {
+    workspaceBackgroundColour: '#e8e8e8',
+    flyoutBackgroundColour: '#d6d6d6',
+    scrollbarOpacity: 0.3,
+  },
+});

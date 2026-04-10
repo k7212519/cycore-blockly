@@ -18,10 +18,10 @@ blockly-main {
     height: 40px;
     width: 179px;
     cursor: pointer;
-    background-color: #323232;
+    background-color: var(--aily-bg-secondary);
     z-index: 99;
 
     &:hover {
-        color: #2a74ff;
+        color: var(--aily-color-link-hover);
     }
 }

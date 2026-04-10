@@ -15,6 +15,7 @@ import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { AuthService } from '../../services/auth.service';
 import { NzModalService } from 'ng-zorro-antd/modal';
+import { ThemeService, ThemeMode } from '../../services/theme.service';
 
 @Component({
   selector: 'app-settings',
@@ -99,7 +100,7 @@ export class SettingsComponent {
       return this.boardList;
     }
     const keyword = this.boardSearchKeyword.toLowerCase().trim();
-    return this.boardList.filter(board => 
+    return this.boardList.filter(board =>
       board.name.toLowerCase().includes(keyword) ||
       (board.version && board.version.toLowerCase().includes(keyword))
     );
@@ -161,15 +162,15 @@ export class SettingsComponent {
         nzOnOk: async () => {
           // 用户确认后，更新区域值
           this.selectedRegion = regionKey;
-          
+
           // 发送消息到主窗口执行登出
           try {
             setTimeout(async () => {
               if (window['iWindow'] && window['iWindow'].send) {
                 // 子窗口：发送消息到主窗口
-                window['iWindow'].send({ 
-                  to: 'main', 
-                  data: { action: 'logout' } 
+                window['iWindow'].send({
+                  to: 'main',
+                  data: { action: 'logout' }
                 });
                 this.authService.logout();
               } else {
@@ -216,6 +217,7 @@ export class SettingsComponent {
     private authService: AuthService,
     private modal: NzModalService,
     private translateService: TranslateService,
+    private themeService: ThemeService
   ) {
   }
 
@@ -293,9 +295,15 @@ export class SettingsComponent {
   apply() {
     // 保存到config.json，如有需要立即加载的，再加载
     this.configService.save();
-     window['ipcRenderer'].send('setting-changed', { action: 'devmode-changed', data: this.configData.devmode });
+    window['ipcRenderer'].send('setting-changed', { action: 'devmode-changed', data: this.configData.devmode });
     // 保存完毕后关闭窗口
     this.uiService.closeWindow();
+  }
+
+  onThemeChange(value: string) {
+    const mode: ThemeMode = value === 'light' ? 'light' : 'dark';
+    this.themeService.setTheme(mode);
+    window['ipcRenderer'].send('setting-changed', { action: 'theme-changed', data: mode });
   }
 
   async uninstall(board) {

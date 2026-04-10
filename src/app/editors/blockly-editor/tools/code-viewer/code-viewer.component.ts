@@ -1,4 +1,4 @@
-import { Component, OnDestroy } from '@angular/core';
+import { Component, OnDestroy, effect } from '@angular/core';
 import { ToolContainerComponent } from '../../../../components/tool-container/tool-container.component';
 import { UiService } from '../../../../services/ui.service';
 import { SubWindowComponent } from '../../../../components/sub-window/sub-window.component';
@@ -10,6 +10,7 @@ import { BlocklyService } from '../../services/blockly.service';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { BlockCodeMapping } from '../../components/blockly/generators/arduino/arduino';
+import { ThemeService } from '../../../../services/theme.service';
 
 @Component({
   selector: 'app-code-viewer',
@@ -48,7 +49,14 @@ export class CodeViewerComponent implements OnDestroy {
     private blocklyService: BlocklyService,
     private uiService: UiService,
     private router: Router,
-  ) { }
+    private themeService: ThemeService
+  ) {
+    // 监听主题变化，动态切换 Monaco 主题
+    effect(() => {
+      const monacoTheme = this.themeService.getMonacoTheme();
+      this.options = { ...this.options, theme: monacoTheme };
+    });
+  }
 
   ngOnInit() {
     this.currentUrl = this.router.url;

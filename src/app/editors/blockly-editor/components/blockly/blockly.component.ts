@@ -1,4 +1,4 @@
-import { Component, ElementRef, Input, ViewChild, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, ElementRef, Input, ViewChild, OnDestroy, OnInit, ChangeDetectorRef, effect } from '@angular/core';
 import * as Blockly from 'blockly';
 import { Subject, combineLatest } from 'rxjs';
 import { debounceTime, takeUntil, map, distinctUntilChanged, pairwise, startWith } from 'rxjs/operators';
@@ -79,7 +79,8 @@ import { ElectronService } from '../../../../services/electron.service';
 import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd.service';
 import { PasteInstallDialogComponent, MissingLibInfo } from '../paste-install-dialog/paste-install-dialog.component';
 import { Minimap } from '@blockly/workspace-minimap';
-import { DarkTheme } from './theme.config';
+import { DarkTheme, LightTheme } from './theme.config';
+import { ThemeService } from '../../../../services/theme.service';
 
 class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
   constructor(workspace: any) {
@@ -257,7 +258,8 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     private cmdService: CmdService,
     private projectService: ProjectService,
     private electronService: ElectronService,
-    private crossPlatformCmdService: CrossPlatformCmdService
+    private crossPlatformCmdService: CrossPlatformCmdService,
+    private themeService: ThemeService
   ) {
     // Initialize GlobalServiceManager with BitmapUploadService
     const globalServiceManager = GlobalServiceManager.getInstance();
@@ -274,6 +276,14 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     this.configService.configReloaded$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.applyFlyoutAutoClose());
+
+    // 监听主题变化，动态切换 Blockly 主题
+    effect(() => {
+      const mode = this.themeService.theme();
+      if (this.workspace) {
+        this.workspace.setTheme(mode === 'light' ? LightTheme : DarkTheme);
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -429,6 +439,11 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       this.setupBlockRegistryInterception();
       // 获取当前blockly渲染器
       this.options.renderer = this.configData.blockly.renderer ? ('aily-' + this.configData.blockly.renderer) : 'thrasos';
+
+      // 根据当前主题设置 Blockly 主题和网格颜色
+      const currentTheme = this.themeService.theme();
+      this.options.theme = currentTheme === 'light' ? LightTheme : DarkTheme;
+      this.options.grid.colour = currentTheme === 'light' ? '#ddd' : '#393939';
 
       this.workspace = Blockly.inject('blocklyDiv', this.options);
 
