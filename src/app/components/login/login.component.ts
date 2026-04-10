@@ -73,14 +73,14 @@ export class LoginComponent implements OnDestroy {
 
   // 协议文档路径：中文(zh_cn/zh_hk)用 zh 版本，其他语言用英文
   private getUserAgreementUrl(): string {
-    const base = this.configService.getWebUrl();
+    const base = this.configService.getCurrentResourceUrl();
     const lang = this.translate.currentLang || this.translate.defaultLang || 'en';
     const isZh = lang === 'zh_cn' || lang === 'zh_hk' || lang === 'zh-CN' || lang === 'zh-HK';
     const file = isZh ? 'agreement/TERMS-zh.md' : 'agreement/TERMS.md';
     return `${base}/${file}`;
   }
   private getPrivacyPolicyUrl(): string {
-    const base = this.configService.getWebUrl();
+    const base = this.configService.getCurrentResourceUrl();
     const lang = this.translate.currentLang || this.translate.defaultLang || 'en';
     const isZh = lang === 'zh_cn' || lang === 'zh_hk' || lang === 'zh-CN' || lang === 'zh-HK';
     const file = isZh ? 'agreement/PRIVACY-zh.md' : 'agreement/PRIVACY.md';
