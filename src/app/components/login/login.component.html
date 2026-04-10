@@ -34,11 +34,7 @@
                 }
                 <div class="wechat-status">
                     @if (loginBindStatus === 'pending') {
-                    <div class="status-message">{{ loginBindStatusMessage }}
-                        @if (loginBindCountdown > 0) {
-                        <span>({{ loginBindCountdown }}s)</span>
-                        }
-                    </div>
+                    <div class="status-message">{{ loginBindStatusMessage }}</div>
                     } @else if (loginBindStatus === 'scanned') {
                     <div class="status-message">{{ loginBindStatusMessage }}</div>
                     }

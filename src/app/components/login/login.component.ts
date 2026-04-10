@@ -56,9 +56,7 @@ export class LoginComponent implements OnDestroy {
   loginBindQrcodeUrl: string | null = null;
   loginBindStatus: 'loading' | 'pending' | 'scanned' | 'confirmed' | 'expired' | 'error' = 'loading';
   loginBindStatusMessage = '';
-  loginBindCountdown = 60;
   private loginBindCheckSub: Subscription | null = null;
-  private loginBindCountdownTimer: ReturnType<typeof setInterval> | null = null;
 
   // 微信登录后邮箱绑定相关
   emailBindMode = false;
@@ -617,7 +615,6 @@ export class LoginComponent implements OnDestroy {
           this.loginBindQrcodeUrl = response.data.qrcode_url;
           this.loginBindStatus = 'pending';
           this.loginBindStatusMessage = this.translate.instant('LOGIN.WECHAT_BIND_SCAN') || '请使用微信扫码绑定';
-          this.startLoginBindCountdown();
           this.startWeChatLoginBindCheck();
         } else {
           this.loginBindStatus = 'error';
@@ -709,21 +706,6 @@ export class LoginComponent implements OnDestroy {
     }
   }
 
-  private startLoginBindCountdown(): void {
-    this.clearLoginBindCountdown();
-    this.loginBindCountdown = 60;
-    this.loginBindCountdownTimer = setInterval(() => {
-      this.loginBindCountdown--;
-      if (this.loginBindCountdown <= 0) {
-        this.clearLoginBindCountdown();
-        this.loginBindStatus = 'expired';
-        this.loginBindStatusMessage = '二维码已过期，请刷新';
-        this.stopLoginBindCheck();
-        this.cdr.detectChanges();
-      }
-    }, 1000);
-  }
-
   private stopLoginBindCheck(): void {
     if (this.loginBindCheckSub) {
       this.loginBindCheckSub.unsubscribe();
@@ -731,16 +713,8 @@ export class LoginComponent implements OnDestroy {
     }
   }
 
-  private clearLoginBindCountdown(): void {
-    if (this.loginBindCountdownTimer) {
-      clearInterval(this.loginBindCountdownTimer);
-      this.loginBindCountdownTimer = null;
-    }
-  }
-
   private cleanupLoginBind(): void {
     this.stopLoginBindCheck();
-    this.clearLoginBindCountdown();
   }
 
   // ==================== 微信登录后邮箱绑定 ====================
