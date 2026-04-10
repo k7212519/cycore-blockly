@@ -134,6 +134,9 @@ export class ChatEngineService {
   /** 当前 ask_user 的问题列表（用于事件回调时组装答案） */
   private _askUserQuestions: AskUserQuestion[] | null = null;
 
+  /** OnPush 组件变更检测回调，由 component 注入 */
+  private detectChangesCallback?: () => void;
+
   /** 工具审批 Promise resolve 回调（等待用户在聊天界面确认） */
   _resolveToolApproval: ((result: ToolApprovalResult) => void) | null = null;
 
@@ -223,6 +226,7 @@ export class ChatEngineService {
 
   /** 注册 OnPush CD 回调（由 component 调用 cdr.markForCheck） */
   setCdCallback(cb: () => void): void {
+    this.detectChangesCallback = cb;
     (this.viewAdapter as any).cdCallback = cb;
   }
 
@@ -401,6 +405,7 @@ export class ChatEngineService {
               const txt = this._pendingAutoSendText;
               this._pendingAutoSendText = null;
               this.inputValue = txt;
+              this.detectChangesCallback?.();
               setTimeout(() => this.send('user', txt, true), 50);
             }
           }).catch(() => {});
@@ -630,6 +635,7 @@ Do not create non-existent boards and libraries.
     } else {
       this.inputValue = text;
     }
+    this.detectChangesCallback?.();
     setTimeout(() => {
       if (this.chatTextareaRef?.nativeElement) {
         const textarea = this.chatTextareaRef.nativeElement;

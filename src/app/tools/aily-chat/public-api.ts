@@ -1,7 +1,7 @@
 /**
  * aily-chat 模块对外公共 API
  *
- * 外部模块（如 background-agent、blockly-editor、global-chat.utils）
+ * 外部模块（如 background-agent、blockly-editor）
  * 应统一从此入口导入，而 ** 不要 ** 直接引用 aily-chat 内部子路径。
  */
 
