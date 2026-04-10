@@ -755,6 +755,7 @@ export class LoginComponent implements OnDestroy {
     this.emailBindEmail = '';
     this.emailBindCode = '';
     this.emailBindIsSendingCode = false;
+    this.emailBindCountdown = 0;
     this.emailBindIsSubmitting = false;
     this.mode = 'mail';
     this.cdr.detectChanges();
@@ -823,7 +824,9 @@ export class LoginComponent implements OnDestroy {
                 ? (this.translate.instant('LOGIN.WECHAT_REGISTER_SUCCESS') || '注册成功')
                 : (this.translate.instant('LOGIN.LOGIN_SUCCESS') || '登录成功')
             );
+            this.cleanupEmailBind();
             this.emailBindMode = false;
+            this.emailBindCountdown = 0;
             this.cdr.detectChanges();
           }).catch((err) => {
             console.error('处理邮箱绑定登录成功数据失败:', err);
