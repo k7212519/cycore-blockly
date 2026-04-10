@@ -60,47 +60,12 @@ The current version is not recommended for actual work use, as many adjustments 
 [Compilers](https://github.com/ailyProject/aily-blockly-compilers)  
 [Related Tools](https://github.com/ailyProject/aily-project-tools)  
 
-## Project Sponsorship
-This project is sponsored by the following companies and individuals
-
-### Corporate Sponsors
-<a target="_blank" href="https://www.seeedstudio.com/" >
-    <img src=".\public\sponsor\seeedstudio\logo_l.webp" alt="seeedstudio" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.seekfree.cn/" >
-    <img src=".\public\sponsor\seekfree\logo_l.webp" alt="seekfree" width=200 />
-</a><br>
-<a target="_blank" href="https://www.diandeng.tech/" >
-    <img src=".\public\sponsor\diandeng\logo_l.webp" alt="diandeng" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.openjumper.com/" >
-    <img src=".\public\sponsor\openjumper\logo.webp" alt="openjumper" width=200 />
-</a><br>
-<a target="_blank" href="https://www.pdmicro.cn/" >
-    <img src=".\public\sponsor\pengde\logo.webp" alt="pengde" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.titlab.cn/" >
-    <img src=".\public\sponsor\titlab\logo_l.webp" alt="titlab" width=200 />
-</a><br>  
-<a target="_blank" href="https://www.emakefun.com" >
-    <img src=".\public\sponsor\emakefun\logo_l.webp" alt="emakefun" width=200 />
-</a><br>  
-<a target="_blank" href="http://www.keyes-robot.com/" >
-    <img src=".\public\sponsor\keyes\logo_l.webp" alt="keyes" width=200 />
-</a>  
-
-### Individual Sponsors   
-Tao Dong (Tianwei Electronics)  
-Xia Qing (Mushroom Cloud Maker Space)  
-Du Zhongzhong Dzz (Community Partner)  
-Li Duan (Yixuehui)  
-Sun Junjie (Community Partner)  
-
 ## Main Open Source Projects Used in This Project
-[electron]() This project uses electron to build desktop applications  
-[angular]() This project uses angular as the rendering end to build main UI logic  
-[node]() This project uses npm and node for package management and executing necessary scripts  
-[7z]() This project uses 7z to reduce the size of some packages (such as the huge ESP32 compiler)  
+[electron](https://github.com/electron/electron) This project uses electron to build desktop applications  
+[angular](https://github.com/angular/angular) This project uses angular as the rendering end to build main UI logic  
+[node](https://github.com/nodejs/node) This project uses npm and node for package management and executing necessary scripts  
+[7z](https://github.com/sparanoid/7z) This project uses 7z to reduce the size of some packages (such as the huge ESP32 compiler)  
+[probe-rs](https://github.com/probe-rs/probe-rs) This project uses probe-rs to interface with debuggers such as DAPLink  
 Other content can be found in [package.json](./package.json)  
 
 ## The AI features of this project reference the following projects
@@ -114,6 +79,31 @@ Other content can be found in [package.json](./package.json)
 4. Without authorization, the online service content and user agreement attached to this project must not be removed.
 
 ## Sponsors
+
+This project is sponsored by the following companies and individuals
+
+### Corporate Sponsors
+
+<table>
+  <tr>
+    <td><a target="_blank" href="https://www.seeedstudio.com/"><img src=".\public\sponsor\seeedstudio\logo_l.webp" alt="seeedstudio" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.seekfree.cn/"><img src=".\public\sponsor\seekfree\logo_l.webp" alt="seekfree" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.diandeng.tech/"><img src=".\public\sponsor\diandeng\logo_l.webp" alt="diandeng" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.openjumper.com/"><img src=".\public\sponsor\openjumper\logo.webp" alt="openjumper" width="200" /></a></td>
+  </tr>
+  <tr>
+    <td><a target="_blank" href="https://www.pdmicro.cn/"><img src=".\public\sponsor\pengde\logo.webp" alt="pengde" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.titlab.cn/"><img src=".\public\sponsor\titlab\logo_l.webp" alt="titlab" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.emakefun.com"><img src=".\public\sponsor\emakefun\logo_l.webp" alt="emakefun" width="200" /></a></td>
+    <td><a target="_blank" href="http://www.keyes-robot.com/"><img src=".\public\sponsor\keyes\logo_l.webp" alt="keyes" width="200" /></a></td>
+  </tr>
+</table>
+
+### Individual Sponsors
+
+Tao Dong (Tianwei Electronics) | Xia Qing (Mushroom Cloud Maker Space) | Du Zhongzhong Dzz (Community Partner) | Li Duan (Yixuehui) | Sun Junjie (Community Partner)
+
+### Technical Sponsors
 
 <table>
   <tr>
