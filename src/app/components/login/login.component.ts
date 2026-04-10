@@ -788,6 +788,61 @@ export class LoginComponent implements OnDestroy {
     ).subscribe({
       next: (response) => {
         if (response.status === 200 && response.data) {
+          // 检查是否需要用户确认合并账号
+          if ((response.data as any).status === 'needs_merge_confirm') {
+            this.emailBindIsSubmitting = false;
+            this.cdr.detectChanges();
+            const mergeInfo = (response.data as any).merge_info;
+            this.modal.confirm({
+              nzTitle: '发现已有账号',
+              nzContent: `检测到微信账号「${mergeInfo?.wechat_nickname || '未知'}」与邮箱账号「${mergeInfo?.email || '未知'}」可以合并。合并后微信将绑定到邮箱账号，原微信账号将被停用。是否确认合并？`,
+              nzOkText: '确认合并',
+              nzCancelText: '取消',
+              nzOnOk: () => {
+                this.emailBindIsSubmitting = true;
+                this.cdr.detectChanges();
+                this.authService.completeWechatEmailBindLogin(
+                  this.emailBindTicket!,
+                  this.emailBindEmail,
+                  this.emailBindCode,
+                  undefined,
+                  true,
+                ).subscribe({
+                  next: (mergeResponse) => {
+                    if (mergeResponse.status === 200 && mergeResponse.data && 'access_token' in mergeResponse.data) {
+                      this.authService.handleWeChatOAuthSuccess({
+                        access_token: mergeResponse.data.access_token,
+                        refresh_token: mergeResponse.data.refresh_token,
+                        user: mergeResponse.data.user,
+                      }).then(() => {
+                        this.message.success(this.translate.instant('LOGIN.LOGIN_SUCCESS') || '登录成功');
+                        this.cleanupEmailBind();
+                        this.emailBindMode = false;
+                        this.emailBindCountdown = 0;
+                        this.cdr.detectChanges();
+                      }).catch(() => {
+                        this.message.error(this.translate.instant('LOGIN.LOGIN_FAILED') || '登录失败');
+                        this.emailBindIsSubmitting = false;
+                        this.cdr.detectChanges();
+                      });
+                    } else {
+                      this.message.error('合并失败，请重试');
+                      this.emailBindIsSubmitting = false;
+                      this.cdr.detectChanges();
+                    }
+                  },
+                  error: (err) => {
+                    const msg = err?.error?.messages || err?.error?.message || '合并失败，请重试';
+                    this.message.error(msg);
+                    this.emailBindIsSubmitting = false;
+                    this.cdr.detectChanges();
+                  },
+                });
+              },
+            });
+            return;
+          }
+
           this.authService.handleWeChatOAuthSuccess({
             access_token: response.data.access_token,
             refresh_token: response.data.refresh_token,

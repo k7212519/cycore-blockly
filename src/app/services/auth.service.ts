@@ -1132,7 +1132,7 @@ export class AuthService {
   /**
    * 微信登录后补全邮箱绑定
    */
-  completeWechatEmailBindLogin(ticket: string, email: string, code: string, invite_code?: string): Observable<CommonResponse & { data: { access_token: string; refresh_token?: string; token_type?: string; is_new_user?: boolean; user?: any } }> {
+  completeWechatEmailBindLogin(ticket: string, email: string, code: string, invite_code?: string, confirm_merge?: boolean): Observable<CommonResponse & { data: { access_token: string; refresh_token?: string; token_type?: string; is_new_user?: boolean; user?: any } }> {
     // Mock 模式
     if (this.getWechatMockScenario() && ticket.startsWith('mock_ticket_')) {
       return new Observable(observer => {
@@ -1157,9 +1157,24 @@ export class AuthService {
     if (invite_code) {
       body.invite_code = invite_code;
     }
+    if (confirm_merge) {
+      body.confirm_merge = confirm_merge;
+    }
     return this.http.post<CommonResponse & { data: { access_token: string; refresh_token?: string; token_type?: string; is_new_user?: boolean; user?: any } }>(
       API.wechatCompleteEmailBind,
       body
+    ).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * 确认微信账号合并
+   */
+  confirmWechatMerge(ticket: string, flow: 'login_bind' | 'bind'): Observable<CommonResponse & { data: any }> {
+    return this.http.post<CommonResponse & { data: any }>(
+      API.wechatConfirmMerge,
+      { ticket, flow }
     ).pipe(
       catchError(this.handleError)
     );
