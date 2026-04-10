@@ -210,6 +210,10 @@ export const dataCopyFromStorage = function() {
             connectionDBList.push(data);
           });
           clipboardLibraries = parsed.libraries || {};
+          try {
+            const main = Blockly.getMainWorkspace && Blockly.getMainWorkspace();
+            if (main) resetConsecutivePasteStagger(main);
+          } catch (e2) {}
           return;
         }
       }
@@ -233,6 +237,10 @@ export const dataCopyFromStorage = function() {
       connectionDBList.push(data);
     });
     clipboardLibraries = {};
+    try {
+      const main = Blockly.getMainWorkspace && Blockly.getMainWorkspace();
+      if (main) resetConsecutivePasteStagger(main);
+    } catch (e2) {}
   }
 };
 
@@ -333,6 +341,43 @@ const collectPastedBlockInfo = function(blockList) {
 };
 
 /**
+ * Per-workspace index for consecutive paste: each paste after the first is shifted
+ * by index × (dx, dy) in workspace coordinates. Reset on copy/cut / new clipboard.
+ */
+const consecutivePasteStaggerIndexWeakMap = new WeakMap();
+
+/** Workspace units. */
+const CONSECUTIVE_PASTE_OFFSET_X = 24;
+const CONSECUTIVE_PASTE_OFFSET_Y = 24;
+
+/**
+ * Reset stagger so the next paste is not shifted (until further pastes).
+ * @param {!Blockly.WorkspaceSvg} workspace
+ */
+export const resetConsecutivePasteStagger = function(workspace) {
+  if (!workspace) return;
+  consecutivePasteStaggerIndexWeakMap.set(workspace, 0);
+};
+
+/**
+ * Shift pasted top-level blocks by (n×dx, n×dy) for the n-th paste in a row; then n++.
+ * @param {Array<Blockly.BlockSvg>} blockList
+ * @param {!Blockly.WorkspaceSvg} workspace
+ */
+export const applyConsecutivePasteStagger = function(blockList, workspace) {
+  if (!blockList || blockList.length === 0 || !workspace) return;
+  const idx = consecutivePasteStaggerIndexWeakMap.get(workspace) || 0;
+  consecutivePasteStaggerIndexWeakMap.set(workspace, idx + 1);
+  const ox = idx * CONSECUTIVE_PASTE_OFFSET_X;
+  const oy = idx * CONSECUTIVE_PASTE_OFFSET_Y;
+  if (ox === 0 && oy === 0) return;
+  const info = collectPastedBlockInfo(blockList);
+  info.topBlocks.forEach(function(block) {
+    block.moveBy(ox, oy);
+  });
+};
+
+/**
  * Move pasted blocks so the bounding box top-left aligns with the
  * last right-click (context menu) position in workspace coordinates.
  * @param {Array<Blockly.BlockSvg>} blockList The pasted blocks.
@@ -363,7 +408,9 @@ export const moveBlocksToMousePosition = function(blockList, workspace) {
 };
 
 /**
- * Move a list of pasted blocks so their center aligns with the viewport center.
+ * Move pasted blocks into the visible viewport: horizontally centered; vertically
+ * centered for short stacks, or top-aligned when the stack is taller than half
+ * the viewport (workspace metrics via getViewMetrics(true)).
  * @param {Array<Blockly.BlockSvg>} blockList The pasted blocks.
  * @param {Blockly.WorkspaceSvg} workspace The target workspace.
  */
@@ -371,17 +418,38 @@ export const centerBlocksInViewport = function(blockList, workspace) {
   if (!blockList || blockList.length === 0) return;
   const info = collectPastedBlockInfo(blockList);
   if (!isFinite(info.minX)) return;
-  // Get viewport center in workspace coordinates
-  const metrics = workspace.getMetrics();
   const scale = workspace.scale || 1;
-  const viewCenterX = metrics.viewLeft + metrics.viewWidth / 2;
-  const viewCenterY = metrics.viewTop + metrics.viewHeight / 2;
-  // Center of pasted blocks
+  const metrics = workspace.getMetrics();
+  /** Viewport in workspace units (matches block coords / getBoundingRectangle). */
+  let viewCenterX;
+  let viewCenterY;
+  let viewTop;
+  let viewHeightWs;
+  const metricsManager = workspace.getMetricsManager &&
+      workspace.getMetricsManager();
+  if (metricsManager && typeof metricsManager.getViewMetrics === 'function') {
+    const vm = metricsManager.getViewMetrics(true);
+    viewCenterX = vm.left + vm.width / 2;
+    viewCenterY = vm.top + vm.height / 2;
+    viewTop = vm.top;
+    viewHeightWs = vm.height;
+  } else {
+    const vcX = metrics.viewLeft + metrics.viewWidth / 2;
+    const vcY = metrics.viewTop + metrics.viewHeight / 2;
+    viewCenterX = vcX / scale;
+    viewCenterY = vcY / scale;
+    viewTop = metrics.viewTop / scale;
+    viewHeightWs = metrics.viewHeight / scale;
+  }
   const blocksCenterX = (info.minX + info.maxX) / 2;
   const blocksCenterY = (info.minY + info.maxY) / 2;
-  // Offset to move
-  const dx = viewCenterX / scale - blocksCenterX;
-  const dy = viewCenterY / scale - blocksCenterY;
+  const bboxH = info.maxY - info.minY;
+  const tallStack = bboxH > viewHeightWs * 0.5;
+  const marginY = Math.min(48, viewHeightWs * 0.08);
+  const dx = viewCenterX - blocksCenterX;
+  const dy = tallStack ?
+      (viewTop + marginY) - info.minY :
+      viewCenterY - blocksCenterY;
   // Move only top-level blocks (children move with parent)
   info.topBlocks.forEach(function(block) {
     block.moveBy(dx, dy);
