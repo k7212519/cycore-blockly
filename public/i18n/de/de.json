@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "An angegebenen Ort kopieren",
         "CONTROLS_SWITCH_CASE": "Fall",
         "CONTROLS_SWITCH_DO": "ausführen",
-        "CONTROLS_SWITCH_DEFAULT": "Standard"
+        "CONTROLS_SWITCH_DEFAULT": "Standard",
+        "CROSS_TAB_PASTE": "Einfügen",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "%1 Elemente einfügen",
+        "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen"
     },
     "APP_STORE": {
         "HEADER_INFO": "Die ersten {{count}} Apps werden in der Symbolleiste angezeigt",

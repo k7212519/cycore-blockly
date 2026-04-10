@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "지정된 위치에 복사",
         "CONTROLS_SWITCH_CASE": "조건",
         "CONTROLS_SWITCH_DO": "실행",
-        "CONTROLS_SWITCH_DEFAULT": "기본"
+        "CONTROLS_SWITCH_DEFAULT": "기본",
+        "CROSS_TAB_PASTE": "붙여넣기",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "%1개 붙여넣기",
+        "WORKSPACE_SELECT_ALL": "모든 블록 선택"
     },
     "APP_STORE": {
         "HEADER_INFO": "처음 {{count}}개의 앱이 도구 모음에 표시됩니다",

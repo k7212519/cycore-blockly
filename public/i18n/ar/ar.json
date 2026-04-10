@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "نسخ إلى الموقع المحدد",
         "CONTROLS_SWITCH_CASE": "حالة",
         "CONTROLS_SWITCH_DO": "نفذ",
-        "CONTROLS_SWITCH_DEFAULT": "افتراضي"
+        "CONTROLS_SWITCH_DEFAULT": "افتراضي",
+        "CROSS_TAB_PASTE": "لصق",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "لصق %1 عناصر",
+        "WORKSPACE_SELECT_ALL": "تحديد كل الكتل"
     },
     "APP_STORE": {
         "HEADER_INFO": "سيتم عرض أول {{count}} تطبيقات في شريط الأدوات",

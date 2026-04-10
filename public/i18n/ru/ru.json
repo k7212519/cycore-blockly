@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "Копировать в указанное место",
         "CONTROLS_SWITCH_CASE": "случай",
         "CONTROLS_SWITCH_DO": "выполнить",
-        "CONTROLS_SWITCH_DEFAULT": "по умолчанию"
+        "CONTROLS_SWITCH_DEFAULT": "по умолчанию",
+        "CROSS_TAB_PASTE": "Вставить",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "Вставить %1 элементов",
+        "WORKSPACE_SELECT_ALL": "Выбрать все блоки"
     },
     "APP_STORE": {
         "HEADER_INFO": "Первые {{count}} приложения будут отображаться на панели инструментов",

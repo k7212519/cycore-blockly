@@ -635,6 +635,9 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
     // 设置自定义消息（覆盖或补充）
     Blockly.Msg["CROSS_TAB_COPY"] = this.translateService.instant('BLOCKLY.CROSS_TAB_COPY') || "复制到指定位置";
+    Blockly.Msg["CROSS_TAB_PASTE"] = this.translateService.instant('BLOCKLY.CROSS_TAB_PASTE') || "Paste";
+    Blockly.Msg["CROSS_TAB_PASTE_X_ELEMENTS"] = this.translateService.instant('BLOCKLY.CROSS_TAB_PASTE_X_ELEMENTS') || "Paste %1 items";
+    Blockly.Msg["WORKSPACE_SELECT_ALL"] = this.translateService.instant('BLOCKLY.WORKSPACE_SELECT_ALL') || "Select all blocks";
 
     // 自定义扩展的多语言消息（switch-case 等）
     Blockly.Msg["CONTROLS_SWITCH_CASE"] = this.translateService.instant('BLOCKLY.CONTROLS_SWITCH_CASE') || (lang.startsWith('zh') ? "情况" : "case");

@@ -49,7 +49,7 @@ export class BoardSelectorDialogComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadingText = this.translate.instant('BOARD_SELECTOR.LOADING');
-    this.boardList = this.data.boardList || [];
+    this.boardList = (this.data.boardList || []).filter(board => board.state !== 'todo');
     this.filteredBoardList = [...this.boardList];
   }
 

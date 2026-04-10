@@ -14,6 +14,7 @@ import {
   connectionDBList, dataCopyToStorage, dataCopyFromStorage,
   blockNumGetFromStorage, registeredContextMenu, multiDraggableWeakMap, getByID,
   incrementFieldInputValues, checkMissingBlockTypes, moveBlocksToMousePosition,
+  resetConsecutivePasteStagger, applyConsecutivePasteStagger,
 } from './global';
 import {MultiselectDraggable} from './multiselect_draggable';
 
@@ -120,6 +121,7 @@ const registerCopy = function(useCopyPasteCrossTab) {
       if (useCopyPasteCrossTab) {
         dataCopyToStorage();
       }
+      resetConsecutivePasteStagger(workspace);
       Blockly.Events.setGroup(false);
       return true;
     },
@@ -765,6 +767,7 @@ const executePaste = function(workspace) {
   });
   // Move pasted blocks to the mouse right-click position
   moveBlocksToMousePosition(blockList, workspace);
+  applyConsecutivePasteStagger(blockList, workspace);
   Blockly.Events.setGroup(false);
   Blockly.common.setSelected(multiDraggable);
 };
@@ -832,7 +835,8 @@ const registerSelectAll = function() {
   const id = 'workspaceSelectAll';
   const selectAllOption = {
     displayText: function() {
-      return 'Select all Blocks';
+      return Blockly.Msg['WORKSPACE_SELECT_ALL']?
+          Blockly.Msg['WORKSPACE_SELECT_ALL'] : 'Select all Blocks';
     },
     preconditionFn: function(scope) {
       return scope.workspace.getTopBlocks().some(
@@ -1259,6 +1263,7 @@ const registerCommentCopy = function(useCopyPasteCrossTab) {
       if (useCopyPasteCrossTab) {
         dataCopyToStorage();
       }
+      resetConsecutivePasteStagger(workspace);
       Blockly.Events.setGroup(false);
       return true;
     },

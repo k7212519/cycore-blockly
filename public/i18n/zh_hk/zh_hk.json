@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "複製到指定位置",
         "CONTROLS_SWITCH_CASE": "情況",
         "CONTROLS_SWITCH_DO": "執行",
-        "CONTROLS_SWITCH_DEFAULT": "預設執行"
+        "CONTROLS_SWITCH_DEFAULT": "預設執行",
+        "CROSS_TAB_PASTE": "貼上",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "貼上 %1 項",
+        "WORKSPACE_SELECT_ALL": "全選積木"
     },
     "APP_STORE": {
         "HEADER_INFO": "前 {{count}} 個應用會顯示在頂部工具欄",

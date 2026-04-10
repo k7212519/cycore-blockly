@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "Copiar para local especificado",
         "CONTROLS_SWITCH_CASE": "caso",
         "CONTROLS_SWITCH_DO": "fazer",
-        "CONTROLS_SWITCH_DEFAULT": "padrão"
+        "CONTROLS_SWITCH_DEFAULT": "padrão",
+        "CROSS_TAB_PASTE": "Colar",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "Colar %1 itens",
+        "WORKSPACE_SELECT_ALL": "Selecionar todos os blocos"
     },
     "APP_STORE": {
         "HEADER_INFO": "Os primeiros {{count}} aplicativos serão mostrados na barra de ferramentas",

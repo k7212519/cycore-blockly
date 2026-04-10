@@ -100,7 +100,10 @@
         "CROSS_TAB_COPY": "指定の場所にコピー",
         "CONTROLS_SWITCH_CASE": "ケース",
         "CONTROLS_SWITCH_DO": "実行",
-        "CONTROLS_SWITCH_DEFAULT": "デフォルト"
+        "CONTROLS_SWITCH_DEFAULT": "デフォルト",
+        "CROSS_TAB_PASTE": "貼り付け",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "%1 個を貼り付け",
+        "WORKSPACE_SELECT_ALL": "すべてのブロックを選択"
     },
     "APP_STORE": {
         "HEADER_INFO": "最初の {{count}} 個のアプリがツールバーに表示されます",
