@@ -166,16 +166,11 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // 双击打开AI助手并发送日志内容
   async copyLogItemToChat(item: any) {
-    // 这里可以实现将日志内容发送到AI助手的逻辑
-    // 例如，调用一个服务方法来处理这个操作
-    this.uiService.openTool("aily-chat");
     const cleanDetail = this.cleanLogContent(item.detail);
-    setTimeout(() => {
-      window.sendToAilyChat(`log:\n${cleanDetail}`, {
-        sender: 'LogComponent',
-        type: 'log'
-      });
-    }, 100);
+    this.uiService.openAndSendToChat(`log:\n${cleanDetail}`, {
+      sender: 'LogComponent',
+      type: 'log'
+    });
     this.message.info(this.translate.instant('LOG.SENT_TO_AI'));
   }
 

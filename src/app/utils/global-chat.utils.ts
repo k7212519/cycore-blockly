@@ -1,15 +1,5 @@
-import { ChatService, ChatTextOptions } from '../tools/aily-chat/public-api';
-
-/**
- * 全局方法：发送文本到聊天组件（不打开面板，面板须已开启）
- *
- * @param text 要发送的文本内容
- * @param options 发送选项，包含 sender、type、cover 等参数
- *                cover 默认为 true（覆盖模式），设置为 false 则追加内容
- *
- * @example
- * window.sendToAilyChat('帮我生成Arduino代码');
- */
+// 确保文件被识别为模块，以支持 declare global
+export {};
 
 /**
  * 全局方法：打开 aily-chat 面板并发送消息（推荐用于按钮触发场景）
@@ -30,15 +20,9 @@ import { ChatService, ChatTextOptions } from '../tools/aily-chat/public-api';
  */
 declare global {
   interface Window {
-    sendToAilyChat: (text: string, options?: ChatTextOptions) => void;
     openAndSendToAilyChat: (text: string, options?: Record<string, any>) => void;
   }
 }
-
-// 不打开面板，直接注入文本（适合面板已开启的场景）
-window.sendToAilyChat = function (text: string, options?: ChatTextOptions): void {
-  ChatService.sendToChat(text, options);
-};
 
 // openAndSendToAilyChat 由 UiService.init() 注册（确保可用时机正确）
 // 这里提供一个占位，避免在 UiService 初始化前调用时报错
@@ -47,6 +31,3 @@ if (!window.openAndSendToAilyChat) {
     console.warn('openAndSendToAilyChat: UiService 尚未初始化');
   };
 }
-
-// 导出，也可以直接 import 使用
-export const sendToAilyChat = window.sendToAilyChat;

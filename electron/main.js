@@ -1886,7 +1886,8 @@ ipcMain.handle("select-folder-saveAs", async (event, data) => {
     defaultPath: defaultPath,
     properties: ['createDirectory', 'showOverwriteConfirmation'],
     buttonLabel: '保存',
-    title: '项目另存为'
+    title: data.title || '项目另存为',
+    filters: data.filters || undefined
   });
 
   if (result.canceled) {

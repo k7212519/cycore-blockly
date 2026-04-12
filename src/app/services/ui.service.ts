@@ -156,7 +156,9 @@ export class UiService {
    */
   openAndSendToChat(text: string, options?: Record<string, any>): void {
     this.openTool('aily-chat');
-    this.chatMessageSubject.next({ text, options });
+    setTimeout(() => {
+      this.chatMessageSubject.next({ text, options });
+    }, 100);
   }
 
   // 判断某个工具是否打开

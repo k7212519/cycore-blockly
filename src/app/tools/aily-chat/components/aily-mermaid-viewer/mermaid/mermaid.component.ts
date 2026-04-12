@@ -178,6 +178,33 @@ export class MermaidComponent implements OnInit, AfterViewInit, OnDestroy {
     return `translate(${this.translateX}px, ${this.translateY}px) scale(${this.scale})`;
   }
 
+  async saveSvg(event: MouseEvent): Promise<void> {
+    event.stopPropagation();
+    if (!this.data?.svg) return;
+
+    const filePath = await window['ipcRenderer'].invoke('select-folder-saveAs', {
+      suggestedName: 'mermaid_diagram.svg',
+      title: '保存 SVG',
+      filters: [
+        { name: 'SVG 文件', extensions: ['svg'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
+    });
+
+    if (!filePath) return;
+    window['fs'].writeFileSync(filePath, this.cleanSvgForSave(this.data.svg));
+  }
+
+  /** 通过 DOM 解析清理 SVG 中的重复属性（如重复 id），并移除仅用于显示的属性 */
+  private cleanSvgForSave(svg: string): string {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = svg;
+    const svgEl = wrapper.querySelector('svg');
+    if (!svgEl) return svg;
+    svgEl.removeAttribute('data-mermaid-svg');
+    return new XMLSerializer().serializeToString(svgEl);
+  }
+
   close(): void {
     this.modal.close();
   }

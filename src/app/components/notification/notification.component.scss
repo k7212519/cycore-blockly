@@ -4,7 +4,7 @@
     right: 16px;
     display: flex;
     align-items: center;
-    background: rgba(10, 10, 10, 0.8);
+    background: var(--aily-bg-overlay);
     padding: 10px 0 10px 10px;
     border-radius: 10px;
     box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.1);
@@ -20,7 +20,7 @@
         width: 60px;
         height: 60px;
         border-radius: 50%;
-        border: 5px solid #5c5c5c;
+        border: 5px solid var(--aily-border-tertiary);
         position: relative;
         flex-shrink: 0;
 
@@ -35,7 +35,7 @@
         .custom {
             position: absolute;
             font-size: 22px;
-            color: #5c5c5c;
+            color: var(--aily-border-tertiary);
         }
 
         .fa-spinner-third {

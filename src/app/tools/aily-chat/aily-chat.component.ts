@@ -36,7 +36,7 @@ import { ConnectionGraphService } from '../../services/connection-graph.service'
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ConfigService } from '../../services/config.service';
 import { AilyChatConfigService } from './services/aily-chat-config.service';
-import { MERMAID_DARK_THEME, MermaidCodeComponent } from 'ngx-x-markdown';
+import { MERMAID_DARK_THEME, MermaidCodeComponent, clearMermaidCache } from 'ngx-x-markdown';
 import './tools/registered/register-all';
 import { AilyHost } from './core/host';
 import { createElectronHostAdapter } from './adapters/electron-host-adapter';
@@ -75,6 +75,7 @@ import { RepetitionDetectionService } from './services/repetition-detection.serv
 import { ContextBudgetService } from './services/context-budget.service';
 import { SubagentSessionService } from './services/subagent-session.service';
 import { ChatHistoryService } from './services/chat-history.service';
+import { ThemeService } from '../../services/theme.service';
 
 // 共享类型从 core/chat-types.ts 导入并重新导出（保持向后兼容）
 import { Tool, ResourceItem, ChatMessage, ToolCallState, ToolCallInfo } from './core/chat-types';
@@ -195,6 +196,7 @@ export class AilyChatComponent implements OnDestroy {
     public scrollManager: ScrollManagerService,
     public resourceManager: ResourceManagerService,
     public menuManager: MenuManagerService,
+    private themeService: ThemeService,
   ) {
     // 注册 OnPush CD 回调 — viewAdapter 每次 flush/appendImmediate 后调用 markForCheck
     this.engine.setCdCallback(() => this.cdr.markForCheck());
@@ -228,7 +230,10 @@ export class AilyChatComponent implements OnDestroy {
 
     // 初始化 MermaidCodeComponent
     import('mermaid').then(m => {
-      MermaidCodeComponent.setMermaidInstance(m.default, { startOnLoad: false, ...MERMAID_DARK_THEME });
+      const mermaidConfig = this.themeService.theme() === 'dark'
+        ? { startOnLoad: false, ...MERMAID_DARK_THEME }
+        : { startOnLoad: false, theme: 'default' };
+      MermaidCodeComponent.setMermaidInstance(m.default, mermaidConfig);
     });
 
     // 设置全局工具引用，供测试和调试使用
