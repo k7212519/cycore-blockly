@@ -1,17 +1,20 @@
+@import './styles/themes/index';
+
 body {
   width: 100vw;
   height: 100vh;
   margin: 0;
   font-family: "MiSans Regular", "FiraCode Regular" !important;
   overflow: hidden;
-  background-color: #2b2d30 !important;
+  background-color: var(--aily-bg-primary) !important;
+  color: var(--aily-text-primary);
   user-select: none;
 }
 
 .loading-box {
   width: 100vw;
   height: 100vh;
-  background: #2b2d30;
+  background: var(--aily-bg-primary);
   position: fixed;
   top: 0;
   left: 0;
@@ -23,7 +26,7 @@ body {
   border-radius: 5px;
 
   .text {
-    color: #fff;
+    color: var(--aily-text-primary);
     margin-left: 12px;
     margin-top: 5px;
     font-size: 18px;
@@ -83,10 +86,10 @@ nz-option-container {
   cursor: pointer;
 
   &.link {
-    color: rgb(30, 124, 211);
+    color: var(--aily-color-link);
 
     &:hover {
-      color: rgb(75, 151, 221);
+      color: var(--aily-color-link-hover);
     }
   }
 }
@@ -96,17 +99,17 @@ nz-option-container {
 }
 
 .ddark {
-  $bbackground: #2b2d30;
-  $lline: #222427;
+  $bbackground: var(--aily-bg-primary);
+  $lline: var(--aily-border-primary);
 }
 
 .sscroll {
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--aily-scrollbar-thumb) transparent;
 }
 
 .bborder {
-  border: 1px solid #505050;
+  border: 1px solid var(--aily-border-subtle);
 }
 
 .vsfont {
@@ -154,6 +157,6 @@ nz-sider {
 
 .blocklyWidgetDiv {
   .blocklyHtmlInput {
-    color: #333;
+    color: var(--aily-text-primary);
   }
 }

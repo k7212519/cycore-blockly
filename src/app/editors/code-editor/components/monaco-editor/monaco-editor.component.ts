@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, Output, SimpleChanges, ViewChild, effect } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzCodeEditorModule, NzCodeEditorComponent } from 'ng-zorro-antd/code-editor';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { ThemeService } from '../../../../services/theme.service';
 
 @Component({
   selector: 'app-monaco-editor',
@@ -38,8 +39,19 @@ export class MonacoEditorComponent {
   public monacoInstance: any;
 
   constructor(
-    private message: NzMessageService
-  ) { }
+    private message: NzMessageService,
+    private themeService: ThemeService
+  ) {
+    // 监听主题变化，动态切换 Monaco 主题
+    effect(() => {
+      const monacoTheme = this.themeService.getMonacoTheme();
+      this.options = { ...this.options, theme: monacoTheme };
+      const monaco = (window as any).monaco;
+      if (monaco) {
+        monaco.editor.setTheme(monacoTheme);
+      }
+    });
+  }
 
   ngOnInit() {
   }

@@ -1,6 +1,6 @@
 .project-new-box {
   position: relative;
-  background: #1f1f1f;
+  background: var(--aily-bg-elevated);
   height: calc(100vh - 70px);
   display: flex;
   flex-direction: column;
@@ -10,11 +10,11 @@
   height: 40px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--aily-border-secondary);
   position: sticky;
   top: 0;
   z-index: 99;
-  background: #222;
+  background: var(--aily-bg-primary);
 
   .btns {
     position: absolute;
@@ -52,7 +52,7 @@
     padding: 15px;
     flex-shrink: 0;
     position: relative;
-    border-right: 1px solid #333;
+    border-right: 1px solid var(--aily-border-secondary);
     overflow: hidden;
 
     .left-inner {
@@ -99,7 +99,7 @@
         }
 
         nz-radio-group {
-          background: #363636;
+          background: var(--aily-bg-input);
 
           label {
             opacity: 0.5;
@@ -111,7 +111,7 @@
         }
 
         input {
-          background: #363636;
+          background: var(--aily-bg-input);
           z-index: 1;
           color: rgba(255, 255, 255, 0.7) !important;
 
@@ -124,7 +124,7 @@
           width: 150px;
           flex-shrink: 0;
           margin-left: -1px;
-          background: #363636;
+          background: var(--aily-bg-input);
 
           ::ng-deep {
             nz-select-top-control {
@@ -143,7 +143,7 @@
       }
 
       nz-input-group {
-        background: #363636;
+        background: var(--aily-bg-input);
 
         ::ng-deep {
           .ant-input-group-addon {
@@ -205,12 +205,12 @@
     min-width: 180px;
     max-width: 210px;
     height: 110px;
-    background: #3e4243;
+    background: var(--aily-bg-tertiary);
     border-radius: 5px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    border: 2px solid #3e4243;
+    border: 2px solid var(--aily-bg-tertiary);
 
     @media (max-width: 1059px) {
       min-width: 200px;
@@ -221,7 +221,7 @@
     }
 
     &.selected {
-      border: 2px solid #007bff;
+      border: 2px solid var(--aily-color-primary);
     }
 
     .name {
@@ -233,7 +233,7 @@
     }
 
     &.disabled {
-      background: #3f3f3f;
+      background: var(--aily-bg-tertiary);
     }
   }
 }
@@ -256,7 +256,7 @@
     height: 180px;
     flex-grow: 0;
     flex-shrink: 0;
-    border-right: 1px solid #4a4a4a;
+    border-right: 1px solid var(--aily-border-input);
 
     img {
       max-height: 120px;
@@ -267,13 +267,13 @@
     padding-left: 15px;
     height: 100%;
     width: 100%;
-    color: #bbb;
+    color: var(--aily-text-tertiary);
     display: flex;
     flex-direction: column;
     position: relative;
 
     .title {
-      border-bottom: 1px solid #43494b;
+      border-bottom: 1px solid var(--aily-border-active);
       margin-bottom: 3px;
       position: relative;
       height: 30px;
@@ -309,7 +309,7 @@
         .link {
           padding: 5px;
           height: 12px;
-          border-right: 1px solid #6c6c6c;
+          border-right: 1px solid var(--aily-border-tertiary);
 
           &:last-child {
             border-right: none;
@@ -327,7 +327,7 @@
     }
 
     .warn {
-      color: #ffb400;
+      color: var(--aily-color-warning-alt);
       font-size: 14px;
       height: 14px;
       margin-left: 10px;
@@ -347,7 +347,7 @@
       .btn {
         height: 12px;
         padding: 0 5px;
-        border-right: 1px solid #6c6c6c;
+        border-right: 1px solid var(--aily-border-tertiary);
         display: flex;
         align-items: center;
 
@@ -386,9 +386,9 @@
     cursor: pointer;
 
     &.active {
-      background: #007bff;
-      border-color: #007bff;
-      color: #fff;
+      background: var(--aily-color-primary);
+      border-color: var(--aily-color-primary);
+      color: var(--aily-text-primary);
     }
   }
 }

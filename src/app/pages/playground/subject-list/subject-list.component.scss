@@ -12,7 +12,7 @@
     .example-item {
         width: 280px;
         height: 280px;
-        background: #2b2b2b;
+        background: var(--aily-bg-elevated);
         border-radius: 5px;
         padding: 10px;
         position: relative;
@@ -22,7 +22,7 @@
         cursor: pointer;
 
         &:hover {
-            background: #303a4d;
+            background: var(--aily-bg-tertiary);
         }
 
         .img-box {
@@ -42,7 +42,7 @@
                 bottom: 5px;
                 right: 5px;
                 background: rgba(0, 0, 0, 0.5);
-                color: #fff;
+                color: var(--aily-text-primary);
                 padding: 2px 6px;
                 border-radius: 3px;
                 font-size: 12px;
@@ -58,7 +58,7 @@
 
         .text {
             font-size: 14px;
-            color: #ccc;
+            color: var(--aily-text-quaternary);
             height: 62px;
             white-space: normal;
             overflow: hidden;
@@ -74,7 +74,7 @@
             align-items: center;
             margin-top: 10px;
             font-size: 12px;
-            color: #aaa;
+            color: var(--aily-text-tertiary);
 
             .author {
                 display: flex;
@@ -91,7 +91,7 @@
 
                 i {
                     font-size: 16px;
-                    color: #aaa;
+                    color: var(--aily-text-tertiary);
                 }
             }
         }
