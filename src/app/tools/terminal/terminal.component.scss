@@ -1,6 +1,7 @@
 .terminal-box {
   height: 100%;
   width: 100%;
+  background: var(--aily-editor-bg);
 
   ::ng-deep {
     .terminal {
@@ -14,6 +15,20 @@
     .xterm-viewport {
       scrollbar-width: thin !important;
       scrollbar-color: var(--aily-scrollbar-thumb) transparent;
+
+      &::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--aily-scrollbar-thumb);
+        border-radius: 4px;
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: var(--aily-scrollbar-thumb-hover);
+      }
     }
   }
 }
