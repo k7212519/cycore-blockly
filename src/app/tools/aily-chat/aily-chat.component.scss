@@ -355,20 +355,38 @@ nz-resize-handle {
     }
   }
 
+  .token-ring-track {
+    stroke: var(--aily-chat-token-budget-ring-track);
+  }
+
+  .token-ring-fill {
+    &--ok {
+      stroke: var(--aily-chat-token-budget-fill-ok);
+    }
+
+    &--warn {
+      stroke: var(--aily-chat-token-budget-fill-warn);
+    }
+
+    &--danger {
+      stroke: var(--aily-chat-token-budget-fill-danger);
+    }
+  }
+
   .token-percent {
     position: absolute;
     font-size: 7px;
     font-weight: 600;
-    color: #98c379;
+    color: var(--aily-chat-token-budget-fill-ok);
     line-height: 1;
     pointer-events: none;
 
     &.warn {
-      color: #e5c07b;
+      color: var(--aily-chat-token-budget-fill-warn);
     }
 
     &.danger {
-      color: #e06c75;
+      color: var(--aily-chat-token-budget-fill-danger);
     }
   }
 }
@@ -382,6 +400,71 @@ nz-resize-handle {
 }
 
 ::ng-deep {
+  // Token 用量说明（tooltip 挂载在浮层，需穿透样式）
+  .token-budget-tooltip {
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: nowrap;
+    color: var(--aily-text-primary);
+
+    &__title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    &__summary {
+      margin-bottom: 5px;
+    }
+
+    &__line {
+      margin-bottom: 3px;
+    }
+
+    &__bar-track {
+      position: relative;
+      height: 3px;
+      background: var(--aily-chat-token-budget-tooltip-bar-track);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    &__bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+
+      &--ok {
+        background: var(--aily-chat-token-budget-fill-ok);
+      }
+
+      &--warn {
+        background: var(--aily-chat-token-budget-fill-warn);
+      }
+
+      &--danger {
+        background: var(--aily-chat-token-budget-fill-danger);
+      }
+    }
+
+    &__swatch {
+      &--system {
+        color: var(--aily-chat-token-budget-label-system);
+      }
+
+      &--tools {
+        color: var(--aily-chat-token-budget-label-tools);
+      }
+
+      &--messages {
+        color: var(--aily-chat-token-budget-label-messages);
+      }
+    }
+
+    &__pct {
+      opacity: 0.6;
+    }
+  }
+
   .x-markdown {
     p {
       margin-top: 5px;
