@@ -52,8 +52,8 @@ import { getThinkContent } from '../../../core/think-content-store';
         padding: 5px 10px;
         margin: 0;
         overflow: hidden;
-        background-color: #3a3a3a;
-        color: #ccc;
+        background-color: var(--aily-chat-viewer-card-bg, #3a3a3a);
+        color: var(--aily-chat-viewer-fg, #cccccc);
       }
       .ac-think-header {
         display: flex;
@@ -66,17 +66,17 @@ import { getThinkContent } from '../../../core/think-content-store';
         transition: background 0.2s;
       }
       .ac-think-header:hover {
-        background: rgba(255, 255, 255, 0.05);
+        background: var(--aily-chat-viewer-overlay-soft, rgba(255, 255, 255, 0.05));
         margin: -5px -10px;
         padding: 5px 10px;
       }
       .ac-think-icon { flex-shrink: 0; margin-right: 5px; }
-      .ac-think-icon.loading { color: #1890ff; }
-      .ac-think-icon.done { color: #52c41a; }
+      .ac-think-icon.loading { color: var(--aily-chat-viewer-state-info, #1890ff); }
+      .ac-think-icon.done { color: var(--aily-chat-viewer-state-done, #52c41a); }
       .ac-think-arrow {
         margin-left: auto;
         font-size: 10px;
-        color: #888;
+        color: var(--aily-chat-viewer-muted, #888888);
         transition: transform 0.2s;
       }
       .ac-think.expanded .ac-think-arrow {
@@ -89,14 +89,14 @@ import { getThinkContent } from '../../../core/think-content-store';
         overflow-y: auto;
         overflow-x: hidden;
         scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        scrollbar-color: var(--aily-chat-viewer-scrollbar, rgba(255, 255, 255, 0.2)) transparent;
         scrollbar-gutter: stable;
         user-select: text;
       }
       :host ::ng-deep .ac-think-body .x-markdown-dark {
         font-size: 13px;
         line-height: 1.5;
-        color: #999;
+        color: var(--aily-chat-viewer-subtle, #999999);
         word-break: break-word;
         overflow-wrap: anywhere;
         white-space: normal;
@@ -115,11 +115,11 @@ import { getThinkContent } from '../../../core/think-content-store';
       :host ::ng-deep .ac-think-body .x-markdown-dark h4 {
         font-size: 13px;
         font-weight: 600;
-        color: #bbb;
+        color: var(--aily-chat-viewer-think-heading, #bbbbbb);
         margin: 4px 0 2px;
       }
       :host ::ng-deep .ac-think-body .x-markdown-dark h2 {
-        border-left: 4px solid #3794ff;
+        border-left: 4px solid var(--aily-chat-viewer-think-md-border, #3794ff);
         padding-left: 6px;
       }
       :host ::ng-deep .ac-think-body .x-markdown-dark ul,

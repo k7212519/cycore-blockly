@@ -12,7 +12,7 @@ import { CommonModule } from '@angular/common';
     .aily-default-viewer {
       font-size: 13px;
       line-height: 1.5;
-      color: #abb2bf;
+      color: var(--aily-chat-viewer-code-fg, #abb2bf);
       white-space: pre-wrap;
       word-break: break-word;
     }

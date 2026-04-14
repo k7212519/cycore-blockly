@@ -79,7 +79,13 @@ import { ElectronService } from '../../../../services/electron.service';
 import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd.service';
 import { PasteInstallDialogComponent, MissingLibInfo } from '../paste-install-dialog/paste-install-dialog.component';
 import { Minimap } from '@blockly/workspace-minimap';
-import { DarkTheme, LightTheme } from './theme.config';
+import {
+  BLOCKLY_GRID_COLOUR_DARK,
+  DarkTheme,
+  LightTheme,
+  blocklyGridColourForUiTheme,
+} from './theme.config';
+import type { ThemeMode } from '../../../../services/theme.service';
 import { ThemeService } from '../../../../services/theme.service';
 
 class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
@@ -218,7 +224,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     grid: {
       spacing: 20, // 网格间距为20像素
       length: 2, // 网格点的大小
-      colour: '#393939',
+      colour: BLOCKLY_GRID_COLOUR_DARK,
       snap: true,
     },
     media: 'blockly/media',
@@ -277,11 +283,12 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.applyFlyoutAutoClose());
 
-    // 监听主题变化，动态切换 Blockly 主题
+    // 监听主题变化，动态切换 Blockly 主题与网格颜色
     effect(() => {
       const mode = this.themeService.theme();
       if (this.workspace) {
         this.workspace.setTheme(mode === 'light' ? LightTheme : DarkTheme);
+        this.applyBlocklyGridColour(mode);
       }
     });
   }
@@ -440,10 +447,10 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       // 获取当前blockly渲染器
       this.options.renderer = this.configData.blockly.renderer ? ('aily-' + this.configData.blockly.renderer) : 'thrasos';
 
-      // 根据当前主题设置 Blockly 主题和网格颜色
+      // 根据当前主题设置 Blockly 主题与网格颜色（浅色 #ddd / 深色 #393939，见 theme.config）
       const currentTheme = this.themeService.theme();
       this.options.theme = currentTheme === 'light' ? LightTheme : DarkTheme;
-      this.options.grid.colour = currentTheme === 'light' ? '#ddd' : '#393939';
+      this.options.grid.colour = blocklyGridColourForUiTheme(currentTheme);
 
       this.workspace = Blockly.inject('blocklyDiv', this.options);
 
@@ -556,6 +563,21 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       });
       this.initLanguage();
     }, 100);
+  }
+
+  /** 切换 UI 主题时同步 Blockly 网格 SVG 描边（inject 后需手动更新，见 Grid.createDom） */
+  private applyBlocklyGridColour(mode: ThemeMode): void {
+    const colour = blocklyGridColourForUiTheme(mode);
+    this.options.grid.colour = colour;
+    const ws = this.workspace;
+    if (!ws) return;
+    const grid = ws.getGrid();
+    if (!grid) return;
+    const pattern = (grid as unknown as { pattern: SVGPatternElement }).pattern;
+    if (!pattern) return;
+    pattern.querySelectorAll('line').forEach((line) => {
+      line.setAttribute('stroke', colour);
+    });
   }
 
   /** 根据配置应用 flyout 自动关闭，支持初始化及配置重载时实时生效 */
