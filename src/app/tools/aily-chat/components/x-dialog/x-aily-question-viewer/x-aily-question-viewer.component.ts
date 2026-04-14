@@ -140,13 +140,13 @@ interface AnswerRecord {
       border-radius: 10px;
       padding: 10px;
       margin: 0;
-      background: #1e1e1e;
-      border: 1px solid #333;
+      background: var(--aily-chat-viewer-panel, #1e1e1e);
+      border: 1px solid var(--aily-chat-viewer-border-soft, #333333);
       transition: border-color 0.2s;
       overflow: hidden;
       min-width: 0;
     }
-    .aq-container:not(.aq-all-done):hover { border-color: #444; }
+    .aq-container:not(.aq-all-done):hover { border-color: var(--aily-chat-viewer-border, #444444); }
     .aq-all-done { opacity: 0.72; }
 
     /* Header */
@@ -160,7 +160,7 @@ interface AnswerRecord {
     .aq-question {
       font-size: 13px;
       font-weight: 500;
-      color: #d4d4d4;
+      color: var(--aily-chat-viewer-title-fg, #d4d4d4);
       line-height: 1.5;
       flex: 1;
       min-width: 0;
@@ -173,10 +173,10 @@ interface AnswerRecord {
       width: 24px; height: 24px;
       display: flex; align-items: center; justify-content: center;
       background: transparent; border: none; outline: none;
-      color: #666; font-size: 13px; cursor: pointer;
+      color: var(--aily-text-disabled, #666666); font-size: 13px; cursor: pointer;
       border-radius: 4px; transition: all 0.15s;
     }
-    .aq-close:hover { color: #bbb; background: rgba(255,255,255,0.06); }
+    .aq-close:hover { color: var(--aily-text-quaternary, #bbbbbb); background: var(--aily-chat-viewer-overlay-hover, rgba(255,255,255,0.06)); }
 
     /* Options */
     .aq-options { display: flex; flex-direction: column; gap: 6px; }
@@ -187,15 +187,15 @@ interface AnswerRecord {
       padding: 10px;
       border-radius: 8px;
       cursor: pointer;
-      background: #252526;
-      border: 1px solid #333;
+      background: var(--aily-chat-viewer-panel-raised, #252526);
+      border: 1px solid var(--aily-chat-viewer-border-soft, #333333);
       transition: all 0.15s ease;
       user-select: none;
     }
-    .aq-option:hover:not(.aq-disabled) { background: #2a2d2e; border-color: #444; }
+    .aq-option:hover:not(.aq-disabled) { background: var(--aily-chat-viewer-option-hover, #2a2d2e); border-color: var(--aily-chat-viewer-border, #444444); }
     .aq-option.aq-checked:not(.aq-disabled) {
-      background: rgba(24, 144, 255, 0.08);
-      border-color: rgba(24, 144, 255, 0.4);
+      background: var(--aily-chat-viewer-option-selected-bg, rgba(24, 144, 255, 0.08));
+      border-color: var(--aily-chat-viewer-option-selected-border, rgba(24, 144, 255, 0.4));
     }
     .aq-option.aq-disabled { cursor: default; opacity: 0.6; }
 
@@ -204,13 +204,13 @@ interface AnswerRecord {
       flex-shrink: 0;
       font-size: 13px;
       font-weight: 600;
-      color: #888;
+      color: var(--aily-chat-viewer-muted, #888888);
       line-height: 1.4;
     }
     .aq-check-icon {
       flex-shrink: 0;
       font-size: 12px;
-      color: #d4d4d4;
+      color: var(--aily-chat-viewer-title-fg, #d4d4d4);
       margin-left: auto;
       align-self: center;
     }
@@ -225,7 +225,7 @@ interface AnswerRecord {
     }
     .aq-option-label {
       font-size: 13px;
-      color: #ccc;
+      color: var(--aily-chat-viewer-fg, #cccccc);
       line-height: 1.4;
       display: inline-flex;
       align-items: center;
@@ -237,8 +237,8 @@ interface AnswerRecord {
       display: inline-block;
       font-size: 10px;
       font-weight: 600;
-      color: #1890ff;
-      background: rgba(24, 144, 255, 0.12);
+      color: var(--aily-chat-viewer-primary, #1890ff);
+      background: var(--aily-chat-viewer-badge-bg, rgba(24, 144, 255, 0.12));
       border-radius: 4px;
       padding: 1px 5px;
       line-height: 1.4;
@@ -247,7 +247,7 @@ interface AnswerRecord {
     }
     .aq-option-desc {
       font-size: 11px;
-      color: #777;
+      color: var(--aily-chat-viewer-option-desc, #777777);
       line-height: 1.3;
       white-space: pre-wrap;
       word-break: break-all;
@@ -272,16 +272,16 @@ interface AnswerRecord {
       box-sizing: border-box;
       padding: 8px 12px;
       border-radius: 8px;
-      border: 1px solid #333;
-      background: #252526;
-      color: #d4d4d4;
+      border: 1px solid var(--aily-chat-viewer-border-soft, #333333);
+      background: var(--aily-chat-viewer-panel-raised, #252526);
+      color: var(--aily-chat-viewer-title-fg, #d4d4d4);
       font-size: 13px;
       outline: none;
       transition: border-color 0.2s;
     }
-    .aq-freeform-input:focus { border-color: #1890ff; }
+    .aq-freeform-input:focus { border-color: var(--aily-chat-viewer-primary, #1890ff); }
     .aq-freeform-input:disabled { opacity: 0.5; cursor: not-allowed; }
-    .aq-freeform-input::placeholder { color: #666; }
+    .aq-freeform-input::placeholder { color: var(--aily-text-disabled, #666666); }
 
     /* Bottom nav (Copilot style) */
     .aq-nav {
@@ -294,43 +294,43 @@ interface AnswerRecord {
       width: 28px; height: 28px;
       display: flex; align-items: center; justify-content: center;
       background: transparent; border: none; outline: none;
-      color: #999; font-size: 12px; cursor: pointer;
+      color: var(--aily-chat-viewer-subtle, #999999); font-size: 12px; cursor: pointer;
       border-radius: 4px; transition: all 0.15s;
     }
-    .aq-nav-btn:hover:not(:disabled) { color: #ddd; background: rgba(255,255,255,0.06); }
+    .aq-nav-btn:hover:not(:disabled) { color: var(--aily-text-quaternary, #dddddd); background: var(--aily-chat-viewer-overlay-hover, rgba(255,255,255,0.06)); }
     .aq-nav-btn:disabled { opacity: 0.3; cursor: default; }
     .aq-nav-page {
       font-size: 12px;
-      color: #666;
+      color: var(--aily-text-disabled, #666666);
       margin-left: 4px;
       user-select: none;
     }
     .aq-nav-confirm {
       padding: 4px 14px; border-radius: 4px;
       font-size: 12px; font-weight: 500;
-      background: transparent; color: #999;
-      border: 1px solid #444; outline: none;
+      background: transparent; color: var(--aily-chat-viewer-subtle, #999999);
+      border: 1px solid var(--aily-chat-viewer-border, #444444); outline: none;
       cursor: pointer; transition: all 0.15s;
     }
-    .aq-nav-confirm:hover { color: #ddd; border-color: #666; }
+    .aq-nav-confirm:hover { color: var(--aily-text-quaternary, #dddddd); border-color: var(--aily-chat-viewer-btn-secondary-hover-border, #666666); }
     .aq-nav-submit {
       margin-left: auto;
       padding: 4px 14px; border-radius: 6px;
       font-size: 12px; font-weight: 500;
-      background: #1890ff; color: #fff;
+      background: var(--aily-chat-viewer-primary, #1890ff); color: var(--aily-chat-viewer-on-primary, #ffffff);
       border: none; outline: none;
       cursor: pointer; transition: all 0.15s;
     }
-    .aq-nav-submit:hover:not(:disabled) { background: #40a9ff; }
+    .aq-nav-submit:hover:not(:disabled) { background: var(--aily-chat-viewer-primary-hover, #40a9ff); }
     .aq-nav-submit:disabled { opacity: 0.35; cursor: not-allowed; }
 
     /* Skipped indicator */
     .aq-skipped-bar {
       margin-top: 10px;
       display: flex; align-items: center; gap: 6px;
-      font-size: 12px; color: #888;
+      font-size: 12px; color: var(--aily-chat-viewer-muted, #888888);
     }
-    .aq-skipped-bar i { font-size: 11px; color: #666; }
+    .aq-skipped-bar i { font-size: 11px; color: var(--aily-text-disabled, #666666); }
 
     /* Done bar */
     .aq-done-bar {
@@ -339,10 +339,10 @@ interface AnswerRecord {
       align-items: center;
       gap: 6px;
       font-size: 12px;
-      color: #52c41a;
+      color: var(--aily-chat-viewer-state-done, #52c41a);
     }
     .aq-done-bar i { font-size: 13px; }
-    .aq-done-bar span { color: #888; white-space: pre-wrap; word-break: break-all; }
+    .aq-done-bar span { color: var(--aily-chat-viewer-muted, #888888); white-space: pre-wrap; word-break: break-all; }
 
 
   `],

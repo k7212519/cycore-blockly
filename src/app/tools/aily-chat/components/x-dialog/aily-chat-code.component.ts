@@ -185,10 +185,10 @@ const AILY_TYPES = [
       opacity: 0;
       transition: opacity 0.2s;
       z-index: 1;
-      border: 1px solid #767676;
+      border: 1px solid var(--aily-border-tertiary, #767676);
       border-radius: 8px;
       padding: 3px;
-      background: #333333;
+      background: var(--aily-bg-tertiary, #333333);
     }
     .aily-mermaid-wrapper:hover .aily-mermaid-toolbar {
       opacity: 1;
@@ -200,7 +200,7 @@ const AILY_TYPES = [
       border: none;
       border-radius: 4px;
       background: transparent;
-      color: #bababa;
+      color: var(--aily-text-muted, #bababa);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -209,10 +209,10 @@ const AILY_TYPES = [
       transition: background 0.2s, color 0.25s ease;
     }
     .aily-mermaid-toolbar-btn:hover {
-      color: #e3e2e2;
+      color: var(--aily-text-quaternary, #e3e2e2);
     }
     .aily-mermaid-toolbar-btn.success {
-      color: #52c41a;
+      color: var(--aily-chat-viewer-state-done, #52c41a);
     }
     .aily-mermaid-clickable {
       transition: opacity 0.2s;
