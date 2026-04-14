@@ -29,6 +29,10 @@ export class GuideComponent implements OnInit, AfterViewInit {
     return this.themeService.theme() === 'light' ? 'imgs/logo-light.webp' : 'imgs/logo.webp';
   }
 
+  get sensecraftImg(): string {
+    return this.themeService.theme() === 'light' ? 'brands/sensecraft-light.webp' : 'brands/sensecraft.webp';
+  }
+
   getSponsorImg(sponsor: any): string {
     if (this.themeService.theme() === 'light' && sponsor.imgLight) {
       return 'sponsor/' + sponsor.imgLight;

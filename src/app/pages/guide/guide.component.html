@@ -46,7 +46,7 @@
   </div>
   <div class="right-box ccenter">
     <div class="item" style="height: 50px;" (click)="openUrl('https://sensecraft.seeed.cc/ai/application')">
-      <div><img style="height: 16px;margin-top: -5px;" src="brands\sensecraft.webp" alt="" srcset=""> {{'GUIDE.AI_APP_CENTER' | translate}}</div>
+      <div><img style="height: 16px;margin-top: -5px;" [src]="sensecraftImg" alt=""> {{'GUIDE.AI_APP_CENTER' | translate}}</div>
       <div>{{'GUIDE.AI_APP_CENTER_DESC' | translate}}</div>
       <div class="arrow"><i class=" fa-regular fa-angle-right"></i></div>
     </div>
