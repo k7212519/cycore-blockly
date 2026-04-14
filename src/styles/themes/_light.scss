@@ -148,6 +148,18 @@
   --aily-chat-xdialog-edit-list-border: var(--aily-border-secondary);
   --aily-chat-xdialog-edit-list-bg: var(--aily-bg-secondary);
 
+  // ─── Aily Chat Context Token 用量环 / 浮层说明 ───
+  --aily-chat-token-budget-ring-track: #b0b0b0;
+  --aily-chat-token-budget-fill-ok: var(--aily-color-success);
+  --aily-chat-token-budget-fill-warn: var(--aily-color-warning);
+  --aily-chat-token-budget-fill-danger: var(--aily-color-error-bright);
+  --aily-chat-token-budget-tooltip-bar-track: rgba(0, 0, 0, 0.12);
+  --aily-chat-token-budget-label-system: var(--aily-color-success);
+  --aily-chat-token-budget-label-tools: var(--aily-color-accent);
+  --aily-chat-token-budget-label-messages: #7c3aed;
+  // ng-zorro tooltip 浮层背景（浅色为白底）
+  --aily-chat-token-budget-tooltip-panel-bg: #ffffff;
+
   // ─── Aily Chat 内嵌块（x-aily-* viewers）───
   --aily-chat-viewer-card-bg: var(--aily-bg-secondary);
   --aily-chat-viewer-card-hover: var(--aily-bg-tertiary);
@@ -212,4 +224,17 @@
   --aily-chat-viewer-option-desc: var(--aily-text-hint);
   --aily-chat-viewer-loading-fg: var(--aily-text-hint);
   --aily-chat-viewer-scrollbar: var(--aily-scrollbar-thumb);
+
+  // Token 用量 tooltip：浮层挂在 body，需单独覆盖 ant 默认底色
+  .aily-chat-token-budget-tooltip-overlay.ant-tooltip {
+    .ant-tooltip-inner {
+      background-color: var(--aily-chat-token-budget-tooltip-panel-bg);
+      color: var(--aily-text-primary);
+    }
+
+    .ant-tooltip-arrow-content {
+      background-color: var(--aily-chat-token-budget-tooltip-panel-bg) !important;
+      --antd-arrow-background-color: var(--aily-chat-token-budget-tooltip-panel-bg);
+    }
+  }
 }
