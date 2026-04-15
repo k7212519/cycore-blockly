@@ -6,6 +6,7 @@
 
 import * as Blockly from 'blockly/core';
 import { create, insert, search, type AnyOrama } from '@orama/orama';
+import { createTokenizer as createMandarinTokenizer } from '@orama/tokenizers/mandarin';
 
 /**
  * A class that provides methods for indexing and searching blocks using Orama.
@@ -21,6 +22,7 @@ export class BlockSearcher {
         blockType: 'string',
         text: 'string',
       },
+      components: { tokenizer: createMandarinTokenizer() },
     });
   }
 
