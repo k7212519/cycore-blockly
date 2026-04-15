@@ -83,10 +83,26 @@
   --aily-surface-header: #e2e2e2;
   --aily-surface-scrim: rgba(196, 194, 194, 0.55);
 
-  // ─── 终端 xterm（光标与选区）───
+  // ─── 终端 xterm（光标、选区与 ANSI 配色）───
   --aily-terminal-cursor: var(--aily-color-accent);
   --aily-terminal-cursor-accent: #ffffff;
   --aily-terminal-selection-bg: rgba(0, 120, 212, 0.28);
+  --aily-terminal-black: #000000;
+  --aily-terminal-red: #cd3131;
+  --aily-terminal-green: #00bc00;
+  --aily-terminal-yellow: #d3b717;
+  --aily-terminal-blue: #0451a5;
+  --aily-terminal-magenta: #bc05bc;
+  --aily-terminal-cyan: #0598bc;
+  --aily-terminal-white: #555555;
+  --aily-terminal-bright-black: #666666;
+  --aily-terminal-bright-red: #cd3131;
+  --aily-terminal-bright-green: #14ce14;
+  --aily-terminal-bright-yellow: #e98604;
+  --aily-terminal-bright-blue: #0451a5;
+  --aily-terminal-bright-magenta: #bc05bc;
+  --aily-terminal-bright-cyan: #0598bc;
+  --aily-terminal-bright-white: #a5a5a5;
 
   // ─── Aily Chat 子 Agent 折叠条（如 schematicAgent / Schematic Agent）───
   --aily-subagent-bg: var(--aily-bg-card);

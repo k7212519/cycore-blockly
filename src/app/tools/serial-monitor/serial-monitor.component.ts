@@ -187,7 +187,8 @@ export class SerialMonitorComponent {
     // 加载保存的串口监视器配置
     this.loadSavedConfig();
 
-    if (this.serialService.currentPort) {
+    // 仅当用户选中的是串口设备（非 debugger）时，同步到串口监视器
+    if (this.serialService.currentPort && this.serialService.currentPortInfo?.type !== 'debugger') {
       this.currentPort = this.serialService.currentPort;
     }
 

@@ -85,7 +85,7 @@ export class TerminalComponent {
     this.terminal.dispose();
   }
 
-  /** 背景 / 文本 + 光标与选区变量，其余走 xterm 默认 */
+  /** 背景 / 文本 + 光标、选区、ANSI 配色变量 */
   private readTerminalThemeFromCss(): ITheme {
     const styles = getComputedStyle(document.documentElement);
     const g = (name: string) => styles.getPropertyValue(name).trim() || undefined;
@@ -95,6 +95,22 @@ export class TerminalComponent {
       cursor: g('--aily-terminal-cursor'),
       cursorAccent: g('--aily-terminal-cursor-accent'),
       selectionBackground: g('--aily-terminal-selection-bg'),
+      black: g('--aily-terminal-black'),
+      red: g('--aily-terminal-red'),
+      green: g('--aily-terminal-green'),
+      yellow: g('--aily-terminal-yellow'),
+      blue: g('--aily-terminal-blue'),
+      magenta: g('--aily-terminal-magenta'),
+      cyan: g('--aily-terminal-cyan'),
+      white: g('--aily-terminal-white'),
+      brightBlack: g('--aily-terminal-bright-black'),
+      brightRed: g('--aily-terminal-bright-red'),
+      brightGreen: g('--aily-terminal-bright-green'),
+      brightYellow: g('--aily-terminal-bright-yellow'),
+      brightBlue: g('--aily-terminal-bright-blue'),
+      brightMagenta: g('--aily-terminal-bright-magenta'),
+      brightCyan: g('--aily-terminal-bright-cyan'),
+      brightWhite: g('--aily-terminal-bright-white'),
     };
   }
 
