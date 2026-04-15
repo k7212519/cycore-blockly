@@ -14,7 +14,7 @@
         }
 
         .date {
-            color: #aaa;
+            color: var(--aily-text-secondary);
             font-size: 12px;
 
             span {
@@ -69,7 +69,7 @@
         cursor: pointer;
 
         .text {
-            color: #aaa;
+            color: var(--aily-text-secondary);
             font-size: 12px;
         }
 

@@ -39,10 +39,10 @@
     }
 
     &.selected {
-      background: #065095;
+      background: var(--aily-bg-active);
 
       &:hover {
-        background: #155c96;
+        background: var(--aily-color-primary-alt);
       }
     }
   }

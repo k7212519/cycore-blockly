@@ -57,7 +57,7 @@
                 }
 
                 .blocklyTreeSelected {
-                    background: #929292 !important;
+                    background: var(--aily-blockly-toolbox-row-selected-bg) !important;
                 }
 
                 .blocklyTreeRowContentContainer {
@@ -77,7 +77,7 @@
             }
 
             .blocklyTreeIcon {
-                background: rgba(255, 255, 255, 0.85);
+                background: var(--aily-blockly-toolbox-tree-icon);
                 mask: url('../../../../../../public/imgs/chevron-right.svg') no-repeat center center;
                 mask-size: contain;
                 transition: transform 0.3s ease;
@@ -85,6 +85,14 @@
                 &.blocklyTreeIconOpen {
                     transform: rotate(90deg);
                 }
+            }
+
+            .blocklyTreeRow.blocklyTreeSelected .blocklyTreeIcon {
+                background: color-mix(in srgb, var(--aily-text-primary) 85%, transparent);
+            }
+
+            .blocklyTreeLabel {
+                color: var(--aily-text-primary);
             }
         }
 

@@ -1,4 +1,4 @@
-@import './styles/themes/index';
+@use './styles/themes/index';
 
 body {
   width: 100vw;
@@ -163,6 +163,6 @@ nz-sider {
 
 .blocklyWidgetDiv {
   .blocklyHtmlInput {
-    color: var(--aily-text-primary);
+    color: var(--aily-blockly-text-primary);
   }
 }

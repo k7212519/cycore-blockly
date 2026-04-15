@@ -34,19 +34,19 @@ import { CommonModule } from '@angular/common';
   styles: [`
     .ac-task {
       border-radius: 8px; padding: 12px 16px; margin: 8px 0;
-      background-color: #2d2d2d; border: 1px solid #404040;
-      color: #e0e0e0; overflow: hidden;
+      background-color: var(--aily-chat-viewer-task-bg, #2d2d2d); border: 1px solid var(--aily-chat-viewer-task-border, #404040);
+      color: var(--aily-text-quaternary, #e0e0e0); overflow: hidden;
     }
-    .ac-task[data-type="error"]   { border-color: rgba(255,77,79,.35); }
-    .ac-task[data-type="timeout"] { border-color: rgba(212,160,23,.35); }
+    .ac-task[data-type="error"]   { border-color: var(--aily-chat-viewer-task-accent-error, rgba(255,77,79,.35)); }
+    .ac-task[data-type="timeout"] { border-color: var(--aily-chat-viewer-task-accent-timeout, rgba(212,160,23,.35)); }
     .ac-task-header {
       display: flex; align-items: center; gap: 10px;
       padding: 0 0 12px 0; border-bottom: none;
     }
-    .ac-task-label { font-size: 13px; color: #ccc; font-weight: 500; }
-    .ac-task-msg { padding: 0 0 12px 0; margin: 0; font-size: 13px; color: #ccc; line-height: 1.5; }
+    .ac-task-label { font-size: 13px; color: var(--aily-chat-viewer-fg, #cccccc); font-weight: 500; }
+    .ac-task-msg { padding: 0 0 12px 0; margin: 0; font-size: 13px; color: var(--aily-chat-viewer-fg, #cccccc); line-height: 1.5; }
     .ac-task-btns { display: flex; gap: 8px; padding-left: 34px; flex-wrap: wrap; }
-    .ac-task-done { display: block; padding: 4px 0 0 34px; font-size: 12px; color: #666; }
+    .ac-task-done { display: block; padding: 4px 0 0 34px; font-size: 12px; color: var(--aily-text-disabled, #666666); }
     .ac-btn {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
@@ -54,19 +54,19 @@ import { CommonModule } from '@angular/common';
       transition: all 0.2s ease;
     }
     .ac-btn[data-type="primary"] {
-      background-color: #1890ff; color: #fff;
+      background-color: var(--aily-chat-viewer-primary, #1890ff); color: var(--aily-chat-viewer-on-primary, #ffffff);
     }
-    .ac-btn[data-type="primary"]:hover:not(:disabled) { background-color: #40a9ff; }
+    .ac-btn[data-type="primary"]:hover:not(:disabled) { background-color: var(--aily-chat-viewer-primary-hover, #40a9ff); }
     .ac-btn:not([data-type="primary"]):not(.ac-btn-ghost) {
-      background-color: #404040; color: #e0e0e0; border: 1px solid #555;
+      background-color: var(--aily-chat-viewer-btn-secondary-bg, #404040); color: var(--aily-text-quaternary, #e0e0e0); border: 1px solid var(--aily-chat-viewer-btn-secondary-border, #555555);
     }
     .ac-btn:not([data-type="primary"]):not(.ac-btn-ghost):hover {
-      background-color: #4a4a4a; border-color: #666;
+      background-color: var(--aily-chat-viewer-btn-secondary-hover-bg, #4a4a4a); border-color: var(--aily-chat-viewer-btn-secondary-hover-border, #666666);
     }
     .ac-btn-ghost {
-      background-color: transparent; color: #999; padding: 6px 8px;
+      background-color: transparent; color: var(--aily-chat-viewer-subtle, #999999); padding: 6px 8px;
     }
-    .ac-btn-ghost:hover { color: #ccc; background-color: rgba(255,255,255,.05); }
+    .ac-btn-ghost:hover { color: var(--aily-chat-viewer-fg, #cccccc); background-color: var(--aily-chat-viewer-overlay-soft, rgba(255,255,255,.05)); }
     .ac-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   `],
 })

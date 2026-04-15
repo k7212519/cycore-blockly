@@ -1198,7 +1198,9 @@ export class ProjectService {
   // 更新STM32配置菜单项
   async updateStm32ConfigMenu(boardName: string) {
     try {
+      console.log("updateStm32ConfigMenu: " + boardName);
       const boardConfig = await this.getStm32BoardConfig(boardName);
+      console.log(boardConfig);
 
       if (!boardConfig) {
         console.warn(`无法获取开发板 "${boardName}" 的配置`);
@@ -1692,18 +1694,18 @@ export class ProjectService {
       // 2.5. 获取新开发板的模板并更新package.json
       console.log('更新项目配置文件...');
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.UPDATING_PROJECT_CONFIG') });
-      
+
       // 读取当前package.json保留项目基本信息
       const currentPackageJson = await this.getPackageJson();
-      
+
       // 获取新开发板的模板package.json（从 appDataPath 读取）
       const templatePath = `${appDataPath}${separator}node_modules${separator}${boardInfo.name}${separator}template`;
       const templatePackageJsonPath = `${templatePath}${separator}package.json`;
-      
+
       if (window['fs'].existsSync(templatePackageJsonPath)) {
         // 读取模板package.json
         const templatePackageJson = JSON.parse(window['fs'].readFileSync(templatePackageJsonPath, 'utf8'));
-        
+
         // 合并配置：保留当前项目的基本信息，使用新开发板的依赖和配置
         const newPackageJson = {
           ...templatePackageJson,
@@ -1724,7 +1726,7 @@ export class ProjectService {
           // ...(currentPackageJson.projectConfig && { projectConfig: currentPackageJson.projectConfig }),
           // ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }),
         };
-        
+
         // 写入新的package.json
         window['fs'].writeFileSync(`${this.currentProjectPath}/package.json`, JSON.stringify(newPackageJson, null, 2));
         console.log('package.json 更新完成');

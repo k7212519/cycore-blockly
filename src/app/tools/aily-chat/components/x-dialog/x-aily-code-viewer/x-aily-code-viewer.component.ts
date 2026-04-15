@@ -18,20 +18,20 @@ import { CommonModule } from '@angular/common';
         margin: 0;
         border-radius: 4px;
         overflow-x: auto;
-        background: #0d1117;
+        background: var(--aily-chat-viewer-code-bg, #0d1117);
         padding: 12px;
-        border: 1px solid #444;
+        border: 1px solid var(--aily-chat-viewer-code-border, #444444);
         scrollbar-width: thin !important;
-        scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        scrollbar-color: var(--aily-chat-viewer-scrollbar, rgba(255, 255, 255, 0.2)) transparent;
       }
       pre code {
         font-size: 12px;
         line-height: 1.4;
-        color: #abb2bf;
+        color: var(--aily-chat-viewer-code-fg, #abb2bf);
       }
       code {
         font-size: 12px;
-        color: #ffbd08;
+        color: var(--aily-chat-viewer-inline-code, #ffbd08);
         padding: 0;
         border-radius: 3px;
       }

@@ -1,5 +1,14 @@
 import * as Blockly from 'blockly';
 
+/** 浅色 UI 下 Blockly 工作区网格线颜色 */
+export const BLOCKLY_GRID_COLOUR_LIGHT = '#ddd';
+/** 深色 UI 下 Blockly 工作区网格线颜色 */
+export const BLOCKLY_GRID_COLOUR_DARK = '#393939';
+
+export function blocklyGridColourForUiTheme(mode: 'light' | 'dark'): string {
+  return mode === 'light' ? BLOCKLY_GRID_COLOUR_LIGHT : BLOCKLY_GRID_COLOUR_DARK;
+}
+
 export const DarkTheme = Blockly.Theme.defineTheme('dark', {
   name: 'dark',
   base: Blockly.Themes.Classic,

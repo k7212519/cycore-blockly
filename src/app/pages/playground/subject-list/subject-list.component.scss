@@ -41,7 +41,7 @@
                 position: absolute;
                 bottom: 5px;
                 right: 5px;
-                background: rgba(0, 0, 0, 0.5);
+                background: var(--aily-surface-scrim);
                 color: var(--aily-text-primary);
                 padding: 2px 6px;
                 border-radius: 3px;
@@ -52,7 +52,7 @@
         .name {
             font-size: 16px;
             font-weight: 600;
-            color: #fff;
+            color: var(--aily-text-primary);
             margin: 7px 0 7px 0;
         }
 
@@ -79,7 +79,7 @@
             .author {
                 display: flex;
                 align-items: center;
-                color: rgb(79, 123, 228);
+                color: var(--aily-color-link);
             }
 
             .state {

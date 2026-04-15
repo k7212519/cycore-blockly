@@ -158,7 +158,7 @@ export class SettingsComponent {
         nzContent: this.translateService.instant('SETTINGS.FIELDS.REGION_DESC'),
         nzOkText: this.translateService.instant('SETTINGS.FIELDS.REGION_CONFIRM'),
         nzCancelText: this.translateService.instant('SETTINGS.FIELDS.REGION_CANCEL'),
-        nzBodyStyle: { background: '#2b2d30' },
+        nzBodyStyle: { background: 'var(--aily-bg-primary)' },
         nzOnOk: async () => {
           // 用户确认后，更新区域值
           this.selectedRegion = regionKey;
