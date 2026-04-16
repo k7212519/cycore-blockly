@@ -126,6 +126,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    this.uiService.closeTool('code-viewer');
     this.localLibrarySyncService.stop();
     this._projectService.destroy();
     this._builderService.cancel();
