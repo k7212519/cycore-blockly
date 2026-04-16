@@ -21,6 +21,10 @@ import { BlocklyService } from '../../services/blockly.service';
 import { PlatformService } from '../../../../services/platform.service';
 import { WorkflowService } from '../../../../services/workflow.service';
 import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd.service';
+import {
+  AILY_LOCAL_LIBRARY_SOURCES_KEY,
+  LocalLibrarySyncService,
+} from '../../../../services/local-library-sync.service';
 import { createLibrarySearchIndex, searchLibraries } from '../../../../utils/fuzzy-search.utils';
 import type { AnyOrama } from '@orama/orama';
 
@@ -70,6 +74,7 @@ export class LibManagerComponent implements OnDestroy {
     private electronService: ElectronService,
     private platformService: PlatformService,
     private workflowService: WorkflowService,
+    private localLibrarySyncService: LocalLibrarySyncService,
   ) {
     this.searchSubject.pipe(
       debounceTime(200),
@@ -381,7 +386,7 @@ export class LibManagerComponent implements OnDestroy {
     return this.electronService.pathJoin(this.getImportedLibraryBasePath(), ...packageName.split('/'));
   }
 
-  private async copyLibraryToProject(folderPath: string) {
+  private async copyLibraryToProject(folderPath: string): Promise<{ importedLibraryPath: string; packageName: string }> {
     const packageJsonPath = this.electronService.pathJoin(folderPath, 'package.json');
     const packageJson = JSON.parse(this.electronService.readFile(packageJsonPath));
     const packageName = packageJson?.name;
@@ -403,7 +408,31 @@ export class LibManagerComponent implements OnDestroy {
       await this.crossPlatformCmdService.copyItem(folderPath, importedLibraryPath, true, true);
     }
 
-    return importedLibraryPath;
+    return { importedLibraryPath, packageName };
+  }
+
+  /** 记录包名 → 本机原库目录，供打开项目时监听原库变更并同步到 local-libraries */
+  private mergeAilyLocalLibrarySource(packageName: string, sourceFolderPath: string): void {
+    const projectPath = this.projectService.currentProjectPath;
+    const pkgPath = this.electronService.pathJoin(projectPath, 'package.json');
+    const pkg = JSON.parse(this.electronService.readFile(pkgPath));
+    if (!pkg[AILY_LOCAL_LIBRARY_SOURCES_KEY] || typeof pkg[AILY_LOCAL_LIBRARY_SOURCES_KEY] !== 'object') {
+      pkg[AILY_LOCAL_LIBRARY_SOURCES_KEY] = {};
+    }
+    pkg[AILY_LOCAL_LIBRARY_SOURCES_KEY][packageName] = sourceFolderPath;
+    this.electronService.writeFile(pkgPath, JSON.stringify(pkg, null, 2));
+    window['packageJson'] = pkg;
+    if (this.projectService.currentPackageData) {
+      Object.assign(this.projectService.currentPackageData, pkg);
+    }
+  }
+
+  /** 将绝对路径转为 npm file: 用的 POSIX 相对路径（相对项目根） */
+  private fileDependencyFromProject(importedLibraryPath: string): string {
+    const projectPath = this.projectService.currentProjectPath;
+    const rel = window['path'].relative(projectPath, importedLibraryPath);
+    const normalized = rel.split(/[/\\]/).join('/');
+    return normalized.startsWith('.') ? normalized : `./${normalized}`;
   }
 
   async importLib() {
@@ -436,15 +465,23 @@ export class LibManagerComponent implements OnDestroy {
       let packageList_old = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
       // console.log('导入前已安装的库列表：', packageList_old);
 
-      // 先复制库到当前项目目录下，再从项目内的副本执行安装
-      const importedLibraryPath = await this.copyLibraryToProject(folderPath);
+      // 先复制库到当前项目目录下，再从项目内的副本执行安装（file: 相对路径，便于整项目拷贝/压缩）
+      const { importedLibraryPath, packageName } = await this.copyLibraryToProject(folderPath);
+      this.mergeAilyLocalLibrarySource(packageName, folderPath);
 
-      // 使用 npm install 安装本地库
-      const { code, stderr } = await this.cmdService.runAsync(`npm install "${importedLibraryPath}"`, this.projectService.currentProjectPath);
+      const fileDep = this.fileDependencyFromProject(importedLibraryPath);
+      const installSpec = `${packageName}@file:${fileDep}`;
+      const { code, stderr } = await this.cmdService.runAsync(
+        `npm install "${installSpec}"`,
+        this.projectService.currentProjectPath,
+      );
 
       if (code !== 0) {
         throw new Error(stderr || '安装导入库失败');
       }
+
+      this.localLibrarySyncService.stop();
+      this.localLibrarySyncService.start(this.projectService.currentProjectPath);
 
       // 重新检查已安装的库
       this.libraryList = this.applyLocalization(await this.checkInstalled());

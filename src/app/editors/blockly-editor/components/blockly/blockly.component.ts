@@ -164,6 +164,10 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   private minimapSyncSubject = new Subject<void>();
   private destroy$ = new Subject<void>();
   private minimap: Minimap | null = null;
+  /** Flyout 右上角固钉控件（foreignObject 根节点，便于挂在嵌套 SVG 内） */
+  private flyoutPinForeignObject: SVGForeignObjectElement | null = null;
+  private flyoutPinResizeObserver: ResizeObserver | null = null;
+  private flyoutPinButton: HTMLButtonElement | null = null;
   // Track previous #include and #define for dependency change detection
   private previousDependencies = '';
   // Control bitmap upload handler visibility
@@ -276,6 +280,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((event) => {
         this.updateBlocklyLocale(event.lang);
+        this.updateFlyoutPinButton();
       });
 
     // 订阅配置重载，实时应用 flyoutAutoClose 等 blockly 配置
@@ -332,6 +337,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.removeFlyoutPinControl();
     // 清理 RxJS 订阅
     this.destroy$.next();
     this.destroy$.complete();
@@ -456,6 +462,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
       // 根据配置决定 flyout 拖出 block 后是否自动关闭（配置重载时会通过 configReloaded$ 实时应用）
       this.applyFlyoutAutoClose();
+      this.setupFlyoutPinControl(0);
 
       const multiselectPlugin = new Multiselect(this.workspace);
       multiselectPlugin.init(this.options);
@@ -607,6 +614,128 @@ export class BlocklyComponent implements OnInit, OnDestroy {
           return result;
         };
       }
+    }
+    this.updateFlyoutPinButton();
+  }
+
+  /** 在工具箱 flyout 容器右上角挂载固钉，切换逻辑与配置项「自动关闭工具箱」一致 */
+  private setupFlyoutPinControl(attempt = 0): void {
+    const ws = this.workspace;
+    if (!ws?.getFlyout) return;
+    const flyout = ws.getFlyout() as Blockly.IFlyout & { __ailyFlyoutPinAttached?: boolean };
+    if (!flyout || flyout.__ailyFlyoutPinAttached) return;
+
+    const flyWs = flyout.getWorkspace?.();
+    const svg = flyWs?.getParentSvg?.() ?? null;
+    if (!svg) {
+      if (attempt < 40) {
+        setTimeout(() => this.setupFlyoutPinControl(attempt + 1), 50);
+      }
+      return;
+    }
+
+    flyout.__ailyFlyoutPinAttached = true;
+
+    /** 悬浮角标尺寸（仅包住按钮）；水平边距在 PIN_INSET 上额外 +5px，垂直仅用 PIN_INSET */
+    const PIN_BOX = 20;
+    const PIN_INSET = 6;
+    const PIN_INSET_EXTRA_X = 5;
+
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.classList.add('aily-flyout-pin-fo');
+    fo.style.pointerEvents = 'none';
+    fo.style.overflow = 'visible';
+    fo.style.setProperty('background', 'transparent', 'important');
+    fo.style.setProperty('background-color', 'transparent', 'important');
+
+    const positionPinFo = () => {
+      const sw = Math.max(1, svg.clientWidth || 0);
+      const xEdge = PIN_INSET + PIN_INSET_EXTRA_X;
+      const x = flyout.RTL
+        ? xEdge
+        : Math.max(xEdge, sw - PIN_BOX - xEdge);
+      fo.setAttribute('x', String(x));
+      fo.setAttribute('y', String(PIN_INSET));
+      fo.setAttribute('width', String(PIN_BOX));
+      fo.setAttribute('height', String(PIN_BOX));
+    };
+    positionPinFo();
+
+    // 勿使用 <body>：foreignObject 内 body 常带浏览器默认白底，无法仅靠 background 覆盖
+    const xmlns = 'http://www.w3.org/1999/xhtml';
+    const root = document.createElementNS(xmlns, 'div');
+    root.className = 'aily-flyout-pin-xhtml';
+    root.style.setProperty('margin', '0');
+    root.style.setProperty('padding', '0');
+    root.style.setProperty('border', 'none');
+    root.style.setProperty('outline', 'none');
+    root.style.setProperty('box-sizing', 'border-box');
+    root.style.setProperty('width', '100%');
+    root.style.setProperty('height', '100%');
+    root.style.setProperty('display', 'flex');
+    root.style.setProperty('align-items', 'center');
+    root.style.setProperty('justify-content', 'center');
+    root.style.setProperty('pointer-events', 'none');
+    root.style.setProperty('background', 'transparent', 'important');
+    root.style.setProperty('background-color', 'transparent', 'important');
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'aily-flyout-pin';
+    btn.style.pointerEvents = 'auto';
+    btn.innerHTML =
+      '<i class="fa-light fa-thumbtack aily-flyout-pin__icon" aria-hidden="true"></i>';
+    root.appendChild(btn);
+    fo.appendChild(root);
+    svg.appendChild(fo);
+    this.flyoutPinForeignObject = fo;
+    this.flyoutPinButton = btn;
+
+    this.flyoutPinResizeObserver = new ResizeObserver(() => positionPinFo());
+    this.flyoutPinResizeObserver.observe(svg);
+
+    const onPinClick = (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const f = this.workspace?.getFlyout() as Blockly.IFlyout | null;
+      if (!f) return;
+      if (!this.configData.blockly) {
+        this.configData.blockly = {};
+      }
+      const wasPinned = f.autoClose === false;
+      const nextPinned = !wasPinned;
+      this.configData.blockly.flyoutAutoClose = !nextPinned;
+      this.applyFlyoutAutoClose();
+      void this.configService.save();
+    };
+    btn.addEventListener('click', onPinClick);
+    btn.addEventListener('mousedown', (e) => e.stopPropagation());
+
+    this.updateFlyoutPinButton();
+  }
+
+  private updateFlyoutPinButton(): void {
+    const btn = this.flyoutPinButton;
+    if (!btn) return;
+    const flyout = this.workspace?.getFlyout() as Blockly.IFlyout | undefined;
+    const pinned = flyout ? flyout.autoClose === false : false;
+    btn.classList.toggle('aily-flyout-pin--active', pinned);
+    btn.setAttribute('aria-pressed', String(pinned));
+    btn.removeAttribute('title');
+    btn.removeAttribute('aria-label');
+  }
+
+  private removeFlyoutPinControl(): void {
+    this.flyoutPinResizeObserver?.disconnect();
+    this.flyoutPinResizeObserver = null;
+    if (this.flyoutPinForeignObject?.parentNode) {
+      this.flyoutPinForeignObject.remove();
+    }
+    this.flyoutPinForeignObject = null;
+    this.flyoutPinButton = null;
+    const flyout = this.workspace?.getFlyout() as { __ailyFlyoutPinAttached?: boolean } | null;
+    if (flyout) {
+      delete flyout.__ailyFlyoutPinAttached;
     }
   }
 

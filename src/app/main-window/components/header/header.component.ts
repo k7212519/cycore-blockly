@@ -328,8 +328,11 @@ export class HeaderComponent implements OnDestroy {
       ];
     }
 
+    let core = this.projectService.currentBoardConfig['core'].toLowerCase();
+
+
     // 添加ESP32相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('esp32') > -1) {
+    if (core.indexOf('esp32') > -1) {
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
       let esp32config = await this.projectService.updateEsp32ConfigMenu(board);
@@ -340,7 +343,7 @@ export class HeaderComponent implements OnDestroy {
     }
 
     // 添加STM32相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('stm32') > -1 &&
+    if (core.indexOf('stm32') > -1 &&
       this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
       // 异步检测调试探针，完成后更新缓存并重建列表
       this.detectProbes(generation, portList0, skipDetect);
@@ -354,7 +357,7 @@ export class HeaderComponent implements OnDestroy {
     }
 
     // 添加nRF5相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('nrf5') > -1) {
+    if (core.indexOf('nrf5') > -1) {
       // 异步检测调试探针（nRF52）
       this.detectProbes(generation, portList0, skipDetect);
 

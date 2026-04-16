@@ -22,6 +22,7 @@ import { OnboardingService } from '../../services/onboarding.service';
 import { BLOCKLY_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 import { NoticeService } from '../../services/notice.service';
 import { FloatSiderComponent } from '../../components/float-sider/float-sider.component';
+import { LocalLibrarySyncService } from '../../services/local-library-sync.service';
 
 @Component({
   selector: 'app-blockly-editor',
@@ -69,6 +70,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     private noticeService: NoticeService,
     private el: ElementRef,
     private ngZone: NgZone,
+    private localLibrarySyncService: LocalLibrarySyncService,
   ) { }
 
   ngOnInit(): void {
@@ -124,6 +126,8 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    this.uiService.closeTool('code-viewer');
+    this.localLibrarySyncService.stop();
     this._projectService.destroy();
     this._builderService.cancel();
     this._builderService.destroy();
@@ -242,6 +246,8 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       text: this.translate.instant('BLOCKLY_EDITOR.PROJECT_LOAD_SUCCESS'),
     });
     this.projectService.stateSubject.next('loaded');
+
+    this.localLibrarySyncService.start(projectPath);
 
     // 检查是否需要显示新手引导
     this.checkBlocklyOnboarding();
