@@ -13,6 +13,7 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { UiService } from '../../services/ui.service';
 import { NzToolTipModule } from "ng-zorro-antd/tooltip";
+import { ConfigService } from '../../services/config.service';
 
 @Component({
   selector: 'app-user-center',
@@ -59,7 +60,8 @@ export class UserCenterComponent {
   benefits: any = null;
 
   constructor(
-    private uiService: UiService
+    private uiService: UiService,
+    private configService: ConfigService
   ) {
 
   }
@@ -332,8 +334,9 @@ export class UserCenterComponent {
    * 点击头像时触发 SSO 跳转
    */
   async onAvatarClick(): Promise<void> {
-    // TODO: @downey 暂时禁用头像点击跳转
-    return;
+    if (!this.authService.isLoggedIn) {
+      return;
+    }
     try {
       // 显示加载提示
       const loadingMessage = this.message.loading('正在生成登录链接...', { nzDuration: 0 });
@@ -367,7 +370,8 @@ export class UserCenterComponent {
   }
 
 
-  OpenUrl(url) {
-    this.message.warning('测试版期间免费使用，无需购买');
+  OpenUrl(url?: string) {
+    const target = url || this.configService.getUcenterWebUrl();
+    this.electronService.openUrl(target);
   }
 }

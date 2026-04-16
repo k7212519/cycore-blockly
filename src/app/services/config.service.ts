@@ -267,6 +267,15 @@ export class ConfigService {
   }
 
   /**
+   * 获取用户中心 URL（如果配置了）
+   */
+  getUcenterWebUrl(): string {
+    const url = this.getCurrentRegionConfig()?.ucenter_web || this.data?.ucenter_web || 'https://c.aily.pro';
+    return url.endsWith('/') ? url.slice(0, -1) : url;
+  }
+
+
+  /**
    * 获取所有可用区域列表
    */
   getRegionList(): Array<{key: string, name: string, enabled: boolean}> {
