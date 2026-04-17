@@ -702,15 +702,18 @@ export class AuthService {
   /**
    * 启动 GitHub OAuth 流程
    */
-  startGitHubOAuth(): Observable<{ authorization_url: string; state: string }> {
+  startGitHubOAuth(inviteCode?: string): Observable<{ authorization_url: string; state: string }> {
     // 生成并存储 state 参数
     const state = this.generateOAuthState();
 
-    const requestData = {
+    const requestData: any = {
       redirect_uri: 'abis://auth/callback',
       state: state,
       device_id: 'pc'
     };
+    if (inviteCode) {
+      requestData.invite_code = inviteCode;
+    }
 
     return this.http.post<CommonResponse>(API.githubBrowserAuthorize, requestData).pipe(
       map(response => {
@@ -892,12 +895,15 @@ export class AuthService {
   /**
    * GitHub Token 交换
    */
-  exchangeGitHubToken(code: string, state: string): Observable<any> {
-    const requestData = {
+  exchangeGitHubToken(code: string, state: string, inviteCode?: string): Observable<any> {
+    const requestData: any = {
       code: code,
       state: state,
       device_id: 'pc'
     };
+    if (inviteCode) {
+      requestData.invite_code = inviteCode;
+    }
 
     return this.http.post<CommonResponse>(API.githubTokenExchange, requestData).pipe(
       map(response => {
@@ -1015,7 +1021,7 @@ export class AuthService {
   /**
    * 获取微信扫码二维码
    */
-  getWeChatQrcode(): Observable<CommonResponse & { data: { ticket: string; qrcode_url: string; expires_in: number } }> {
+  getWeChatQrcode(inviteCode?: string): Observable<CommonResponse & { data: { ticket: string; qrcode_url: string; expires_in: number } }> {
     const mock = this.getWechatMockScenario();
     if (mock) {
       const ticket = `mock_ticket_${Date.now()}`;
@@ -1035,7 +1041,11 @@ export class AuthService {
         }, 400);
       });
     }
-    return this.http.get<CommonResponse & { data: { ticket: string; qrcode_url: string; expires_in: number } }>(API.wechatQrcode).pipe(
+    const params: any = {};
+    if (inviteCode) {
+      params.invite_code = inviteCode;
+    }
+    return this.http.get<CommonResponse & { data: { ticket: string; qrcode_url: string; expires_in: number } }>(API.wechatQrcode, { params }).pipe(
       catchError(this.handleError)
     );
   }

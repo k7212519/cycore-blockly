@@ -108,7 +108,12 @@ export class LoginComponent implements OnDestroy {
     this.authService.isLoggedIn$
       .pipe(takeUntil(this.destroy$))
       .subscribe((isLoggedIn) => {
+        const wasHidden = !this.showLogin;
         this.showLogin = !isLoggedIn;
+        // 退出登录后组件重新显示时，若当前在微信扫码模式则刷新二维码
+        if (this.showLogin && wasHidden && this.mode === 'wechat') {
+          this.refreshWeChatQrcode();
+        }
         setTimeout(() => this.cdr.detectChanges());
       });
 
@@ -159,7 +164,7 @@ export class LoginComponent implements OnDestroy {
     this.wechatStatusMessage = '';
 
     // 获取二维码
-    this.authService.getWeChatQrcode().subscribe({
+    this.authService.getWeChatQrcode(this.inviteCode || undefined).subscribe({
       next: (response) => {
         if (response.status === 200 && response.data) {
           this.wechatTicket = response.data.ticket;
@@ -410,7 +415,7 @@ export class LoginComponent implements OnDestroy {
       }
 
       // 直接通过 HTTP 请求启动 GitHub OAuth 流程
-      this.authService.startGitHubOAuth().subscribe({
+      this.authService.startGitHubOAuth(this.inviteCode || undefined).subscribe({
         next: (response) => {
           // 使用 ElectronService 在系统浏览器中打开授权页面
           if (this.electronService.isElectron) {
@@ -847,6 +852,7 @@ export class LoginComponent implements OnDestroy {
       this.emailBindTicket,
       this.emailBindEmail,
       this.emailBindCode,
+      this.inviteCode || undefined,
     ).subscribe({
       next: (response) => {
         if (response.status === 200 && response.data) {
@@ -868,7 +874,7 @@ export class LoginComponent implements OnDestroy {
                   this.emailBindTicket!,
                   this.emailBindEmail,
                   this.emailBindCode,
-                  undefined,
+                  this.inviteCode || undefined,
                   true,
                 ).subscribe({
                   next: (mergeResponse) => {
