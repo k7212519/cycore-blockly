@@ -705,6 +705,18 @@ async function resolvePinmapConfigFromApiItem(
   }
 }
 
+/** 云端列表项中的版本号，用于与 pinmap_catalog 变体 version 比对 */
+function extractCloudPinmapItemVersion(item: any): string | number | undefined {
+  const v = item?.version ?? item?.itemVersion;
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === 'string' || typeof v === 'number') return v;
+  return undefined;
+}
+
+function pinmapSourceVersionsEqual(a: unknown, b: unknown): boolean {
+  return String(a).trim() === String(b).trim();
+}
+
 /**
  * 优先从 GET /api/v1/pinmap/components 拉取库绑定元件并写入本地 pinmaps/，失败或无可同步项时返回 0（不抛错，由调用方继续走本地逻辑）。
  */
@@ -807,7 +819,27 @@ async function trySyncPinmapComponentsFromApi(
           const config = await resolvePinmapConfigFromApiItem(item, apiBase, headers);
           if (!config) continue;
 
-          const save = connectionGraphService.savePinmapConfig(pinmapId, config, packagesBasePath);
+          const cloudVer = extractCloudPinmapItemVersion(item);
+          if (cloudVer !== undefined) {
+            const existingVariant = connectionGraphService.getCatalogVariantForPinmapId(
+              pinmapId,
+              packagesBasePath,
+            );
+            if (
+              existingVariant?.version !== undefined &&
+              existingVariant.version !== null &&
+              pinmapSourceVersionsEqual(cloudVer, existingVariant.version)
+            ) {
+              continue;
+            }
+          }
+
+          const save = connectionGraphService.savePinmapConfig(
+            pinmapId,
+            config,
+            packagesBasePath,
+            cloudVer,
+          );
           if (save.success) synced++;
         }
 
@@ -1087,6 +1119,7 @@ export async function getSensorPinmapCatalogTool(
                     status: v.status,
                     isDefault: v.isDefault,
                     previewPins: v.previewPins,
+                    version: v.version,
                   })),
               })).filter(m => m.variants.length > 0),
             };
@@ -1168,6 +1201,7 @@ export async function getSensorPinmapCatalogTool(
                 status: v.status,
                 isDefault: v.isDefault,
                 previewPins: v.previewPins,
+                version: v.version,
               })),
           })).filter(m => m.variants.length > 0),
         });

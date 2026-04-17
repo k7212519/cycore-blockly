@@ -211,6 +211,9 @@ export interface SensorVariant {
   isDefault?: boolean;
   previewPins?: string[];             // ["VCC", "SDA", "SCL", "GND"]
   note?: string;
+
+  /** 云端同步写入时与云端元件 version 对齐，用于跳过同版本重复落盘 */
+  version?: string | number;
 }
 
 /** 传感器/芯片型号 */
@@ -661,6 +664,46 @@ export class ConnectionGraphService {
       console.error('读取 pinmap_catalog.json 失败:', e);
       return null;
     }
+  }
+
+  /**
+   * 从已安装库中查找某 pinmapId 对应的 catalog 变体（用于云端同步前比对 version）
+   * 包路径解析与 savePinmapConfig 一致：优先精确 packageSlug，再前缀匹配 lib-xxx-yyy
+   */
+  getCatalogVariantForPinmapId(pinmapId: string, packagesBasePath: string): SensorVariant | null {
+    const ref = this.parsePinmapId(pinmapId);
+    const tryFind = (packagePath: string): SensorVariant | null => {
+      const catalog = this.readPinmapCatalog(packagePath);
+      if (!catalog?.models) return null;
+      const model = catalog.models.find(m => m.id === ref.modelId);
+      const variant = model?.variants?.find(v => v.id === ref.variantId);
+      return variant ?? null;
+    };
+
+    let packagePath = this.electronService.pathJoin(packagesBasePath, '@aily-project', ref.packageSlug);
+    if (this.electronService.exists(packagePath)) {
+      const v = tryFind(packagePath);
+      if (v) return v;
+    }
+
+    const ailyProjectPath = this.electronService.pathJoin(packagesBasePath, '@aily-project');
+    if (!this.electronService.exists(ailyProjectPath)) {
+      return null;
+    }
+    try {
+      const packages = this.electronService.readDir(ailyProjectPath);
+      for (const pkg of packages) {
+        const pkgName = typeof pkg === 'string' ? pkg : (pkg?.name || String(pkg));
+        if (pkgName.startsWith(ref.packageSlug + '-') || pkgName === ref.packageSlug) {
+          const candidatePath = this.electronService.pathJoin(ailyProjectPath, pkgName);
+          const v = tryFind(candidatePath);
+          if (v) return v;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
   }
 
   /**
@@ -1827,8 +1870,14 @@ export class ConnectionGraphService {
    * @param pinmapId 完整标识符
    * @param config pinmap 配置
    * @param packagesBasePath 包基础路径
+   * @param catalogVersion 可选，写入 pinmap_catalog 变体上的 version（云端同步时传云端 item.version）
    */
-  savePinmapConfig(pinmapId: string, config: ComponentConfig, packagesBasePath: string): {
+  savePinmapConfig(
+    pinmapId: string,
+    config: ComponentConfig,
+    packagesBasePath: string,
+    catalogVersion?: string | number,
+  ): {
     success: boolean;
     filePath?: string;
     error?: string;
@@ -1894,7 +1943,14 @@ export class ConnectionGraphService {
       this.electronService.writeFile(filePath, JSON.stringify(config, null, 2));
 
       // 更新 catalog 状态（传入已解析的 packagePath，避免重新从 packageSlug 构建错误路径）
-      const catalogUpdated = this.updateCatalogStatus(pinmapId, 'available', `pinmaps/${fileName}`, packagePath, config);
+      const catalogUpdated = this.updateCatalogStatus(
+        pinmapId,
+        'available',
+        `pinmaps/${fileName}`,
+        packagePath,
+        config,
+        catalogVersion,
+      );
       if (!catalogUpdated) {
         console.warn('[savePinmapConfig] catalog 更新失败，但 pinmap 文件已保存');
       }
@@ -1967,13 +2023,15 @@ export class ConnectionGraphService {
    * @param pinmapFile pinmap 文件路径
    * @param resolvedPackagePath 已解析的库包完整路径（由调用者传入，避免从 packageSlug 重新推导出错）
    * @param componentConfig 可选，组件配置（用于创建新条目时提取信息）
+   * @param catalogVersion 可选，写入变体的 version（云端同步时）；未传则不修改已有 version
    */
   private updateCatalogStatus(
     pinmapId: string,
     status: 'available' | 'needs_generation',
     pinmapFile: string,
     resolvedPackagePath: string,
-    componentConfig?: ComponentConfig
+    componentConfig?: ComponentConfig,
+    catalogVersion?: string | number,
   ): boolean {
     try {
       const ref = this.parsePinmapId(pinmapId);
@@ -2025,12 +2083,18 @@ export class ConnectionGraphService {
           isDefault: model.variants.length === 0 // 第一个变体设为默认
         };
         this.enrichVariantFromPinmapConfig(variant, componentConfig);
+        if (catalogVersion !== undefined) {
+          variant.version = catalogVersion;
+        }
         model.variants.push(variant);
       } else {
         // 更新现有变体
         variant.status = status;
         variant.pinmapFile = pinmapFile;
         this.enrichVariantFromPinmapConfig(variant, componentConfig);
+        if (catalogVersion !== undefined) {
+          variant.version = catalogVersion;
+        }
       }
 
       // 保存 catalog
