@@ -1907,6 +1907,60 @@ export class ConnectionGraphService {
   }
 
   /**
+   * 从 pinmap JSON 推导变体 protocol（与手写 pinmap_catalog 中 SensorVariant.protocol 对齐）
+   */
+  private deriveVariantProtocolFromPinmap(config: ComponentConfig): PinmapProtocol | undefined {
+    const primary = new Set<string>();
+    for (const pin of config.pins || []) {
+      if (pin.visible === false || pin.disabled === true) continue;
+      for (const fn of pin.functions || []) {
+        if (fn.visible === false || fn.disabled === true) continue;
+        const t = (fn.type || '').trim().toLowerCase();
+        if (!t || t === 'power' || t === 'gnd') continue;
+        primary.add(t);
+      }
+    }
+    if (primary.size === 0) return undefined;
+    const order: PinmapProtocol[] = ['i2c', 'spi', 'uart', 'pwm', 'analog', 'digital'];
+    for (const p of order) {
+      if (primary.has(p)) return p;
+    }
+    return 'other';
+  }
+
+  /**
+   * 从 pinmap JSON 推导 previewPins（每引脚取首个可见 function 的 name，与手写 catalog 一致）
+   */
+  private derivePreviewPinsFromPinmap(config: ComponentConfig): string[] | undefined {
+    const names: string[] = [];
+    for (const pin of config.pins || []) {
+      if (pin.visible === false || pin.disabled === true) continue;
+      const fns = pin.functions || [];
+      const first =
+        fns.find(fn => fn.visible !== false && fn.disabled !== true) || fns[0];
+      if (first?.name?.trim()) {
+        names.push(first.name.trim());
+      }
+    }
+    return names.length > 0 ? names : undefined;
+  }
+
+  /**
+   * 将 pinmap 中的元数据写入 catalog 变体（protocol / previewPins）
+   */
+  private enrichVariantFromPinmapConfig(variant: SensorVariant, config?: ComponentConfig): void {
+    if (!config) return;
+    const protocol = this.deriveVariantProtocolFromPinmap(config);
+    const previewPins = this.derivePreviewPinsFromPinmap(config);
+    if (protocol) {
+      variant.protocol = protocol;
+    }
+    if (previewPins && previewPins.length > 0) {
+      variant.previewPins = previewPins;
+    }
+  }
+
+  /**
    * 更新或创建 pinmap_catalog.json 中的变体条目
    * @param pinmapId 完整标识符
    * @param status 状态
@@ -1970,11 +2024,13 @@ export class ConnectionGraphService {
           pinmapFile: pinmapFile,
           isDefault: model.variants.length === 0 // 第一个变体设为默认
         };
+        this.enrichVariantFromPinmapConfig(variant, componentConfig);
         model.variants.push(variant);
       } else {
         // 更新现有变体
         variant.status = status;
         variant.pinmapFile = pinmapFile;
+        this.enrichVariantFromPinmapConfig(variant, componentConfig);
       }
 
       // 保存 catalog

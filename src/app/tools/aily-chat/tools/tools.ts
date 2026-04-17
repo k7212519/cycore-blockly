@@ -2580,7 +2580,7 @@ IMPORTANT: update是全量替换，必须包含所有任务。只想添加新任
 
 **完整工作流：**
 1. （可选）不知道有哪些组件可用时，先调用 get_project_context 获取项目上下文和 pinmapId
-2. 调用本工具，传入 pinmapIds
+2. 调用本工具，传入 pinmapIds。**本工具在执行时会自动尝试从云端同步 pinmap 到本地（与 get_pinmap_summary 相同机制）；若你已在同一会话中调用过 get_pinmap_summary，该步骤为可选重复，可跳过额外调用。**
 3. 工具返回引脚摘要，你根据此编写 AWS 连线内容
 4. 调用 validate_schematic(aws: "...") 验证 + 保存 + 刷新（最终步骤）
 
@@ -2640,13 +2640,23 @@ IMPORTANT: update是全量替换，必须包含所有任务。只想添加新任
     },
     {
         name: 'get_pinmap_summary',
-        description: `**已废弃** — generate_schematic 内部已包含完整引脚摘要，通常无需单独调用此工具。`,
+        description: `获取引脚摘要（轻量）。适合只需查看引脚信息、或希望在接线前先拉取云端 pinmap 的场景。
+
+**与 generate_schematic 的区别：**
+- **本工具**：优先请求云端 \`/api/v1/pinmap/components\`，将已上架元件的 pinmap 同步到项目内对应库的 \`pinmaps/\`（失败或列表为空则仅用本地已有文件）；返回开发板引脚摘要、可选外设摘要、当前连线图组件摘要；不生成完整 AWS 接线规则。
+- **generate_schematic**：面向「生成接线图」的完整引脚与规则输出，用于编写 AWS。
+
+**触发时机：** 用户只想看引脚表、确认某 pinmapId 是否可用、或接线前希望先同步云端库绑定 pinmap 时。
+
+**参数：** \`pinmapIds\` 为空时同步本机已安装的各 \`lib-*\` 库对应的云端列表；非空时仅同步这些 id 所属库，并只加载这些外设的摘要（仍始终包含当前开发板摘要）。
+
+**返回：** 成功时可能含 \`cloudPinmapSynced\`（本次从云端写入本地的条数）；引脚与连线信息与本地/同步结果一致。`,
         input_schema: {
             type: 'object',
             properties: {
                 pinmapIds: {
                     type: 'array',
-                    description: '要查询的组件 pinmapId 列表（如 ["lib-dht:dht20:asair"]）。如果为空则返回当前开发板的引脚摘要。',
+                    description: '要查询的外设 pinmapId 列表（如 ["lib-dht:dht20:asair"]）。为空则只返回开发板引脚摘要，并仍会尝试按库同步云端 pinmap；非空则缩小同步范围并加载这些外设的引脚摘要。',
                     items: { type: 'string' }
                 }
             },
