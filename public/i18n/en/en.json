@@ -68,7 +68,7 @@
         "LIB_MANAGER": "Library Manager",
         "AI_ASSISTANT": "AI Assistant",
         "PROJECT_HUB": "Project Hub",
-        "NEW_INSTANCE": "New Instance"
+        "NEW_INSTANCE": "New Window"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Upload Speed",
@@ -180,7 +180,8 @@
             "REPOSITORY": "Service Region",
             "DEPENDENCIES": "Dependencies",
             "MCP": "MCP",
-            "DEVMODE": "Developer Mode"
+            "DEVMODE": "Developer Mode",
+            "CACHE": "Cache Management"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Project Folder",
@@ -199,7 +200,19 @@
             "BOARD_LIST": "Board List",
             "LIBRARY_LIST": "Library List",
             "INSTALL": "Install",
-            "UNINSTALL": "Uninstall"
+            "UNINSTALL": "Uninstall",
+            "CLEAR_CACHE": "Clear Cache",
+            "CACHE_SIZE": "Cache Size",
+            "CACHE_LOADING": "Loading...",
+            "CACHE_ALL": "Clear All",
+            "CACHE_ONE_MONTH": "Clear 1 Month Old",
+            "CACHE_THREE_MONTHS": "Clear 3 Months Old",
+            "CACHE_CLEARING": "Clearing...",
+            "CACHE_CLEARED": "Cache cleared",
+            "CACHE_CLEAR_FAILED": "Clear failed",
+            "CACHE_CONFIRM_TITLE": "Confirm Clear",
+            "CACHE_CONFIRM_DESC": "Are you sure you want to clear all compilation cache? This cannot be undone.",
+            "CACHE_CONFIRM_OK": "Confirm"
         },
         "BUTTONS": {
             "CANCEL": "Cancel",

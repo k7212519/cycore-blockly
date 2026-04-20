@@ -32,7 +32,7 @@
         "LIB_MANAGER": "Gestionnaire de Bibliothèques",
         "AI_ASSISTANT": "Assistant IA",
         "PROJECT_HUB": "Centre de Projets",
-        "NEW_INSTANCE": "Nouvelle instance"
+        "NEW_INSTANCE": "Nouvelle fenêtre"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Vitesse de téléchargement",
@@ -132,7 +132,8 @@
             "REPOSITORY": "Paramètres de Dépôt",
             "DEPENDENCIES": "Dépendances Globales",
             "MCP": "MCP",
-            "DEVMODE": "Mode Développeur"
+            "DEVMODE": "Mode Développeur",
+            "CACHE": "Gestion du cache"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Dossier du Projet",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "Liste des Cartes",
             "LIBRARY_LIST": "Liste des Bibliothèques",
             "INSTALL": "Installer",
-            "UNINSTALL": "Désinstaller"
+            "UNINSTALL": "Désinstaller",
+            "CLEAR_CACHE": "Vider le cache",
+            "CACHE_SIZE": "Taille du cache",
+            "CACHE_LOADING": "Chargement...",
+            "CACHE_ALL": "Tout effacer",
+            "CACHE_ONE_MONTH": "Effacer 1 mois",
+            "CACHE_THREE_MONTHS": "Effacer 3 mois",
+            "CACHE_CLEARING": "Effacement...",
+            "CACHE_CLEARED": "Cache effacé",
+            "CACHE_CLEAR_FAILED": "Échec de l'effacement",
+            "CACHE_CONFIRM_TITLE": "Confirmer l'effacement",
+            "CACHE_CONFIRM_DESC": "Êtes-vous sûr de vouloir effacer tout le cache de compilation ? Cette action est irréversible.",
+            "CACHE_CONFIRM_OK": "Confirmer"
         },
         "BUTTONS": {
             "CANCEL": "Annuler",

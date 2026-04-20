@@ -1,6 +1,6 @@
 /* 这个服务用来控制窗口、工具的显示和隐藏，通过 Subject 来实现组件之间的通信。
  */
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
 import { filter, Observable, Subject } from 'rxjs';
 import { ElectronService } from './electron.service';
 import { TerminalService } from '../tools/terminal/terminal.service';
@@ -10,6 +10,7 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { ProjectSettingDialogComponent } from '../components/project-setting-dialog/project-setting-dialog.component';
 import { HistoryDialogComponent } from '../editors/blockly-editor/components/history-dialog/history-dialog.component';
 import { AuthService } from './auth.service';
+import { LogService } from './log.service';
 
 @Injectable({
   providedIn: 'root',
@@ -50,7 +51,9 @@ export class UiService {
     private terminalService: TerminalService,
     private router: Router,
     private modal: NzModalService,
-    private authService: AuthService
+    private authService: AuthService,
+    private logService: LogService,
+    private injector: Injector
   ) { }
 
 
@@ -77,6 +80,24 @@ export class UiService {
           } catch (error) {
             console.error('登出失败:', error);
             data = { success: false, error: error.message };
+          }
+        } else if (message.data?.action === 'log') {
+          // 处理子窗口发来的日志
+          this.logService.update(message.data.log);
+          data = { success: true };
+        } else if (message.data?.action === 'get-build-path') {
+          // 返回当前项目的构建缓存路径
+          try {
+            const { ProjectService } = await import('./project.service');
+            const projectService = this.injector.get(ProjectService);
+            if (projectService.currentProjectPath) {
+              const buildPath = await projectService.getBuildPath();
+              data = { success: true, buildPath };
+            } else {
+              data = { success: true, buildPath: null };
+            }
+          } catch (error) {
+            data = { success: true, buildPath: null };
           }
         }
         // if (message.data.action == 'open-terminal') {

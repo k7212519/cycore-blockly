@@ -32,7 +32,7 @@
         "LIB_MANAGER": "Gerenciador de Bibliotecas",
         "AI_ASSISTANT": "Assistente de IA",
         "PROJECT_HUB": "Central de Projetos",
-        "NEW_INSTANCE": "Nova instância"
+        "NEW_INSTANCE": "Nova janela"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Velocidade de Upload",
@@ -132,7 +132,8 @@
             "REPOSITORY": "Configurações de repositório",
             "DEPENDENCIES": "Dependências Globais",
             "MCP": "MCP",
-            "DEVMODE": "Modo Desenvolvedor"
+            "DEVMODE": "Modo Desenvolvedor",
+            "CACHE": "Gerenciamento de cache"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Pasta do projeto",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "Lista de placas",
             "LIBRARY_LIST": "Lista de bibliotecas",
             "INSTALL": "Instalar",
-            "UNINSTALL": "Desinstalar"
+            "UNINSTALL": "Desinstalar",
+            "CLEAR_CACHE": "Limpar cache",
+            "CACHE_SIZE": "Tamanho do cache",
+            "CACHE_LOADING": "Carregando...",
+            "CACHE_ALL": "Limpar tudo",
+            "CACHE_ONE_MONTH": "Limpar 1 mês",
+            "CACHE_THREE_MONTHS": "Limpar 3 meses",
+            "CACHE_CLEARING": "Limpando...",
+            "CACHE_CLEARED": "Cache limpo",
+            "CACHE_CLEAR_FAILED": "Falha ao limpar",
+            "CACHE_CONFIRM_TITLE": "Confirmar limpeza",
+            "CACHE_CONFIRM_DESC": "Tem certeza de que deseja limpar todo o cache de compilação? Esta ação não pode ser desfeita.",
+            "CACHE_CONFIRM_OK": "Confirmar"
         },
         "BUTTONS": {
             "CANCEL": "Cancelar",

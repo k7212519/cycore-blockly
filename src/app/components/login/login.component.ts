@@ -56,9 +56,7 @@ export class LoginComponent implements OnDestroy {
   loginBindQrcodeUrl: string | null = null;
   loginBindStatus: 'loading' | 'pending' | 'scanned' | 'confirmed' | 'expired' | 'error' = 'loading';
   loginBindStatusMessage = '';
-  loginBindCountdown = 60;
   private loginBindCheckSub: Subscription | null = null;
-  private loginBindCountdownTimer: ReturnType<typeof setInterval> | null = null;
 
   // 微信登录后邮箱绑定相关
   emailBindMode = false;
@@ -92,6 +90,7 @@ export class LoginComponent implements OnDestroy {
   inputCode = '';
   inviteCode = '';
   isSendingCode = false;
+  codeSent = false;
   countdown = 0;
   private countdownTimer: any = null;
 
@@ -109,7 +108,12 @@ export class LoginComponent implements OnDestroy {
     this.authService.isLoggedIn$
       .pipe(takeUntil(this.destroy$))
       .subscribe((isLoggedIn) => {
+        const wasHidden = !this.showLogin;
         this.showLogin = !isLoggedIn;
+        // 退出登录后组件重新显示时，若当前在微信扫码模式则刷新二维码
+        if (this.showLogin && wasHidden && this.mode === 'wechat') {
+          this.refreshWeChatQrcode();
+        }
         setTimeout(() => this.cdr.detectChanges());
       });
 
@@ -160,7 +164,7 @@ export class LoginComponent implements OnDestroy {
     this.wechatStatusMessage = '';
 
     // 获取二维码
-    this.authService.getWeChatQrcode().subscribe({
+    this.authService.getWeChatQrcode(this.inviteCode || undefined).subscribe({
       next: (response) => {
         if (response.status === 200 && response.data) {
           this.wechatTicket = response.data.ticket;
@@ -411,7 +415,7 @@ export class LoginComponent implements OnDestroy {
       }
 
       // 直接通过 HTTP 请求启动 GitHub OAuth 流程
-      this.authService.startGitHubOAuth().subscribe({
+      this.authService.startGitHubOAuth(this.inviteCode || undefined).subscribe({
         next: (response) => {
           // 使用 ElectronService 在系统浏览器中打开授权页面
           if (this.electronService.isElectron) {
@@ -466,6 +470,7 @@ export class LoginComponent implements OnDestroy {
         next: (response) => {
           if (response.status === 200) {
             this.isSendingCode = true;
+            this.codeSent = true;
             this.cdr.detectChanges();
             this.message.success(this.translate.instant('LOGIN.CODE_SENT'));
             this.startCountdown();
@@ -498,12 +503,22 @@ export class LoginComponent implements OnDestroy {
       this.countdown--;
       this.cdr.detectChanges();
       if (this.countdown <= 0) {
-        clearInterval(this.countdownTimer);
-        this.isSendingCode = false;
-        this.countdownTimer = null;
+        this.clearCountdown();
         this.cdr.detectChanges();
       }
     }, 1000);
+  }
+
+  /**
+   * 清除倒计时
+   */
+  private clearCountdown() {
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    this.countdown = 0;
+    this.isSendingCode = false;
   }
 
   /**
@@ -520,7 +535,7 @@ export class LoginComponent implements OnDestroy {
       return;
     }
 
-    if (!this.isSendingCode) {
+    if (!this.codeSent) {
       this.message.warning(this.translate.instant('LOGIN.CODE_SENDING'));
       return;
     }
@@ -539,6 +554,11 @@ export class LoginComponent implements OnDestroy {
               this.cdr.detectChanges();
               return;
             }
+            this.clearCountdown();
+            this.inputEmail = '';
+            this.inputCode = '';
+            this.inviteCode = '';
+            this.codeSent = false;
             this.message.success(this.translate.instant('LOGIN.LOGIN_SUCCESS'));
           } else {
             this.message.error(
@@ -569,9 +589,7 @@ export class LoginComponent implements OnDestroy {
     this.cleanupWeChatLogin();
     this.cleanupLoginBind();
     this.cleanupEmailBind();
-    if (this.countdownTimer) {
-      clearInterval(this.countdownTimer);
-    }
+    this.clearCountdown();
   }
 
   // ==================== 登录时绑定微信 ====================
@@ -617,7 +635,6 @@ export class LoginComponent implements OnDestroy {
           this.loginBindQrcodeUrl = response.data.qrcode_url;
           this.loginBindStatus = 'pending';
           this.loginBindStatusMessage = this.translate.instant('LOGIN.WECHAT_BIND_SCAN') || '请使用微信扫码绑定';
-          this.startLoginBindCountdown();
           this.startWeChatLoginBindCheck();
         } else {
           this.loginBindStatus = 'error';
@@ -679,6 +696,53 @@ export class LoginComponent implements OnDestroy {
                 console.error('处理微信绑定登录成功数据失败:', err);
                 this.message.error(this.translate.instant('LOGIN.LOGIN_FAILED') || '登录失败');
               });
+            } else if (data.status === 'needs_merge_confirm') {
+              // 暂停轮询，等待用户确认合并
+              this.stopLoginBindCheck();
+              const mergeInfo = (data as any).merge_info;
+              const ticket = this.loginBindQrTicket!;
+              this.modal.confirm({
+                nzClassName: 'merge-confirm-modal',
+                nzTitle: '发现已有账号',
+                nzContent: `检测到微信账号「${mergeInfo?.wechat_nickname || '未知'}」与邮箱账号「${mergeInfo?.email || '未知'}」可以合并。合并后微信将绑定到邮箱账号，原微信账号将被停用。是否确认合并？`,
+                nzOkText: '确认合并',
+                nzCancelText: '取消',
+                nzOnOk: () => {
+                  this.authService.confirmWechatMerge(ticket, 'login_bind').subscribe({
+                    next: (mergeResponse) => {
+                      if (mergeResponse.status === 200 && mergeResponse.data && 'access_token' in mergeResponse.data) {
+                        this.loginBindStatus = 'confirmed';
+                        this.cleanupLoginBind();
+                        this.authService.handleWeChatOAuthSuccess({
+                          access_token: mergeResponse.data.access_token,
+                          refresh_token: mergeResponse.data.refresh_token,
+                          user: mergeResponse.data.user,
+                        }).then(() => {
+                          this.message.success(this.translate.instant('LOGIN.LOGIN_SUCCESS') || '登录成功');
+                          this.loginBindMode = false;
+                          this.cdr.detectChanges();
+                        }).catch(() => {
+                          this.message.error(this.translate.instant('LOGIN.LOGIN_FAILED') || '登录失败');
+                        });
+                      } else {
+                        this.message.error('合并失败，请重试');
+                        // 恢复轮询以便用户重试
+                        this.startWeChatLoginBindCheck();
+                      }
+                    },
+                    error: (err) => {
+                      const msg = err?.error?.messages || err?.error?.message || '合并失败，请重试';
+                      this.message.error(msg);
+                      this.startWeChatLoginBindCheck();
+                    },
+                  });
+                },
+                nzOnCancel: () => {
+                  // 用户取消，继续轮询（后端 Redis 中状态依旧，或用户可重新扫码）
+                  this.startWeChatLoginBindCheck();
+                },
+              });
+              this.cdr.detectChanges();
             } else if (data.status === 'error') {
               this.loginBindStatus = 'error';
               this.loginBindStatusMessage = data.message || '绑定失败';
@@ -709,21 +773,6 @@ export class LoginComponent implements OnDestroy {
     }
   }
 
-  private startLoginBindCountdown(): void {
-    this.clearLoginBindCountdown();
-    this.loginBindCountdown = 60;
-    this.loginBindCountdownTimer = setInterval(() => {
-      this.loginBindCountdown--;
-      if (this.loginBindCountdown <= 0) {
-        this.clearLoginBindCountdown();
-        this.loginBindStatus = 'expired';
-        this.loginBindStatusMessage = '二维码已过期，请刷新';
-        this.stopLoginBindCheck();
-        this.cdr.detectChanges();
-      }
-    }, 1000);
-  }
-
   private stopLoginBindCheck(): void {
     if (this.loginBindCheckSub) {
       this.loginBindCheckSub.unsubscribe();
@@ -731,16 +780,8 @@ export class LoginComponent implements OnDestroy {
     }
   }
 
-  private clearLoginBindCountdown(): void {
-    if (this.loginBindCountdownTimer) {
-      clearInterval(this.loginBindCountdownTimer);
-      this.loginBindCountdownTimer = null;
-    }
-  }
-
   private cleanupLoginBind(): void {
     this.stopLoginBindCheck();
-    this.clearLoginBindCountdown();
   }
 
   // ==================== 微信登录后邮箱绑定 ====================
@@ -755,6 +796,7 @@ export class LoginComponent implements OnDestroy {
     this.emailBindEmail = '';
     this.emailBindCode = '';
     this.emailBindIsSendingCode = false;
+    this.emailBindCountdown = 0;
     this.emailBindIsSubmitting = false;
     this.mode = 'mail';
     this.cdr.detectChanges();
@@ -810,9 +852,66 @@ export class LoginComponent implements OnDestroy {
       this.emailBindTicket,
       this.emailBindEmail,
       this.emailBindCode,
+      this.inviteCode || undefined,
     ).subscribe({
       next: (response) => {
         if (response.status === 200 && response.data) {
+          // 检查是否需要用户确认合并账号
+          if ((response.data as any).status === 'needs_merge_confirm') {
+            this.emailBindIsSubmitting = false;
+            this.cdr.detectChanges();
+            const mergeInfo = (response.data as any).merge_info;
+            this.modal.confirm({
+              nzClassName: 'merge-confirm-modal',
+              nzTitle: '发现已有账号',
+              nzContent: `检测到微信账号「${mergeInfo?.wechat_nickname || '未知'}」与邮箱账号「${mergeInfo?.email || '未知'}」可以合并。合并后微信将绑定到邮箱账号，原微信账号将被停用。是否确认合并？`,
+              nzOkText: '确认合并',
+              nzCancelText: '取消',
+              nzOnOk: () => {
+                this.emailBindIsSubmitting = true;
+                this.cdr.detectChanges();
+                this.authService.completeWechatEmailBindLogin(
+                  this.emailBindTicket!,
+                  this.emailBindEmail,
+                  this.emailBindCode,
+                  this.inviteCode || undefined,
+                  true,
+                ).subscribe({
+                  next: (mergeResponse) => {
+                    if (mergeResponse.status === 200 && mergeResponse.data && 'access_token' in mergeResponse.data) {
+                      this.authService.handleWeChatOAuthSuccess({
+                        access_token: mergeResponse.data.access_token,
+                        refresh_token: mergeResponse.data.refresh_token,
+                        user: mergeResponse.data.user,
+                      }).then(() => {
+                        this.message.success(this.translate.instant('LOGIN.LOGIN_SUCCESS') || '登录成功');
+                        this.cleanupEmailBind();
+                        this.emailBindMode = false;
+                        this.emailBindCountdown = 0;
+                        this.cdr.detectChanges();
+                      }).catch(() => {
+                        this.message.error(this.translate.instant('LOGIN.LOGIN_FAILED') || '登录失败');
+                        this.emailBindIsSubmitting = false;
+                        this.cdr.detectChanges();
+                      });
+                    } else {
+                      this.message.error('合并失败，请重试');
+                      this.emailBindIsSubmitting = false;
+                      this.cdr.detectChanges();
+                    }
+                  },
+                  error: (err) => {
+                    const msg = err?.error?.messages || err?.error?.message || '合并失败，请重试';
+                    this.message.error(msg);
+                    this.emailBindIsSubmitting = false;
+                    this.cdr.detectChanges();
+                  },
+                });
+              },
+            });
+            return;
+          }
+
           this.authService.handleWeChatOAuthSuccess({
             access_token: response.data.access_token,
             refresh_token: response.data.refresh_token,
@@ -823,7 +922,9 @@ export class LoginComponent implements OnDestroy {
                 ? (this.translate.instant('LOGIN.WECHAT_REGISTER_SUCCESS') || '注册成功')
                 : (this.translate.instant('LOGIN.LOGIN_SUCCESS') || '登录成功')
             );
+            this.cleanupEmailBind();
             this.emailBindMode = false;
+            this.emailBindCountdown = 0;
             this.cdr.detectChanges();
           }).catch((err) => {
             console.error('处理邮箱绑定登录成功数据失败:', err);

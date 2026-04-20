@@ -32,7 +32,7 @@
         "LIB_MANAGER": "庫管理",
         "AI_ASSISTANT": "AI助手",
         "PROJECT_HUB": "專案廣場",
-        "NEW_INSTANCE": "新建實例"
+        "NEW_INSTANCE": "新建視窗"
     },
     "ESP32": {
         "UPLOAD_SPEED": "燒錄速度",
@@ -132,7 +132,8 @@
             "REPOSITORY": "倉庫設定",
             "DEPENDENCIES": "全域依賴",
             "MCP": "MCP",
-            "DEVMODE": "開發者模式"
+            "DEVMODE": "開發者模式",
+            "CACHE": "緩存管理"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "專案資料夾",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "開發板清單",
             "LIBRARY_LIST": "函式庫清單",
             "INSTALL": "安裝",
-            "UNINSTALL": "解除安裝"
+            "UNINSTALL": "解除安裝",
+            "CLEAR_CACHE": "清除緩存",
+            "CACHE_SIZE": "緩存大小",
+            "CACHE_LOADING": "獲取中...",
+            "CACHE_ALL": "全部清除",
+            "CACHE_ONE_MONTH": "清除一個月前",
+            "CACHE_THREE_MONTHS": "清除三個月前",
+            "CACHE_CLEARING": "正在清除...",
+            "CACHE_CLEARED": "緩存已清除",
+            "CACHE_CLEAR_FAILED": "清除失敗",
+            "CACHE_CONFIRM_TITLE": "確認清除",
+            "CACHE_CONFIRM_DESC": "確定要清除所有編譯緩存嗎？此操作不可撤銷。",
+            "CACHE_CONFIRM_OK": "確認"
         },
         "BUTTONS": {
             "CANCEL": "取消",

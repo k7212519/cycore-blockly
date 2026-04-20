@@ -1614,6 +1614,50 @@ if (typeof app.setUserTasks === "function") {
 
 // TODO: 最近项目列表
 
+/**
+ * Apple Silicon Mac 上若未装 Rosetta，内置 x86_64 子进程无法运行；本机为 arm64 应用时也需要 Rosetta。
+ * 已可用则跳过；否则异步触发 softwareupdate，不阻塞窗口创建。
+ */
+function ensureRosettaIfNeededOnDarwin() {
+  if (!isDarwin) {
+    return;
+  }
+  try {
+    const { execSync, execFile, execFileSync } = require("child_process");
+    const arm64Machine =
+      execSync("sysctl -n hw.optional.arm64", {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim() === "1";
+    if (!arm64Machine) {
+      return;
+    }
+    try {
+      execFileSync("/usr/bin/arch", ["-x86_64", "/usr/bin/true"], { stdio: "ignore" });
+      console.log("Rosetta 已就绪，内置 x86 工具可在此 Mac 上运行");
+      return;
+    } catch {
+      // 未安装或 Rosetta 不可用，继续安装流程
+    }
+    execFile(
+      "/usr/sbin/softwareupdate",
+      ["--install-rosetta", "--agree-to-license"],
+      { stdio: "inherit" },
+      (err) => {
+        if (err) {
+          console.warn(
+            "自动安装 Rosetta 未成功，内置 x86 工具可能无法运行，可手动安装 Rosetta:",
+            err.message
+          );
+        } else {
+          console.log("Rosetta：自动安装命令执行成功");
+        }
+      }
+    );
+  } catch (e) {
+    console.warn("检测 Apple Silicon / Rosetta 失败，跳过自动安装:", e.message);
+  }
+}
 
 app.on("ready", async () => {
   // 检查是否是协议启动
@@ -1645,6 +1689,7 @@ app.on("ready", async () => {
   }
 
   try {
+    ensureRosettaIfNeededOnDarwin();
     loadEnv();
     // 异步检测最优服务器，不阻塞窗口创建
     initFastestServersAsync();
