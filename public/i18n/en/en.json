@@ -68,7 +68,7 @@
         "LIB_MANAGER": "Library Manager",
         "AI_ASSISTANT": "AI Assistant",
         "PROJECT_HUB": "Project Hub",
-        "NEW_INSTANCE": "New Instance"
+        "NEW_INSTANCE": "New Window"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Upload Speed",

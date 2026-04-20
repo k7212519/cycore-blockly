@@ -32,7 +32,7 @@
         "LIB_MANAGER": "مدير المكتبة",
         "AI_ASSISTANT": "مساعد الذكاء الاصطناعي",
         "PROJECT_HUB": "ساحة المشاريع",
-        "NEW_INSTANCE": "نسخة جديدة"
+        "NEW_INSTANCE": "نافذة جديدة"
     },
     "ESP32": {
         "UPLOAD_SPEED": "سرعة الرفع",

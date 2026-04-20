@@ -32,7 +32,7 @@
         "LIB_MANAGER": "庫管理",
         "AI_ASSISTANT": "AI助手",
         "PROJECT_HUB": "專案廣場",
-        "NEW_INSTANCE": "新建實例"
+        "NEW_INSTANCE": "新建視窗"
     },
     "ESP32": {
         "UPLOAD_SPEED": "燒錄速度",

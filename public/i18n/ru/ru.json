@@ -32,7 +32,7 @@
         "LIB_MANAGER": "Менеджер библиотек",
         "AI_ASSISTANT": "ИИ-ассистент",
         "PROJECT_HUB": "Центр проектов",
-        "NEW_INSTANCE": "Новый экземпляр"
+        "NEW_INSTANCE": "Новое окно"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Скорость загрузки",

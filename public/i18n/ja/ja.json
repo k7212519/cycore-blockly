@@ -32,7 +32,7 @@
         "LIB_MANAGER": "ライブラリマネージャー",
         "AI_ASSISTANT": "AIアシスタント",
         "PROJECT_HUB": "プロジェクトハブ",
-        "NEW_INSTANCE": "新しいインスタンス"
+        "NEW_INSTANCE": "新しいウィンドウ"
     },
     "ESP32": {
         "UPLOAD_SPEED": "書き込み速度",

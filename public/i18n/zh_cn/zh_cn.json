@@ -68,7 +68,7 @@
         "LIB_MANAGER": "库管理",
         "AI_ASSISTANT": "AI助手",
         "PROJECT_HUB": "项目广场",
-        "NEW_INSTANCE": "新建实例"
+        "NEW_INSTANCE": "新建窗口"
     },
     "ESP32": {
         "UPLOAD_SPEED": "烧录速度",

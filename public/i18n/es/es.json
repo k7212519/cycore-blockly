@@ -32,7 +32,7 @@
         "LIB_MANAGER": "Gestor de Bibliotecas",
         "AI_ASSISTANT": "Asistente de IA",
         "PROJECT_HUB": "Centro de Proyectos",
-        "NEW_INSTANCE": "Nueva instancia"
+        "NEW_INSTANCE": "Nueva ventana"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Velocidad de subida",
