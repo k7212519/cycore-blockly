@@ -371,6 +371,8 @@ export class UserCenterComponent {
 
 
   OpenUrl(url?: string) {
+    this.message.warning('测试版期间免费使用，无需购买');
+    return;
     const target = url || this.configService.getUcenterWebUrl();
     this.electronService.openUrl(target);
   }
