@@ -329,30 +329,7 @@ jobs:
 
           COMMIT_COUNT=$(wc -l < /tmp/commits.txt | tr -d ' ')
           echo "✓ Found ${COMMIT_COUNT} commits"
-
-          # 打印带日期的详细提交记录（用于排查）
-          echo ""
-          echo "========== 详细提交记录（含日期和 hash）=========="
-          if [ "$USE_TAG" = true ]; then
-            git log "${PREV_TAG}..HEAD" --pretty=format:"%h | %ai | %s" --no-merges | head -100
-          else
-            git log --since="30 days ago" --pretty=format:"%h | %ai | %s" --no-merges | head -100
-          fi
-          echo ""
-          echo "========== PREV_TAG 信息 =========="
-          if [ -n "$PREV_TAG" ]; then
-            echo "PREV_TAG: $PREV_TAG"
-            echo "PREV_TAG commit date: $(git log -1 --format='%ai' "$PREV_TAG" 2>/dev/null || echo 'N/A')"
-          else
-            echo "PREV_TAG: (none)"
-          fi
-          echo "HEAD commit date: $(git log -1 --format='%ai' HEAD)"
-          echo "=================================================="
-          echo ""
-          echo "========== 传给 AI 的提交内容 =========="
           cat /tmp/commits.txt
-          echo ""
-          echo "=================================================="
 
       - name: Generate Changelog with AI
         id: changelog
