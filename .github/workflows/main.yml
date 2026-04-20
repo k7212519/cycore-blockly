@@ -272,16 +272,61 @@ jobs:
 
       - name: Get Git Commits Since Last Tag
         id: commits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 获取上一个 tag（排除当前可能已打的 tag）
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ steps.version.outputs.tag }}$" | head -n 1 || echo "")
-          if [ -z "$PREV_TAG" ]; then
-            echo "⚠️ No previous tag found, collecting last 50 commits"
-            git log --pretty=format:"- %s" --no-merges | head -50 > /tmp/commits.txt
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
+          PREV_TAG=""
+          USE_TAG=false
+
+          # 策略1：通过 GitHub API 获取上一个成功发布的 Release tag（最可靠）
+          echo "--- 尝试通过 GitHub API 获取上一个 Release ---"
+          LATEST_RELEASE_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || echo "")
+
+          if [ -n "$LATEST_RELEASE_TAG" ] && [ "$LATEST_RELEASE_TAG" != "$CURRENT_TAG" ]; then
+            echo "✓ GitHub API 返回上一个 Release tag: $LATEST_RELEASE_TAG"
+            PREV_TAG="$LATEST_RELEASE_TAG"
+          elif [ "$LATEST_RELEASE_TAG" = "$CURRENT_TAG" ]; then
+            # 当前版本已发布过，获取倒数第二个 release
+            echo "⚠️ 最新 Release 就是当前版本 $CURRENT_TAG，尝试获取上一个..."
+            PREV_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq ".[].tag_name" 2>/dev/null \
+              | grep -v "^${CURRENT_TAG}$" | head -n 1 || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              echo "✓ 找到上一个 Release tag: $PREV_TAG"
+            fi
           else
-            echo "✓ Comparing $PREV_TAG → HEAD"
-            git log ${PREV_TAG}..HEAD --pretty=format:"- %s" --no-merges > /tmp/commits.txt
+            echo "⚠️ GitHub API 未返回有效 Release"
           fi
+
+          # 策略2：如果 API 失败，回退到 git tag
+          if [ -z "$PREV_TAG" ]; then
+            echo "--- 回退到 git tag 查找 ---"
+            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              echo "✓ Git tag 找到: $PREV_TAG"
+            fi
+          fi
+
+          # 校验 PREV_TAG 是否为当前 HEAD 的祖先（防止 force-push/rebase 导致 tag 孤立）
+          if [ -n "$PREV_TAG" ]; then
+            if git merge-base --is-ancestor "$PREV_TAG" HEAD 2>/dev/null; then
+              echo "✓ $PREV_TAG 是 HEAD 的祖先，使用 tag 范围"
+              USE_TAG=true
+            else
+              echo "⚠️ $PREV_TAG 不是 HEAD 的祖先（可能因 force-push/rebase 导致 tag 孤立），回退到时间范围"
+              PREV_TAG=""
+            fi
+          fi
+
+          # 收集提交
+          if [ "$USE_TAG" = true ]; then
+            echo "✓ Comparing $PREV_TAG → HEAD"
+            git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" --no-merges | head -100 > /tmp/commits.txt
+          else
+            echo "⚠️ 无可用 tag 基准，使用最近 30 天的提交"
+            git log --since="30 days ago" --pretty=format:"- %s" --no-merges | head -100 > /tmp/commits.txt
+          fi
+
           COMMIT_COUNT=$(wc -l < /tmp/commits.txt | tr -d ' ')
           echo "✓ Found ${COMMIT_COUNT} commits"
           cat /tmp/commits.txt
