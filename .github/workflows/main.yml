@@ -355,6 +355,12 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
           AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_API_KEY2: ${{ secrets.AI_API_KEY2 }}
+          AI_BASE_URL2: ${{ secrets.AI_BASE_URL2 }}
+          AI_MODEL2: ${{ secrets.AI_MODEL2 }}
+          AI_API_KEY3: ${{ secrets.AI_API_KEY3 }}
+          AI_BASE_URL3: ${{ secrets.AI_BASE_URL3 }}
+          AI_MODEL3: ${{ secrets.AI_MODEL3 }}
           RELEASE_VERSION: ${{ steps.version.outputs.tag }}
         run: |
           python3 << 'PYTHON_EOF'
@@ -366,16 +372,19 @@ jobs:
               text = re.sub(r'</?think>', '', text)
               return text.strip()
 
-          def call_ai(base_url, api_key, model, prompt, max_retries=3):
-              import time
-              payload = {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 2000,
-                "temperature": 0.3
-              }
+          def call_ai(model_configs, prompt):
+              """Try each (base_url, api_key, model) config in order; return on first success."""
               last_exc = None
-              for attempt in range(1, max_retries + 1):
+              for idx, (base_url, api_key, model) in enumerate(model_configs, 1):
+                if not base_url or not api_key:
+                  print(f"⚠️ Model config #{idx} skipped (base_url or api_key is empty)")
+                  continue
+                payload = {
+                  "model": model,
+                  "messages": [{"role": "user", "content": prompt}],
+                  "max_tokens": 2000,
+                  "temperature": 0.3
+                }
                 try:
                   req = urllib.request.Request(
                     f'{base_url}/chat/completions',
@@ -387,19 +396,25 @@ jobs:
                   )
                   with urllib.request.urlopen(req, timeout=60) as resp:
                     data = json.loads(resp.read())
-                  return strip_think_tags(data['choices'][0]['message']['content'])
+                  result = strip_think_tags(data['choices'][0]['message']['content'])
+                  print(f"✓ AI request succeeded with model config #{idx} ({model})")
+                  return result
                 except Exception as e:
                   last_exc = e
-                  print(f"⚠️ AI request attempt {attempt}/{max_retries} failed: {e}")
-                  if attempt < max_retries:
-                    time.sleep(3 * attempt)
-              raise last_exc
+                  print(f"⚠️ AI model config #{idx} ({model}) failed: {e}, trying next...")
+              raise last_exc if last_exc else RuntimeError("No valid model config available")
 
           try:
             version  = os.environ.get('RELEASE_VERSION', '')
-            api_key  = os.environ.get('AI_API_KEY', '')
-            base_url = os.environ.get('AI_BASE_URL', '').rstrip('/')
-            model    = os.environ.get('AI_MODEL', 'gpt-4o-mini')
+
+            # 构建最多 3 组模型配置，跳过未配置的
+            def _cfg(suffix):
+              url = os.environ.get(f'AI_BASE_URL{suffix}', '').rstrip('/')
+              key = os.environ.get(f'AI_API_KEY{suffix}', '')
+              mdl = os.environ.get(f'AI_MODEL{suffix}', '')
+              return (url, key, mdl)
+
+            model_configs = [c for c in [_cfg(''), _cfg('2'), _cfg('3')] if c[0] and c[1]]
 
             try:
               commits = open('/tmp/commits.txt').read().strip()
@@ -410,14 +425,16 @@ jobs:
             if not commits:
               commits = "(no commit records)"
 
-            if not base_url:
-              print("⚠️ AI_BASE_URL is not set, skipping AI generation")
+            if not model_configs:
+              print("⚠️ No AI model config is set, skipping AI generation")
               fallback = f"## {version}\n\n### Changes\n\n{commits}"
               with open('/tmp/changelog_en.md', 'w', encoding='utf-8') as f:
                 f.write(fallback)
               with open('/tmp/changelog_zh.md', 'w', encoding='utf-8') as f:
                 f.write(fallback)
               exit(0)
+
+            print(f"✓ {len(model_configs)} model config(s) available: {[c[2] for c in model_configs]}")
 
             # --- Generate English changelog ---
             prompt_en = (
@@ -454,10 +471,10 @@ jobs:
             )
 
             try:
-              changelog_en = call_ai(base_url, api_key, model, prompt_en)
+              changelog_en = call_ai(model_configs, prompt_en)
               print("✓ English changelog generated successfully")
             except Exception as e:
-              print(f"⚠️ English changelog AI generation failed: {e}")
+              print(f"⚠️ English changelog AI generation failed on all models: {e}")
               changelog_en = f"## {version}\n\n### Changes\n\n{commits}"
 
             with open('/tmp/changelog_en.md', 'w', encoding='utf-8') as f:
@@ -501,10 +518,10 @@ jobs:
             )
 
             try:
-              changelog_zh = call_ai(base_url, api_key, model, prompt_zh)
+              changelog_zh = call_ai(model_configs, prompt_zh)
               print("✓ Chinese changelog generated successfully")
             except Exception as e:
-              print(f"⚠️ Chinese changelog AI generation failed: {e}")
+              print(f"⚠️ Chinese changelog AI generation failed on all models: {e}")
               changelog_zh = f"## {version}\n\n### 更新内容\n\n{commits}"
 
             with open('/tmp/changelog_zh.md', 'w', encoding='utf-8') as f:
