@@ -32,7 +32,7 @@
         "LIB_MANAGER": "مدير المكتبة",
         "AI_ASSISTANT": "مساعد الذكاء الاصطناعي",
         "PROJECT_HUB": "ساحة المشاريع",
-        "NEW_INSTANCE": "نسخة جديدة"
+        "NEW_INSTANCE": "نافذة جديدة"
     },
     "ESP32": {
         "UPLOAD_SPEED": "سرعة الرفع",
@@ -132,7 +132,8 @@
             "REPOSITORY": "إعدادات المستودع",
             "DEPENDENCIES": "التبعيات العامة",
             "MCP": "MCP",
-            "DEVMODE": "وضع المطور"
+            "DEVMODE": "وضع المطور",
+            "CACHE": "إدارة ذاكرة التخزين المؤقتة"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "مجلد المشروع",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "قائمة اللوحات",
             "LIBRARY_LIST": "قائمة المكتبات",
             "INSTALL": "تثبيت",
-            "UNINSTALL": "إلغاء التثبيت"
+            "UNINSTALL": "إلغاء التثبيت",
+            "CLEAR_CACHE": "مسح ذاكرة التخزين المؤقتة",
+            "CACHE_SIZE": "حجم ذاكرة التخزين المؤقتة",
+            "CACHE_LOADING": "جارٍ التحميل...",
+            "CACHE_ALL": "مسح الكل",
+            "CACHE_ONE_MONTH": "مسح ما مضى عليه شهر",
+            "CACHE_THREE_MONTHS": "مسح ما مضى عليه 3 أشهر",
+            "CACHE_CLEARING": "جارٍ المسح...",
+            "CACHE_CLEARED": "تم مسح ذاكرة التخزين المؤقتة",
+            "CACHE_CLEAR_FAILED": "فشل المسح",
+            "CACHE_CONFIRM_TITLE": "تأكيد المسح",
+            "CACHE_CONFIRM_DESC": "هل أنت متأكد من مسح جميع ذاكرات التخزين المؤقتة للتجميع؟ لا يمكن التراجع عن هذا الإجراء.",
+            "CACHE_CONFIRM_OK": "تأكيد"
         },
         "BUTTONS": {
             "CANCEL": "إلغاء",

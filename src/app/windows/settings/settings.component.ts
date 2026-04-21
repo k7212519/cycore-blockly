@@ -1,4 +1,5 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -15,7 +16,9 @@ import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { AuthService } from '../../services/auth.service';
 import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzMessageService } from 'ng-zorro-antd/message';
 import { ThemeService, ThemeMode } from '../../services/theme.service';
+import { CmdService } from '../../services/cmd.service';
 
 @Component({
   selector: 'app-settings',
@@ -34,7 +37,7 @@ import { ThemeService, ThemeMode } from '../../services/theme.service';
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
 })
-export class SettingsComponent {
+export class SettingsComponent implements OnDestroy {
   @ViewChild('scrollContainer', { static: false }) scrollContainer: ElementRef;
 
   activeSection = 'SETTINGS.SECTIONS.BASIC'; // 当前活动的部分
@@ -75,10 +78,21 @@ export class SettingsComponent {
     //   icon: 'fa-light fa-webhook'
     // },
     {
+      name: 'SETTINGS.SECTIONS.CACHE',
+      icon: 'fa-light fa-broom'
+    },
+    {
       name: 'SETTINGS.SECTIONS.DEVMODE',
       icon: 'fa-light fa-gear-code'
     },
   ];
+
+  // 缓存管理
+  cacheStats = { totalFiles: 0, totalSizeFormatted: '0 B' };
+  cacheSizeLoading = false;
+  cacheClearing: 'all' | '30' | '90' | null = null;
+  private _clearCacheSubscription: Subscription | null = null;
+  private _clearCacheLoadingRef: string | null = null;
 
   // 用于跟踪安装/卸载状态
   boardOperations = {};
@@ -217,8 +231,18 @@ export class SettingsComponent {
     private authService: AuthService,
     private modal: NzModalService,
     private translateService: TranslateService,
-    private themeService: ThemeService
+    private themeService: ThemeService,
+    private message: NzMessageService,
+    private cmdService: CmdService
   ) {
+  }
+
+  ngOnDestroy() {
+    this._clearCacheSubscription?.unsubscribe();
+    if (this._clearCacheLoadingRef) {
+      this.message.remove(this._clearCacheLoadingRef);
+      this._clearCacheLoadingRef = null;
+    }
   }
 
   async ngOnInit() {
@@ -227,6 +251,7 @@ export class SettingsComponent {
 
   async ngAfterViewInit() {
     await this.updateBoardList();
+    this.loadCacheStats();
   }
 
   async updateBoardList() {
@@ -330,6 +355,169 @@ export class SettingsComponent {
 
   onDevModeChange() {
     // this.configData.devmode = this.configData.devmode;
+  }
+
+  async loadCacheStats() {
+    const buildPath = window['path'].getAilyBuilderBuildPath();
+    if (!buildPath || !window['fs'].existsSync(buildPath)) {
+      this.cacheStats = { totalFiles: 0, totalSizeFormatted: '0 B' };
+      this.cacheSizeLoading = false;
+      return;
+    }
+    this.cacheSizeLoading = true;
+    try {
+      let totalSize = 0;
+      let totalFiles = 0;
+      const entries = window['fs'].readDirSync(buildPath);
+      for (const entry of entries) {
+        if (entry._isDirectory) {
+          const dirPath = window['path'].join(buildPath, entry.name);
+          const { size, count } = this.calcDirSize(dirPath);
+          totalSize += size;
+          totalFiles += count;
+        }
+      }
+      this.cacheStats = { totalFiles, totalSizeFormatted: this.formatFileSize(totalSize) };
+    } catch (e) {
+      console.error('Failed to load cache stats', e);
+    } finally {
+      this.cacheSizeLoading = false;
+    }
+  }
+
+  private calcDirSize(dirPath: string): { size: number; count: number } {
+    let size = 0;
+    let count = 0;
+    try {
+      const entries = window['fs'].readDirSync(dirPath);
+      for (const entry of entries) {
+        const fullPath = window['path'].join(dirPath, entry.name);
+        if (entry._isDirectory) {
+          const sub = this.calcDirSize(fullPath);
+          size += sub.size;
+          count += sub.count;
+        } else {
+          try {
+            const stat = window['fs'].statSync(fullPath);
+            size += stat.size;
+            count++;
+          } catch { }
+        }
+      }
+    } catch { }
+    return { size, count };
+  }
+
+  private formatFileSize(bytes: number): string {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+    return `${value.toFixed(1)} ${units[unitIndex]}`;
+  }
+
+  clearCache(option: 'all' | '30' | '90') {
+    if (option === 'all') {
+      this.modal.confirm({
+        nzTitle: this.translateService.instant('SETTINGS.FIELDS.CACHE_CONFIRM_TITLE'),
+        nzContent: this.translateService.instant('SETTINGS.FIELDS.CACHE_CONFIRM_DESC'),
+        nzOkText: this.translateService.instant('SETTINGS.FIELDS.CACHE_CONFIRM_OK'),
+        nzCancelText: this.translateService.instant('SETTINGS.BUTTONS.CANCEL'),
+        nzBodyStyle: { background: 'var(--aily-bg-primary)' },
+        nzOnOk: () => this.doClearCache(option)
+      });
+    } else {
+      this.doClearCache(option);
+    }
+  }
+
+  private doClearCache(option: 'all' | '30' | '90') {
+    const buildPath = window['path'].getAilyBuilderBuildPath();
+    const appDataPath = window['path'].getAppDataPath();
+    const configFilePath = window['path'].join(appDataPath, 'clear-cache-config.json');
+    const scriptPath = window['path'].join(window['path'].getAilyChildPath(), 'scripts', 'clear-cache.js');
+
+    // 先获取当前项目缓存目录，再写配置并执行
+    const run = (excludeDirs: string[]) => {
+      try {
+        window['fs'].writeFileSync(configFilePath, JSON.stringify({ buildPath, option, excludeDirs }, null, 2));
+      } catch (e) {
+        console.error('Failed to write clear-cache config', e);
+        this.message.error(this.translateService.instant('SETTINGS.FIELDS.CACHE_CLEAR_FAILED'));
+        return;
+      }
+
+      this.cacheClearing = option;
+      const loadingRef = this.message.loading(this.translateService.instant('SETTINGS.FIELDS.CACHE_CLEARING'), { nzDuration: 0 });
+      this._clearCacheLoadingRef = loadingRef.messageId;
+
+      const command = `node "${scriptPath}" "${configFilePath}"`;
+      this.sendLog({ detail: `${command}`, state: 'doing' });
+      const startTime = Date.now();
+
+      this._clearCacheSubscription?.unsubscribe();
+      this._clearCacheSubscription = this.cmdService.spawn('node', [scriptPath, configFilePath], {}, true).subscribe({
+        next: (output) => {
+          if (output.type === 'stdout' && output.data) {
+            const lines = output.data.split(/\r?\n/).filter(l => l.trim());
+            for (const line of lines) {
+              this.sendLog({ detail: line, state: 'doing' });
+            }
+          } else if (output.type === 'stderr' && output.data) {
+            const lines = output.data.split(/\r?\n/).filter(l => l.trim());
+            for (const line of lines) {
+              this.sendLog({ detail: line, state: 'error' });
+            }
+          } else if (output.type === 'close') {
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+            this.message.remove(loadingRef.messageId);
+            this._clearCacheLoadingRef = null;
+            if (output.code === 0) {
+              this.sendLog({ detail: `Cache cleared (${duration}s)`, state: 'done' });
+              this.message.success(this.translateService.instant('SETTINGS.FIELDS.CACHE_CLEARED'));
+            } else {
+              this.sendLog({ detail: `Cache clear failed (${duration}s) ${output.stderr}`, state: 'error' });
+              this.message.error(this.translateService.instant('SETTINGS.FIELDS.CACHE_CLEAR_FAILED'));
+            }
+            this.cacheClearing = null;
+            this.loadCacheStats();
+          }
+        },
+        error: (e) => {
+          console.error('Failed to clear cache', e);
+          this.message.remove(loadingRef.messageId);
+          this._clearCacheLoadingRef = null;
+          this.sendLog({ title: this.translateService.instant('SETTINGS.FIELDS.CACHE_CLEAR_FAILED'), detail: String(e), state: 'error' });
+          this.message.error(this.translateService.instant('SETTINGS.FIELDS.CACHE_CLEAR_FAILED'));
+          this.cacheClearing = null;
+          this.loadCacheStats();
+        }
+      });
+    };
+
+    // 向主窗口查询当前项目的缓存目录名，获取后执行清理
+    if (window['iWindow'] && window['iWindow'].send) {
+      window['iWindow'].send({ to: 'main', data: { action: 'get-build-path' } })
+        .then((resp: any) => {
+          const excludeDirs: string[] = [];
+          if (resp?.buildPath) {
+            excludeDirs.push(window['path'].basename(resp.buildPath));
+          }
+          run(excludeDirs);
+        })
+        .catch(() => run([]));
+    } else {
+      run([]);
+    }
+  }
+
+  private sendLog(log: { title?: string; detail?: string; state?: string }) {
+    if (window['iWindow'] && window['iWindow'].send) {
+      window['iWindow'].send({ to: 'main', data: { action: 'log', log } });
+    }
   }
 
   // 搜索框变化处理

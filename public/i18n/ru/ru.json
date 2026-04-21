@@ -32,7 +32,7 @@
         "LIB_MANAGER": "Менеджер библиотек",
         "AI_ASSISTANT": "ИИ-ассистент",
         "PROJECT_HUB": "Центр проектов",
-        "NEW_INSTANCE": "Новый экземпляр"
+        "NEW_INSTANCE": "Новое окно"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Скорость загрузки",
@@ -132,7 +132,8 @@
             "REPOSITORY": "Настройки репозитория",
             "DEPENDENCIES": "Глобальные зависимости",
             "MCP": "MCP",
-            "DEVMODE": "Режим разработчика"
+            "DEVMODE": "Режим разработчика",
+            "CACHE": "Управление кэшем"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Папка проекта",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "Список плат",
             "LIBRARY_LIST": "Список библиотек",
             "INSTALL": "Установить",
-            "UNINSTALL": "Удалить"
+            "UNINSTALL": "Удалить",
+            "CLEAR_CACHE": "Очистить кэш",
+            "CACHE_SIZE": "Размер кэша",
+            "CACHE_LOADING": "Загрузка...",
+            "CACHE_ALL": "Очистить всё",
+            "CACHE_ONE_MONTH": "Очистить старше 1 месяца",
+            "CACHE_THREE_MONTHS": "Очистить старше 3 месяцев",
+            "CACHE_CLEARING": "Очищение...",
+            "CACHE_CLEARED": "Кэш очищен",
+            "CACHE_CLEAR_FAILED": "Ошибка очистки",
+            "CACHE_CONFIRM_TITLE": "Подтвердить очистку",
+            "CACHE_CONFIRM_DESC": "Вы уверены, что хотите очистить весь кэш компиляции? Это действие нельзя отменить.",
+            "CACHE_CONFIRM_OK": "Подтвердить"
         },
         "BUTTONS": {
             "CANCEL": "Отмена",

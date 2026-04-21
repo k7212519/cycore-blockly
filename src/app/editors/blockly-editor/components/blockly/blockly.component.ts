@@ -88,6 +88,44 @@ import {
 import type { ThemeMode } from '../../../../services/theme.service';
 import { ThemeService } from '../../../../services/theme.service';
 
+/** Flyout 图钉右侧额外留白：Blockly 垂直条在 injectionDiv；vScroll 不可见时 DOM 仍可能有宽度，需一并判断 */
+function flyoutPinRightExtraX(
+  flyWs: Blockly.WorkspaceSvg,
+  svg: SVGSVGElement,
+  inject: HTMLElement | null,
+  gapPx: number,
+): number {
+  const vScroll = (flyWs as unknown as { scrollbar?: { vScroll?: { isVisible?: () => boolean } } })
+    .scrollbar?.vScroll;
+  if (vScroll?.isVisible && !vScroll.isVisible()) return gapPx;
+
+  const bar =
+    inject?.querySelector<SVGGElement>('.blocklyFlyoutScrollbar .blocklyScrollbarVertical') ??
+    inject?.querySelector<SVGGElement>('.blocklyScrollbarVertical') ??
+    svg.querySelector<SVGGElement>('.blocklyScrollbarVertical');
+  if (!bar) return gapPx;
+
+  const cs = getComputedStyle(bar);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) <= 0) {
+    return gapPx;
+  }
+
+  const r = bar.getBoundingClientRect();
+  let bw = 0;
+  let bh = 0;
+  try {
+    const b = bar.getBBox();
+    bw = b.width;
+    bh = b.height;
+  } catch {
+    /* ignore */
+  }
+  const h = Math.max(r.height, bh);
+  const w = Math.max(r.width, bw);
+  if (!Number.isFinite(h + w) || h <= 0.5 || w <= 0.5) return gapPx;
+  return gapPx + w;
+}
+
 class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
   constructor(workspace: any) {
     super(workspace);
@@ -636,10 +674,13 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
     flyout.__ailyFlyoutPinAttached = true;
 
-    /** 悬浮角标尺寸（仅包住按钮）；水平边距在 PIN_INSET 上额外 +5px，垂直仅用 PIN_INSET */
+    /** 悬浮角标尺寸；水平：PIN_INSET + 滚动条占位 + gap，垂直：PIN_INSET */
     const PIN_BOX = 20;
     const PIN_INSET = 6;
-    const PIN_INSET_EXTRA_X = 5;
+    const PIN_SCROLL_GAP = 0;
+
+    const flyInjectDiv =
+      ((flyWs as Blockly.WorkspaceSvg).getInjectionDiv?.() as HTMLElement | undefined) ?? null;
 
     const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     fo.classList.add('aily-flyout-pin-fo');
@@ -650,10 +691,9 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
     const positionPinFo = () => {
       const sw = Math.max(1, svg.clientWidth || 0);
-      const xEdge = PIN_INSET + PIN_INSET_EXTRA_X;
-      const x = flyout.RTL
-        ? xEdge
-        : Math.max(xEdge, sw - PIN_BOX - xEdge);
+      const extraX = flyoutPinRightExtraX(flyWs as Blockly.WorkspaceSvg, svg, flyInjectDiv, PIN_SCROLL_GAP);
+      const xEdge = PIN_INSET + extraX;
+      const x = flyout.RTL ? xEdge : Math.max(xEdge, sw - PIN_BOX - xEdge);
       fo.setAttribute('x', String(x));
       fo.setAttribute('y', String(PIN_INSET));
       fo.setAttribute('width', String(PIN_BOX));
@@ -693,6 +733,9 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
     this.flyoutPinResizeObserver = new ResizeObserver(() => positionPinFo());
     this.flyoutPinResizeObserver.observe(svg);
+    if (flyInjectDiv) {
+      this.flyoutPinResizeObserver.observe(flyInjectDiv);
+    }
 
     const onPinClick = (e: MouseEvent) => {
       e.stopPropagation();

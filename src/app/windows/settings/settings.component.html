@@ -170,6 +170,24 @@
               </div>
             </div>
           </div> -->
+          <!-- 缓存管理 -->
+          <div id="SETTINGS.SECTIONS.CACHE" class="section">
+            <h2 class="section-title">{{ 'SETTINGS.SECTIONS.CACHE' | translate }}</h2>
+            <div class="right-inner">
+              <div class="item">
+                <div>{{ 'SETTINGS.FIELDS.CACHE_SIZE' | translate }}:</div>
+                <span>{{ cacheSizeLoading ? ('SETTINGS.FIELDS.CACHE_LOADING' | translate) : (cacheStats.totalSizeFormatted + ' (' + cacheStats.totalFiles + ' files)') }}</span>
+              </div>
+              <div class="item">
+                <div>{{ 'SETTINGS.FIELDS.CLEAR_CACHE' | translate }}:</div>
+                <div class="region-buttons">
+                  <button nz-button nzSize="small" [disabled]="cacheClearing" [nzLoading]="cacheClearing === 'all'" (click)="clearCache('all')">{{ 'SETTINGS.FIELDS.CACHE_ALL' | translate }}</button>
+                  <button nz-button nzSize="small" [disabled]="cacheClearing" [nzLoading]="cacheClearing === '30'" (click)="clearCache('30')">{{ 'SETTINGS.FIELDS.CACHE_ONE_MONTH' | translate }}</button>
+                  <button nz-button nzSize="small" [disabled]="cacheClearing" [nzLoading]="cacheClearing === '90'" (click)="clearCache('90')">{{ 'SETTINGS.FIELDS.CACHE_THREE_MONTHS' | translate }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
           <!-- 开发者设置 -->
           <div id="SETTINGS.SECTIONS.DEVMODE" class="section">
             <h2 class="section-title">{{ 'SETTINGS.SECTIONS.DEVMODE' | translate }}</h2>

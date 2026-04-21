@@ -32,7 +32,7 @@
         "LIB_MANAGER": "라이브러리 관리자",
         "AI_ASSISTANT": "AI 어시스턴트",
         "PROJECT_HUB": "프로젝트 허브",
-        "NEW_INSTANCE": "새 인스턴스"
+        "NEW_INSTANCE": "새 창"
     },
     "ESP32": {
         "UPLOAD_SPEED": "업로드 속도",
@@ -132,7 +132,8 @@
             "REPOSITORY": "저장소 설정",
             "DEPENDENCIES": "글로벌 종속성",
             "MCP": "MCP",
-            "DEVMODE": "개발자 모드"
+            "DEVMODE": "개발자 모드",
+            "CACHE": "캐시 관리"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "프로젝트 폴더",

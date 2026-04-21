@@ -387,24 +387,14 @@ async function main() {
         }
 
         // Step 2: 等待新端口
-        if (wait_for_upload) {
+        // 注意：只要做了 1200bps touch，就必须轮询等待新的 bootloader 端口出现
+        // （与 Arduino IDE 行为一致；SAMD / UNO R4 等板子枚举 bootloader 通常需要 1-3 秒）
+        if (wait_for_upload || use_1200bps_touch) {
             const newPort = await waitForNewPort(portsBefore, 10000, 200);
             if (newPort) {
                 finalSerialPort = newPort;
             } else {
                 logger.log('未检测到新端口，继续使用原端口:', finalSerialPort);
-            }
-        } else if (use_1200bps_touch) {
-            await delay(200);
-            const portsAfter = await getPortsList();
-            const newBootloaderPorts = portsAfter.filter(
-                p => !portsBefore.some(ep => ep.path === p.path)
-            );
-            if (newBootloaderPorts.length > 0) {
-                finalSerialPort = newBootloaderPorts[0].path;
-                logger.log('1200bps touch 后检测到新 bootloader 端口:', finalSerialPort);
-            } else {
-                logger.log('1200bps touch 后未检测到新端口，继续使用原端口:', finalSerialPort);
             }
         }
 

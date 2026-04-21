@@ -274,8 +274,11 @@ export class _UploaderService {
         }
 
         const { flags, cleanParam } = this.extractFlags(uploadParam);
-        const use_1200bps_touch = isDebuggerUpload ? false : flags['use_1200bps_touch'];
-        const wait_for_upload = isDebuggerUpload ? false : flags['wait_for_upload'];
+        const use_1200bps_touch = isDebuggerUpload ? false : !!flags['use_1200bps_touch'];
+        // 兼容两种写法(--wait_for_upload_port和--wait_for_upload)，优先使用标准名
+        const wait_for_upload = isDebuggerUpload
+          ? false
+          : !!(flags['wait_for_upload_port'] || flags['wait_for_upload']);
 
         console.log('提取的上传标志:', flags);
         console.log('清理后的上传参数:', cleanParam);
@@ -748,22 +751,26 @@ export class _UploaderService {
     if (typeof uploadParam === 'string') {
       cleanParam = uploadParam;
       
-      // 只处理方括号包裹的预处理标志 [--flag] 或 [-flag] 或 [--flag=value]
-      const bracketFlagPattern = /\[(--?\w+(?:=\S+)?)\]/g;
+      // 处理方括号包裹的预处理标志，支持逗号分隔的多个标志
+      // 例如: [--use_1200bps_touch] 或 [--use_1200bps_touch,--wait_for_upload_port] 或 [--flag=value]
+      const bracketGroupPattern = /\[((?:--?\w+(?:=\S+)?)(?:,--?\w+(?:=\S+)?)*)\]/g;
       let match;
       
-      while ((match = bracketFlagPattern.exec(uploadParam)) !== null) {
-        const fullFlag = match[1]; // 例如: --use_1200bps_touch
-        const flagMatch = fullFlag.match(/--?(\w+)(?:=(\S+))?/);
-        if (flagMatch) {
-          const flagName = flagMatch[1];
-          const flagValue = flagMatch[2];
-          flags[flagName] = flagValue !== undefined ? flagValue : true;
+      while ((match = bracketGroupPattern.exec(uploadParam)) !== null) {
+        const groupContent = match[1]; // 例如: --use_1200bps_touch,--wait_for_upload_port
+        const flagItems = groupContent.split(',');
+        for (const item of flagItems) {
+          const flagMatch = item.trim().match(/--?(\w+)(?:=(\S+))?/);
+          if (flagMatch) {
+            const flagName = flagMatch[1];
+            const flagValue = flagMatch[2];
+            flags[flagName] = flagValue !== undefined ? flagValue : true;
+          }
         }
       }
       
-      // 只移除方括号包裹的标志，保留其他所有参数（如 -a -U -e 等）
-      cleanParam = cleanParam.replace(/\[--?\w+(?:=\S+)?\]\s*/g, '');
+      // 移除方括号包裹的标志组（含逗号分隔），保留其他所有参数
+      cleanParam = cleanParam.replace(/\[(?:--?\w+(?:=\S+)?)(?:,--?\w+(?:=\S+)?)*\]\s*/g, '');
       
       // 清理多余的空格
       cleanParam = cleanParam.trim().replace(/\s+/g, ' ');

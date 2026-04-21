@@ -68,7 +68,7 @@
         "LIB_MANAGER": "库管理",
         "AI_ASSISTANT": "AI助手",
         "PROJECT_HUB": "项目广场",
-        "NEW_INSTANCE": "新建实例"
+        "NEW_INSTANCE": "新建窗口"
     },
     "ESP32": {
         "UPLOAD_SPEED": "烧录速度",
@@ -179,7 +179,8 @@
             "REPOSITORY": "服务区域",
             "DEPENDENCIES": "全局依赖",
             "MCP": "MCP",
-            "DEVMODE": "开发者模式"
+            "DEVMODE": "开发者模式",
+            "CACHE": "缓存管理"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "项目文件夹",
@@ -199,7 +200,19 @@
             "BOARD_LIST": "开发板列表",
             "LIBRARY_LIST": "库列表",
             "INSTALL": "安装",
-            "UNINSTALL": "卸载"
+            "UNINSTALL": "卸载",
+            "CLEAR_CACHE": "清除缓存",
+            "CACHE_SIZE": "缓存大小",
+            "CACHE_LOADING": "获取中...",
+            "CACHE_ALL": "全部清除",
+            "CACHE_ONE_MONTH": "清除一个月前",
+            "CACHE_THREE_MONTHS": "清除三个月前",
+            "CACHE_CLEARING": "正在清除...",
+            "CACHE_CLEARED": "缓存已清除",
+            "CACHE_CLEAR_FAILED": "清除失败",
+            "CACHE_CONFIRM_TITLE": "确认清除",
+            "CACHE_CONFIRM_DESC": "确定要清除所有编译缓存吗？此操作不可撤销。",
+            "CACHE_CONFIRM_OK": "确认"
         },
         "BUTTONS": {
             "CANCEL": "取消",

@@ -32,7 +32,7 @@
         "LIB_MANAGER": "ライブラリマネージャー",
         "AI_ASSISTANT": "AIアシスタント",
         "PROJECT_HUB": "プロジェクトハブ",
-        "NEW_INSTANCE": "新しいインスタンス"
+        "NEW_INSTANCE": "新しいウィンドウ"
     },
     "ESP32": {
         "UPLOAD_SPEED": "書き込み速度",
@@ -132,7 +132,8 @@
             "REPOSITORY": "リポジトリ設定",
             "DEPENDENCIES": "グローバル依存関係",
             "MCP": "MCP",
-            "DEVMODE": "開発者モード"
+            "DEVMODE": "開発者モード",
+            "CACHE": "キャッシュ管理"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "プロジェクトフォルダ",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "ボードリスト",
             "LIBRARY_LIST": "ライブラリリスト",
             "INSTALL": "インストール",
-            "UNINSTALL": "アンインストール"
+            "UNINSTALL": "アンインストール",
+            "CLEAR_CACHE": "キャッシュをクリア",
+            "CACHE_SIZE": "キャッシュサイズ",
+            "CACHE_LOADING": "読み込み中...",
+            "CACHE_ALL": "すべてクリア",
+            "CACHE_ONE_MONTH": "1ヶ月前をクリア",
+            "CACHE_THREE_MONTHS": "3ヶ月前をクリア",
+            "CACHE_CLEARING": "クリア中...",
+            "CACHE_CLEARED": "キャッシュをクリアしました",
+            "CACHE_CLEAR_FAILED": "クリアに失敗しました",
+            "CACHE_CONFIRM_TITLE": "クリアの確認",
+            "CACHE_CONFIRM_DESC": "すべてのコンパイルキャッシュをクリアしますか？この操作は元に戻せません。",
+            "CACHE_CONFIRM_OK": "確認"
         },
         "BUTTONS": {
             "CANCEL": "キャンセル",

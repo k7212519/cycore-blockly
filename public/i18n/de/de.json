@@ -32,7 +32,7 @@
         "LIB_MANAGER": "Bibliotheksverwaltung",
         "AI_ASSISTANT": "KI-Assistent",
         "PROJECT_HUB": "Projekt-Hub",
-        "NEW_INSTANCE": "Neue Instanz"
+        "NEW_INSTANCE": "Neues Fenster"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Upload-Geschwindigkeit",
@@ -132,7 +132,8 @@
             "REPOSITORY": "Repository-Einstellungen",
             "DEPENDENCIES": "Globale Abhängigkeiten",
             "MCP": "MCP",
-            "DEVMODE": "Entwicklermodus"
+            "DEVMODE": "Entwicklermodus",
+            "CACHE": "Cache-Verwaltung"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Projektordner",
@@ -150,7 +151,19 @@
             "BOARD_LIST": "Board-Liste",
             "LIBRARY_LIST": "Bibliotheksliste",
             "INSTALL": "Installieren",
-            "UNINSTALL": "Deinstallieren"
+            "UNINSTALL": "Deinstallieren",
+            "CLEAR_CACHE": "Cache leeren",
+            "CACHE_SIZE": "Cache-Größe",
+            "CACHE_LOADING": "Laden...",
+            "CACHE_ALL": "Alles löschen",
+            "CACHE_ONE_MONTH": "1 Monat alt löschen",
+            "CACHE_THREE_MONTHS": "3 Monate alt löschen",
+            "CACHE_CLEARING": "Wird gelöscht...",
+            "CACHE_CLEARED": "Cache geleert",
+            "CACHE_CLEAR_FAILED": "Löschen fehlgeschlagen",
+            "CACHE_CONFIRM_TITLE": "Löschen bestätigen",
+            "CACHE_CONFIRM_DESC": "Möchten Sie wirklich alle Kompilierungscaches löschen? Dies kann nicht rückgängig gemacht werden.",
+            "CACHE_CONFIRM_OK": "Bestätigen"
         },
         "BUTTONS": {
             "CANCEL": "Abbrechen",

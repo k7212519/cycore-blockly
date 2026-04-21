@@ -91,6 +91,7 @@ export const API = {
   get wechatLoginBindQrcode() { return `${getServerUrl()}/api/v1/oauth/wechat/login-bind-qrcode`; },
   get wechatLoginBindCheck() { return `${getServerUrl()}/api/v1/oauth/wechat/login-bind-check`; },
   get wechatCompleteEmailBind() { return `${getServerUrl()}/api/v1/oauth/wechat/complete-email-bind-login`; },
+  get wechatConfirmMerge() { return `${getServerUrl()}/api/v1/oauth/wechat/confirm-merge`; },
   // sso
   get ssoGenerate() { return `${getServerUrl()}/api/v1/auth/sso/generate`; },
   // ai

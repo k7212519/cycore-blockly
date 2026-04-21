@@ -74,16 +74,16 @@ AI可以根据用户程序和需求生成模组连线图，方便用户参考。
 
 <table>
   <tr>
-    <td><a target="_blank" href="https://www.seeedstudio.com/"><img src=".\public\sponsor\seeedstudio\logo_l.webp" alt="seeedstudio" width="200" /></a></td>
-    <td><a target="_blank" href="https://www.seekfree.cn/"><img src=".\public\sponsor\seekfree\logo_l.webp" alt="seekfree" width="200" /></a></td>
-    <td><a target="_blank" href="https://www.diandeng.tech/"><img src=".\public\sponsor\diandeng\logo_l.webp" alt="diandeng" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.seeedstudio.com/"><img src=".\public\sponsor\seeedstudio\logo-light.webp" alt="seeedstudio" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.seekfree.cn/"><img src=".\public\sponsor\seekfree\logo-light.webp" alt="seekfree" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.diandeng.tech/"><img src=".\public\sponsor\diandeng\logo-light.webp" alt="diandeng" width="200" /></a></td>
     <td><a target="_blank" href="https://www.openjumper.com/"><img src=".\public\sponsor\openjumper\logo.webp" alt="openjumper" width="200" /></a></td>
   </tr>
   <tr>
     <td><a target="_blank" href="https://www.pdmicro.cn/"><img src=".\public\sponsor\pengde\logo.webp" alt="pengde" width="200" /></a></td>
-    <td><a target="_blank" href="https://www.titlab.cn/"><img src=".\public\sponsor\titlab\logo_l.webp" alt="titlab" width="200" /></a></td>
-    <td><a target="_blank" href="https://www.emakefun.com"><img src=".\public\sponsor\emakefun\logo_l.webp" alt="emakefun" width="200" /></a></td>
-    <td><a target="_blank" href="http://www.keyes-robot.com/"><img src=".\public\sponsor\keyes\logo_l.webp" alt="keyes" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.titlab.cn/"><img src=".\public\sponsor\titlab\logo-light.webp" alt="titlab" width="200" /></a></td>
+    <td><a target="_blank" href="https://www.emakefun.com"><img src=".\public\sponsor\emakefun\logo-light.webp" alt="emakefun" width="200" /></a></td>
+    <td><a target="_blank" href="http://www.keyes-robot.com/"><img src=".\public\sponsor\keyes\logo-light.webp" alt="keyes" width="200" /></a></td>
   </tr>
 </table>
 
