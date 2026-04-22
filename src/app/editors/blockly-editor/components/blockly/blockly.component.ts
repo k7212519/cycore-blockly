@@ -87,6 +87,8 @@ import {
 } from './theme.config';
 import type { ThemeMode } from '../../../../services/theme.service';
 import { ThemeService } from '../../../../services/theme.service';
+import { PlatformService } from '../../../../services/platform.service';
+import { applyWindowsBlocklyScrollbarThickness } from '../../utils/apply-windows-blockly-scrollbar-thickness';
 
 /** Flyout 图钉右侧额外留白：Blockly 垂直条在 injectionDiv；vScroll 不可见时 DOM 仍可能有宽度，需一并判断 */
 function flyoutPinRightExtraX(
@@ -307,7 +309,8 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     private projectService: ProjectService,
     private electronService: ElectronService,
     private crossPlatformCmdService: CrossPlatformCmdService,
-    private themeService: ThemeService
+    private themeService: ThemeService,
+    private platformService: PlatformService
   ) {
     // Initialize GlobalServiceManager with BitmapUploadService
     const globalServiceManager = GlobalServiceManager.getInstance();
@@ -496,6 +499,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       this.options.theme = currentTheme === 'light' ? LightTheme : DarkTheme;
       this.options.grid.colour = blocklyGridColourForUiTheme(currentTheme);
 
+      applyWindowsBlocklyScrollbarThickness(this.platformService.isWindows());
       this.workspace = Blockly.inject('blocklyDiv', this.options);
 
       // 根据配置决定 flyout 拖出 block 后是否自动关闭（配置重载时会通过 configReloaded$ 实时应用）
