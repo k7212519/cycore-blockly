@@ -718,7 +718,8 @@ function pinmapSourceVersionsEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
- * 优先从 GET /api/v1/pinmap/components 拉取库绑定元件并写入本地 pinmaps/，失败或无可同步项时返回 0（不抛错，由调用方继续走本地逻辑）。
+ * 优先从 GET /api/v1/pinmap/components 拉取库绑定元件与开发板 pinmap 并写入本地 pinmaps/；
+ * 开发板包若根目录有 pinmap.json 会同步覆盖，失败或无可同步项时返回 0（不抛错，由调用方继续走本地逻辑）。
  */
 async function trySyncPinmapComponentsFromApi(
   connectionGraphService: ConnectionGraphService,
@@ -735,24 +736,32 @@ async function trySyncPinmapComponentsFromApi(
     const ailyRoot = pathUtil.join(packagesBasePath, '@aily-project');
     if (!fs.existsSync(ailyRoot)) return 0;
 
-    let libDirs: string[] = [];
+    let pkgDirs: string[] = [];
     try {
-      libDirs = fs.readdirSync(ailyRoot).filter(name => {
+      pkgDirs = fs.readdirSync(ailyRoot).filter(name => {
         const full = pathUtil.join(ailyRoot, name);
-        return name.startsWith('lib-') && fs.isDirectory(full);
+        return (name.startsWith('lib-') || name.startsWith('board-')) && fs.isDirectory(full);
       });
     } catch {
       return 0;
     }
-    if (libDirs.length === 0) return 0;
+    if (pkgDirs.length === 0) return 0;
+
+    const allLib = pkgDirs.filter(d => d.startsWith('lib-'));
+    const allBoard = pkgDirs.filter(d => d.startsWith('board-'));
 
     const hinted = new Set<string>();
     for (const id of pinmapIdHints) {
       const { packageSlug } = connectionGraphService.parsePinmapId(id);
       if (packageSlug) hinted.add(packageSlug);
     }
+    // 有 pinmap 提示时仅按提示拉库；开发板只要 node_modules 里存在即始终参与云端版本检查
     const targetLibs =
-      hinted.size > 0 ? libDirs.filter(d => hinted.has(d)) : libDirs;
+      hinted.size > 0
+        ? Array.from(
+            new Set([...allLib.filter(d => hinted.has(d)), ...allBoard]),
+          )
+        : [...allLib, ...allBoard];
     if (targetLibs.length === 0) return 0;
 
     // AuthService 未实现同步 getAuthHeaders 时为空对象，必须用 getToken()（→ getToken2）带 Bearer
@@ -770,7 +779,7 @@ async function trySyncPinmapComponentsFromApi(
       return 0;
     }
 
-    const localLibSet = new Set(libDirs);
+    const localPackageSet = new Set(pkgDirs);
     let synced = 0;
     const MAX_PAGES = 40;
     const pageSize = 50;
@@ -814,7 +823,7 @@ async function trySyncPinmapComponentsFromApi(
           const pinmapId = buildPinmapIdFromApiItem(item);
           if (!pinmapId) continue;
           const { packageSlug } = connectionGraphService.parsePinmapId(pinmapId);
-          if (!localLibSet.has(packageSlug)) continue;
+          if (!localPackageSet.has(packageSlug)) continue;
 
           const config = await resolvePinmapConfigFromApiItem(item, apiBase, headers);
           if (!config) continue;
@@ -840,7 +849,16 @@ async function trySyncPinmapComponentsFromApi(
             packagesBasePath,
             cloudVer,
           );
-          if (save.success) synced++;
+          if (save.success) {
+            synced++;
+            if (save.resolvedPackagePath) {
+              connectionGraphService.overwriteBoardRootPinmapIfPresent(
+                packageSlug,
+                save.resolvedPackagePath,
+                config,
+              );
+            }
+          }
         }
 
         page++;

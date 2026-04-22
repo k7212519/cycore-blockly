@@ -1872,6 +1872,28 @@ export class ConnectionGraphService {
    * @param packagesBasePath 包基础路径
    * @param catalogVersion 可选，写入 pinmap_catalog 变体上的 version（云端同步时传云端 item.version）
    */
+  /**
+   * 若开发板包根目录已有 pinmap.json，getBoardPinSummary 会优先读该文件；云端已写入 pinmaps/ 后需同步覆盖根文件，否则引脚表仍为旧数据。
+   */
+  overwriteBoardRootPinmapIfPresent(
+    packageSlug: string,
+    resolvedPackagePath: string,
+    config: ComponentConfig,
+  ): void {
+    if (!packageSlug.startsWith('board-')) {
+      return;
+    }
+    try {
+      const rootPath = this.electronService.pathJoin(resolvedPackagePath, 'pinmap.json');
+      if (!this.electronService.exists(rootPath)) {
+        return;
+      }
+      this.electronService.writeFile(rootPath, JSON.stringify(config, null, 2));
+    } catch (e) {
+      console.warn('[overwriteBoardRootPinmapIfPresent] 写入根目录 pinmap.json 失败:', e);
+    }
+  }
+
   savePinmapConfig(
     pinmapId: string,
     config: ComponentConfig,
@@ -1880,6 +1902,8 @@ export class ConnectionGraphService {
   ): {
     success: boolean;
     filePath?: string;
+    /** 实际写入的 @aily-project 包目录（与 parsePinmapId 的 packageSlug 或前缀匹配结果一致） */
+    resolvedPackagePath?: string;
     error?: string;
   } {
     try {
@@ -1955,7 +1979,7 @@ export class ConnectionGraphService {
         console.warn('[savePinmapConfig] catalog 更新失败，但 pinmap 文件已保存');
       }
 
-      return { success: true, filePath };
+      return { success: true, filePath, resolvedPackagePath: packagePath };
     } catch (e: any) {
       console.error('保存 pinmap 配置失败:', e);
       return { success: false, error: e.message || String(e) };
