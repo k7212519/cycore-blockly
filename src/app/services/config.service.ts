@@ -11,6 +11,8 @@ import { calculateSimilarity, extractKeywords } from '../utils/fuzzy-search.util
 })
 export class ConfigService {
   private static readonly ERROR_MESSAGE_DEDUP_MS = 10000;
+  private static readonly DEFAULT_BUILD_FLAVOR = 'cn';
+  private static readonly DEFAULT_OFFICIAL_REGION = 'cn';
 
   data: AppConfig | any = {};
 
@@ -47,6 +49,56 @@ export class ConfigService {
     private electronService: ElectronService,
     private message: NzMessageService
   ) { }
+
+  private normalizeBuildFlavor(flavor?: string): string {
+    return flavor === 'global' ? 'global' : ConfigService.DEFAULT_BUILD_FLAVOR;
+  }
+
+  private resolveOfficialRegionKey(): string {
+    if (typeof this.data?.official_region === 'string' && this.data.official_region) {
+      return this.data.official_region;
+    }
+
+    return this.normalizeBuildFlavor(this.data?.build_flavor) === 'global'
+      ? 'eu'
+      : ConfigService.DEFAULT_OFFICIAL_REGION;
+  }
+
+  private isOfficialRegionKey(regionKey: string): boolean {
+    const regionConfig = this.data?.regions?.[regionKey];
+    if (!regionConfig) {
+      return false;
+    }
+
+    if (typeof regionConfig.official === 'boolean') {
+      return regionConfig.official;
+    }
+
+    return regionKey === 'cn' || regionKey === 'eu';
+  }
+
+  private isRegionSelectable(regionKey: string): boolean {
+    if (!this.data?.regions?.[regionKey]) {
+      return false;
+    }
+
+    if (!this.isOfficialRegionKey(regionKey)) {
+      return true;
+    }
+
+    return regionKey === this.resolveOfficialRegionKey();
+  }
+
+  private applyRegionRuntimeConfig(regionKey: string): void {
+    if (!regionKey || !this.data?.regions?.[regionKey]) {
+      return;
+    }
+
+    this.data.region = regionKey;
+    setRegistryUrl(this.data.regions[regionKey].npm_registry);
+    setServerUrl(this.data.regions[regionKey].api_server);
+    setToolWebUrl(this.data.regions[regionKey].tool_web);
+  }
 
   async init() {
     if (!this.electronService.isElectron) {
@@ -92,34 +144,38 @@ export class ConfigService {
 
     // 合并用户配置和默认配置
     this.data = { ...this.data, ...userConfData };
-    this.configReloaded$.next();
+    this.data.build_flavor = this.normalizeBuildFlavor(this.data.build_flavor);
+    this.data.official_region = this.resolveOfficialRegionKey();
 
-    // 使用Electron检测到的最优区域覆盖配置
+    // 使用主进程已确定的 region 与官方 region 覆盖配置
     if (this.electronService.isElectron) {
       try {
-        // 获取当前区域
-        const region = await this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION');
+        const [region, officialRegion, buildFlavor] = await Promise.all([
+          this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION'),
+          this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_OFFICIAL_REGION'),
+          this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_BUILD_FLAVOR')
+        ]);
+
+        this.data.build_flavor = this.normalizeBuildFlavor(buildFlavor || this.data.build_flavor);
+        this.data.official_region = officialRegion || this.resolveOfficialRegionKey();
+
         if (region && this.data.regions && this.data.regions[region]) {
-          this.data.region = region;
-          // 更新 API 配置模块的缓存
-          setRegistryUrl(this.data.regions[region].npm_registry);
-          setServerUrl(this.data.regions[region].api_server);
+          this.applyRegionRuntimeConfig(region);
         } else {
-          // 使用默认区域
-          const defaultRegion = this.data.region || 'cn';
-          if (this.data.regions && this.data.regions[defaultRegion]) {
-            setRegistryUrl(this.data.regions[defaultRegion].npm_registry);
-            setServerUrl(this.data.regions[defaultRegion].api_server);
-          }
+          this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
         }
       } catch (e) {
         console.error('Failed to get env vars', e);
+        this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
       }
+    } else {
+      this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
     }
 
     // 添加当前系统类型到data中
     this.data["platform"] = window['platform'].type;
     this.data["lang"] = this.get_lang_filename(window['platform'].lang);
+    this.configReloaded$.next();
 
     // 并行加载缓存的boards.json、libraries.json和tags.json（旧格式，用于基础功能）
     // await Promise.all([
@@ -131,29 +187,6 @@ export class ConfigService {
     // 注意：boardIndex 和 libraryIndex（新格式索引）延迟到 AI 组件加载时再加载
     // 以减轻软件启动耗时，参见 loadHardwareIndexForAI()
 
-    // 延迟后再次尝试加载，确保最优节点检测完成后能成功下载最新数据
-    if (this.electronService.isElectron) {
-      setTimeout(async () => {
-        try {
-          // 重新获取区域配置（可能已经由主进程检测到最优节点并更新）
-          const newRegion = await this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION');
-          if (newRegion && this.data.regions && this.data.regions[newRegion]) {
-            // 更新区域配置
-            if (newRegion !== this.data.region) {
-              this.data.region = newRegion;
-              setRegistryUrl(this.data.regions[newRegion].npm_registry);
-              setServerUrl(this.data.regions[newRegion].api_server);
-            }
-            // 重新加载数据，确保获取最新内容
-            this.loadAndCacheBoardList(configFilePath);
-            this.loadAndCacheLibraryList(configFilePath);
-            this.loadAndCacheTagList(configFilePath);
-          }
-        } catch (e) {
-          console.error('Failed to reload data after region detection:', e);
-        }
-      }, 5000); // 5秒后重试，给主进程足够时间完成最优节点检测
-    }
   }
 
   private async loadAndCacheBoardList(configFilePath: string): Promise<void> {
@@ -291,14 +324,14 @@ export class ConfigService {
    * 获取启用的区域列表
    */
   getEnabledRegionList(): Array<{key: string, name: string, enabled: boolean}> {
-    return this.getRegionList().filter(region => region.enabled);
+    return this.getRegionList().filter(region => region.enabled && this.isRegionSelectable(region.key));
   }
 
   /**
    * 设置当前区域
    */
   async setRegion(regionKey: string) {
-    if (this.data.regions && this.data.regions[regionKey]) {
+    if (this.data.regions && this.data.regions[regionKey] && this.isRegionSelectable(regionKey)) {
       this.data.region = regionKey;
       const regionConfig = this.data.regions[regionKey];
       
@@ -990,6 +1023,12 @@ interface AppConfig {
   /** 项目默认路径 */
   project_path: string;
 
+  /** 打包版型 */
+  build_flavor?: string;
+
+  /** 当前版型允许的官方区域 */
+  official_region?: string;
+
   /** 当前选中的区域 */
   region: string;
 
@@ -997,7 +1036,11 @@ interface AppConfig {
   regions: {
     [key: string]: {
       name: string;
+      enabled?: boolean;
+      official?: boolean;
       api_server: string;
+      web?: string;
+      ucenter_web?: string;
       tool_web: string;
       npm_registry: string;
       resource: string;

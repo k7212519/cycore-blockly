@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 任务 1：Windows 客户端构建
+  # 任务 1：Windows 国际版客户端构建
   build-windows:
     runs-on: windows-latest
     steps:
@@ -29,21 +29,9 @@ jobs:
           npm ci
           cd electron && npm ci --force
 
-      - name: Build Angular App
+      - name: Build Windows Package (Global)
         run: |
-          ng build --base-href ./
-        env:
-          NODE_ENV: production
-
-      - name: Build Windows Unpacked
-        run: |
-          npx electron-builder build --win --dir
-        env:
-          NODE_ENV: production
-
-      - name: Build NSIS Installer
-        run: |
-          npx electron-builder build --win nsis --prepackaged "dist/aily-blockly/win-unpacked"
+          npm run build:global
         env:
           NODE_ENV: production
 
@@ -53,7 +41,7 @@ jobs:
         id: upload_unsigned
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-installer
+          name: unsigned-installer-global
           path: dist/aily-blockly/*.exe
 
       - name: Sign Installer with SignPath
@@ -151,6 +139,123 @@ jobs:
         with:
           name: AilyBlockly-Windows-Package
           path: dist/aily-blockly/
+
+  # 任务 1b：Windows 国内版客户端构建
+  build-windows-cn:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          npm install -g @angular/cli
+          npm ci
+          cd electron && npm ci --force
+
+      - name: Build Windows Package (CN)
+        run: |
+          npm run build:cn
+        env:
+          NODE_ENV: production
+
+      - name: Upload Unsigned Installer for Signing (CN)
+        id: upload_unsigned_cn
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer-cn
+          path: dist/aily-blockly/*.exe
+
+      - name: Sign Installer with SignPath (CN)
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: 'bd01a768-a9e3-4a62-945d-fcfdc37a299e'
+          project-slug: 'aily-blockly'
+          signing-policy-slug: ${{ github.ref_name == 'beta' && 'test-signing' || 'release-signing' }}
+          github-artifact-id: '${{ steps.upload_unsigned_cn.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: 'dist/aily-blockly'
+
+      - name: Remove stale blockmap files (CN)
+        run: |
+          Remove-Item -Path "dist/aily-blockly/*.blockmap" -Force -ErrorAction SilentlyContinue
+          Write-Host "✓ Removed stale blockmap files"
+
+      - name: Regenerate latest.yml with signed exe hash (CN)
+        run: |
+          cd dist/aily-blockly
+
+          Write-Host "Files in dist/aily-blockly:"
+          Get-ChildItem -File | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
+
+          $exeFile = Get-ChildItem -Filter "aily-blockly-cn-Setup-*.exe" | Select-Object -First 1
+          if (-not $exeFile) {
+            $exeFile = Get-ChildItem -Filter "*.exe" | Select-Object -First 1
+          }
+          if (-not $exeFile) {
+            Write-Error "No exe file found in dist/aily-blockly!"
+            exit 1
+          }
+          $exeSize = $exeFile.Length
+          $exeName = $exeFile.Name
+
+          Write-Host "✓ Signed exe: $exeName ($exeSize bytes)"
+
+          $hash = Get-FileHash -Path $exeFile.FullName -Algorithm SHA512
+          $hashBytes = [System.Convert]::FromHexString($hash.Hash)
+          $sha512Base64 = [System.Convert]::ToBase64String($hashBytes)
+
+          Write-Host "✓ SHA512: $sha512Base64"
+          Write-Host "✓ SHA512 length: $($sha512Base64.Length) chars"
+
+          $packageJson = Get-Content "../../package.json" -Raw | ConvertFrom-Json
+          $version = $packageJson.version
+          $releaseDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+
+          $lf = "`n"
+          $content = "version: $version" + $lf +
+                     "files:" + $lf +
+                     "  - url: $exeName" + $lf +
+                     "    sha512: $sha512Base64" + $lf +
+                     "    size: $exeSize" + $lf +
+                     "path: $exeName" + $lf +
+                     "sha512: $sha512Base64" + $lf +
+                     "releaseDate: '$releaseDate'" + $lf
+
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::WriteAllText(
+            (Join-Path $PWD "latest-cn.yml"),
+            $content,
+            $utf8NoBom
+          )
+
+          Write-Host "✓ latest-cn.yml regenerated with signed exe hash"
+          Write-Host ""
+          Write-Host "Content:"
+          Get-Content "latest-cn.yml"
+
+          $verify = [System.IO.File]::ReadAllText((Join-Path $PWD "latest-cn.yml"))
+          if ($verify -notmatch [regex]::Escape($sha512Base64)) {
+            Write-Error "Verification FAILED: sha512 not found in generated latest-cn.yml!"
+            Write-Host "Expected sha512: $sha512Base64"
+            exit 1
+          }
+          Write-Host "✓ Verification passed: sha512 matches in latest-cn.yml"
+
+      - name: Archive Windows Artifact (CN)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AilyBlockly-Windows-Package-cn
+          path: dist/aily-blockly/
   
   # 任务 2：macOS 客户端构建
   build-macos:
@@ -196,7 +301,7 @@ jobs:
       # --- 构建 + 签名 + 公证（仅构建 arm64）---
       - name: Build, Sign & Notarize
         run: |
-          npm run build
+          npm run build:global
         env:
           NODE_ENV: production
           # electron-builder 签名配置
@@ -253,9 +358,115 @@ jobs:
           name: AilyBlockly-macOS-Package
           path: dist/aily-blockly/
 
+  # 任务 2b：macOS 国内版客户端构建
+  build-macos-cn:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          npm install -g @angular/cli
+          npm ci
+          cd electron && npm ci --force
+
+      - name: Import Codesign Certificates
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_SIGNING_CERT }}
+          p12-password: ${{ secrets.APPLE_SIGNING_PASSWORD }}
+
+      - name: Verify Certificate Import
+        run: |
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning
+          echo ""
+          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -n 1)
+          if [ -z "$IDENTITY" ]; then
+            echo "❌ No Developer ID Application certificate found!"
+            exit 1
+          else
+            echo "✅ Found: $IDENTITY"
+          fi
+
+      - name: Build, Sign & Notarize (CN)
+        run: |
+          npm run build:cn
+        env:
+          NODE_ENV: production
+          CSC_LINK: ${{ secrets.APPLE_SIGNING_CERT }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_SIGNING_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Manual Notarization (if needed) (CN)
+        if: success() || failure()
+        run: |
+          DMG_FILES=$(find dist/aily-blockly -name "aily-blockly-cn-*.dmg" -type f)
+
+          if [ -z "$DMG_FILES" ]; then
+            echo "❌ CN DMG not found!"
+            exit 1
+          fi
+
+          while IFS= read -r DMG_PATH; do
+            echo "=== Processing: $DMG_PATH ==="
+
+            echo "Checking if already notarized..."
+            if xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
+              echo "✅ Already notarized and stapled: $DMG_PATH"
+              continue
+            fi
+
+            echo "Submitting for notarization: $DMG_PATH"
+            xcrun notarytool submit "$DMG_PATH" \
+              --apple-id "${{ secrets.APPLE_ID }}" \
+              --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+              --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+              --wait \
+              --timeout 30m
+
+            echo "Stapling..."
+            xcrun stapler staple "$DMG_PATH"
+            echo "✅ Notarization completed: $DMG_PATH"
+          done <<< "$DMG_FILES"
+
+      - name: Final Verification (CN)
+        run: |
+          echo "=== Verification ==="
+          while IFS= read -r DMG_PATH; do
+            xcrun stapler validate "$DMG_PATH" && echo "✅ Notarized: $DMG_PATH" || echo "⚠️ Not notarized: $DMG_PATH"
+          done < <(find dist/aily-blockly -name "aily-blockly-cn-*.dmg" -type f)
+
+      - name: Rename latest-mac manifest (CN)
+        run: |
+          if [ -f "dist/aily-blockly/latest-mac.yml" ]; then
+            mv "dist/aily-blockly/latest-mac.yml" "dist/aily-blockly/latest-mac-cn.yml"
+            echo "✓ latest-mac-cn.yml generated"
+          else
+            echo "❌ latest-mac.yml not found after cn mac build"
+            exit 1
+          fi
+
+      - name: Archive macOS Artifact (CN)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AilyBlockly-macOS-Package-cn
+          path: dist/aily-blockly/
+
   # 任务 3：发布到 GitHub Release
   release:
-    needs: [build-windows, build-macos]
+    needs: [build-windows, build-windows-cn, build-macos, build-macos-cn]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -547,11 +758,23 @@ jobs:
           name: AilyBlockly-Windows-Package
           path: ./release
 
+      - name: Download Windows CN Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AilyBlockly-Windows-Package-cn
+          path: ./release-cn
+
       - name: Download macOS Artifact
         uses: actions/download-artifact@v4
         with:
           name: AilyBlockly-macOS-Package
           path: ./release
+
+      - name: Download macOS CN Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AilyBlockly-macOS-Package-cn
+          path: ./release-mac-cn
 
       - name: Prepare Changelog Files
         id: release_body
@@ -597,7 +820,11 @@ jobs:
           body: ${{ steps.release_body.outputs.body }}
           files: |
             ./release/*.exe
+            ./release-cn/*.exe
             ./release/*.dmg
+            ./release/*.zip
+            ./release-mac-cn/*.dmg
+            ./release-mac-cn/*.zip
             ./release/CHANGELOG.md
             ./release/CHANGELOG_ZH.md
           draft: false
@@ -659,15 +886,21 @@ jobs:
 
   # 任务 4a：上传 Windows 文件到 Cloudflare R2 存储（与Release并行执行）
   upload-windows-to-r2:
-    needs: [build-windows]
+    needs: [build-windows, build-windows-cn]
     if: github.ref_name == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - name: Download Windows Artifact
+      - name: Download Windows Global Artifact
         uses: actions/download-artifact@v4
         with:
           name: AilyBlockly-Windows-Package
-          path: ./artifacts/windows
+          path: ./artifacts/windows/global
+
+      - name: Download Windows CN Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AilyBlockly-Windows-Package-cn
+          path: ./artifacts/windows/cn
 
       - name: Ensure AWS CLI is available
         run: |
@@ -696,27 +929,41 @@ jobs:
           R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           
           echo "准备上传 Windows 文件到 Cloudflare R2..."
-          
-          # 先上传 Windows 安装包
-          echo "上传 Windows exe 文件..."
-          for file in ./artifacts/windows/*.exe; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              echo "  上传: $filename"
-              aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
-                --endpoint-url "$R2_ENDPOINT" \
-                --content-type "application/x-msdownload"
+
+          upload_windows_dir() {
+            local artifact_dir="$1"
+            local manifest_name="$2"
+
+            if [ ! -d "$artifact_dir" ]; then
+              echo "  ⚠️ 目录不存在，跳过: $artifact_dir"
+              return
             fi
-          done
           
-          # 最后上传 latest.yml（确保安装包已上传完成，禁用 CDN 缓存防止新旧文件不匹配）
-          echo "上传 latest.yml 配置文件..."
-          if [ -f "./artifacts/windows/latest.yml" ]; then
-            aws s3 cp "./artifacts/windows/latest.yml" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/latest.yml" \
-              --endpoint-url "$R2_ENDPOINT" \
-              --content-type "text/yaml" \
-              --cache-control "no-cache, no-store, must-revalidate"
-          fi
+            echo "上传 ${artifact_dir} 下的 Windows exe 文件..."
+            for file in "$artifact_dir"/*.exe; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                echo "  上传: $filename"
+                aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
+                  --endpoint-url "$R2_ENDPOINT" \
+                  --content-type "application/x-msdownload"
+              fi
+            done
+
+            local manifest_path="${artifact_dir}/${manifest_name}"
+            echo "上传 ${manifest_name} 配置文件..."
+            if [ -f "$manifest_path" ]; then
+              aws s3 cp "$manifest_path" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${manifest_name}" \
+                --endpoint-url "$R2_ENDPOINT" \
+                --content-type "text/yaml" \
+                --cache-control "no-cache, no-store, must-revalidate"
+            else
+              echo "  ⚠️ ${manifest_name} not found under ${artifact_dir}, skipping"
+            fi
+          }
+
+          upload_windows_dir "./artifacts/windows/global" "latest.yml"
+          upload_windows_dir "./artifacts/windows/cn" "latest-cn.yml"
           
           echo "✓ Windows 文件上传到 Cloudflare R2 完成"
           echo "公开访问地址: ${R2_PUBLIC_URL}"
@@ -777,15 +1024,21 @@ jobs:
 
   # 任务 4b：上传 macOS 文件到 Cloudflare R2 存储（与Release并行执行）
   upload-macos-to-r2:
-    needs: [build-macos]
+    needs: [build-macos, build-macos-cn]
     if: github.ref_name == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - name: Download macOS Artifact
+      - name: Download macOS Global Artifact
         uses: actions/download-artifact@v4
         with:
           name: AilyBlockly-macOS-Package
-          path: ./artifacts/macos
+          path: ./artifacts/macos/global
+
+      - name: Download macOS CN Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AilyBlockly-macOS-Package-cn
+          path: ./artifacts/macos/cn
 
       - name: Ensure AWS CLI is available
         run: |
@@ -814,35 +1067,48 @@ jobs:
           R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
           
           echo "准备上传 macOS 文件到 Cloudflare R2..."
-          
-          # 上传 macOS 安装包
-          echo "上传 macOS 文件..."
-          for file in ./artifacts/macos/*.dmg ./artifacts/macos/*.zip; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              echo "  上传: $filename"
-              
-              # 根据文件类型设置 Content-Type
-              if [[ "$filename" == *.dmg ]]; then
-                content_type="application/x-apple-diskimage"
-              else
-                content_type="application/zip"
-              fi
-              
-              aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
-                --endpoint-url "$R2_ENDPOINT" \
-                --content-type "$content_type"
+
+          upload_macos_dir() {
+            local artifact_dir="$1"
+            local manifest_name="$2"
+
+            if [ ! -d "$artifact_dir" ]; then
+              echo "  ⚠️ 目录不存在，跳过: $artifact_dir"
+              return
             fi
-          done
-          
-          # 最后上传 latest-mac.yml（确保安装包已上传完成，禁用 CDN 缓存防止新旧文件不匹配）
-          echo "上传 latest-mac.yml 配置文件..."
-          if [ -f "./artifacts/macos/latest-mac.yml" ]; then
-            aws s3 cp "./artifacts/macos/latest-mac.yml" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/latest-mac.yml" \
-              --endpoint-url "$R2_ENDPOINT" \
-              --content-type "text/yaml" \
-              --cache-control "no-cache, no-store, must-revalidate"
-          fi
+
+            echo "上传 ${artifact_dir} 下的 macOS 文件..."
+            for file in "$artifact_dir"/*.dmg "$artifact_dir"/*.zip; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                echo "  上传: $filename"
+
+                if [[ "$filename" == *.dmg ]]; then
+                  content_type="application/x-apple-diskimage"
+                else
+                  content_type="application/zip"
+                fi
+
+                aws s3 cp "$file" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${filename}" \
+                  --endpoint-url "$R2_ENDPOINT" \
+                  --content-type "$content_type"
+              fi
+            done
+
+            local manifest_path="${artifact_dir}/${manifest_name}"
+            echo "上传 ${manifest_name} 配置文件..."
+            if [ -f "$manifest_path" ]; then
+              aws s3 cp "$manifest_path" "s3://${R2_BUCKET_NAME}/${R2_UPLOAD_PATH}/${manifest_name}" \
+                --endpoint-url "$R2_ENDPOINT" \
+                --content-type "text/yaml" \
+                --cache-control "no-cache, no-store, must-revalidate"
+            else
+              echo "  ⚠️ ${manifest_name} not found under ${artifact_dir}, skipping"
+            fi
+          }
+
+          upload_macos_dir "./artifacts/macos/global" "latest-mac.yml"
+          upload_macos_dir "./artifacts/macos/cn" "latest-mac-cn.yml"
           
           echo "✓ macOS 文件上传到 Cloudflare R2 完成"
           echo "公开访问地址: ${R2_PUBLIC_URL}"

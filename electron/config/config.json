@@ -8,10 +8,12 @@
     "darwin": "~/Library/aily-project"
   },
   "project_path": "%HOMEPATH%\\Documents\\aily-project",
+  "build_flavor": "cn",
   "region": "cn",
   "regions": {
     "cn": {
       "name": "China",
+      "official": true,
       "enabled": true,
       "api_server": "https://api.yysc.tech",
       "web": "https://yysc.tech",
@@ -23,6 +25,7 @@
     },
     "eu": {
       "name": "Europe",
+      "official": true,
       "enabled": true,
       "api_server": "https://api.aily.pro",
       "web": "https://aily.pro",
@@ -34,6 +37,7 @@
     },
     "localhost": {
       "name": "Local",
+      "official": false,
       "enabled": true,
       "api_server": "https://api.yysc.tech",
       "web": "https://aily.pro",
