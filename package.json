@@ -19,6 +19,9 @@
       "electron/preload.js",
       "electron/node_modules/**/*.node",
       "electron/node_modules/@lydell/**",
+      "electron/node_modules/debug/**",
+      "electron/node_modules/ms/**",
+      "electron/node_modules/node-gyp-build/**",
       "electron/node_modules/@serialport/**",
       "electron/node_modules/serialport/**"
     ],
