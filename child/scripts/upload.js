@@ -39,29 +39,31 @@ process.on('unhandledRejection', (reason) => {
 
 function loadSerialPort() {
     if (SerialPort) return SerialPort;
-    
-    // 尝试多个可能的路径加载 serialport
+
+    const resourcesPath = path.resolve(__dirname, '..', '..');
     const possiblePaths = [
-        // 从 electron 目录加载
+        path.join(resourcesPath, 'app.asar.unpacked', 'electron', 'node_modules', 'serialport', 'dist'),
+        path.join(resourcesPath, 'app.asar.unpacked', 'electron', 'node_modules', 'serialport'),
+        path.join(__dirname, '..', '..', 'electron', 'node_modules', 'serialport', 'dist'),
         path.join(__dirname, '..', '..', 'electron', 'node_modules', 'serialport'),
-        // 从 app.asar.unpacked 加载 (打包后)
-        path.join(__dirname, '..', '..', 'electron', 'node_modules', 'serialport'),
-        // 直接 require (如果在 NODE_PATH 中)
         'serialport'
     ];
-    
+
+    let lastError = null;
+
     for (const modulePath of possiblePaths) {
         try {
             const serialportModule = require(modulePath);
-            SerialPort = serialportModule.SerialPort;
+            SerialPort = serialportModule.SerialPort || serialportModule;
             logger.log('成功加载 serialport 模块:', modulePath);
             return SerialPort;
         } catch (e) {
-            // 继续尝试下一个路径
+            lastError = e;
         }
     }
-    
-    throw new Error('无法加载 serialport 模块，请确保已安装依赖');
+
+    const detail = lastError ? `，最后错误: ${lastError.message}` : '';
+    throw new Error(`无法加载 serialport 模块，请确保已安装依赖${detail}`);
 }
 
 // 获取串口列表
@@ -122,6 +124,7 @@ async function waitForNewPort(portsBefore, timeout = 10000, interval = 200) {
     logger.log(`开始轮询等待新串口（超时 ${timeout}ms，间隔 ${interval}ms）...`);
     while (Date.now() - startTime < timeout) {
         const portsNow = await getPortsList();
+        console.log('当前串口列表:', portsNow.map(p => p.path));
         const newPorts = portsNow.filter(
             p => !portsBefore.some(ep => ep.path === p.path)
         );
