@@ -95,7 +95,7 @@ class ExecuteCommandTool implements IAilyTool {
             const libBlockPath = projectPath + `${separator}node_modules${separator}` + libPackageName + `${separator}block.json`;
             if (host.fs.existsSync(libBlockPath)) {
               const blocksData = JSON.parse(host.fs.readFileSync(libBlockPath, 'utf-8'));
-              const abiJson = JSON.stringify(host.blockly.getWorkspaceJson());
+              const abiJson = JSON.stringify(host.blockly.getProjectDocument());
               for (const element of blocksData) {
                 if (abiJson.includes(element.type)) {
                   libsInUse.push(libPackageName);

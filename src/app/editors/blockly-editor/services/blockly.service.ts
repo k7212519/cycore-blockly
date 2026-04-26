@@ -6,11 +6,58 @@ import { TranslateService } from '@ngx-translate/core';
 import { ElectronService } from '../../../services/electron.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
+import { BlockSearcher } from '../components/blockly/plugins/toolbox-search/src/block_searcher';
+
+export interface BlocklyWorkspaceViewState {
+  scale: number;
+  scrollX: number;
+  scrollY: number;
+}
+
+export interface BlocklySharedModel {
+  variables?: any;
+  procedureBlocks: any[];
+}
+
+export interface BlocklyPageSnapshot {
+  id: string;
+  title: string;
+  content: any;
+  viewState?: BlocklyWorkspaceViewState;
+}
+
+export interface BlocklyProjectDocument {
+  schemaVersion: number;
+  activePageId: string;
+  openedPageIds: string[];
+  pages: BlocklyPageSnapshot[];
+  sharedModel: BlocklySharedModel;
+}
+
+export interface BlocklyToolboxFacadeItem {
+  key: string;
+  name: string;
+  kind: string;
+  iconClass: string;
+  selectable: boolean;
+  toolboxItemId: string;
+  parentKey: string | null;
+  level: number;
+  expanded: boolean;
+  isCollapsible: boolean;
+  children: BlocklyToolboxFacadeItem[];
+}
+
+export const BLOCKLY_TOOLBOX_SEARCH_KEY = '__toolbox_search__';
 
 @Injectable({
   providedIn: 'root'
 })
 export class BlocklyService {
+  private readonly projectDocumentSchemaVersion = 3;
+  private readonly sharedProcedureBlockPrefixes = ['procedures_'];
+  private readonly toolboxSearchKey = BLOCKLY_TOOLBOX_SEARCH_KEY;
+
   workspace: Blockly.WorkspaceSvg;
 
   toolbox = {
@@ -43,12 +90,22 @@ export class BlocklyService {
   blockCodeMapSubject = new BehaviorSubject<Map<string, BlockCodeMapping>>(new Map());
   /** block → ABS 行号映射（由 abs-auto-sync 生成 ABS 时同步更新，确保与用户看到的 .abs 文件一致） */
   absBlockLineMap = new BehaviorSubject<Map<string, { startLine: number; endLine: number }>>(new Map());
+  pagesSubject = new BehaviorSubject<BlocklyPageSnapshot[]>([]);
+  activePageIdSubject = new BehaviorSubject<string>('');
+  openedPageIdsSubject = new BehaviorSubject<string[]>([]);
+  sharedModelSubject = new BehaviorSubject<BlocklySharedModel>({ procedureBlocks: [] });
+  toolboxFacadeItemsSubject = new BehaviorSubject<BlocklyToolboxFacadeItem[]>([]);
+  toolboxSelectedKeySubject = new BehaviorSubject<string | null>(null);
+  toolboxSearchQuerySubject = new BehaviorSubject<string>('');
 
   boardConfig;
 
   draggingBlock: any;
   offsetX: number = 0;
   offsetY: number = 0;
+  private externalToolboxHost: HTMLElement | null = null;
+  private nativeToolboxElement: HTMLElement | null = null;
+  private blockSearcher = new BlockSearcher();
 
   aiWaiting = false;
   private _aiWriting = new BehaviorSubject<boolean>(false);
@@ -78,15 +135,343 @@ export class BlocklyService {
   ) {
     (window as any).__ailyBlockDefinitionsMap = this.blockDefinitionsMap;
     (window as any).__ailyBlockTypeToLibMap = this.blockTypeToLibMap;
+    this.resetDocumentState();
+    this.rebuildToolboxFacade();
   }
 
-  // 加载blockly的json数据
+  registerExternalToolboxHost(host: HTMLElement | null) {
+    this.externalToolboxHost = host;
+    this.mountExternalToolbox();
+  }
+
+  registerNativeToolboxElement(element: HTMLElement | null) {
+    this.nativeToolboxElement = element;
+    this.mountExternalToolbox();
+  }
+
+  isExternalToolboxEnabled(): boolean {
+    return !!this.externalToolboxHost;
+  }
+
+  getPages(): BlocklyPageSnapshot[] {
+    return this.getOpenPages();
+  }
+
+  getAllPages(): BlocklyPageSnapshot[] {
+    return this.pagesSubject.value;
+  }
+
+  getOpenPages(): BlocklyPageSnapshot[] {
+    const openedPageIds = new Set(this.openedPageIdsSubject.value);
+    return this.pagesSubject.value.filter((page) => openedPageIds.has(page.id));
+  }
+
+  getClosedPages(): BlocklyPageSnapshot[] {
+    const openedPageIds = new Set(this.openedPageIdsSubject.value);
+    return this.pagesSubject.value.filter((page) => !openedPageIds.has(page.id));
+  }
+
+  getOpenedPageIds(): string[] {
+    return [...this.openedPageIdsSubject.value];
+  }
+
+  getToolboxFacadeItems(): BlocklyToolboxFacadeItem[] {
+    return this.toolboxFacadeItemsSubject.value;
+  }
+
+  getToolboxSearchQuery(): string {
+    return this.toolboxSearchQuerySubject.value;
+  }
+
+  getSelectedToolboxKey(): string | null {
+    return this.toolboxSelectedKeySubject.value;
+  }
+
+  setToolboxSearchQuery(query: string) {
+    const nextQuery = query ?? '';
+    this.toolboxSearchQuerySubject.next(nextQuery);
+    this.showSearchFlyout(true);
+  }
+
+  activateToolboxSearch() {
+    this.showSearchFlyout(true);
+  }
+
+  clearToolboxSearch() {
+    this.toolboxSearchQuerySubject.next('');
+    if (this.toolboxSelectedKeySubject.value === this.toolboxSearchKey) {
+      this.clearToolboxSelection();
+    }
+  }
+
+  clearToolboxSelection() {
+    this.workspace?.getToolbox()?.clearSelection();
+    this.workspace?.getFlyout()?.hide();
+    this.toolboxSelectedKeySubject.next(null);
+  }
+
+  clickToolboxFacadeItem(itemKey: string): boolean {
+    const item = this.findToolboxFacadeItemByKey(itemKey);
+    if (!item) {
+      return itemKey === this.toolboxSearchKey ? this.selectToolboxFacadeItem(itemKey) : false;
+    }
+
+    if (item.isCollapsible) {
+      return this.toggleToolboxFacadeItem(itemKey, true);
+    }
+
+    return this.selectToolboxFacadeItem(itemKey);
+  }
+
+  selectToolboxFacadeItem(itemKey: string): boolean {
+    if (itemKey === this.toolboxSearchKey) {
+      this.activateToolboxSearch();
+      return true;
+    }
+
+    const item = this.findToolboxFacadeItemByKey(itemKey);
+    if (!item) {
+      return false;
+    }
+
+    this.toolboxSearchQuerySubject.next('');
+    this.expandToolboxAncestors(item.key);
+
+    const toolbox = this.getNativeToolbox();
+    const nativeItem = this.getNativeToolboxItem(item.toolboxItemId);
+    if (toolbox && nativeItem) {
+      this.expandNativeToolboxAncestors(nativeItem);
+      toolbox.setSelectedItem(nativeItem);
+    }
+
+    this.toolboxSelectedKeySubject.next(item.key);
+    return true;
+  }
+
+  toggleToolboxFacadeItem(itemKey: string, selectItem = false): boolean {
+    const item = this.findToolboxFacadeItemByKey(itemKey);
+    if (!item || !item.isCollapsible) {
+      return false;
+    }
+
+    this.toolboxSearchQuerySubject.next('');
+    this.expandToolboxAncestors(item.key);
+
+    const toolbox = this.getNativeToolbox();
+    const nativeItem = this.getNativeToolboxItem(item.toolboxItemId);
+
+    if (toolbox && nativeItem) {
+      this.expandNativeToolboxAncestors(nativeItem);
+      if (selectItem) {
+        toolbox.setSelectedItem(nativeItem);
+      }
+    }
+
+    const nextExpanded = nativeItem?.isExpanded?.() !== undefined
+      ? !nativeItem.isExpanded()
+      : !item.expanded;
+    const hasChanged = this.updateToolboxCategoryExpandedState(item.toolboxItemId, nextExpanded);
+
+    if (nativeItem?.setExpanded) {
+      nativeItem.setExpanded(nextExpanded);
+    } else if (nativeItem?.toggleExpanded) {
+      nativeItem.toggleExpanded();
+    }
+
+    if (hasChanged) {
+      this.rebuildToolboxFacade();
+    }
+
+    this.syncToolboxFacadeWithWorkspace();
+    return true;
+  }
+
+  syncToolboxSelectionFromNativeItem(selectedItemId?: string | null, selectedItemName?: string | null) {
+    if (!selectedItemId && !selectedItemName) {
+      if (this.toolboxSelectedKeySubject.value !== this.toolboxSearchKey) {
+        this.toolboxSelectedKeySubject.next(null);
+      }
+      return;
+    }
+
+    const item = this.findToolboxFacadeItemByToolboxItemId(selectedItemId || '')
+      || this.findToolboxFacadeItemByName(selectedItemName || '');
+
+    if (item) {
+      this.expandToolboxAncestors(item.key);
+    }
+
+    this.toolboxSelectedKeySubject.next(item?.key || null);
+  }
+
+  syncToolboxFacadeWithWorkspace() {
+    const selectedItem = this.getNativeToolbox()?.getSelectedItem() as any;
+    const selectedItemId = selectedItem?.getId?.() || null;
+    const selectedItemName = selectedItem?.getName?.() || null;
+    this.syncToolboxSelectionFromNativeItem(selectedItemId, selectedItemName);
+
+    if (this.toolboxSelectedKeySubject.value === this.toolboxSearchKey) {
+      this.showSearchFlyout(false);
+    }
+  }
+
+  getActivePageId(): string {
+    return this.activePageIdSubject.value;
+  }
+
+  getActivePage(): BlocklyPageSnapshot | undefined {
+    return this.pagesSubject.value.find((page) => page.id === this.activePageIdSubject.value);
+  }
+
   loadAbiJson(jsonData) {
-    jsonData.blocks?.blocks?.forEach(block => {
+    const document = this.normalizeProjectDocument(jsonData);
+    this.applyProjectDocument(document);
+    this.loadActivePageIntoWorkspace();
+  }
+
+  hydrateWorkspaceFromProjectState() {
+    this.loadActivePageIntoWorkspace();
+  }
+
+  normalizeProjectAbi(jsonData: any): BlocklyProjectDocument {
+    return this.normalizeProjectDocument(jsonData);
+  }
+
+  switchPage(pageId: string): boolean {
+    if (!pageId || pageId === this.activePageIdSubject.value) {
+      return false;
+    }
+
+    this.persistActiveWorkspaceToState();
+    this.activePageIdSubject.next(pageId);
+    this.loadActivePageIntoWorkspace();
+    return true;
+  }
+
+  createPage(title?: string): BlocklyPageSnapshot {
+    this.persistActiveWorkspaceToState();
+
+    const pages = [...this.pagesSubject.value];
+    const openedPageIds = [...this.openedPageIdsSubject.value];
+    const page = this.createEmptyPageSnapshot(
+      this.generatePageId(),
+      title || this.buildDefaultPageTitle(pages.length + 1),
+    );
+
+    pages.push(page);
+    this.pagesSubject.next(pages);
+    this.openedPageIdsSubject.next([...openedPageIds, page.id]);
+    this.activePageIdSubject.next(page.id);
+    this.loadActivePageIntoWorkspace();
+    return page;
+  }
+
+  openPage(pageId: string, activate = true): boolean {
+    const page = this.pagesSubject.value.find((item) => item.id === pageId);
+    if (!page) {
+      return false;
+    }
+
+    const currentActivePageId = this.activePageIdSubject.value;
+    const isAlreadyOpened = this.openedPageIdsSubject.value.includes(pageId);
+
+    if (isAlreadyOpened && (!activate || currentActivePageId === pageId)) {
+      return false;
+    }
+
+    this.persistActiveWorkspaceToState();
+
+    if (!isAlreadyOpened) {
+      const nextOpenedPageIds = this.pagesSubject.value
+        .map((item) => item.id)
+        .filter((id) => id === pageId || this.openedPageIdsSubject.value.includes(id));
+      this.openedPageIdsSubject.next(nextOpenedPageIds);
+    }
+
+    if (activate) {
+      this.activePageIdSubject.next(pageId);
+      this.loadActivePageIntoWorkspace();
+    }
+
+    return true;
+  }
+
+  closePage(pageId: string): string {
+    const currentOpenedPageIds = this.openedPageIdsSubject.value;
+    if (currentOpenedPageIds.length <= 1) {
+      return this.activePageIdSubject.value;
+    }
+
+    if (!currentOpenedPageIds.includes(pageId)) {
+      return this.activePageIdSubject.value;
+    }
+
+    this.persistActiveWorkspaceToState();
+
+    const closeIndex = currentOpenedPageIds.findIndex((openedPageId) => openedPageId === pageId);
+    if (closeIndex === -1) {
+      return this.activePageIdSubject.value;
+    }
+
+    const nextOpenedPageIds = currentOpenedPageIds.filter((openedPageId) => openedPageId !== pageId);
+    const currentActivePageId = this.activePageIdSubject.value;
+    let nextActivePageId = currentActivePageId;
+
+    if (pageId === currentActivePageId) {
+      const fallbackIndex = closeIndex >= nextOpenedPageIds.length ? nextOpenedPageIds.length - 1 : closeIndex;
+      nextActivePageId = nextOpenedPageIds[Math.max(fallbackIndex, 0)] || nextOpenedPageIds[0];
+    }
+
+    this.openedPageIdsSubject.next(nextOpenedPageIds);
+    this.activePageIdSubject.next(nextActivePageId);
+
+    if (pageId === currentActivePageId) {
+      this.loadActivePageIntoWorkspace();
+    }
+
+    return nextActivePageId;
+  }
+
+  renamePage(pageId: string, title: string) {
+    const nextTitle = (title || '').trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    this.pagesSubject.next(
+      this.pagesSubject.value.map((page) =>
+        page.id === pageId ? { ...page, title: nextTitle } : page,
+      ),
+    );
+  }
+
+  getProjectDocument(): BlocklyProjectDocument {
+    this.persistActiveWorkspaceToState();
+
+    return {
+      schemaVersion: this.projectDocumentSchemaVersion,
+      activePageId: this.activePageIdSubject.value,
+      openedPageIds: this.cloneJson(this.openedPageIdsSubject.value),
+      pages: this.cloneJson(this.pagesSubject.value),
+      sharedModel: this.cloneJson(this.sharedModelSubject.value),
+    };
+  }
+
+  // 加载 blockly 当前工作区的 JSON 数据
+  loadWorkspaceJson(jsonData: any) {
+    if (!this.workspace) {
+      return;
+    }
+
+    const workspaceJson = this.cloneJson(jsonData) || this.createEmptyWorkspaceContent();
+    workspaceJson.blocks?.blocks?.forEach((block) => {
       const ailyIcons = this.iconsMap.get(block.type);
-      if (ailyIcons) block.icons = ailyIcons;
+      if (ailyIcons) {
+        block.icons = ailyIcons;
+      }
     });
-    Blockly.serialization.workspaces.load(jsonData, this.workspace);
+
+    Blockly.serialization.workspaces.load(workspaceJson, this.workspace);
   }
 
   // 通过node_modules加载库
@@ -235,8 +620,13 @@ export class BlocklyService {
     }
 
     this.toolbox.contents.push(toolboxItem);
-    this.workspace.updateToolbox(this.toolbox);
-    this.workspace.render();
+    this.ensureToolboxItemIds(this.toolbox.contents);
+    if (this.workspace) {
+      this.workspace.updateToolbox(this.toolbox);
+      this.workspace.render();
+    }
+    this.rebuildToolboxFacade();
+    this.syncToolboxFacadeWithWorkspace();
   }
 
   loadLibGenerator(filePath): Promise<boolean> {
@@ -379,7 +769,11 @@ export class BlocklyService {
     const index = this.findToolboxItemIndex(toolboxItem);
     if (index !== -1) {
       this.toolbox.contents.splice(index, 1);
-      this.workspace.updateToolbox(this.toolbox);
+      if (this.workspace) {
+        this.workspace.updateToolbox(this.toolbox);
+      }
+      this.rebuildToolboxFacade();
+      this.syncToolboxFacadeWithWorkspace();
     }
   }
 
@@ -440,6 +834,8 @@ export class BlocklyService {
     this.loadedGenerators.clear();
     this.loadedLibraries.clear();
     this.blockTypeToLibMap.clear();
+    this.nativeToolboxElement = null;
+    this.externalToolboxHost = null;
 
     // 移除所有加载的脚本标签（block.js 和 generator.js）
     const scripts = document.getElementsByTagName('script');
@@ -499,12 +895,565 @@ export class BlocklyService {
     this.selectedBlockSubject.next(null);
     this.blockCodeMapSubject.next(new Map());
     this.absBlockLineMap.next(new Map());
+    this.resetDocumentState();
+    this.toolboxSearchQuerySubject.next('');
+    this.toolboxSelectedKeySubject.next(null);
+    this.rebuildToolboxFacade();
 
     // console.log('BlocklyService 重置完成');
   }
 
   getWorkspaceJson() {
-    return Blockly.serialization.workspaces.save(this.workspace);
+    if (this.workspace) {
+      return Blockly.serialization.workspaces.save(this.workspace);
+    }
+
+    const activePage = this.getActivePage();
+    return this.composeWorkspacePayload(activePage?.content, this.sharedModelSubject.value);
+  }
+
+  private mountExternalToolbox() {
+    if (!this.nativeToolboxElement && this.workspace) {
+      const injectionDiv = (this.workspace as any).getInjectionDiv?.() as HTMLElement | undefined;
+      const currentNativeToolbox = injectionDiv?.querySelector<HTMLElement>('.blocklyToolboxDiv') || null;
+      if (currentNativeToolbox) {
+        this.nativeToolboxElement = currentNativeToolbox;
+      }
+    }
+
+    if (!this.externalToolboxHost || !this.nativeToolboxElement) {
+      return;
+    }
+
+    if (this.externalToolboxHost.firstElementChild !== this.nativeToolboxElement) {
+      this.externalToolboxHost.replaceChildren(this.nativeToolboxElement);
+    }
+  }
+
+  private resetDocumentState() {
+    const initialPage = this.createEmptyPageSnapshot('page-1', this.buildDefaultPageTitle(1));
+    this.pagesSubject.next([initialPage]);
+    this.activePageIdSubject.next(initialPage.id);
+    this.openedPageIdsSubject.next([initialPage.id]);
+    this.sharedModelSubject.next({ procedureBlocks: [] });
+  }
+
+  private buildDefaultPageTitle(index: number): string {
+    return `页面 ${index}`;
+  }
+
+  private rebuildToolboxFacade() {
+    this.ensureToolboxItemIds(this.toolbox.contents);
+
+    const facadeItems = this.toolbox.contents
+      .map((item: any, position: number) => this.mapToolboxItemToFacade(item, position, 0, null))
+      .filter((item): item is BlocklyToolboxFacadeItem => !!item);
+
+    this.toolboxFacadeItemsSubject.next(facadeItems);
+    this.rebuildToolboxSearchIndex();
+  }
+
+  private mapToolboxItemToFacade(
+    item: any,
+    position: number,
+    level: number,
+    parentKey: string | null,
+  ): BlocklyToolboxFacadeItem | null {
+    if (!item?.kind || item.kind === 'search') {
+      return null;
+    }
+
+    if (item.kind !== 'category') {
+      return null;
+    }
+
+    const childCategories = Array.isArray(item.contents)
+      ? item.contents
+          .map((child: any, childIndex: number) => this.mapToolboxItemToFacade(child, childIndex, level + 1, item.toolboxitemid || null))
+          .filter((child): child is BlocklyToolboxFacadeItem => !!child)
+      : [];
+    const isCollapsible = childCategories.length > 0;
+
+    return {
+      key: item.toolboxitemid || item.categoryId || `${item.kind}:${item.name}`,
+      name: item.name || '',
+      kind: item.kind,
+      iconClass: item.icon || 'fa-light fa-cube',
+      selectable: true,
+      toolboxItemId: item.toolboxitemid || item.categoryId || `${item.kind}:${item.name}`,
+      parentKey,
+      level,
+      expanded: this.normalizeToolboxExpandedState(item.expanded, false),
+      isCollapsible,
+      children: childCategories,
+    };
+  }
+
+  private normalizeToolboxExpandedState(expanded: any, fallback = false): boolean {
+    if (typeof expanded === 'boolean') {
+      return expanded;
+    }
+
+    if (typeof expanded === 'string') {
+      return expanded === 'true';
+    }
+
+    return fallback;
+  }
+
+  private ensureToolboxItemIds(items: any[], path: number[] = []) {
+    items.forEach((item: any, index: number) => {
+      if (!item || item.kind !== 'category') {
+        return;
+      }
+
+      if (!item.toolboxitemid) {
+        item.toolboxitemid = this.buildToolboxItemId([...path, index], item.name);
+      }
+
+      if (Array.isArray(item.contents)) {
+        this.ensureToolboxItemIds(item.contents, [...path, index]);
+      }
+    });
+  }
+
+  private buildToolboxItemId(path: number[], name?: string): string {
+    const safeName = (name || 'category')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'category';
+    return `toolbox-item-${path.join('-')}-${safeName}`;
+  }
+
+  private findToolboxFacadeItemByKey(itemKey: string, items = this.toolboxFacadeItemsSubject.value): BlocklyToolboxFacadeItem | null {
+    for (const item of items) {
+      if (item.key === itemKey) {
+        return item;
+      }
+
+      const childMatch = this.findToolboxFacadeItemByKey(itemKey, item.children);
+      if (childMatch) {
+        return childMatch;
+      }
+    }
+
+    return null;
+  }
+
+  private findToolboxFacadeItemByToolboxItemId(toolboxItemId: string, items = this.toolboxFacadeItemsSubject.value): BlocklyToolboxFacadeItem | null {
+    if (!toolboxItemId) {
+      return null;
+    }
+
+    for (const item of items) {
+      if (item.toolboxItemId === toolboxItemId) {
+        return item;
+      }
+
+      const childMatch = this.findToolboxFacadeItemByToolboxItemId(toolboxItemId, item.children);
+      if (childMatch) {
+        return childMatch;
+      }
+    }
+
+    return null;
+  }
+
+  private findToolboxFacadeItemByName(name: string, items = this.toolboxFacadeItemsSubject.value): BlocklyToolboxFacadeItem | null {
+    if (!name) {
+      return null;
+    }
+
+    for (const item of items) {
+      if (item.name === name) {
+        return item;
+      }
+
+      const childMatch = this.findToolboxFacadeItemByName(name, item.children);
+      if (childMatch) {
+        return childMatch;
+      }
+    }
+
+    return null;
+  }
+
+  private updateToolboxCategoryExpandedState(toolboxItemId: string, expanded: boolean): boolean {
+    let hasChanged = false;
+
+    const visit = (items: any[]) => {
+      items.forEach((item) => {
+        if (!item || item.kind !== 'category') {
+          return;
+        }
+
+        if (item.toolboxitemid === toolboxItemId) {
+          const currentExpanded = this.normalizeToolboxExpandedState(item.expanded, false);
+          if (currentExpanded !== expanded) {
+            item.expanded = expanded;
+            hasChanged = true;
+          }
+          return;
+        }
+
+        if (Array.isArray(item.contents)) {
+          visit(item.contents);
+        }
+      });
+    };
+
+    visit(this.toolbox.contents);
+    return hasChanged;
+  }
+
+  private expandToolboxAncestors(itemKey: string) {
+    let currentItem = this.findToolboxFacadeItemByKey(itemKey);
+    let hasChanged = false;
+
+    while (currentItem?.parentKey) {
+      const parentItem = this.findToolboxFacadeItemByKey(currentItem.parentKey);
+      if (!parentItem) {
+        break;
+      }
+
+      hasChanged = this.updateToolboxCategoryExpandedState(parentItem.toolboxItemId, true) || hasChanged;
+      currentItem = parentItem;
+    }
+
+    if (hasChanged) {
+      this.rebuildToolboxFacade();
+    }
+  }
+
+  private getNativeToolbox(): Blockly.Toolbox | null {
+    return (this.workspace?.getToolbox() as Blockly.Toolbox | undefined) || null;
+  }
+
+  private getNativeToolboxItem(toolboxItemId: string) {
+    return (this.getNativeToolbox() as any)?.getToolboxItemById?.(toolboxItemId) || null;
+  }
+
+  private expandNativeToolboxAncestors(toolboxItem: any) {
+    let currentParent = toolboxItem?.getParent?.();
+    while (currentParent) {
+      if (currentParent.isCollapsible?.() && !currentParent.isExpanded?.()) {
+        currentParent.setExpanded?.(true);
+      }
+      currentParent = currentParent.getParent?.();
+    }
+  }
+
+  private rebuildToolboxSearchIndex() {
+    this.blockSearcher = new BlockSearcher();
+    const availableBlocks = new Set<string>();
+
+    this.toolbox.contents.forEach((item: any) => {
+      this.collectToolboxBlocks(item, availableBlocks);
+    });
+
+    this.blockSearcher.indexBlocks([...availableBlocks]);
+  }
+
+  private collectToolboxBlocks(schema: any, availableBlocks: Set<string>) {
+    if (!schema) {
+      return;
+    }
+
+    if (Array.isArray(schema.contents)) {
+      schema.contents.forEach((item: any) => this.collectToolboxBlocks(item, availableBlocks));
+      return;
+    }
+
+    if (typeof schema.kind === 'string' && schema.kind.toLowerCase() === 'block' && schema.type) {
+      availableBlocks.add(schema.type);
+    }
+  }
+
+  private showSearchFlyout(markSelected = true) {
+    const flyout = this.workspace?.getFlyout();
+    if (!flyout) {
+      return;
+    }
+
+    const toolbox = this.workspace?.getToolbox();
+    toolbox?.clearSelection();
+
+    const query = this.toolboxSearchQuerySubject.value.trim();
+    const blockTypes = query ? this.blockSearcher.blockTypesMatching(query) : [];
+    const flyoutDef = blockTypes.length
+      ? blockTypes.map((blockType) => ({
+          kind: 'block',
+          type: blockType,
+        }))
+      : [{
+          kind: 'label',
+          text: query ? 'No matching blocks found' : 'Type to search for blocks',
+        }];
+
+    flyout.show(flyoutDef as any);
+    if (markSelected) {
+      this.toolboxSelectedKeySubject.next(this.toolboxSearchKey);
+    }
+  }
+
+  private createEmptyPageSnapshot(id = this.generatePageId(), title = this.buildDefaultPageTitle(1)): BlocklyPageSnapshot {
+    return {
+      id,
+      title,
+      content: this.createEmptyWorkspaceContent(),
+      viewState: this.createDefaultViewState(),
+    };
+  }
+
+  private createEmptyWorkspaceContent(): any {
+    return {
+      blocks: {
+        languageVersion: 0,
+        blocks: [],
+      },
+    };
+  }
+
+  private createDefaultViewState(): BlocklyWorkspaceViewState {
+    return {
+      scale: 1,
+      scrollX: 0,
+      scrollY: 0,
+    };
+  }
+
+  private generatePageId(): string {
+    return `page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private normalizeProjectDocument(jsonData: any): BlocklyProjectDocument {
+    if (Array.isArray(jsonData?.pages)) {
+      const pages = jsonData.pages.length
+        ? jsonData.pages.map((page, index) => this.normalizePageSnapshot(page, index))
+        : [this.createEmptyPageSnapshot('page-1', this.buildDefaultPageTitle(1))];
+      const activePageId = pages.some((page) => page.id === jsonData.activePageId)
+        ? jsonData.activePageId
+        : pages[0].id;
+      const openedPageIds = this.normalizeOpenedPageIds(jsonData?.openedPageIds, pages, activePageId);
+
+      return {
+        schemaVersion: this.projectDocumentSchemaVersion,
+        activePageId,
+        openedPageIds,
+        pages,
+        sharedModel: this.normalizeSharedModel(jsonData.sharedModel),
+      };
+    }
+
+    const legacyWorkspaceJson = this.normalizeWorkspaceJson(jsonData);
+    const legacyPage = this.createEmptyPageSnapshot('page-1', this.buildDefaultPageTitle(1));
+    legacyPage.content = this.stripSharedModel(legacyWorkspaceJson);
+
+    return {
+      schemaVersion: this.projectDocumentSchemaVersion,
+      activePageId: legacyPage.id,
+      openedPageIds: [legacyPage.id],
+      pages: [legacyPage],
+      sharedModel: this.extractSharedModel(legacyWorkspaceJson),
+    };
+  }
+
+  private normalizeOpenedPageIds(openedPageIds: any, pages: BlocklyPageSnapshot[], activePageId: string): string[] {
+    const normalizedOpenedIds = new Set(Array.isArray(openedPageIds) ? openedPageIds : []);
+    normalizedOpenedIds.add(activePageId);
+
+    const pageIds = new Set(pages.map((page) => page.id));
+    const nextOpenedPageIds = pages
+      .map((page) => page.id)
+      .filter((pageId) => pageIds.has(pageId) && normalizedOpenedIds.has(pageId));
+
+    return nextOpenedPageIds.length ? nextOpenedPageIds : [activePageId];
+  }
+
+  private normalizePageSnapshot(page: any, index: number): BlocklyPageSnapshot {
+    return {
+      id: page?.id || this.generatePageId(),
+      title: page?.title || this.buildDefaultPageTitle(index + 1),
+      content: this.normalizePageContent(page?.content),
+      viewState: page?.viewState || this.createDefaultViewState(),
+    };
+  }
+
+  private normalizePageContent(content: any): any {
+    const workspaceJson = this.normalizeWorkspaceJson(content);
+    delete workspaceJson.variables;
+    workspaceJson.blocks.blocks = workspaceJson.blocks.blocks.filter(
+      (block) => !this.isSharedProcedureBlock(block),
+    );
+    return workspaceJson;
+  }
+
+  private normalizeWorkspaceJson(workspaceJson: any): any {
+    const nextJson = this.cloneJson(workspaceJson) || this.createEmptyWorkspaceContent();
+
+    if (!nextJson.blocks) {
+      nextJson.blocks = {
+        languageVersion: 0,
+        blocks: [],
+      };
+    }
+
+    if (!Array.isArray(nextJson.blocks.blocks)) {
+      nextJson.blocks.blocks = [];
+    }
+
+    return nextJson;
+  }
+
+  private normalizeSharedModel(sharedModel: any): BlocklySharedModel {
+    return {
+      variables: sharedModel?.variables ? this.cloneJson(sharedModel.variables) : undefined,
+      procedureBlocks: Array.isArray(sharedModel?.procedureBlocks)
+        ? sharedModel.procedureBlocks.map((block) => this.cloneJson(block))
+        : [],
+    };
+  }
+
+  private applyProjectDocument(document: BlocklyProjectDocument) {
+    this.pagesSubject.next(document.pages.map((page) => this.cloneJson(page)));
+    this.activePageIdSubject.next(document.activePageId);
+    this.openedPageIdsSubject.next(this.cloneJson(document.openedPageIds));
+    this.sharedModelSubject.next(this.normalizeSharedModel(document.sharedModel));
+  }
+
+  private persistActiveWorkspaceToState() {
+    if (!this.workspace || !this.activePageIdSubject.value) {
+      return;
+    }
+
+    const workspaceJson = this.getWorkspaceJson();
+    const activePageId = this.activePageIdSubject.value;
+    const nextSharedModel = this.extractSharedModel(workspaceJson);
+    const nextPages = this.pagesSubject.value.map((page) => {
+      if (page.id !== activePageId) {
+        return page;
+      }
+
+      return {
+        ...page,
+        content: this.stripSharedModel(workspaceJson),
+        viewState: this.captureWorkspaceViewState(),
+      };
+    });
+
+    this.sharedModelSubject.next(nextSharedModel);
+    this.pagesSubject.next(nextPages);
+  }
+
+  private captureWorkspaceViewState(): BlocklyWorkspaceViewState {
+    if (!this.workspace) {
+      return this.createDefaultViewState();
+    }
+
+    return {
+      scale: this.workspace.scale || 1,
+      scrollX: this.workspace.scrollX || 0,
+      scrollY: this.workspace.scrollY || 0,
+    };
+  }
+
+  private loadActivePageIntoWorkspace() {
+    const activePage = this.getActivePage();
+    if (!activePage || !this.workspace) {
+      return;
+    }
+
+    const workspaceJson = this.composeWorkspacePayload(activePage.content, this.sharedModelSubject.value);
+    const wereEventsEnabled = Blockly.Events.isEnabled();
+
+    try {
+      Blockly.Events.disable();
+      this.workspace.clear();
+      this.loadWorkspaceJson(workspaceJson);
+    } finally {
+      if (wereEventsEnabled) {
+        Blockly.Events.enable();
+      }
+    }
+
+    this.selectedBlockSubject.next(null);
+    this.restoreWorkspaceViewState(activePage.viewState);
+    this.mountExternalToolbox();
+  }
+
+  private restoreWorkspaceViewState(viewState?: BlocklyWorkspaceViewState) {
+    if (!this.workspace || !viewState) {
+      return;
+    }
+
+    const workspace = this.workspace as any;
+
+    if (typeof workspace.setScale === 'function') {
+      workspace.setScale(viewState.scale || 1);
+    }
+
+    if (typeof workspace.scroll === 'function') {
+      workspace.scroll(viewState.scrollX || 0, viewState.scrollY || 0);
+      return;
+    }
+
+    workspace.scrollX = viewState.scrollX || 0;
+    workspace.scrollY = viewState.scrollY || 0;
+  }
+
+  private composeWorkspacePayload(pageContent: any, sharedModel: BlocklySharedModel): any {
+    const workspaceJson = this.normalizeWorkspaceJson(pageContent);
+    const pageBlocks = Array.isArray(workspaceJson.blocks?.blocks) ? workspaceJson.blocks.blocks : [];
+    const sharedProcedureBlocks = Array.isArray(sharedModel?.procedureBlocks)
+      ? sharedModel.procedureBlocks.map((block) => this.cloneJson(block))
+      : [];
+
+    workspaceJson.blocks.blocks = [...sharedProcedureBlocks, ...pageBlocks.map((block) => this.cloneJson(block))];
+
+    if (sharedModel?.variables) {
+      workspaceJson.variables = this.cloneJson(sharedModel.variables);
+    } else {
+      delete workspaceJson.variables;
+    }
+
+    return workspaceJson;
+  }
+
+  private extractSharedModel(workspaceJson: any): BlocklySharedModel {
+    const normalizedWorkspaceJson = this.normalizeWorkspaceJson(workspaceJson);
+    const workspaceBlocks = Array.isArray(normalizedWorkspaceJson.blocks?.blocks)
+      ? normalizedWorkspaceJson.blocks.blocks
+      : [];
+
+    return {
+      variables: normalizedWorkspaceJson.variables
+        ? this.cloneJson(normalizedWorkspaceJson.variables)
+        : undefined,
+      procedureBlocks: workspaceBlocks
+        .filter((block) => this.isSharedProcedureBlock(block))
+        .map((block) => this.cloneJson(block)),
+    };
+  }
+
+  private stripSharedModel(workspaceJson: any): any {
+    const normalizedWorkspaceJson = this.normalizeWorkspaceJson(workspaceJson);
+    normalizedWorkspaceJson.blocks.blocks = normalizedWorkspaceJson.blocks.blocks.filter(
+      (block) => !this.isSharedProcedureBlock(block),
+    );
+    delete normalizedWorkspaceJson.variables;
+    return normalizedWorkspaceJson;
+  }
+
+  private isSharedProcedureBlock(block: any): boolean {
+    return this.sharedProcedureBlockPrefixes.some((prefix) => block?.type?.startsWith(prefix));
+  }
+
+  private cloneJson<T>(value: T): T {
+    if (value === undefined || value === null) {
+      return value;
+    }
+
+    return JSON.parse(JSON.stringify(value));
   }
 
   // 创建变量用

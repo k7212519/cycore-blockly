@@ -3,6 +3,9 @@
 }
 
 blockly-main {
+    display: block;
+    height: 100%;
+
     ::ng-deep {
         .blocklyBox {
             width: 100%;

@@ -307,7 +307,7 @@ export class LibManagerComponent implements OnDestroy {
     const libPackagePath = this.projectService.currentProjectPath + `${separator}node_modules${separator}` + lib.name;
     const libBlockPath = libPackagePath + `${separator}block.json`;
     const blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
-    const abiJson = JSON.stringify(this.blocklyService.getWorkspaceJson());
+    const abiJson = JSON.stringify(this.blocklyService.getProjectDocument());
     for (let index = 0; index < blocksData.length; index++) {
       const element = blocksData[index];
       if (abiJson.includes(element.type)) {

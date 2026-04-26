@@ -1,0 +1,59 @@
+<div class="toolbox-pane">
+  <div class="toolbox-search" [class.active]="isSearchActive">
+    <i class="fa-light fa-magnifying-glass toolbox-search__icon"></i>
+    <input
+      class="toolbox-search__input"
+      type="search"
+      placeholder="Search"
+      [value]="searchQuery"
+      (focus)="onSearchFocus()"
+      (input)="onSearchInput($event)"
+      (keydown.escape)="onSearchClear()">
+    <button
+      *ngIf="searchQuery"
+      type="button"
+      class="toolbox-search__clear"
+      (click)="onSearchClear()">
+      <i class="fa-light fa-xmark"></i>
+    </button>
+  </div>
+
+  <div class="toolbox-list">
+    <ng-container *ngFor="let item of items; trackBy: trackItem">
+      <ng-container *ngTemplateOutlet="toolboxNode; context: { $implicit: item }"></ng-container>
+    </ng-container>
+  </div>
+</div>
+
+<ng-template #toolboxNode let-item>
+  <div class="toolbox-node">
+    <div class="toolbox-row" [class.selected]="selectedKey === item.key">
+      <button
+        type="button"
+        class="toolbox-item"
+        [style.padding-left.px]="12 + item.level * 16"
+        (click)="onCategoryClick(item)">
+        <span class="toolbox-item__icon">
+          <i [class]="item.iconClass"></i>
+        </span>
+        <span class="toolbox-item__label">{{ item.name }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="toolbox-item__toggle"
+        [class.hidden]="!item.isCollapsible"
+        [disabled]="!item.isCollapsible"
+        [attr.aria-expanded]="item.isCollapsible ? item.expanded : null"
+        (click)="onToggleClick(item, $event)">
+        <i class="fa-light fa-chevron-right" [class.expanded]="item.expanded"></i>
+      </button>
+    </div>
+
+    <div class="toolbox-node__children" *ngIf="item.isCollapsible && item.expanded">
+      <ng-container *ngFor="let child of item.children; trackBy: trackItem">
+        <ng-container *ngTemplateOutlet="toolboxNode; context: { $implicit: child }"></ng-container>
+      </ng-container>
+    </div>
+  </div>
+</ng-template>
