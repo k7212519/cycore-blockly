@@ -8,7 +8,8 @@
           <nz-resize-handle nzDirection="right" nzCursorType="grid">
                <div class="toolbox-pane__resize-handle"></div>
           </nz-resize-handle>
-          <app-blockly-toolbox-pane></app-blockly-toolbox-pane>
+          <app-blockly-toolbox-pane
+               (libraryManagerRequested)="libraryManagerRequested.emit()"></app-blockly-toolbox-pane>
      </div>
 
      <div class="workspace-pane">

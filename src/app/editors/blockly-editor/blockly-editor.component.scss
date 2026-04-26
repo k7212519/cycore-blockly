@@ -13,18 +13,3 @@ blockly-main {
         }
     }
 }
-
-.lib-mangager-btn {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    height: 40px;
-    width: 179px;
-    cursor: pointer;
-    background-color: var(--aily-bg-secondary);
-    z-index: 99;
-
-    &:hover {
-        color: var(--aily-color-link-hover);
-    }
-}

@@ -23,6 +23,15 @@
       <ng-container *ngTemplateOutlet="toolboxNode; context: { $implicit: item }"></ng-container>
     </ng-container>
   </div>
+
+  <div class="toolbox-footer">
+    <button
+      type="button"
+      class="toolbox-footer__button"
+      (click)="onLibraryManagerClick()">
+      {{ 'LIB_MANAGER.TITLE' | translate }}
+    </button>
+  </div>
 </div>
 
 <ng-template #toolboxNode let-item>

@@ -1,4 +1,4 @@
-import { Component, Input, ViewChild, OnDestroy, OnInit, ChangeDetectorRef, effect } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ViewChild, OnDestroy, OnInit, ChangeDetectorRef, effect } from '@angular/core';
 import * as Blockly from 'blockly';
 import { Subject, combineLatest } from 'rxjs';
 import { debounceTime, takeUntil, map, distinctUntilChanged, pairwise, startWith } from 'rxjs/operators';
@@ -203,6 +203,7 @@ class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
 })
 export class BlocklyComponent implements OnInit, OnDestroy {
   @ViewChild(BlocklyWorkspacePagesComponent, { static: true }) workspacePaneComponent!: BlocklyWorkspacePagesComponent;
+  @Output() libraryManagerRequested = new EventEmitter<void>();
 
   readonly toolboxMinWidth = 160;
   readonly toolboxMaxWidth = 420;

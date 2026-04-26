@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, NgZone, OnDestroy, OnInit, Output } from '@angular/core';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import {
@@ -11,11 +11,13 @@ import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-blockly-toolbox-pane',
-  imports: [CommonModule],
+  imports: [CommonModule, TranslateModule],
   templateUrl: './blockly-toolbox-pane.component.html',
   styleUrl: './blockly-toolbox-pane.component.scss',
 })
 export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
+  @Output() libraryManagerRequested = new EventEmitter<void>();
+
   readonly searchKey = BLOCKLY_TOOLBOX_SEARCH_KEY;
 
   items: BlocklyToolboxFacadeItem[] = [];
@@ -80,5 +82,9 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
   onToggleClick(item: BlocklyToolboxFacadeItem, event: MouseEvent) {
     event.stopPropagation();
     this.blocklyService.toggleToolboxFacadeItem(item.key);
+  }
+
+  onLibraryManagerClick() {
+    this.libraryManagerRequested.emit();
   }
 }
