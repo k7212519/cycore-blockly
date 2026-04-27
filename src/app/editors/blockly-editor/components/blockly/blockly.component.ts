@@ -190,6 +190,28 @@ class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
   }
 }
 
+class ExternalToolboxDeleteArea extends Blockly.DeleteArea {
+  override id = 'ailyExternalToolboxDeleteArea';
+
+  constructor(private readonly getHostElement: () => HTMLElement | null) {
+    super();
+  }
+
+  override getClientRect(): Blockly.utils.Rect | null {
+    const hostElement = this.getHostElement();
+    if (!hostElement) {
+      return null;
+    }
+
+    const rect = hostElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+
+    return new Blockly.utils.Rect(rect.top, rect.bottom, rect.left, rect.right);
+  }
+}
+
 @Component({
   selector: 'blockly-main',
   imports: [
@@ -229,6 +251,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   private flyoutPinForeignObject: SVGForeignObjectElement | null = null;
   private flyoutPinResizeObserver: ResizeObserver | null = null;
   private flyoutPinButton: HTMLButtonElement | null = null;
+  private externalToolboxDeleteArea: ExternalToolboxDeleteArea | null = null;
   private readonly onWorkspacePointerDownBound = (event: PointerEvent) => this.onWorkspacePointerDown(event);
   // Track previous #include and #define for dependency change detection
   private previousDependencies = '';
@@ -415,6 +438,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.removeFlyoutPinControl();
+    this.unregisterExternalToolboxDeleteArea();
     this.cancelToolboxResizeAnimationFrame();
     this.cancelWorkspaceResizeAnimationFrame();
     this.workspacePaneComponent?.blocklyHostElement?.removeEventListener('pointerdown', this.onWorkspacePointerDownBound, true);
@@ -536,6 +560,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   private resizeWorkspace(): void {
     if (this.workspace) {
       Blockly.svgResize(this.workspace);
+      this.workspace.recordDragTargets();
     }
   }
 
@@ -676,6 +701,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       this.workspace = Blockly.inject(this.workspacePaneComponent.blocklyHostElement, this.options);
       this.workspacePaneComponent.blocklyHostElement.addEventListener('pointerdown', this.onWorkspacePointerDownBound, true);
       this.workspace.updateToolbox(this.toolbox);
+      this.registerExternalToolboxDeleteArea();
       this.blocklyService.hydrateWorkspaceFromProjectState();
       this.blocklyService.syncToolboxFacadeWithWorkspace();
       // 根据配置决定 flyout 拖出 block 后是否自动关闭（配置重载时会通过 configReloaded$ 实时应用）
@@ -829,6 +855,41 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     return !!target.closest(
       '.blocklyFlyout, .blocklyFlyoutScrollbar, .blocklyWidgetDiv, .blocklyDropDownDiv, .aily-flyout-pin-xhtml',
     );
+  }
+
+  private registerExternalToolboxDeleteArea(): void {
+    if (!this.workspace) {
+      return;
+    }
+
+    this.unregisterExternalToolboxDeleteArea(false);
+    this.externalToolboxDeleteArea = new ExternalToolboxDeleteArea(() => this.toolboxPaneRef?.nativeElement ?? null);
+    this.workspace.getComponentManager().addComponent({
+      component: this.externalToolboxDeleteArea,
+      capabilities: [
+        Blockly.ComponentManager.Capability.DRAG_TARGET,
+        Blockly.ComponentManager.Capability.DELETE_AREA,
+      ],
+      weight: 0,
+    }, true);
+    this.workspace.recordDragTargets();
+  }
+
+  private unregisterExternalToolboxDeleteArea(recordDragTargets = true): void {
+    if (!this.workspace || !this.externalToolboxDeleteArea) {
+      return;
+    }
+
+    try {
+      this.workspace.getComponentManager().removeComponent(this.externalToolboxDeleteArea.id);
+    } catch (error) {
+      console.warn('[Blockly] Failed to unregister external toolbox delete area:', error);
+    }
+    this.externalToolboxDeleteArea = null;
+
+    if (recordDragTargets) {
+      this.workspace.recordDragTargets();
+    }
   }
 
   /** 切换 UI 主题时同步 Blockly 网格 SVG 描边（inject 后需手动更新，见 Grid.createDom） */
