@@ -11,6 +11,10 @@ body {
   user-select: none;
 }
 
+img {
+  -webkit-user-drag: none;
+}
+
 .loading-box {
   width: 100vw;
   height: 100vh;
