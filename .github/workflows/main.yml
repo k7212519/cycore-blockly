@@ -372,8 +372,14 @@ jobs:
               text = re.sub(r'</?think>', '', text)
               return text.strip()
 
-          def call_ai(model_configs, prompt):
-              """Try each (base_url, api_key, model) config in order; return on first success."""
+          def call_ai(base_url, api_key, model, prompt, max_retries=3):
+              import time
+              payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 2000,
+                "temperature": 0.3
+              }
               last_exc = None
               for idx, (base_url, api_key, model) in enumerate(model_configs, 1):
                 if not base_url or not api_key:
@@ -401,8 +407,10 @@ jobs:
                   return result
                 except Exception as e:
                   last_exc = e
-                  print(f"⚠️ AI model config #{idx} ({model}) failed: {e}, trying next...")
-              raise last_exc if last_exc else RuntimeError("No valid model config available")
+                  print(f"⚠️ AI request attempt {attempt}/{max_retries} failed: {e}")
+                  if attempt < max_retries:
+                    time.sleep(3 * attempt)
+              raise last_exc
 
           try:
             version  = os.environ.get('RELEASE_VERSION', '')
