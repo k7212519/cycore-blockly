@@ -14,20 +14,27 @@
 }
 
 .toolbox-search {
+  height: 40px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--aily-border-input) 65%, transparent);
 
-  &.active {
-    background: color-mix(in srgb, var(--aily-bg-secondary) 88%, transparent);
+  .toolbox-search-inner {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: var(--aily-border-input);
+    border-radius: 15px;
   }
 }
 
 .toolbox-search__icon {
   color: var(--aily-text-secondary);
   font-size: 14px;
+  width: 30px;
+  height: 30px;
 }
 
 .toolbox-search__input {
@@ -36,23 +43,20 @@
   height: 30px;
   border: none;
   outline: none;
-  border-radius: 14px;
   padding: 0 10px;
-  background: var(--aily-border-input);
+  background: transparent;
   color: var(--aily-text-primary);
 }
 
 .toolbox-search__clear {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 12px;
   background: transparent;
   color: var(--aily-text-secondary);
   cursor: pointer;
 
   &:hover {
-    background: color-mix(in srgb, var(--aily-bg-hover) 55%, var(--aily-bg-tertiary));
     color: var(--aily-text-primary);
   }
 }
@@ -130,6 +134,7 @@
   color: var(--aily-text-primary);
   cursor: pointer;
   transition: background 0.2s ease;
+  font-size: 16px;
 }
 
 .toolbox-item__toggle {

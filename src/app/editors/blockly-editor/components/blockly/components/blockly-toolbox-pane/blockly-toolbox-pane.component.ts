@@ -26,9 +26,9 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  get isSearchActive(): boolean {
-    return this.selectedKey === this.searchKey;
-  }
+  // get isSearchActive(): boolean {
+  //   return this.selectedKey === this.searchKey;
+  // }
 
   constructor(
     private blocklyService: BlocklyService,

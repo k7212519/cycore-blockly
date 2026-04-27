@@ -1,21 +1,15 @@
 <div class="toolbox-pane">
-  <div class="toolbox-search" [class.active]="isSearchActive">
-    <i class="fa-light fa-magnifying-glass toolbox-search__icon"></i>
-    <input
-      class="toolbox-search__input"
-      type="search"
-      placeholder="Search"
-      [value]="searchQuery"
-      (focus)="onSearchFocus()"
-      (input)="onSearchInput($event)"
-      (keydown.escape)="onSearchClear()">
-    <button
-      *ngIf="searchQuery"
-      type="button"
-      class="toolbox-search__clear"
-      (click)="onSearchClear()">
-      <i class="fa-light fa-xmark"></i>
-    </button>
+  <div class="toolbox-search">
+    <div class="toolbox-search-inner">
+      <div class="toolbox-search__icon ccenter">
+        <i class="fa-light fa-magnifying-glass"></i>
+      </div>
+      <input class="toolbox-search__input" type="search" placeholder="Search" [value]="searchQuery"
+        (focus)="onSearchFocus()" (input)="onSearchInput($event)" (keydown.escape)="onSearchClear()">
+      <button *ngIf="searchQuery" type="button" class="toolbox-search__clear" (click)="onSearchClear()">
+        <i class="fa-light fa-xmark"></i>
+      </button>
+    </div>
   </div>
 
   <div class="toolbox-list">
@@ -25,10 +19,7 @@
   </div>
 
   <div class="toolbox-footer">
-    <button
-      type="button"
-      class="toolbox-footer__button"
-      (click)="onLibraryManagerClick()">
+    <button type="button" class="toolbox-footer__button" (click)="onLibraryManagerClick()">
       {{ 'LIB_MANAGER.TITLE' | translate }}
     </button>
   </div>
@@ -37,10 +28,7 @@
 <ng-template #toolboxNode let-item>
   <div class="toolbox-node">
     <div class="toolbox-row" [class.selected]="selectedKey === item.key">
-      <button
-        type="button"
-        class="toolbox-item"
-        [style.padding-left.px]="12 + item.level * 16"
+      <button type="button" class="toolbox-item" [style.padding-left.px]="5 + item.level * 16"
         (click)="onCategoryClick(item)">
         <span class="toolbox-item__icon">
           <i [class]="item.iconClass"></i>
@@ -48,12 +36,8 @@
         <span class="toolbox-item__label">{{ item.name }}</span>
       </button>
 
-      <button
-        type="button"
-        class="toolbox-item__toggle"
-        [class.hidden]="!item.isCollapsible"
-        [disabled]="!item.isCollapsible"
-        [attr.aria-expanded]="item.isCollapsible ? item.expanded : null"
+      <button type="button" class="toolbox-item__toggle" [class.hidden]="!item.isCollapsible"
+        [disabled]="!item.isCollapsible" [attr.aria-expanded]="item.isCollapsible ? item.expanded : null"
         (click)="onToggleClick(item, $event)">
         <i class="fa-light fa-chevron-right" [class.expanded]="item.expanded"></i>
       </button>
