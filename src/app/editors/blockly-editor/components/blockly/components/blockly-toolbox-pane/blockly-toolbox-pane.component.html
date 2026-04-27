@@ -36,11 +36,12 @@
         <span class="toolbox-item__label">{{ item.name }}</span>
       </button>
 
-      <button type="button" class="toolbox-item__toggle" [class.hidden]="!item.isCollapsible"
-        [disabled]="!item.isCollapsible" [attr.aria-expanded]="item.isCollapsible ? item.expanded : null"
-        (click)="onToggleClick(item, $event)">
-        <i class="fa-light fa-chevron-right" [class.expanded]="item.expanded"></i>
-      </button>
+      @if (item.isCollapsible) {
+        <button type="button" class="toolbox-item__toggle" [attr.aria-expanded]="item.expanded"
+          (click)="onToggleClick(item, $event)">
+          <i class="fa-light fa-chevron-right" [class.expanded]="item.expanded"></i>
+        </button>
+      }
     </div>
 
     <div class="toolbox-node__children" *ngIf="item.isCollapsible && item.expanded">
