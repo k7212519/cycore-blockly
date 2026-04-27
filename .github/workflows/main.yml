@@ -303,19 +303,29 @@ jobs:
           if [ -z "$BASE_SHA" ]; then
             CURRENT_TAG="${{ steps.version.outputs.tag }}"
             echo "--- 降级：通过 GitHub API 获取上一个 Release tag ---"
-            LATEST_RELEASE_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || echo "")
             PREV_TAG=""
 
-            if [ -n "$LATEST_RELEASE_TAG" ] && [ "$LATEST_RELEASE_TAG" != "$CURRENT_TAG" ]; then
-              echo "✓ GitHub API 返回上一个 Release tag: $LATEST_RELEASE_TAG"
-              PREV_TAG="$LATEST_RELEASE_TAG"
-            elif [ "$LATEST_RELEASE_TAG" = "$CURRENT_TAG" ]; then
-              echo "⚠️ 最新 Release 就是当前版本，尝试获取上一个..."
-              PREV_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq ".[].tag_name" 2>/dev/null \
-                | grep -v "^${CURRENT_TAG}$" | head -n 1 || echo "")
-              [ -n "$PREV_TAG" ] && echo "✓ 找到上一个 Release tag: $PREV_TAG"
-            else
-              echo "⚠️ GitHub API 未返回有效 Release"
+              if [ "$BRANCH_NAME" = "beta" ]; then
+                echo "按 beta 预发布记录查找上一个 Release tag..."
+                PREV_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
+                  --jq '.[] | select(.prerelease == true) | .tag_name' 2>/dev/null \
+                  | grep -v "^${CURRENT_TAG}$" | head -n 1 || echo "")
+                [ -n "$PREV_TAG" ] && echo "✓ 找到上一个 beta Release tag: $PREV_TAG"
+              else
+                LATEST_RELEASE_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name' 2>/dev/null || echo "")
+
+                if [ -n "$LATEST_RELEASE_TAG" ] && [ "$LATEST_RELEASE_TAG" != "$CURRENT_TAG" ]; then
+                  echo "✓ GitHub API 返回上一个正式 Release tag: $LATEST_RELEASE_TAG"
+                  PREV_TAG="$LATEST_RELEASE_TAG"
+                elif [ "$LATEST_RELEASE_TAG" = "$CURRENT_TAG" ]; then
+                  echo "⚠️ 最新正式 Release 就是当前版本，尝试获取上一个..."
+                  PREV_TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases" \
+                    --jq '.[] | select(.prerelease == false) | .tag_name' 2>/dev/null \
+                    | grep -v "^${CURRENT_TAG}$" | head -n 1 || echo "")
+                  [ -n "$PREV_TAG" ] && echo "✓ 找到上一个正式 Release tag: $PREV_TAG"
+                else
+                  echo "⚠️ GitHub API 未返回有效正式 Release"
+                fi
             fi
 
             # 策略3（再降级）：git tag
@@ -366,29 +376,149 @@ jobs:
           python3 << 'PYTHON_EOF'
           import json, os, re, urllib.request, sys
 
+          EN_SECTION_TITLE = "### Changes"
+          ZH_SECTION_TITLE = "### 更新内容"
+          EN_CATEGORY_ORDER = [
+              "✨ New Features",
+              "🐛 Bug Fixes",
+              "⚡ Performance",
+              "🔧 Improvements",
+          ]
+          ZH_CATEGORY_ORDER = [
+              "✨ 新功能",
+              "🐛 问题修复",
+              "⚡ 性能优化",
+              "🔧 体验改进",
+          ]
+          EN_CATEGORY_ALIASES = {
+              "✨ New Features": "✨ New Features",
+              "New Features": "✨ New Features",
+              "### ✨ New Features": "✨ New Features",
+              "### New Features": "✨ New Features",
+              "🐛 Bug Fixes": "🐛 Bug Fixes",
+              "Bug Fixes": "🐛 Bug Fixes",
+              "### 🐛 Bug Fixes": "🐛 Bug Fixes",
+              "### Bug Fixes": "🐛 Bug Fixes",
+              "⚡ Performance": "⚡ Performance",
+              "Performance": "⚡ Performance",
+              "### ⚡ Performance": "⚡ Performance",
+              "### Performance": "⚡ Performance",
+              "🔧 Improvements": "🔧 Improvements",
+              "Improvements": "🔧 Improvements",
+              "### 🔧 Improvements": "🔧 Improvements",
+              "### Improvements": "🔧 Improvements",
+          }
+          ZH_CATEGORY_ALIASES = {
+              "✨ 新功能": "✨ 新功能",
+              "新功能": "✨ 新功能",
+              "### ✨ 新功能": "✨ 新功能",
+              "### 新功能": "✨ 新功能",
+              "🐛 问题修复": "🐛 问题修复",
+              "问题修复": "🐛 问题修复",
+              "### 🐛 问题修复": "🐛 问题修复",
+              "### 问题修复": "🐛 问题修复",
+              "⚡ 性能优化": "⚡ 性能优化",
+              "性能优化": "⚡ 性能优化",
+              "### ⚡ 性能优化": "⚡ 性能优化",
+              "### 性能优化": "⚡ 性能优化",
+              "🔧 体验改进": "🔧 体验改进",
+              "体验改进": "🔧 体验改进",
+              "### 🔧 体验改进": "🔧 体验改进",
+              "### 体验改进": "🔧 体验改进",
+          }
+
           def strip_think_tags(text):
               """Remove <think>...</think> blocks and standalone tags from AI output."""
               text = re.sub(r'<think>[\s\S]*?</think>', '', text)
               text = re.sub(r'</?think>', '', text)
               return text.strip()
 
-          def call_ai_with_fallbacks(*args):
-              """Try one or more model configs and return on the first successful response."""
-              if len(args) == 2:
-                model_configs, prompt = args
-              elif len(args) == 4:
-                base_url, api_key, model, prompt = args
-                model_configs = [(base_url, api_key, model)]
-              else:
-                raise TypeError(
-                  "call_ai_with_fallbacks expects (model_configs, prompt) "
-                  "or (base_url, api_key, model, prompt)"
-                )
+          def clean_ai_text(text):
+              """Strip common wrapper noise while keeping potential Markdown content."""
+              text = strip_think_tags(text or "")
+              text = re.sub(r'^\s*```[a-zA-Z0-9_-]*\s*$', '', text, flags=re.MULTILINE)
+              text = re.sub(r'</?(analysis|final|output|response)>', '', text, flags=re.IGNORECASE)
+              return text.replace('\r\n', '\n').replace('\r', '\n').strip()
 
+          def normalize_changelog_output(text, version, section_title, category_aliases, category_order):
+              """Extract only the allowed Markdown structure from a noisy model response."""
+              lines = [line.rstrip() for line in clean_ai_text(text).split('\n')]
+              sections = {category: [] for category in category_order}
+              current_category = None
+              started = False
+
+              for raw_line in lines:
+                stripped = raw_line.strip()
+                if not stripped:
+                  continue
+
+                normalized = re.sub(r'\s+', ' ', stripped)
+
+                if stripped == f"## {version}" or normalized == f"## {version}":
+                  started = True
+                  current_category = None
+                  continue
+
+                if normalized == section_title:
+                  started = True
+                  current_category = None
+                  continue
+
+                canonical_category = category_aliases.get(normalized)
+                if canonical_category:
+                  started = True
+                  current_category = canonical_category
+                  continue
+
+                bullet_match = re.match(r'^[-*]\s+(.+)$', stripped)
+                if bullet_match and current_category:
+                  bullet = f"- {bullet_match.group(1).strip()}"
+                  if bullet not in sections[current_category]:
+                    sections[current_category].append(bullet)
+                  continue
+
+                if started and current_category and raw_line.startswith('  ') and sections[current_category]:
+                  sections[current_category][-1] = f"{sections[current_category][-1]} {stripped}"
+
+              bullet_count = sum(len(items) for items in sections.values())
+              output_lines = [f"## {version}", "", section_title, ""]
+              for category in category_order:
+                if sections[category]:
+                  output_lines.append(category)
+                  output_lines.extend(sections[category])
+                  output_lines.append("")
+
+              normalized_output = "\n".join(output_lines).strip() + "\n"
+              return normalized_output, bullet_count > 0, bullet_count
+
+          def build_repair_prompt(version, raw_text, section_title, category_order, language_name):
+              categories = ", ".join(category_order)
+              return (
+                f"Rewrite the following {language_name} release note output into strict Markdown.\n\n"
+                f"Required first line: ## {version}\n"
+                f"Required second line: {section_title}\n"
+                f"Allowed category headings only, in this order when present: {categories}.\n"
+                "Keep only user-facing release note bullets. Remove analysis, reasoning, commentary, notes, and duplicated content.\n"
+                "Use bullet points only under category headings. Output Markdown only.\n\n"
+                "Source text:\n"
+                f"{clean_ai_text(raw_text)}"
+              )
+
+          def log_model_configs(label, model_configs):
+              models = [model for _, _, model in model_configs if model]
+              if not models:
+                  print(f"⚠️ {label}: no AI model name configured")
+                  return
+              print(f"ℹ️ {label} primary AI model: {models[0]}")
+              if len(models) > 1:
+                  print(f"ℹ️ {label} fallback AI models: {', '.join(models[1:])}")
+
+          def call_ai_with_fallbacks(model_configs, prompt, request_label="AI request"):
+              """Try one or more model configs and return the first successful response with model metadata."""
               last_exc = None
               for idx, (base_url, api_key, model) in enumerate(model_configs, 1):
                 if not base_url or not api_key:
-                  print(f"⚠️ Model config #{idx} skipped (base_url or api_key is empty)")
+                  print(f"⚠️ {request_label}: model config #{idx} skipped (base_url or api_key is empty)")
                   continue
                 payload = {
                   "model": model,
@@ -397,6 +527,7 @@ jobs:
                   "temperature": 0.3
                 }
                 try:
+                  print(f"→ {request_label}: calling model config #{idx}: {model}")
                   req = urllib.request.Request(
                     f'{base_url}/chat/completions',
                     data=json.dumps(payload).encode('utf-8'),
@@ -408,11 +539,15 @@ jobs:
                   with urllib.request.urlopen(req, timeout=60) as resp:
                     data = json.loads(resp.read())
                   result = strip_think_tags(data['choices'][0]['message']['content'])
-                  print(f"✓ AI request succeeded with model config #{idx} ({model})")
-                  return result
+                  print(f"✓ {request_label}: succeeded with model config #{idx} ({model})")
+                  return {
+                    "content": result,
+                    "model": model,
+                    "config_index": idx,
+                  }
                 except Exception as e:
                   last_exc = e
-                  print(f"⚠️ AI model config #{idx} ({model}) failed: {e}, trying next...")
+                  print(f"⚠️ {request_label}: model config #{idx} ({model}) failed: {e}, trying next...")
               raise last_exc if last_exc else RuntimeError("No valid model config available")
 
           try:
@@ -438,16 +573,18 @@ jobs:
 
             if not model_configs:
               print("⚠️ No AI model config is set, skipping AI generation")
-              fallback = f"## {version}\n\n### Changes\n\n{commits}"
+              fallback_en = f"## {version}\n\n{EN_SECTION_TITLE}\n\n- {commits}"
+              fallback_zh = f"## {version}\n\n{ZH_SECTION_TITLE}\n\n- {commits}"
               with open('/tmp/changelog_en.md', 'w', encoding='utf-8') as f:
-                f.write(fallback)
+                f.write(fallback_en)
               with open('/tmp/changelog_zh.md', 'w', encoding='utf-8') as f:
-                f.write(fallback)
+                f.write(fallback_zh)
               exit(0)
 
             print(f"✓ {len(model_configs)} model config(s) available: {[c[2] for c in model_configs]}")
 
             # --- Generate English changelog ---
+            log_model_configs("Changelog generation", model_configs)
             prompt_en = (
               f"You are a professional software release note writer for a desktop application (Electron + Angular). "
               f"Analyze the following Git commit records and produce a polished, user-facing changelog IN ENGLISH ONLY.\n\n"
@@ -474,19 +611,59 @@ jobs:
               "3. Aim for 3–10 bullet points total. If fewer meaningful changes exist, output fewer. Quality over quantity.\n"
               "4. If a feature was added then immediately fixed in follow-up commits, describe only the final working state.\n\n"
               "## Output format\n"
-              "- Categorize using these emoji headers (omit a category if empty):\n"
-              "  ✨ New Features / 🐛 Bug Fixes / ⚡ Performance / 🔧 Improvements\n"
-              "- Use bullet points under each category.\n"
-              "- Output in pure Markdown. No code block wrappers.\n"
+              "- Output must start with exactly these two lines:\n"
+              f"  ## {version}\n"
+              "  ### Changes\n"
+              "- After that, use ONLY these category headings and keep them in this exact order when present: ✨ New Features, 🐛 Bug Fixes, ⚡ Performance, 🔧 Improvements. Omit empty categories.\n"
+              "- Do not use any other headings, labels, intro text, outro text, summary sentence, or notes.\n"
+              "- Under each category, use bullet points only. No paragraphs outside bullets.\n"
+              "- Keep the total bullet count between 3 and 10 when possible.\n"
+              "- Do not duplicate categories or repeat the same change in multiple categories.\n"
+              "- Output pure Markdown only. No code block wrappers.\n"
               "- Do NOT wrap output in <think> tags or any XML-like tags."
             )
 
             try:
-              changelog_en = call_ai_with_fallbacks(model_configs, prompt_en)
+              en_result = call_ai_with_fallbacks(model_configs, prompt_en, "English changelog generation")
+              raw_changelog_en = en_result["content"]
+              print(f"ℹ️ English changelog generation final model: {en_result['model']} (config #{en_result['config_index']})")
               print("✓ English changelog generated successfully")
             except Exception as e:
               print(f"⚠️ English changelog AI generation failed on all models: {e}")
-              changelog_en = f"## {version}\n\n### Changes\n\n{commits}"
+              raw_changelog_en = f"## {version}\n\n{EN_SECTION_TITLE}\n\n- {commits}"
+
+            changelog_en, en_valid, en_bullet_count = normalize_changelog_output(
+              raw_changelog_en,
+              version,
+              EN_SECTION_TITLE,
+              EN_CATEGORY_ALIASES,
+              EN_CATEGORY_ORDER,
+            )
+
+            if not en_valid:
+              print("⚠️ English changelog format invalid, retrying with repair prompt")
+              try:
+                repaired_en_result = call_ai_with_fallbacks(
+                  model_configs,
+                  build_repair_prompt(version, raw_changelog_en, EN_SECTION_TITLE, EN_CATEGORY_ORDER, "English"),
+                  "English changelog repair",
+                )
+                repaired_en = repaired_en_result["content"]
+                print(f"ℹ️ English changelog repair final model: {repaired_en_result['model']} (config #{repaired_en_result['config_index']})")
+                changelog_en, en_valid, en_bullet_count = normalize_changelog_output(
+                  repaired_en,
+                  version,
+                  EN_SECTION_TITLE,
+                  EN_CATEGORY_ALIASES,
+                  EN_CATEGORY_ORDER,
+                )
+              except Exception as e:
+                print(f"⚠️ English changelog repair failed: {e}")
+
+            if not en_valid:
+              print("⚠️ Falling back to minimal English changelog due to invalid format")
+              changelog_en = f"## {version}\n\n{EN_SECTION_TITLE}\n\n🔧 Improvements\n- {commits}\n"
+              en_bullet_count = 1
 
             with open('/tmp/changelog_en.md', 'w', encoding='utf-8') as f:
               f.write(changelog_en)
@@ -494,46 +671,65 @@ jobs:
             print("--- English Changelog Preview ---")
             print(changelog_en[:500])
 
-            # --- Generate Chinese changelog ---
+            # --- Translate English changelog to Chinese ---
+            log_model_configs("Changelog translation", model_configs)
             prompt_zh = (
-              f"你是一款桌面应用（Electron + Angular）的专业版本发布文案撰写者。"
-              f"请分析以下 Git commit 记录，为终端用户撰写一份精炼、易读的版本更新说明，全部使用中文。\n\n"
-              f"版本：{version}\n\n"
-              f"原始 Commit 记录：\n{commits}\n\n"
-              "## 你的任务\n"
-              "理解这些 commit **对用户产生了什么实际影响**，然后用用户能理解的语言进行总结。"
-              "绝对不要机械搬运 commit 信息 — 你需要理解、归纳、提炼。\n\n"
-              "## 过滤规则（必须遵守）\n"
-              "完全忽略以下对用户不可见的纯内部改动，包括但不限于：\n"
-              "- CI/CD 流水线变更（GitHub Actions、构建脚本、签名、部署相关）\n"
-              "- 代码重构、重命名、目录结构调整等不改变行为的改动\n"
-              "- 依赖版本升级（npm update、package-lock 变更），除非修复了已知的用户可感知问题\n"
-              "- 代码或注释中的拼写修正（非界面文案）\n"
-              "- 代码格式化、Lint 风格调整\n"
-              "- Merge commit、revert 后又恢复的操作\n"
-              "- 测试用例的增删改\n"
-              "- 开发文档变更（README、开发者文档），除非是面向用户的帮助文档\n"
-              "- 调试日志的增删\n\n"
-              "## 总结规则\n"
-              "1. 将相关 commit 合并归纳（例如 5 条关于改善串口连接的提交 → 一条描述最终效果的要点）\n"
-              "2. 聚焦用户能感知到的变化，而非实现方式。"
-              "反面例子：'重构了 WebSocket 重连逻辑'。正面例子：'提升了连接稳定性'\n"
-              "3. 总共控制在 3–10 条要点。如果有意义的改动较少，就写少一些。质量优先于数量。\n"
-              "4. 如果某功能是本次新增后又在后续 commit 中修复的，只描述最终完成的状态。\n\n"
-              "## 输出格式\n"
-              "- 使用以下 emoji 分类标题（如果某分类为空则省略）：\n"
-              "  ✨ 新功能 / 🐛 问题修复 / ⚡ 性能优化 / 🔧 体验改进\n"
-              "- 每个分类下使用列表形式\n"
-              "- 输出纯 Markdown，不要代码块包裹\n"
-              "- 不要在输出中包含 <think> 标签或任何 XML 标签"
+              "You are a professional technical translator for desktop software release notes. "
+              "Translate the following English changelog into Simplified Chinese.\n\n"
+              f"Version: {version}\n\n"
+              "## Source Markdown\n"
+              f"{changelog_en}\n\n"
+              "## Translation requirements\n"
+              "1. Preserve the original Markdown structure exactly: keep the same headings, emoji category markers, bullet structure, and paragraph grouping.\n"
+              "2. Use these exact heading translations when they appear in the source: '### Changes' -> '### 更新内容', '✨ New Features' -> '✨ 新功能', '🐛 Bug Fixes' -> '🐛 问题修复', '⚡ Performance' -> '⚡ 性能优化', '🔧 Improvements' -> '🔧 体验改进'. Do not invent extra headings.\n"
+              "3. Keep the exact same number of sections and bullet points in the exact same order. Do not merge, split, drop, or add bullets.\n"
+              "4. Translate only the user-facing natural language into Simplified Chinese. Keep version numbers, file names, tag names, product names, API names, branch names, and technical identifiers unchanged unless they have a well-established Chinese translation.\n"
+              "5. Do not add, remove, infer, soften, or amplify meaning. The Chinese output must be a faithful translation of the English source only.\n"
+              "6. Output pure Markdown only. No code fences, no explanations, and no <think> tags or XML-like tags."
             )
 
             try:
-              changelog_zh = call_ai_with_fallbacks(model_configs, prompt_zh)
-              print("✓ Chinese changelog generated successfully")
+              zh_result = call_ai_with_fallbacks(model_configs, prompt_zh, "Chinese changelog translation")
+              raw_changelog_zh = zh_result["content"]
+              print(f"ℹ️ Chinese changelog translation final model: {zh_result['model']} (config #{zh_result['config_index']})")
+              print("✓ Chinese changelog translated successfully")
             except Exception as e:
-              print(f"⚠️ Chinese changelog AI generation failed on all models: {e}")
-              changelog_zh = f"## {version}\n\n### 更新内容\n\n{commits}"
+              print(f"⚠️ Chinese changelog translation failed on all models: {e}")
+              raw_changelog_zh = f"## {version}\n\n{ZH_SECTION_TITLE}\n\n🔧 体验改进\n- （中文翻译生成失败，请查阅 CHANGELOG.md）\n"
+
+            changelog_zh, zh_valid, zh_bullet_count = normalize_changelog_output(
+              raw_changelog_zh,
+              version,
+              ZH_SECTION_TITLE,
+              ZH_CATEGORY_ALIASES,
+              ZH_CATEGORY_ORDER,
+            )
+
+            if not zh_valid or zh_bullet_count != en_bullet_count:
+              print("⚠️ Chinese changelog format invalid or bullet count mismatch, retrying with stricter translation")
+              strict_prompt_zh = (
+                prompt_zh
+                + f"\n\n## Additional hard constraints\n"
+                + f"- The output must contain exactly {en_bullet_count} bullet points in total.\n"
+                + "- Keep every bullet aligned one-to-one with the English source.\n"
+              )
+              try:
+                repaired_zh_result = call_ai_with_fallbacks(model_configs, strict_prompt_zh, "Chinese changelog repair")
+                repaired_zh = repaired_zh_result["content"]
+                print(f"ℹ️ Chinese changelog repair final model: {repaired_zh_result['model']} (config #{repaired_zh_result['config_index']})")
+                changelog_zh, zh_valid, zh_bullet_count = normalize_changelog_output(
+                  repaired_zh,
+                  version,
+                  ZH_SECTION_TITLE,
+                  ZH_CATEGORY_ALIASES,
+                  ZH_CATEGORY_ORDER,
+                )
+              except Exception as e:
+                print(f"⚠️ Chinese changelog repair failed: {e}")
+
+            if not zh_valid or zh_bullet_count != en_bullet_count:
+              print("⚠️ Falling back to minimal Chinese changelog due to invalid format")
+              changelog_zh = f"## {version}\n\n{ZH_SECTION_TITLE}\n\n🔧 体验改进\n- （中文翻译生成失败，请查阅 CHANGELOG.md）\n"
 
             with open('/tmp/changelog_zh.md', 'w', encoding='utf-8') as f:
               f.write(changelog_zh)
