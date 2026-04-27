@@ -372,8 +372,19 @@ jobs:
               text = re.sub(r'</?think>', '', text)
               return text.strip()
 
-          def call_ai(model_configs, prompt):
-              """Try each (base_url, api_key, model) config in order; return on first success."""
+          def call_ai_with_fallbacks(*args):
+              """Try one or more model configs and return on the first successful response."""
+              if len(args) == 2:
+                model_configs, prompt = args
+              elif len(args) == 4:
+                base_url, api_key, model, prompt = args
+                model_configs = [(base_url, api_key, model)]
+              else:
+                raise TypeError(
+                  "call_ai_with_fallbacks expects (model_configs, prompt) "
+                  "or (base_url, api_key, model, prompt)"
+                )
+
               last_exc = None
               for idx, (base_url, api_key, model) in enumerate(model_configs, 1):
                 if not base_url or not api_key:
@@ -471,7 +482,7 @@ jobs:
             )
 
             try:
-              changelog_en = call_ai(model_configs, prompt_en)
+              changelog_en = call_ai_with_fallbacks(model_configs, prompt_en)
               print("✓ English changelog generated successfully")
             except Exception as e:
               print(f"⚠️ English changelog AI generation failed on all models: {e}")
@@ -518,7 +529,7 @@ jobs:
             )
 
             try:
-              changelog_zh = call_ai(model_configs, prompt_zh)
+              changelog_zh = call_ai_with_fallbacks(model_configs, prompt_zh)
               print("✓ Chinese changelog generated successfully")
             except Exception as e:
               print(f"⚠️ Chinese changelog AI generation failed on all models: {e}")
