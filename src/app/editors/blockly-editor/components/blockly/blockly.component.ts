@@ -222,6 +222,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   private flyoutPinForeignObject: SVGForeignObjectElement | null = null;
   private flyoutPinResizeObserver: ResizeObserver | null = null;
   private flyoutPinButton: HTMLButtonElement | null = null;
+  private readonly onWorkspacePointerDownBound = (event: PointerEvent) => this.onWorkspacePointerDown(event);
   // Track previous #include and #define for dependency change detection
   private previousDependencies = '';
   // Control bitmap upload handler visibility
@@ -406,6 +407,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.removeFlyoutPinControl();
+    this.workspacePaneComponent?.blocklyHostElement?.removeEventListener('pointerdown', this.onWorkspacePointerDownBound, true);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     // 清理 RxJS 订阅
@@ -579,10 +581,10 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
       applyWindowsBlocklyScrollbarThickness(this.platformService.isWindows());
       this.workspace = Blockly.inject(this.workspacePaneComponent.blocklyHostElement, this.options);
+      this.workspacePaneComponent.blocklyHostElement.addEventListener('pointerdown', this.onWorkspacePointerDownBound, true);
       this.workspace.updateToolbox(this.toolbox);
       this.blocklyService.hydrateWorkspaceFromProjectState();
       this.blocklyService.syncToolboxFacadeWithWorkspace();
-
       // 根据配置决定 flyout 拖出 block 后是否自动关闭（配置重载时会通过 configReloaded$ 实时应用）
       this.applyFlyoutAutoClose();
       this.setupFlyoutPinControl(0);
@@ -711,6 +713,23 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       this.minimapSyncSubject.next();
       this.codeGenerationSubject.next();
     }, 0);
+  }
+
+  private onWorkspacePointerDown(event: PointerEvent) {
+    const target = event.target as Element | null;
+    if (!target || this.isPointerInsideFlyout(target)) {
+      return;
+    }
+
+    if (target.closest('.blocklySvg')) {
+      this.blocklyService.closeToolboxSearchFlyout();
+    }
+  }
+
+  private isPointerInsideFlyout(target: Element): boolean {
+    return !!target.closest(
+      '.blocklyFlyout, .blocklyFlyoutScrollbar, .blocklyWidgetDiv, .blocklyDropDownDiv, .aily-flyout-pin-xhtml',
+    );
   }
 
   /** 切换 UI 主题时同步 Blockly 网格 SVG 描边（inject 后需手动更新，见 Grid.createDom） */

@@ -210,6 +210,21 @@ export class BlocklyService {
     this.toolboxSelectedKeySubject.next(null);
   }
 
+  closeToolboxSearchFlyout(): boolean {
+    if (this.toolboxSelectedKeySubject.value !== this.toolboxSearchKey) {
+      return false;
+    }
+
+    const flyout = this.workspace?.getFlyout();
+    if ((flyout as any)?.autoClose === false) {
+      return false;
+    }
+
+    flyout?.hide();
+    this.toolboxSelectedKeySubject.next(null);
+    return true;
+  }
+
   clickToolboxFacadeItem(itemKey: string): boolean {
     const item = this.findToolboxFacadeItemByKey(itemKey);
     if (!item) {
