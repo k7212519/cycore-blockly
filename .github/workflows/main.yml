@@ -585,6 +585,9 @@ jobs:
           RELEASE_VERSION: ${{ steps.version.outputs.tag }}
         run: |
           python3 << 'PYTHON_EOF'
+          import textwrap
+
+          exec(compile(textwrap.dedent(r'''
           import json, os, re, urllib.request, sys
 
           EN_SECTION_TITLE = "### Changes"
@@ -957,6 +960,7 @@ jobs:
                 f.write(f"## {os.environ.get('RELEASE_VERSION', 'Unknown')}\n\n### 更新内容\n\n（Changelog 生成失败，请查阅 git log）")
             except Exception:
               pass
+          '''), '<generate-changelog>', 'exec'))
           PYTHON_EOF
 
       - name: Download Windows Artifact
