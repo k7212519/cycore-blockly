@@ -348,6 +348,30 @@ export class BlocklyService {
     return true;
   }
 
+  collapseToolboxFacadeItem(itemKey: string): boolean {
+    const item = this.findToolboxFacadeItemByKey(itemKey);
+    if (!item || !item.isCollapsible) {
+      return false;
+    }
+
+    const hasChanged = this.updateToolboxCategoryExpandedState(item.toolboxItemId, false);
+    const nativeItem = this.getNativeToolboxItem(item.toolboxItemId);
+    const nativeExpanded = nativeItem?.isExpanded?.();
+
+    if (nativeItem?.setExpanded) {
+      nativeItem.setExpanded(false);
+    } else if (nativeItem?.toggleExpanded && nativeExpanded === true) {
+      nativeItem.toggleExpanded();
+    }
+
+    if (hasChanged) {
+      this.rebuildToolboxFacade();
+    }
+
+    this.syncToolboxFacadeWithWorkspace();
+    return hasChanged || nativeExpanded === true;
+  }
+
   syncToolboxSelectionFromNativeItem(selectedItemId?: string | null, selectedItemName?: string | null) {
     if (!selectedItemId && !selectedItemName) {
       if (this.toolboxSelectedKeySubject.value !== this.toolboxSearchKey) {

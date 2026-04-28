@@ -28,7 +28,8 @@
 <ng-template #toolboxNode let-item>
   <div class="toolbox-node" [class.toolbox-node--sortable]="item.level === 0" [attr.data-toolbox-key]="item.key"
     [attr.data-toolbox-sort-key]="item.sortKey">
-    <div class="toolbox-row" [class.selected]="selectedKey === item.key" (contextmenu)="onToolboxItemContextMenu(item, $event)">
+    <div class="toolbox-row" [class.selected]="selectedKey === item.key"
+      [class.toolbox-row--sortable-handle]="item.level === 0" (contextmenu)="onToolboxItemContextMenu(item, $event)">
       <button type="button" class="toolbox-item" [style.padding-left.px]="5 + item.level * 16"
         (click)="onCategoryClick(item)">
         <span class="toolbox-item__icon">

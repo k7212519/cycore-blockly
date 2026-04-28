@@ -238,8 +238,8 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
         const sortable = Sortable.create(container, {
           animation: 150,
           draggable: '.toolbox-node--sortable',
-          handle: '.toolbox-row',
-          delay: 100,
+          handle: '.toolbox-row--sortable-handle',
+          delay: 200,
           delayOnTouchOnly: false,
           touchStartThreshold: 10,
           fallbackTolerance: 4,
@@ -248,16 +248,15 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
           dragClass: 'toolbox-node--dragging',
           filter: '.toolbox-item__toggle',
           preventOnFilter: false,
-          onChoose: () => {
+          onChoose: (event: SortableEvent) => {
             this.ngZone.run(() => {
-              this.setDragVisualActive(true);
-              this.closeContextMenu();
+              this.enterDragVisualMode(event.item);
             });
           },
-          onStart: () => {
+          onStart: (event: SortableEvent) => {
             this.ngZone.run(() => {
               this.dragSorting = true;
-              this.enterDragVisualMode();
+              this.enterDragVisualMode(event.item);
             });
           },
           onUnchoose: () => {
@@ -327,11 +326,36 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
     this.sortableInstances.clear();
   }
 
-  private enterDragVisualMode() {
+  private enterDragVisualMode(itemElement?: HTMLElement) {
+    if (itemElement) {
+      this.closeDraggedItemBeforeSort(itemElement);
+    }
+
     this.selectedKey = null;
     this.blocklyService.clearToolboxSelection();
     this.setDragVisualActive(true);
     this.closeContextMenu();
+  }
+
+  private closeDraggedItemBeforeSort(itemElement: HTMLElement) {
+    const itemKey = itemElement.getAttribute('data-toolbox-key');
+    if (!itemKey) {
+      return;
+    }
+
+    const item = this.findItemByKey(itemKey, this.items);
+    if (!item) {
+      return;
+    }
+
+    if (this.selectedKey === item.key) {
+      this.selectedKey = null;
+      this.blocklyService.clearToolboxSelection();
+    }
+
+    if (item.isCollapsible && item.expanded) {
+      this.blocklyService.collapseToolboxFacadeItem(item.key);
+    }
   }
 
   private setDragVisualActive(active: boolean) {
