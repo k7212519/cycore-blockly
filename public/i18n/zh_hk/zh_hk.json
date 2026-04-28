@@ -561,6 +561,18 @@
         "GITHUB_CONTINUE": "請在Github授權頁面點擊\"Continue\"完成登入",
         "REGISTER": "註冊"
     },
+    "AUTH_ERRORS": {
+        "AUTH_CREDENTIALS_MISMATCH": "帳號或憑證不正確",
+        "AUTH_TOKEN_INVALID": "登入狀態無效，請重新登入",
+        "AUTH_TOKEN_EXPIRED": "登入已過期，請重新登入",
+        "AUTH_USER_NOT_FOUND": "用戶不存在或已被刪除",
+        "AUTH_VERIFICATION_FAILED": "驗證碼無效或已過期",
+        "COMMON_RATE_LIMITED": "操作過於頻繁，請稍後重試",
+        "AUTH_INVITE_CODE_INVALID": "邀請碼無效",
+        "AUTH_INVITE_CODE_USED": "邀請碼已被使用",
+        "AUTH_INVITER_EXISTS": "當前帳號已存在邀請關係",
+        "AUTH_SELF_INVITATION_NOT_ALLOWED": "不能填寫自己的邀請碼"
+    },
     "COMMON": {
         "FEATURE_COMING_SOON": "功能即將上線"
     },

@@ -4,11 +4,15 @@ import { BehaviorSubject, Observable, Subject, throwError, from } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { API } from '../configs/api.config';
 import { ElectronService } from './electron.service';
+import { extractApiErrorDetails } from '../utils/api-error.utils';
 
 export interface CommonResponse {
   status: number;
-  message: string;
-  messages?: string | string[];
+  message?: string | null;
+  messages?: string | string[] | null;
+  errorCode?: string | null;
+  errorArgs?: Record<string, unknown>;
+  errorMessage?: string | null;
   data?: any;
 }
 
@@ -20,8 +24,11 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   status: number;
-  message: string;
-  messages?: string | string[];
+  message?: string | null;
+  messages?: string | string[] | null;
+  errorCode?: string | null;
+  errorArgs?: Record<string, unknown>;
+  errorMessage?: string | null;
   data?: {
     access_token: string;
     refresh_token?: string;
@@ -926,7 +933,7 @@ export class AuthService {
     state?: string;
     error?: string;
     error_description?: string;
-  }): Promise<{ success: boolean; data?: any; error?: string; message?: string }> {
+  }): Promise<{ success: boolean; data?: any; error?: string; message?: string; errorCode?: string | null; errorArgs?: Record<string, unknown> }> {
     try {
       // 检查是否有错误
       if (callbackData.error) {
@@ -966,11 +973,14 @@ export class AuthService {
 
       // 检查是否需要绑定微信
       if (tokenData?.status === 'needs_wechat_bind') {
+        const authError = extractApiErrorDetails(tokenData, '请先绑定微信后再继续登录');
         return {
           success: false,
           error: 'needs_wechat_bind',
           data: tokenData,
-          message: tokenData.message || '请先绑定微信后再继续登录'
+          message: authError.message,
+          errorCode: authError.errorCode,
+          errorArgs: authError.errorArgs,
         };
       }
 
@@ -983,11 +993,14 @@ export class AuthService {
       };
 
     } catch (error) {
+      const authError = extractApiErrorDetails(error, '处理回调失败');
       this.clearOAuthState();
       return {
         success: false,
         error: 'callback_processing_failed',
-        message: error instanceof Error ? error.message : '处理回调失败'
+        message: authError.message,
+        errorCode: authError.errorCode,
+        errorArgs: authError.errorArgs,
       };
     }
   }

@@ -628,6 +628,18 @@
         "WECHAT_BIND_CONFLICT": "该微信已绑定其他账号",
         "BACK_TO_LOGIN": "返回登录"
     },
+    "AUTH_ERRORS": {
+        "AUTH_CREDENTIALS_MISMATCH": "账号或凭证不正确",
+        "AUTH_TOKEN_INVALID": "登录状态无效，请重新登录",
+        "AUTH_TOKEN_EXPIRED": "登录已过期，请重新登录",
+        "AUTH_USER_NOT_FOUND": "用户不存在或已被删除",
+        "AUTH_VERIFICATION_FAILED": "验证码无效或已过期",
+        "COMMON_RATE_LIMITED": "操作过于频繁，请稍后重试",
+        "AUTH_INVITE_CODE_INVALID": "邀请码无效",
+        "AUTH_INVITE_CODE_USED": "邀请码已使用",
+        "AUTH_INVITER_EXISTS": "当前账号已存在邀请关系",
+        "AUTH_SELF_INVITATION_NOT_ALLOWED": "不能填写自己的邀请码"
+    },
     "COMMON": {
         "FEATURE_COMING_SOON": "功能即将上线",
         "ONBOARDING": {
