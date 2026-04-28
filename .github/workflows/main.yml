@@ -644,88 +644,19 @@ jobs:
               text = re.sub(r'</?think>', '', text)
               return text.strip()
 
-          def clean_ai_text(text):
-              """Strip common wrapper noise while keeping potential Markdown content."""
-              text = strip_think_tags(text or "")
-              text = re.sub(r'^\s*```[a-zA-Z0-9_-]*\s*$', '', text, flags=re.MULTILINE)
-              text = re.sub(r'</?(analysis|final|output|response)>', '', text, flags=re.IGNORECASE)
-              return text.replace('\r\n', '\n').replace('\r', '\n').strip()
+          def call_ai_with_fallbacks(*args):
+              """Try one or more model configs and return on the first successful response."""
+              if len(args) == 2:
+                model_configs, prompt = args
+              elif len(args) == 4:
+                base_url, api_key, model, prompt = args
+                model_configs = [(base_url, api_key, model)]
+              else:
+                raise TypeError(
+                  "call_ai_with_fallbacks expects (model_configs, prompt) "
+                  "or (base_url, api_key, model, prompt)"
+                )
 
-          def normalize_changelog_output(text, version, section_title, category_aliases, category_order):
-              """Extract only the allowed Markdown structure from a noisy model response."""
-              lines = [line.rstrip() for line in clean_ai_text(text).split('\n')]
-              sections = {category: [] for category in category_order}
-              current_category = None
-              started = False
-
-              for raw_line in lines:
-                stripped = raw_line.strip()
-                if not stripped:
-                  continue
-
-                normalized = re.sub(r'\s+', ' ', stripped)
-
-                if stripped == f"## {version}" or normalized == f"## {version}":
-                  started = True
-                  current_category = None
-                  continue
-
-                if normalized == section_title:
-                  started = True
-                  current_category = None
-                  continue
-
-                canonical_category = category_aliases.get(normalized)
-                if canonical_category:
-                  started = True
-                  current_category = canonical_category
-                  continue
-
-                bullet_match = re.match(r'^[-*]\s+(.+)$', stripped)
-                if bullet_match and current_category:
-                  bullet = f"- {bullet_match.group(1).strip()}"
-                  if bullet not in sections[current_category]:
-                    sections[current_category].append(bullet)
-                  continue
-
-                if started and current_category and raw_line.startswith('  ') and sections[current_category]:
-                  sections[current_category][-1] = f"{sections[current_category][-1]} {stripped}"
-
-              bullet_count = sum(len(items) for items in sections.values())
-              output_lines = [f"## {version}", "", section_title, ""]
-              for category in category_order:
-                if sections[category]:
-                  output_lines.append(category)
-                  output_lines.extend(sections[category])
-                  output_lines.append("")
-
-              normalized_output = "\n".join(output_lines).strip() + "\n"
-              return normalized_output, bullet_count > 0, bullet_count
-
-          def build_repair_prompt(version, raw_text, section_title, category_order, language_name):
-              categories = ", ".join(category_order)
-              return (
-                f"Rewrite the following {language_name} release note output into strict Markdown.\n\n"
-                f"Required first line: ## {version}\n"
-                f"Required second line: {section_title}\n"
-                f"Allowed category headings only, in this order when present: {categories}.\n"
-                "Keep only user-facing release note bullets. Remove analysis, reasoning, commentary, notes, and duplicated content.\n"
-                "Use bullet points only under category headings. Output Markdown only.\n\n"
-                "Source text:\n"
-                f"{clean_ai_text(raw_text)}"
-              )
-
-          def log_model_configs(label, model_configs):
-              models = [model for _, _, model in model_configs if model]
-              if not models:
-                  print(f"⚠️ {label}: no AI model name configured")
-                  return
-              print(f"ℹ️ {label} primary AI model: {models[0]}")
-              if len(models) > 1:
-                  print(f"ℹ️ {label} fallback AI models: {', '.join(models[1:])}")
-
-          def call_ai_with_fallbacks(model_configs, prompt, request_label="AI request"):
-              """Try one or more model configs and return the first successful response with model metadata."""
               last_exc = None
               for idx, (base_url, api_key, model) in enumerate(model_configs, 1):
                 if not base_url or not api_key:
