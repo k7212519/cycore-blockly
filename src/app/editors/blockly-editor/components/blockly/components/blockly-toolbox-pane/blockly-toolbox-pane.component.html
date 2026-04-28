@@ -12,7 +12,7 @@
     </div>
   </div>
 
-  <div class="toolbox-list">
+  <div class="toolbox-list" data-toolbox-sortable-container="true">
     <ng-container *ngFor="let item of items; trackBy: trackItem">
       <ng-container *ngTemplateOutlet="toolboxNode; context: { $implicit: item }"></ng-container>
     </ng-container>
@@ -26,7 +26,8 @@
 </div>
 
 <ng-template #toolboxNode let-item>
-  <div class="toolbox-node">
+  <div class="toolbox-node" [class.toolbox-node--sortable]="item.level === 0" [attr.data-toolbox-key]="item.key"
+    [attr.data-toolbox-sort-key]="item.sortKey">
     <div class="toolbox-row" [class.selected]="selectedKey === item.key" (contextmenu)="onToolboxItemContextMenu(item, $event)">
       <button type="button" class="toolbox-item" [style.padding-left.px]="5 + item.level * 16"
         (click)="onCategoryClick(item)">

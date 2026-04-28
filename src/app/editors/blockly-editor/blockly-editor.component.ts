@@ -162,6 +162,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this._projectService.currentPackageData = packageJson;
     this.projectService.currentPackageData = packageJson;
     window['packageJson'] = packageJson;
+    this.blocklyService.setToolboxSortOrder(packageJson.blocklyToolboxOrder);
     // 暴露 ProjectService 到全局，供 generator.js 使用
     window['projectService'] = this.projectService;
 

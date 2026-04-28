@@ -31,6 +31,7 @@ interface ProjectPackageData {
   type?: string;
   framework?: string;
   cloudId?: string; // 云端项目ID
+  blocklyToolboxOrder?: string[];
 }
 
 @Injectable({
@@ -533,26 +534,40 @@ export class ProjectService {
     const packageJsonPath = `${this.currentProjectPath}/package.json`;
 
     try {
-      // 尝试直接写入
-      window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
+      this.writePackageJsonFile(packageJsonPath, data);
     } catch (error) {
-      // 如果写入失败，尝试移除只读属性后重试
-      console.warn('写入package.json失败，尝试修改权限后重试:', error);
-      try {
-        if (window['fs'].existsSync(packageJsonPath)) {
-          // 0o666 确保文件可读写
-          window['fs'].chmodSync(packageJsonPath, 0o666);
-          // 重试写入
-          window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
-        }
-      } catch (retryError) {
-        console.error('修改权限后写入仍然失败:', retryError);
-        throw retryError;
+      console.error('写入package.json失败:', error);
+      throw error;
+    }
+
+    const tempPackageJsonPath = window['path'].join(this.currentProjectPath, '.temp', 'package.json');
+    try {
+      const tempDir = window['path'].dirname(tempPackageJsonPath);
+      if (!window['fs'].existsSync(tempDir)) {
+        window['fs'].mkdirSync(tempDir, { recursive: true });
       }
+      this.writePackageJsonFile(tempPackageJsonPath, data);
+    } catch (error) {
+      console.warn('同步 package.json 到 temp 失败:', error);
     }
 
     // 更新当前packageData
     this.currentPackageData = data;
+  }
+
+  private writePackageJsonFile(packageJsonPath: string, data: any) {
+    try {
+      window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.warn('写入package.json失败，尝试修改权限后重试:', error);
+      if (window['fs'].existsSync(packageJsonPath)) {
+        window['fs'].chmodSync(packageJsonPath, 0o666);
+        window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
+        return;
+      }
+
+      throw error;
+    }
   }
 
   /**

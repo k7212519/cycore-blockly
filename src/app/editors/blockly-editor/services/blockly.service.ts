@@ -36,6 +36,7 @@ export interface BlocklyProjectDocument {
 
 export interface BlocklyToolboxFacadeItem {
   key: string;
+  sortKey: string;
   name: string;
   kind: string;
   iconClass: string;
@@ -108,6 +109,7 @@ export class BlocklyService {
   private externalToolboxHost: HTMLElement | null = null;
   private nativeToolboxElement: HTMLElement | null = null;
   private blockSearcher = new BlockSearcher();
+  private toolboxSortOrder: string[] = [];
 
   aiWaiting = false;
   private _aiWriting = new BehaviorSubject<boolean>(false);
@@ -187,6 +189,49 @@ export class BlocklyService {
 
   getSelectedToolboxKey(): string | null {
     return this.toolboxSelectedKeySubject.value;
+  }
+
+  setToolboxSortOrder(order: unknown) {
+    this.toolboxSortOrder = Array.isArray(order)
+      ? order
+          .filter((key): key is string => typeof key === 'string' && key.length > 0)
+      : [];
+
+    this.applyToolboxSortOrderToContents(this.toolbox.contents);
+    if (this.hasToolboxCategories(this.toolbox.contents)) {
+      this.refreshToolboxFromContents();
+    } else {
+      this.rebuildToolboxFacade();
+    }
+  }
+
+  getToolboxSortOrder(): string[] {
+    return this.toolbox.contents
+      .filter((item) => this.isSortableToolboxCategory(item))
+      .map((item) => this.getToolboxItemSortKey(item));
+  }
+
+  moveToolboxFacadeItem(itemKey: string, categoryIndex: number): boolean {
+    this.ensureToolboxItemIds(this.toolbox.contents);
+
+    const currentIndex = this.toolbox.contents.findIndex((item: any) => item?.kind === 'category' && item.toolboxitemid === itemKey);
+    if (currentIndex === -1) {
+      return false;
+    }
+
+    const nextCategoryIndex = Math.max(0, categoryIndex);
+    const [movedItem] = this.toolbox.contents.splice(currentIndex, 1);
+    const categoryIndexes = this.toolbox.contents
+      .map((item: any, index: number) => this.isSortableToolboxCategory(item) ? index : -1)
+      .filter((index: number) => index !== -1);
+    const insertIndex = nextCategoryIndex >= categoryIndexes.length
+      ? this.toolbox.contents.length
+      : categoryIndexes[nextCategoryIndex];
+
+    this.toolbox.contents.splice(insertIndex, 0, movedItem);
+    this.toolboxSortOrder = this.getToolboxSortOrder();
+    this.refreshToolboxFromContents();
+    return true;
   }
 
   setToolboxSearchQuery(query: string) {
@@ -648,6 +693,7 @@ export class BlocklyService {
 
     this.toolbox.contents.push(toolboxItem);
     this.ensureToolboxItemIds(this.toolbox.contents);
+    this.applyToolboxSortOrderToContents(this.toolbox.contents);
     if (this.workspace) {
       this.workspace.updateToolbox(this.toolbox);
       this.workspace.render();
@@ -960,6 +1006,7 @@ export class BlocklyService {
     this.resetDocumentState();
     this.toolboxSearchQuerySubject.next('');
     this.toolboxSelectedKeySubject.next(null);
+    this.toolboxSortOrder = [];
     this.rebuildToolboxFacade();
 
     // console.log('BlocklyService 重置完成');
@@ -1038,6 +1085,7 @@ export class BlocklyService {
 
     return {
       key: item.toolboxitemid || item.categoryId || `${item.kind}:${item.name}`,
+      sortKey: this.getToolboxItemSortKey(item),
       name: item.name || '',
       kind: item.kind,
       iconClass: item.icon || 'fa-light fa-cube',
@@ -1087,6 +1135,63 @@ export class BlocklyService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'category';
     return `toolbox-item-${path.join('-')}-${safeName}`;
+  }
+
+  private refreshToolboxFromContents() {
+    this.ensureToolboxItemIds(this.toolbox.contents);
+    if (this.workspace) {
+      this.workspace.updateToolbox(this.toolbox);
+      this.workspace.render();
+    }
+    this.rebuildToolboxFacade();
+    this.syncToolboxFacadeWithWorkspace();
+  }
+
+  private isSortableToolboxCategory(item: any): boolean {
+    return !!item && item.kind === 'category';
+  }
+
+  private hasToolboxCategories(items: any[]): boolean {
+    return Array.isArray(items) && items.some((item) => this.isSortableToolboxCategory(item));
+  }
+
+  private getToolboxItemSortKey(item: any): string {
+    if (typeof item?.ailyLibraryName === 'string' && item.ailyLibraryName) {
+      return item.ailyLibraryName;
+    }
+
+    if (typeof item?.categoryId === 'string' && item.categoryId) {
+      return `category:${item.categoryId}`;
+    }
+
+    if (typeof item?.toolboxitemid === 'string' && item.toolboxitemid) {
+      return `toolboxitemid:${item.toolboxitemid}`;
+    }
+
+    return `category-name:${item?.name || ''}`;
+  }
+
+  private applyToolboxSortOrderToContents(items: any[]) {
+    if (!Array.isArray(items) || !this.toolboxSortOrder.length) {
+      return;
+    }
+
+    const orderIndex = new Map(this.toolboxSortOrder.map((key, index) => [key, index]));
+    const sortedCategories = items
+      .filter((item) => this.isSortableToolboxCategory(item))
+      .sort((a, b) => {
+        const aIndex = orderIndex.has(this.getToolboxItemSortKey(a)) ? orderIndex.get(this.getToolboxItemSortKey(a))! : Number.MAX_SAFE_INTEGER;
+        const bIndex = orderIndex.has(this.getToolboxItemSortKey(b)) ? orderIndex.get(this.getToolboxItemSortKey(b))! : Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+      });
+
+    let categoryIndex = 0;
+    items.forEach((item, index) => {
+      if (this.isSortableToolboxCategory(item)) {
+        items[index] = sortedCategories[categoryIndex++];
+      }
+    });
+
   }
 
   private findToolboxFacadeItemByKey(itemKey: string, items = this.toolboxFacadeItemsSubject.value): BlocklyToolboxFacadeItem | null {

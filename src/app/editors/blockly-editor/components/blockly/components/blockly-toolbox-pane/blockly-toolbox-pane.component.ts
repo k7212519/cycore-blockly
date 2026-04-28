@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, EventEmitter, NgZone, OnDestroy, OnInit, Output } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, EventEmitter, HostBinding, NgZone, OnDestroy, OnInit, Output } from '@angular/core';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import {
@@ -15,6 +15,7 @@ import { ProjectService } from '../../../../../../services/project.service';
 import { CmdService } from '../../../../../../services/cmd.service';
 import { WorkflowService } from '../../../../../../services/workflow.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import Sortable, { SortableEvent } from 'sortablejs';
 
 interface ToolboxContextMenuAction {
   name: string;
@@ -30,7 +31,7 @@ interface ToolboxContextMenuAction {
   templateUrl: './blockly-toolbox-pane.component.html',
   styleUrl: './blockly-toolbox-pane.component.scss',
 })
-export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
+export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDestroy {
   @Output() libraryManagerRequested = new EventEmitter<void>();
 
   readonly searchKey = BLOCKLY_TOOLBOX_SEARCH_KEY;
@@ -39,6 +40,7 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
   selectedKey: string | null = null;
   searchQuery = '';
   showContextMenu = false;
+  dragVisualActive = false;
   contextMenuPosition = { x: 0, y: 0 };
   contextMenuItems: IMenuItem[] = [];
   contextMenuTarget: BlocklyToolboxFacadeItem | null = null;
@@ -64,6 +66,16 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
   private removingLibraryNames = new Set<string>();
+  private sortableInstances = new Map<HTMLElement, Sortable>();
+  private sortableSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private dragSorting = false;
+  private lastDragEndAt = 0;
+  private readonly toolboxOrderPackageKey = 'blocklyToolboxOrder';
+
+  @HostBinding('class.toolbox-pane--sorting')
+  get isSortingVisualActive(): boolean {
+    return this.dragVisualActive;
+  }
 
   // get isSearchActive(): boolean {
   //   return this.selectedKey === this.searchKey;
@@ -79,6 +91,7 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
     private workflowService: WorkflowService,
     private message: NzMessageService,
     private translate: TranslateService,
+    private elementRef: ElementRef<HTMLElement>,
   ) { }
 
   ngOnInit(): void {
@@ -97,13 +110,22 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
             this.closeContextMenu();
           }
           this.cdr.markForCheck();
+          this.scheduleSortableSync();
         });
       });
+  }
+
+  ngAfterViewInit(): void {
+    this.scheduleSortableSync();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    if (this.sortableSyncTimer) {
+      clearTimeout(this.sortableSyncTimer);
+    }
+    this.destroySortables();
   }
 
   trackItem(_index: number, item: BlocklyToolboxFacadeItem): string {
@@ -124,6 +146,10 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
   }
 
   onCategoryClick(item: BlocklyToolboxFacadeItem) {
+    if (this.shouldIgnoreCategoryClick()) {
+      return;
+    }
+
     this.blocklyService.clickToolboxFacadeItem(item.key);
   }
 
@@ -171,6 +197,140 @@ export class BlocklyToolboxPaneComponent implements OnInit, OnDestroy {
 
   onLibraryManagerClick() {
     this.libraryManagerRequested.emit();
+  }
+
+  private scheduleSortableSync() {
+    if (this.sortableSyncTimer) {
+      clearTimeout(this.sortableSyncTimer);
+    }
+
+    this.sortableSyncTimer = setTimeout(() => {
+      this.sortableSyncTimer = null;
+      this.syncSortableContainers();
+    }, 0);
+  }
+
+  private syncSortableContainers() {
+    const containers = Array.from(this.elementRef.nativeElement.querySelectorAll<HTMLElement>('[data-toolbox-sortable-container="true"]'));
+    const activeContainers = new Set(containers);
+
+    this.sortableInstances.forEach((sortable, container) => {
+      if (!activeContainers.has(container) || !container.isConnected) {
+        sortable.destroy();
+        this.sortableInstances.delete(container);
+      }
+    });
+
+    containers.forEach((container) => {
+      if (this.sortableInstances.has(container)) {
+        return;
+      }
+
+      this.ngZone.runOutsideAngular(() => {
+        const sortable = Sortable.create(container, {
+          animation: 150,
+          draggable: '.toolbox-node--sortable',
+          handle: '.toolbox-row',
+          delay: 200,
+          delayOnTouchOnly: false,
+          touchStartThreshold: 4,
+          fallbackTolerance: 4,
+          ghostClass: 'toolbox-node--drag-ghost',
+          chosenClass: 'toolbox-node--drag-chosen',
+          dragClass: 'toolbox-node--dragging',
+          filter: '.toolbox-item__toggle',
+          preventOnFilter: false,
+          onChoose: () => {
+            this.ngZone.run(() => {
+              this.enterDragVisualMode();
+            });
+          },
+          onStart: () => {
+            this.ngZone.run(() => {
+              this.dragSorting = true;
+              this.enterDragVisualMode();
+            });
+          },
+          onUnchoose: () => {
+            this.ngZone.run(() => {
+              if (!this.dragSorting) {
+                this.setDragVisualActive(false);
+              }
+            });
+          },
+          onEnd: (event: SortableEvent) => {
+            this.ngZone.run(() => this.onToolboxSortEnd(event));
+          },
+        });
+
+        this.sortableInstances.set(container, sortable);
+      });
+    });
+  }
+
+  private async onToolboxSortEnd(event: SortableEvent) {
+    this.dragSorting = false;
+    this.setDragVisualActive(false);
+    this.lastDragEndAt = Date.now();
+
+    const itemKey = event.item.getAttribute('data-toolbox-key');
+    const nextIndex = event.newDraggableIndex ?? event.newIndex ?? -1;
+
+    if (!itemKey || nextIndex < 0 || event.oldIndex === event.newIndex) {
+      this.scheduleSortableSync();
+      return;
+    }
+
+    const moved = this.blocklyService.moveToolboxFacadeItem(itemKey, nextIndex);
+    if (!moved) {
+      this.scheduleSortableSync();
+      return;
+    }
+
+    try {
+      await this.persistToolboxOrder();
+    } catch (error) {
+      console.error('保存工具箱顺序失败:', error);
+      this.message.error('保存工具箱顺序失败');
+    } finally {
+      this.scheduleSortableSync();
+      this.cdr.markForCheck();
+    }
+  }
+
+  private async persistToolboxOrder() {
+    const packageJson = await this.projectService.getPackageJson();
+    if (!packageJson) {
+      return;
+    }
+
+    packageJson[this.toolboxOrderPackageKey] = this.blocklyService.getToolboxSortOrder();
+    await this.projectService.setPackageJson(packageJson);
+  }
+
+  private shouldIgnoreCategoryClick(): boolean {
+    return this.dragSorting || Date.now() - this.lastDragEndAt < 250;
+  }
+
+  private destroySortables() {
+    this.sortableInstances.forEach((sortable) => sortable.destroy());
+    this.sortableInstances.clear();
+  }
+
+  private enterDragVisualMode() {
+    this.selectedKey = null;
+    this.blocklyService.clearToolboxSelection();
+    this.setDragVisualActive(true);
+    this.closeContextMenu();
+  }
+
+  private setDragVisualActive(active: boolean) {
+    if (this.dragVisualActive === active) {
+      return;
+    }
+
+    this.dragVisualActive = active;
+    this.cdr.markForCheck();
   }
 
   private hasLibraryContextMenu(item: BlocklyToolboxFacadeItem): boolean {
