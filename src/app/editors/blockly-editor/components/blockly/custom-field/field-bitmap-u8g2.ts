@@ -197,17 +197,23 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      */
     // eslint-disable-next-line
     protected override doValueUpdate_(newValue: number[][]) {
-        super.doValueUpdate_(newValue);
-        if (newValue) {
-            this.imgHeight = newValue.length;
-            this.imgWidth = newValue[0] ? newValue[0].length : 0;
-            // If the field height is static, adjust the pixel size to fit.
-            if (this.fieldHeight) {
-                this.pixelSize = this.fieldHeight / this.imgHeight;
-            } else {
-                this.pixelSize = DEFAULT_PIXEL_SIZE;
-            }
+        const newHeight = newValue.length;
+        const newWidth = newValue[0] ? newValue[0].length : 0;
+        const dimensionsChanged = this.imgHeight !== newHeight || this.imgWidth !== newWidth;
+
+        this.value_ = newValue;
+        this.imgHeight = newHeight;
+        this.imgWidth = newWidth;
+        this.refreshPixelSize();
+
+        if (dimensionsChanged) {
+            this.resizeEditorCanvas();
+            this.updateSize_();
+            this.rerenderSourceBlockAfterResize();
         }
+
+        this.renderCanvasEditor();
+        this.updateBlockDisplayImage();
     }
 
     /**
@@ -292,6 +298,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             'dropdownEditor-u8g2',); if (this.buttonOptions.clear || this.buttonOptions.upload) {
                 dropdownEditor.classList.add('has-buttons-u8g2');
             }
+        this.bindEditorContainerEvents(dropdownEditor);
 
         // 创建Canvas编辑器
         const canvasContainer = this.createElementWithClassname(
@@ -344,7 +351,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         }
 
         // Store the initial value at the start of the edit.
-        this.initialValue = this.getValue();
+        this.initialValue = this.cloneBitmap(this.getValue());
 
         return dropdownEditor;
     }
@@ -391,6 +398,44 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             this.size_.width = newWidth;
             this.size_.height = newHeight;
         }
+    }
+
+    private refreshPixelSize() {
+        if (this.fieldHeight) {
+            this.pixelSize = this.fieldHeight / this.imgHeight;
+        } else {
+            this.pixelSize = DEFAULT_PIXEL_SIZE;
+        }
+    }
+
+    private resizeEditorCanvas() {
+        if (!this.editorCanvas) return;
+
+        this.editorCanvas.width = this.imgWidth * this.pixelSize;
+        this.editorCanvas.height = this.imgHeight * this.pixelSize;
+    }
+
+    private bindEditorContainerEvents(dropdownEditor: HTMLElement) {
+        const stopEventPropagation = (e: Event) => e.stopPropagation();
+        const stopContextMenu = (e: Event) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        this.bindEvent(dropdownEditor, 'pointerdown', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'pointermove', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'pointerup', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'mousedown', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'mousemove', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'mouseup', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'click', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'dblclick', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'input', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'change', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'touchstart', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'touchmove', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'touchend', stopEventPropagation);
+        this.bindEvent(dropdownEditor, 'contextmenu', stopContextMenu);
     }
 
     /**
@@ -447,24 +492,45 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         this.heightInput.className = 'dimensionInput-u8g2';
         dimensionContainer.appendChild(this.heightInput);
 
-        // Apply button
-        const applyButton = this.createElementWithClassname('button', 'controlButton-u8g2');
-        applyButton.innerText = 'Apply';
-        dimensionContainer.appendChild(applyButton);
-
-        // Event handlers - 使用类属性
-        this.bindEvent(applyButton, 'click', () => {
-            if (this.widthInput && this.heightInput) {
-                const newWidth = parseInt(this.widthInput.value, 10);
-                const newHeight = parseInt(this.heightInput.value, 10);
-
-                if (newWidth > 0 && newHeight > 0 && newWidth <= 128 && newHeight <= 128) {
-                    this.resizeBitmap(newWidth, newHeight);
-                }
-            }
-        });
+        this.bindDimensionInputEvents(this.widthInput);
+        this.bindDimensionInputEvents(this.heightInput);
 
         parent.appendChild(dimensionContainer);
+    }
+
+    private bindDimensionInputEvents(input: HTMLInputElement) {
+        this.bindEvent(input, 'input', this.onDimensionInputChange.bind(this));
+        this.bindEvent(input, 'change', this.onDimensionInputChange.bind(this));
+    }
+
+    private onDimensionInputChange() {
+        if (!this.widthInput || !this.heightInput) return;
+        if (this.widthInput.value === '' || this.heightInput.value === '') return;
+
+        const newWidth = this.clampDimension(
+            Number(this.widthInput.value),
+            Number(this.widthInput.min),
+            Number(this.widthInput.max),
+        );
+        const newHeight = this.clampDimension(
+            Number(this.heightInput.value),
+            Number(this.heightInput.min),
+            Number(this.heightInput.max),
+        );
+
+        this.widthInput.value = String(newWidth);
+        this.heightInput.value = String(newHeight);
+
+        if (newWidth === this.imgWidth && newHeight === this.imgHeight) return;
+
+        this.resizeBitmap(newWidth, newHeight);
+    }
+
+    private clampDimension(value: number, min: number, max: number) {
+        const normalizedMin = Math.max(1, Math.floor(min));
+        const normalizedMax = Math.max(normalizedMin, Math.floor(max));
+        const normalizedValue = Number.isFinite(value) ? Math.floor(value) : normalizedMin;
+        return Math.min(normalizedMax, Math.max(normalizedMin, normalizedValue));
     }
 
     /**
@@ -491,33 +557,28 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             }
         }
 
-        // Update dimensions
-        this.imgWidth = newWidth;
-        this.imgHeight = newHeight;
+        this.setValue(newBitmap, false);
+    }
 
-        // Update pixel size if field height is fixed
-        if (this.fieldHeight) {
-            this.pixelSize = this.fieldHeight / this.imgHeight;
+    private rerenderSourceBlock() {
+        const sourceBlock = this.getSourceBlock();
+        if (sourceBlock instanceof Blockly.BlockSvg && sourceBlock.rendered) {
+            sourceBlock.render();
         }
+    }
 
-        // Update canvas size
-        if (this.editorCanvas) {
-            this.editorCanvas.width = this.imgWidth * this.pixelSize;
-            this.editorCanvas.height = this.imgHeight * this.pixelSize;
-        }        // Set new value
-        this.setValue(newBitmap);
-        this.fireIntermediateChangeEvent(newBitmap);
+    private rerenderSourceBlockAfterResize() {
+        this.rerenderSourceBlock();
 
-        // Re-render everything
-        if (this.editorCanvas && this.editorContext) {
-            this.renderCanvasEditor();
+        if (this.editorCanvas && Blockly.DropDownDiv.getOwner() === this) {
+            Blockly.DropDownDiv.showPositionedByField(
+                this,
+                this.dropdownDispose.bind(this),
+            );
         }
-        this.updateBlockDisplayImage();
-        this.updateSize_();
+    }
 
-        // Force a complete re-render of the field
-        this.render_();
-    }      /**
+    /**
      * Disposes of events belonging to the bitmap editor.
      */
     private dropdownDispose() {
@@ -530,12 +591,12 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         }
 
         // 确保所有待更新的内容都被应用
-        this.flushPendingUpdates();
+        this.flushPendingUpdates(true);
 
         if (
             this.getSourceBlock() &&
             this.initialValue !== null &&
-            this.initialValue !== this.getValue()
+            !this.bitmapsEqual(this.initialValue, this.getValue())
         ) {
             Blockly.Events.fire(
                 new (Blockly.Events.get(Blockly.Events.BLOCK_CHANGE))(
@@ -546,6 +607,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                     this.getValue(),
                 ),
             );
+            this.rerenderSourceBlock();
         }
 
         for (const event of this.boundEvents) {
@@ -614,18 +676,42 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             }
         }
         return newVal;
-    }    /**
+    }
+
+    private cloneBitmap(bitmap: number[][] | null): number[][] | null {
+        return bitmap ? bitmap.map(row => [...row]) : null;
+    }
+
+    private bitmapsEqual(left: number[][] | null, right: number[][] | null) {
+        if (left === right) return true;
+        if (!left || !right) return false;
+        if (left.length !== right.length) return false;
+
+        for (let row = 0; row < left.length; row++) {
+            if (left[row].length !== right[row].length) return false;
+            for (let col = 0; col < left[row].length; col++) {
+                if (left[row][col] !== right[row][col]) return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Checks if a down event is on a pixel in this editor and if it is starts an
      * edit gesture.
      *
      * @param e The down event.
      */    
-    private onPointerStart(e: PointerEvent) {
+    private onPointerStart(e: Event) {
         if (!this.editorCanvas) return;
 
+        this.stopCanvasEvent(e);
+        const pointerEvent = e as PointerEvent;
+
         const rect = this.editorCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x = pointerEvent.clientX - rect.left;
+        const y = pointerEvent.clientY - rect.top;
 
         const col = Math.floor(x / this.pixelSize);
         const row = Math.floor(y / this.pixelSize);
@@ -635,7 +721,6 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             this.lastPaintedRow = row;
             this.lastPaintedCol = col;
             this.pointerIsDown = true;
-            e.preventDefault();
         }
     }
 
@@ -645,14 +730,18 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      *
      * @param e The move event.
      */
-    private onPointerMove(e: PointerEvent) {
+    private onPointerMove(e: Event) {
+        this.stopCanvasEvent(e);
+
         if (!this.pointerIsDown || !this.editorCanvas) {
             return;
         }
 
+        const pointerEvent = e as PointerEvent;
+
         const rect = this.editorCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x = pointerEvent.clientX - rect.left;
+        const y = pointerEvent.clientY - rect.top;
 
         const col = Math.floor(x / this.pixelSize);
         const row = Math.floor(y / this.pixelSize);
@@ -665,7 +754,6 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                 this.lastPaintedCol = col;
             }
         }
-        e.preventDefault();
     }
 
     /**
@@ -683,16 +771,20 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         this.valToPaintWith = newPixelValue;
 
         // 立即刷新第一个点的更新
-        this.flushPendingUpdates();
+        this.flushPendingUpdates(true);
     }
 
     /**
      * Resets pointer state (e.g. After either a pointerup event or if the
      * gesture is canceled).
      */
-    private onPointerEnd() {
+    private onPointerEnd(e?: Event) {
+        if (e) {
+            this.stopCanvasEvent(e);
+        }
+
         // 确保所有待更新的内容都被应用
-        this.flushPendingUpdates();
+        this.flushPendingUpdates(true);
 
         this.pointerIsDown = false;
         this.valToPaintWith = undefined;
@@ -705,16 +797,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      */
     private clearPixels() {
         const cleared = this.getEmptyArray();
-        this.fireIntermediateChangeEvent(cleared);
         this.setValue(cleared, false);
-
-        // 更新canvas显示
-        if (this.editorCanvas && this.editorContext) {
-            this.renderCanvasEditor();
-        }
-
-        // 更新block上的图片显示
-        this.updateBlockDisplayImage();
     }    /**
      * Upload current bitmap to Angular main program for processing.
      */    private uploadBitmap() {
@@ -769,37 +852,33 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                 console.log('Field', this.fieldId, 'received response:', response);
                 
                 if (response.success && response.data) {
-                    let data = response.data;
+                    const data = response.data;
+                    const responseWidth = Number(data.width);
+                    const responseHeight = Number(data.height);
+                    const hasDimensions = Number.isFinite(responseWidth) && Number.isFinite(responseHeight);
                     
                     // 处理位图数据
                     if (data.bitmapArray) {
                         // 确保当前字段仍然存在且可编辑
                         if (this.getSourceBlock() && !this.getSourceBlock()?.isDisposed()) {
-                            this.setValue(data.bitmapArray);
+                            this.setValue(this.cloneBitmap(data.bitmapArray), false);
+                            if (
+                                hasDimensions &&
+                                (responseWidth !== this.imgWidth || responseHeight !== this.imgHeight)
+                            ) {
+                                this.resizeBitmap(responseWidth, responseHeight);
+                            }
                         }
+                    } else if (hasDimensions) {
+                        this.resizeBitmap(responseWidth, responseHeight);
                     }
                     
                     // 更新输入框值（如果编辑器当前打开）
                     if (this.widthInput && this.widthInput.parentNode) {
-                        this.widthInput.value = data.width.toString();
+                        this.widthInput.value = String(hasDimensions ? responseWidth : this.imgWidth);
                     }
                     if (this.heightInput && this.heightInput.parentNode) {
-                        this.heightInput.value = data.height.toString();
-                    }
-
-                    // 调整画布大小并重新渲染（如果编辑器当前打开）
-                    if (this.editorCanvas && this.editorContext && this.editorCanvas.parentNode) {
-                        this.resizeBitmap(data.width, data.height);
-                    } else {
-                        // 如果编辑器未打开，只更新数据和显示
-                        this.imgWidth = data.width;
-                        this.imgHeight = data.height;
-                        if (this.fieldHeight) {
-                            this.pixelSize = this.fieldHeight / this.imgHeight;
-                        }
-                        this.updateBlockDisplayImage();
-                        this.updateSize_();
-                        this.render_();
+                        this.heightInput.value = String(hasDimensions ? responseHeight : this.imgHeight);
                     }
                 } else {
                     console.error('Upload processing failed for field', this.fieldId, ':', response.message);
@@ -808,20 +887,6 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         } else {
             console.warn('BitmapUploadService not available for response handling');
         }
-    }
-
-    /**
-     * Sets the value of a particular pixel.
-     *
-     * @param r Row number of grid.
-     * @param c Column number of grid.
-     * @param newValue Value of the pixel.
-     */
-    private setPixel(r: number, c: number, newValue: number) {
-        const newGrid = JSON.parse(JSON.stringify(this.getValue()));
-        newGrid[r][c] = newValue;
-        this.fireIntermediateChangeEvent(newGrid);
-        this.setValue(newGrid, false);
     }
 
     private getPixel(row: number, column: number): number {
@@ -856,23 +921,18 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      * @param callback Function to be called on specified event.
      */
     private bindEvent(
-        element: HTMLElement,
+        element: EventTarget,
         eventName: string,
-        callback: (e: PointerEvent) => void,
+        callback: (e: Event) => void,
     ) {
         this.boundEvents.push(
             Blockly.browserEvents.bind(element, eventName, this, callback),
         );
     }
 
-    private fireIntermediateChangeEvent(newValue: number[][]) {
-        if (this.getSourceBlock()) {
-            Blockly.Events.fire(
-                new (Blockly.Events.get(
-                    Blockly.Events.BLOCK_FIELD_INTERMEDIATE_CHANGE,
-                ))(this.getSourceBlock(), this.name || null, this.getValue(), newValue),
-            );
-        }
+    private stopCanvasEvent(e: Event) {
+        e.preventDefault();
+        e.stopPropagation();
     }
 
     /**
@@ -955,7 +1015,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         // 防止触摸事件的默认行为
         this.bindEvent(this.editorCanvas, 'touchmove', (e: Event) => {
-            e.preventDefault();
+            this.stopCanvasEvent(e);
         });
     }
     /**
@@ -1037,22 +1097,19 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     /**
      * 批量应用所有待更新的像素
      */
-    private flushPendingUpdates() {
+    private flushPendingUpdates(immediate = false) {
         if (this.pendingUpdates.size === 0) return;
 
         // 清除之前的定时器
         if (this.updateTimer !== null) {
             clearTimeout(this.updateTimer);
+            this.updateTimer = null;
         }
-        // 设置新的定时器，延迟更新以提高性能
-        this.updateTimer = window.setTimeout(() => {
+
+        const applyUpdates = () => {
             const currentValue = this.getValue();
             if (currentValue) {
-                // 触发中间变化事件
-                this.fireIntermediateChangeEvent(currentValue);
-
-                // 更新字段值
-                this.setValue(currentValue, false);
+                this.setValue(this.cloneBitmap(currentValue), false);
 
                 // 立即更新canvas显示
                 if (this.editorCanvas && this.editorContext) {
@@ -1065,7 +1122,15 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
             this.pendingUpdates.clear();
             this.updateTimer = null;
-        }, 16); // 约60fps的更新频率
+        };
+
+        if (immediate) {
+            applyUpdates();
+            return;
+        }
+
+        // 设置新的定时器，延迟更新以提高性能
+        this.updateTimer = window.setTimeout(applyUpdates, 16); // 约60fps的更新频率
     }
 }
 
