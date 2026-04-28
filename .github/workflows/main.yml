@@ -26,8 +26,8 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g @angular/cli
-          npm ci
-          cd electron && npm ci --force
+          npm ci --include=dev
+          cd electron && npm ci --include=dev --force
 
       - name: Build Windows Package (Global)
         run: |
@@ -158,8 +158,8 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g @angular/cli
-          npm ci
-          cd electron && npm ci --force
+          npm ci --include=dev
+          cd electron && npm ci --include=dev --force
 
       - name: Build Windows Package (CN)
         run: |
@@ -275,8 +275,8 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g @angular/cli
-          npm ci
-          cd electron && npm ci --force
+          npm ci --include=dev
+          cd electron && npm ci --include=dev --force
 
       # --- 导入代码签名证书到 Keychain ---
       - name: Import Codesign Certificates
@@ -376,8 +376,8 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g @angular/cli
-          npm ci
-          cd electron && npm ci --force
+          npm ci --include=dev
+          cd electron && npm ci --include=dev --force
 
       - name: Import Codesign Certificates
         uses: apple-actions/import-codesign-certs@v2
