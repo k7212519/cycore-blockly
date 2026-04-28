@@ -132,6 +132,7 @@
 }
 
 :host(.toolbox-pane--sorting) .toolbox-row:hover,
+:host(.toolbox-pane--suppress-hover) .toolbox-row:hover,
 :host(.toolbox-pane--sorting) .toolbox-row.selected {
   background: transparent;
 }
@@ -147,7 +148,7 @@
   transform-origin: left center;
 }
 
-.toolbox-node--drag-chosen > .toolbox-row {
+:host(.toolbox-pane--sorting) .toolbox-node--drag-chosen > .toolbox-row {
   background: color-mix(in srgb, var(--aily-bg-hover) 70%, var(--aily-bg-tertiary));
 }
 

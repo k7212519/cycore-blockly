@@ -41,6 +41,7 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
   searchQuery = '';
   showContextMenu = false;
   dragVisualActive = false;
+  hoverSuppressed = false;
   contextMenuPosition = { x: 0, y: 0 };
   contextMenuItems: IMenuItem[] = [];
   contextMenuTarget: BlocklyToolboxFacadeItem | null = null;
@@ -68,6 +69,7 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
   private removingLibraryNames = new Set<string>();
   private sortableInstances = new Map<HTMLElement, Sortable>();
   private sortableSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private hoverSuppressPointerMoveHandler: ((event: PointerEvent) => void) | null = null;
   private dragSorting = false;
   private lastDragEndAt = 0;
   private readonly toolboxOrderPackageKey = 'blocklyToolboxOrder';
@@ -75,6 +77,11 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
   @HostBinding('class.toolbox-pane--sorting')
   get isSortingVisualActive(): boolean {
     return this.dragVisualActive;
+  }
+
+  @HostBinding('class.toolbox-pane--suppress-hover')
+  get isHoverSuppressed(): boolean {
+    return this.hoverSuppressed;
   }
 
   // get isSearchActive(): boolean {
@@ -125,6 +132,7 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
     if (this.sortableSyncTimer) {
       clearTimeout(this.sortableSyncTimer);
     }
+    this.removeHoverSuppressPointerListener();
     this.destroySortables();
   }
 
@@ -231,9 +239,9 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
           animation: 150,
           draggable: '.toolbox-node--sortable',
           handle: '.toolbox-row',
-          delay: 200,
+          delay: 100,
           delayOnTouchOnly: false,
-          touchStartThreshold: 4,
+          touchStartThreshold: 10,
           fallbackTolerance: 4,
           ghostClass: 'toolbox-node--drag-ghost',
           chosenClass: 'toolbox-node--drag-chosen',
@@ -242,7 +250,8 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
           preventOnFilter: false,
           onChoose: () => {
             this.ngZone.run(() => {
-              this.enterDragVisualMode();
+              this.setDragVisualActive(true);
+              this.closeContextMenu();
             });
           },
           onStart: () => {
@@ -271,6 +280,7 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
   private async onToolboxSortEnd(event: SortableEvent) {
     this.dragSorting = false;
     this.setDragVisualActive(false);
+    this.suppressHoverAfterDragEnd();
     this.lastDragEndAt = Date.now();
 
     const itemKey = event.item.getAttribute('data-toolbox-key');
@@ -325,12 +335,48 @@ export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDes
   }
 
   private setDragVisualActive(active: boolean) {
+    if (active) {
+      this.setHoverSuppressed(false);
+    }
+
     if (this.dragVisualActive === active) {
       return;
     }
 
     this.dragVisualActive = active;
     this.cdr.markForCheck();
+  }
+
+  private suppressHoverAfterDragEnd() {
+    this.setHoverSuppressed(true);
+    this.removeHoverSuppressPointerListener();
+
+    this.hoverSuppressPointerMoveHandler = () => {
+      this.ngZone.run(() => this.setHoverSuppressed(false));
+    };
+    document.addEventListener('pointermove', this.hoverSuppressPointerMoveHandler, { capture: true, once: true });
+  }
+
+  private setHoverSuppressed(suppressed: boolean) {
+    if (!suppressed) {
+      this.removeHoverSuppressPointerListener();
+    }
+
+    if (this.hoverSuppressed === suppressed) {
+      return;
+    }
+
+    this.hoverSuppressed = suppressed;
+    this.cdr.markForCheck();
+  }
+
+  private removeHoverSuppressPointerListener() {
+    if (!this.hoverSuppressPointerMoveHandler) {
+      return;
+    }
+
+    document.removeEventListener('pointermove', this.hoverSuppressPointerMoveHandler, { capture: true });
+    this.hoverSuppressPointerMoveHandler = null;
   }
 
   private hasLibraryContextMenu(item: BlocklyToolboxFacadeItem): boolean {
