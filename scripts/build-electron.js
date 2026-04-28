@@ -5,7 +5,7 @@ const args = process.argv.slice(2);
 const flavorIndex = args.indexOf('--flavor');
 const requestedFlavor = flavorIndex >= 0 ? args[flavorIndex + 1] : 'cn';
 const buildFlavor = requestedFlavor === 'global' ? 'global' : 'cn';
-const artifactPrefix = buildFlavor === 'cn' ? 'aily-blockly-cn' : 'aily-blockly';
+const artifactPrefix = buildFlavor === 'cn' ? 'aily-blockly-CN' : 'aily-blockly';
 const officialRegionKey = buildFlavor === 'global' ? 'eu' : 'cn';
 const workspaceRoot = path.resolve(__dirname, '..');
 const appConfig = require(path.join(workspaceRoot, 'electron', 'config', 'config.json'));

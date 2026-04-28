@@ -197,7 +197,7 @@ jobs:
           Write-Host "Files in dist/aily-blockly:"
           Get-ChildItem -File | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
 
-          $exeFile = Get-ChildItem -Filter "aily-blockly-cn-Setup-*.exe" | Select-Object -First 1
+          $exeFile = Get-ChildItem -Filter "aily-blockly-CN-Setup-*.exe" | Select-Object -First 1
           if (-not $exeFile) {
             $exeFile = Get-ChildItem -Filter "*.exe" | Select-Object -First 1
           }
@@ -412,7 +412,7 @@ jobs:
       - name: Manual Notarization (if needed) (CN)
         if: success() || failure()
         run: |
-          DMG_FILES=$(find dist/aily-blockly -name "aily-blockly-cn-*.dmg" -type f)
+          DMG_FILES=$(find dist/aily-blockly -name "aily-blockly-CN-*.dmg" -type f)
 
           if [ -z "$DMG_FILES" ]; then
             echo "❌ CN DMG not found!"
@@ -446,7 +446,7 @@ jobs:
           echo "=== Verification ==="
           while IFS= read -r DMG_PATH; do
             xcrun stapler validate "$DMG_PATH" && echo "✅ Notarized: $DMG_PATH" || echo "⚠️ Not notarized: $DMG_PATH"
-          done < <(find dist/aily-blockly -name "aily-blockly-cn-*.dmg" -type f)
+          done < <(find dist/aily-blockly -name "aily-blockly-CN-*.dmg" -type f)
 
       - name: Rename latest-mac manifest (CN)
         run: |
