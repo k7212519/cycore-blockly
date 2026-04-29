@@ -9,12 +9,13 @@ import { BitmapUploadRequest, GlobalServiceManager } from '../../../services/bit
 
 Blockly.Msg['BUTTON_LABEL_CLEAR'] = 'Clear';
 Blockly.Msg['BUTTON_LABEL_UPLOAD'] = 'Upload';
+Blockly.Msg['BITMAP_U8G2_HINT_MOUSE'] = '鼠标左键绘制，右键擦除';
 
 export const DEFAULT_HEIGHT = 128;
 export const DEFAULT_WIDTH = 64;
 const DEFAULT_PIXEL_SIZE = 2;
 const DEFAULT_PIXEL_COLOURS: PixelColours = {
-    empty: '#fff',
+    empty: '#151515',
     filled: '#363d80',
 };
 const DEFAULT_BUTTONS: Buttons = {
@@ -48,7 +49,8 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     private editorCanvas: HTMLCanvasElement | null = null;
     private editorContext: CanvasRenderingContext2D | null = null;
     private blockDisplayImage: SVGImageElement | null = null;    /** Stateful variables */
-    private pointerIsDown = false; private valToPaintWith?: number;
+    private pointerIsDown = false;
+    private valToPaintWith?: number;
     private lastPaintedRow: number = -1;
     private lastPaintedCol: number = -1;
     private pendingUpdates: Set<string> = new Set();
@@ -214,6 +216,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         this.renderCanvasEditor();
         this.updateBlockDisplayImage();
+        this.updateControlsFromValue();
     }
 
     /**
@@ -288,67 +291,48 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             boundingBox.left,
             boundingBox.right,
         );
-    }    /**
+    }
+
+    /**
      * Creates the bitmap editor and add event listeners.
      *
      * @returns The newly created dropdown menu.
-     */    private dropdownCreate() {
+     */
+    private dropdownCreate() {
         const dropdownEditor = this.createElementWithClassname(
             'div',
-            'dropdownEditor-u8g2',); if (this.buttonOptions.clear || this.buttonOptions.upload) {
-                dropdownEditor.classList.add('has-buttons-u8g2');
-            }
+            'dropdownEditor-u8g2',
+        );
         this.bindEditorContainerEvents(dropdownEditor);
 
-        // 创建Canvas编辑器
+        const toolbar = this.createToolbar();
+        dropdownEditor.appendChild(toolbar);
+
         const canvasContainer = this.createElementWithClassname(
             'div',
             'canvasContainer-u8g2',
         );
         this.editorCanvas = document.createElement('canvas');
         this.editorCanvas.className = 'bitmapCanvas-u8g2';
-        this.editorCanvas.width = this.imgWidth * this.pixelSize;
-        this.editorCanvas.height = this.imgHeight * this.pixelSize;
+        canvasContainer.appendChild(this.editorCanvas);
+        dropdownEditor.appendChild(canvasContainer);
+
+        const mouseHint = this.createElementWithClassname('div', 'hint-u8g2');
+        mouseHint.textContent = Blockly.Msg['BITMAP_U8G2_HINT_MOUSE'];
+        dropdownEditor.appendChild(mouseHint);
 
         this.editorContext = this.editorCanvas.getContext('2d');
         if (!this.editorContext) {
             throw new Error('无法获取canvas 2d context');
         }
 
-        canvasContainer.appendChild(this.editorCanvas);
-        dropdownEditor.appendChild(canvasContainer);
-
         // This prevents the normal max-height from adding a scroll bar for large images.
         Blockly.DropDownDiv.getContentDiv().classList.add('contains-bitmap-editor-u8g2');
 
-        // 绑定canvas事件
         this.bindCanvasEvents();
-
-        // 渲染初始canvas内容
-        this.renderCanvasEditor();        // Add control buttons below the canvas
-        if (this.buttonOptions.clear || this.buttonOptions.upload) {
-            const buttonContainer = this.createElementWithClassname('div', 'buttonContainer-u8g2');
-
-            // Add width and height input controls
-            this.addDimensionControls(buttonContainer);
-
-            if (this.buttonOptions.upload) {
-                this.addControlButton(
-                    buttonContainer,
-                    Blockly.Msg['BUTTON_LABEL_UPLOAD'],
-                    this.uploadBitmap,
-                );
-            }
-            if (this.buttonOptions.clear) {
-                this.addControlButton(
-                    buttonContainer,
-                    Blockly.Msg['BUTTON_LABEL_CLEAR'],
-                    this.clearPixels,
-                );
-            }
-
-            dropdownEditor.appendChild(buttonContainer);
-        }
+        this.resizeEditorCanvas();
+        this.renderCanvasEditor();
+        this.updateControlsFromValue();
 
         // Store the initial value at the start of the edit.
         this.initialValue = this.cloneBitmap(this.getValue());
@@ -368,6 +352,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                 y: 0,
                 width: this.pixelSize * this.imgWidth,
                 height: this.pixelSize * this.imgHeight,
+                style: 'image-rendering: pixelated; cursor: pointer;',
             },
             this.getSvgRoot(),
         ) as SVGImageElement;
@@ -430,12 +415,74 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         this.bindEvent(dropdownEditor, 'mouseup', stopEventPropagation);
         this.bindEvent(dropdownEditor, 'click', stopEventPropagation);
         this.bindEvent(dropdownEditor, 'dblclick', stopEventPropagation);
-        this.bindEvent(dropdownEditor, 'input', stopEventPropagation);
-        this.bindEvent(dropdownEditor, 'change', stopEventPropagation);
         this.bindEvent(dropdownEditor, 'touchstart', stopEventPropagation);
         this.bindEvent(dropdownEditor, 'touchmove', stopEventPropagation);
         this.bindEvent(dropdownEditor, 'touchend', stopEventPropagation);
         this.bindEvent(dropdownEditor, 'contextmenu', stopContextMenu);
+    }
+
+    private createToolbar() {
+        const toolbar = this.createElementWithClassname('div', 'toolbar-u8g2');
+
+        const dimensionGroup = this.createElementWithClassname('div', 'dimensionGroup-u8g2');
+        this.widthInput = this.createDimensionInput('W', this.imgWidth, 1, 256);
+        this.heightInput = this.createDimensionInput('H', this.imgHeight, 1, 128);
+        this.bindDimensionInputEvents(this.widthInput);
+        this.bindDimensionInputEvents(this.heightInput);
+        dimensionGroup.appendChild(this.createDimensionControl('W', this.widthInput));
+        dimensionGroup.appendChild(this.createDimensionControl('H', this.heightInput));
+        toolbar.appendChild(dimensionGroup);
+
+        const rightControls = this.createElementWithClassname('div', 'rightControls-u8g2');
+        const actionGroup = this.createElementWithClassname('div', 'buttonGroup-u8g2');
+        if (this.buttonOptions.upload) {
+            this.addControlButton(
+                actionGroup,
+                Blockly.Msg['BUTTON_LABEL_UPLOAD'],
+                this.uploadBitmap.bind(this),
+            );
+        }
+        if (this.buttonOptions.clear) {
+            this.addControlButton(
+                actionGroup,
+                Blockly.Msg['BUTTON_LABEL_CLEAR'],
+                this.clearPixels.bind(this),
+            );
+        }
+        rightControls.appendChild(actionGroup);
+        toolbar.appendChild(rightControls);
+
+        return toolbar;
+    }
+
+    private createLabel(text: string) {
+        const label = document.createElement('span');
+        label.className = 'label-u8g2';
+        label.textContent = text;
+        return label;
+    }
+
+    private createDimensionInput(
+        ariaLabel: string,
+        value: number,
+        min: number,
+        max: number,
+    ) {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'dimensionInput-u8g2';
+        input.min = String(min);
+        input.max = String(max);
+        input.value = String(value);
+        input.setAttribute('aria-label', ariaLabel);
+        return input;
+    }
+
+    private createDimensionControl(labelText: string, input: HTMLInputElement) {
+        const control = this.createElementWithClassname('label', 'dimensionControl-u8g2');
+        control.appendChild(this.createLabel(labelText));
+        control.appendChild(input);
+        return control;
     }
 
     /**
@@ -444,58 +491,17 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      * @param parent Parent HTML element to which control button will be added.
      * @param buttonText Text of the control button.
      * @param onClick Callback that will be attached to the control button.
-     */    private addControlButton(
+     */
+    private addControlButton(
         parent: HTMLElement,
         buttonText: string,
-        onClick: () => void,) {
+        onClick: (e?: Event) => void,
+    ) {
         const button = this.createElementWithClassname('button', 'controlButton-u8g2');
         button.innerText = buttonText;
         parent.appendChild(button);
         this.bindEvent(button, 'click', onClick);
-    }
-
-    /**
-     * 添加宽度和高度的尺寸控制输入框。
-     *
-     * @param parent 将添加尺寸控制的父HTML元素。
-     */
-    private addDimensionControls(parent: HTMLElement) {
-        const dimensionContainer = this.createElementWithClassname('div', 'dimensionContainer-u8g2');
-
-        // Width input
-        const widthLabel = document.createElement('label');
-        widthLabel.textContent = 'W';
-        widthLabel.className = 'dimensionLabel-u8g2';
-        dimensionContainer.appendChild(widthLabel);
-
-        // 将局部变量改为类属性
-        this.widthInput = document.createElement('input');
-        this.widthInput.type = 'number';
-        this.widthInput.min = '1';
-        this.widthInput.max = '256';
-        this.widthInput.value = this.imgWidth.toString();
-        this.widthInput.className = 'dimensionInput-u8g2';
-        dimensionContainer.appendChild(this.widthInput);
-
-        // Height input
-        const heightLabel = document.createElement('label');
-        heightLabel.textContent = 'H';
-        heightLabel.className = 'dimensionLabel-u8g2';
-        dimensionContainer.appendChild(heightLabel);
-
-        // 将局部变量改为类属性
-        this.heightInput = document.createElement('input');
-        this.heightInput.type = 'number';
-        this.heightInput.min = '1';
-        this.heightInput.max = '128';
-        this.heightInput.value = this.imgHeight.toString();
-        this.heightInput.className = 'dimensionInput-u8g2';
-        dimensionContainer.appendChild(this.heightInput);
-
-        this.bindDimensionInputEvents(this.widthInput);
-        this.bindDimensionInputEvents(this.heightInput);
-
-        parent.appendChild(dimensionContainer);
+        return button;
     }
 
     private bindDimensionInputEvents(input: HTMLInputElement) {
@@ -524,6 +530,15 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         if (newWidth === this.imgWidth && newHeight === this.imgHeight) return;
 
         this.resizeBitmap(newWidth, newHeight);
+    }
+
+    private updateControlsFromValue() {
+        if (this.widthInput) {
+            this.widthInput.value = String(this.imgWidth);
+        }
+        if (this.heightInput) {
+            this.heightInput.value = String(this.imgHeight);
+        }
     }
 
     private clampDimension(value: number, min: number, max: number) {
@@ -716,12 +731,16 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         const col = Math.floor(x / this.pixelSize);
         const row = Math.floor(y / this.pixelSize);
 
-        if (row >= 0 && row < this.imgHeight && col >= 0 && col < this.imgWidth) {
-            this.onPointerDownInPixel(row, col);
-            this.lastPaintedRow = row;
-            this.lastPaintedCol = col;
-            this.pointerIsDown = true;
-        }
+        if (pointerEvent.button !== 0 && pointerEvent.button !== 2) return;
+
+        if (row < 0 || row >= this.imgHeight || col < 0 || col >= this.imgWidth) return;
+
+        this.pointerIsDown = true;
+        this.valToPaintWith = pointerEvent.button === 2 ? 0 : 1;
+        this.lastPaintedRow = row;
+        this.lastPaintedCol = col;
+        this.drawLine(row, col, row, col);
+        this.flushPendingUpdates(true);
     }
 
     /**
@@ -733,7 +752,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     private onPointerMove(e: Event) {
         this.stopCanvasEvent(e);
 
-        if (!this.pointerIsDown || !this.editorCanvas) {
+        if (!this.pointerIsDown || this.valToPaintWith === undefined || !this.editorCanvas) {
             return;
         }
 
@@ -754,24 +773,6 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                 this.lastPaintedCol = col;
             }
         }
-    }
-
-    /**
-     * Starts an interaction with the bitmap dropdown when there's a pointerdown
-     * within one of the pixels in the editor.
-     *
-     * @param r Row number of grid.
-     * @param c Column number of grid.
-     */
-    private onPointerDownInPixel(r: number, c: number) {
-        // Toggle that pixel to the opposite of its value
-        const newPixelValue = 1 - this.getPixel(r, c);
-        this.setPixelBatch(r, c, newPixelValue);
-        this.pointerIsDown = true;
-        this.valToPaintWith = newPixelValue;
-
-        // 立即刷新第一个点的更新
-        this.flushPendingUpdates(true);
     }
 
     /**
@@ -977,6 +978,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         // 将canvas转换为data URL并设置到SVG image元素
         const dataUrl = canvas.toDataURL();
+        this.blockDisplayImage.setAttribute('href', dataUrl);
         this.blockDisplayImage.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dataUrl);
     }
 
@@ -997,6 +999,12 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                 // 绘制像素
                 this.editorContext.fillStyle = bitmap[r][c] ? this.pixelColours.filled : this.pixelColours.empty;
                 this.editorContext.fillRect(x, y, this.pixelSize, this.pixelSize);
+
+                if (this.pixelSize >= 5) {
+                    this.editorContext.strokeStyle = '#4f4f4f';
+                    this.editorContext.lineWidth = 1;
+                    this.editorContext.strokeRect(x + 0.5, y + 0.5, this.pixelSize, this.pixelSize);
+                }
             }
         }
     }
@@ -1012,6 +1020,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         this.bindEvent(this.editorCanvas, 'pointerleave', this.onPointerEnd);
         this.bindEvent(this.editorCanvas, 'pointerdown', this.onPointerStart);
         this.bindEvent(this.editorCanvas, 'pointercancel', this.onPointerEnd);
+        this.bindEvent(this.editorCanvas, 'contextmenu', this.stopCanvasEvent);
 
         // 防止触摸事件的默认行为
         this.bindEvent(this.editorCanvas, 'touchmove', (e: Event) => {
@@ -1159,79 +1168,107 @@ Blockly.fieldRegistry.register('field_bitmap_u8g2', FieldBitmapU8g2);
  */
 Blockly.Css.register(`
 .dropdownEditor-u8g2 {
-  align-items: center;
-  flex-direction: column;
-  display: flex;
-  justify-content: center;
+    align-items: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+    max-width: 520px;
+    padding: 10px;
 }
-.dropdownEditor-u8g2.has-buttons-u8g2 {
-  padding-bottom: 5px;
+.toolbar-u8g2 {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+}
+.dimensionControl-u8g2 {
+    align-items: center;
+    display: inline-flex;
+    gap: 5px;
+}
+.dimensionGroup-u8g2,
+.buttonGroup-u8g2 {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+}
+.rightControls-u8g2 {
+    align-items: center;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-left: auto;
+}
+.label-u8g2 {
+    color: #e8e8e8;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+}
+.hint-u8g2 {
+    color: #cfcfcf;
+    font-size: 12px;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    width: 100%;
 }
 .canvasContainer-u8g2 {
-  border: 2px solid #333;
-  margin: 10px;
+    align-self: center;
+    background: #1b1b1b;
+    border: 2px solid #666;
+    border-radius: 4px;
   display: inline-block;
+    line-height: 0;
+    max-height: 420px;
+    max-width: 480px;
+    overflow: auto;
 }
 .bitmapCanvas-u8g2 {
+    background: #151515;
   display: block;
   cursor: crosshair;
-}
-.pixelDisplay-u8g2 {
-  white-space:pre-wrap;
-}
-.buttonContainer-u8g2 {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.dimensionContainer-u8g2 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-  background: #eee;
-}
-.dimensionLabel-u8g2 {
-  font-size: 12px;
-  color: #333;
-  margin: 0;
-  white-space: nowrap;
+    image-rendering: pixelated;
+    touch-action: none;
 }
 .dimensionInput-u8g2 {
-  height: 25px;
-  width: 45px;
-  padding: 4px 0px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+    background: #ffffff;
+    border: 1px solid #777;
+    border-radius: 4px;
+    color: #222;
   font-size: 12px;
+    height: 26px;
+    padding: 0 4px;
   text-align: center;
-  color: #333;
+    width: 48px;
 }
 .dimensionInput-u8g2:focus {
   outline: none;
   border-color: #007acc;
   box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.3);
-
 }
 .controlButton-u8g2 {
-  height: 25px;
-  margin: 0;
-  color: #333;
-  border: 1px solid #ccc;
+    background: #333;
+    border: 1px solid #666;
   border-radius: 4px;
-  background: #fff;
+    color: #fff;
   cursor: pointer;
   font-size: 12px;
+    height: 26px;
+    margin: 0;
+    padding: 0 10px;
 }
 .controlButton-u8g2:hover {
-  background: #f5f5f5;
-  border-color: #999;
+    background: #444;
+    border-color: #888;
 }
 .blocklyDropDownContent.contains-bitmap-editor-u8g2 {
+    background: #2a2a2a;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   max-height: none;
 }
 `);
