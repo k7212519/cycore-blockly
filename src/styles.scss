@@ -170,3 +170,94 @@ nz-sider {
     color: var(--aily-blockly-text-primary);
   }
 }
+
+// Blockly 下拉选择框 美化（对齐 menu 组件风格）
+.blocklyDropDownDiv {
+  background: var(--aily-bg-primary) !important;
+  border: 1px solid var(--aily-border-subtle) !important;
+  border-radius: 5px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  padding: 3px 0 !important;
+  color: var(--aily-menu-text) !important;
+
+  .blocklyDropDownContent {
+    background: transparent !important;
+    max-height: 320px;
+    overflow-y: auto;
+
+    // 滚动条
+    scrollbar-width: thin;
+    scrollbar-color: var(--aily-border-tertiary) transparent;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--aily-border-tertiary);
+      border-radius: 2px;
+
+      &:hover {
+        background: var(--aily-scrollbar-thumb-hover);
+      }
+    }
+  }
+
+  .blocklyMenu {
+    background: transparent !important;
+    padding: 0 !important;
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .blocklyMenuItem {
+    display: flex;
+    align-items: center;
+    min-width: 50px;
+    padding: 6px 10px !important;
+    margin: 0 3px !important;
+    border-radius: 5px !important;
+    color: var(--aily-menu-text) !important;
+    cursor: pointer;
+    background: transparent !important;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    font-size: 14px;
+
+    &:hover,
+    &.blocklyMenuItemHighlight,
+    &.goog-menuitem-highlight,
+    &.goog-menuitem-hover {
+      background: var(--aily-menu-hover) !important;
+      color: var(--aily-menu-text) !important;
+    }
+
+    &.blocklyMenuItemSelected,
+    &.goog-option-selected {
+      font-weight: bold;
+      color: var(--aily-color-accent) !important;
+    }
+  }
+
+  .blocklyMenuItemContent {
+    display: flex;
+    align-items: center;
+    padding: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+  }
+
+  .goog-menuitem-checkbox {
+    display: none;
+  }
+
+  // 底部/顶部小箭头与容器同色
+  .blocklyDropDownArrow {
+    background-color: var(--aily-bg-primary) !important;
+    border-color: var(--aily-border-subtle) !important;
+  }
+}

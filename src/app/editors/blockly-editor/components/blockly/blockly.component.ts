@@ -1,6 +1,7 @@
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild, effect } from '@angular/core';
 import * as Blockly from 'blockly';
 import { Subject, combineLatest } from 'rxjs';
+
 import { debounceTime, takeUntil, map, distinctUntilChanged, pairwise, startWith } from 'rxjs/operators';
 import { TranslateService } from '@ngx-translate/core';
 
@@ -94,6 +95,9 @@ import { applyWindowsBlocklyScrollbarThickness } from '../../utils/apply-windows
 import { BlocklyToolboxPaneComponent } from './components/blockly-toolbox-pane/blockly-toolbox-pane.component';
 import { BlocklyWorkspacePagesComponent } from './components/blockly-workspace-pages/blockly-workspace-pages.component';
 import { CodeViewerIpcService } from '../../services/code-viewer-ipc.service';
+
+// 全局关闭 Blockly 文本输入字段的拼写检查，避免 block 内 input 出现红色波浪线
+(Blockly.FieldTextInput.prototype as unknown as { spellcheck_: boolean }).spellcheck_ = false;
 
 /** Flyout 图钉右侧额外留白：Blockly 垂直条在 injectionDiv；vScroll 不可见时 DOM 仍可能有宽度，需一并判断 */
 function flyoutPinRightExtraX(
