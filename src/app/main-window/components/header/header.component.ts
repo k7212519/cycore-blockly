@@ -235,6 +235,9 @@ export class HeaderComponent implements OnDestroy {
    * 异步检测调试探针，完成后更新缓存并重建端口列表
    */
   private detectProbes(generation: number, portList: IMenuItem[], skipDetect: boolean) {
+
+    console.log('detectProbes');
+
     if (!skipDetect) {
       if (this.cachedDebuggerItems.length > 0) {
         portList.push(...this.cachedDebuggerItems);
@@ -332,6 +335,7 @@ export class HeaderComponent implements OnDestroy {
 
 
     // 添加ESP32相关配置选项
+    // console.log('core:' + core);
     if (core.indexOf('esp32') > -1) {
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
@@ -343,11 +347,9 @@ export class HeaderComponent implements OnDestroy {
     }
 
     // 添加STM32相关配置选项
-    if (core.indexOf('stm32') > -1 &&
-      this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
+    else if (core.indexOf('stm32') > -1) {
       // 异步检测调试探针，完成后更新缓存并重建列表
       this.detectProbes(generation, portList0, skipDetect);
-
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
       let stm32config = await this.projectService.updateStm32ConfigMenu(board);
@@ -357,13 +359,11 @@ export class HeaderComponent implements OnDestroy {
     }
 
     // 添加nRF5相关配置选项
-    if (core.indexOf('nrf5') > -1) {
+    else if (core.indexOf('nrf5') > -1) {
       // 异步检测调试探针（nRF52）
       this.detectProbes(generation, portList0, skipDetect);
-
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
-      // console.log('nRF5开发板标识:', board);
       let nrf5config = await this.projectService.updateNrf5ConfigMenu(board);
       if (nrf5config) {
         portList0 = portList0.concat(nrf5config)
