@@ -290,7 +290,7 @@ export function searchLibraries(db: AnyOrama, term: string, limit: number = 500)
   const results = search(db, {
     term: lowerTerm,
     properties: ['name', 'nickname', 'keywords', 'tags', 'aliases', 'description', 'brand', 'author'],
-    tolerance: normalizedTerm.length <= 4 ? 0 : 1,
+    tolerance: normalizedTerm.length <= 2 ? 0 : normalizedTerm.length <= 5 ? 1 : 2,
     boost: {
       name: 3,
       nickname: 2.5,
@@ -409,7 +409,7 @@ export function searchBoards(db: AnyOrama, term: string, limit: number = 500): s
   const results = search(db, {
     term: lowerTerm,
     properties: ['name', 'nickname', 'brand', 'description', 'keywords', 'type', 'aliases'],
-    tolerance: normalizedTerm.length <= 4 ? 0 : 1,
+    tolerance: normalizedTerm.length <= 2 ? 0 : normalizedTerm.length <= 5 ? 1 : 2,
     boost: {
       name: 3,
       nickname: 3,
