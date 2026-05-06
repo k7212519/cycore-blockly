@@ -169,6 +169,26 @@
             <input class="board" nz-input [(ngModel)]="newProjectData.board.name" [disabled]="true" />
             } -->
           </div>
+          @if (!isLoadingTemplates && myTemplateList.length > 0) {
+          <div class="item template-row">
+            <div>{{ 'PROJECT_NEW.FORM.TEMPLATE' | translate }}:</div>
+            <div class="template-select-box">
+              <nz-select [(ngModel)]="selectedTemplateName"
+                [nzAllowClear]="true"
+                [nzPlaceHolder]="'PROJECT_NEW.TEMPLATES.SELECT' | translate">
+                <nz-option [nzValue]="''" [nzLabel]="'PROJECT_NEW.TEMPLATES.NONE' | translate"></nz-option>
+                @for (template of myTemplateList; track template.name) {
+                <nz-option [nzValue]="template.name" [nzLabel]="template.nickname || template.name" nzCustomContent>
+                  <span [title]="template.description || ''" style="display: block; width: 100%;">{{ template.nickname || template.name }}</span>
+                </nz-option>
+                }
+              </nz-select>
+              @if (selectedTemplateDescription) {
+              <div class="template-selected-description">{{ selectedTemplateDescription }}</div>
+              }
+            </div>
+          </div>
+          }
           <div class="item">
             <div>{{ 'PROJECT_NEW.FORM.PROJECT_NAME' | translate }}:</div>
             <input nz-input [(ngModel)]="newProjectData.name" (ngModelChange)="checkPathIsExist()" />

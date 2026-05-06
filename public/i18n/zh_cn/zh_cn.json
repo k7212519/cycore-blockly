@@ -237,6 +237,7 @@
         "FORM": {
             "DEVMODE": "开发框架",
             "BOARD": "开发板",
+            "TEMPLATE": "模板选择",
             "PROJECT_NAME": "项目名称",
             "SAVE_PATH": "保存路径",
             "NAME_EXISTS": "项目名称已存在，请修改",
@@ -249,6 +250,13 @@
             "PREV": "上一步",
             "CREATE": "创建项目",
             "CREATING": "正在创建"
+        },
+        "TEMPLATES": {
+            "TITLE": "我的模板",
+            "LOADING": "正在加载模板...",
+            "EMPTY": "当前开发板下暂无可用模板",
+            "SELECT": "可选，不使用模板",
+            "NONE": "不使用模板"
         },
         "WARNINGS": {
             "BETA_VERSION": "内测版本，未经验证，谨慎使用",

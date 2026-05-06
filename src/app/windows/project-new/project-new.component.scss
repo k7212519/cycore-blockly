@@ -199,6 +199,30 @@
   }
 }
 
+.template-row {
+  align-items: flex-start !important;
+  height: auto !important;
+  min-height: 40px;
+
+  .template-select-box {
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 120px);
+  }
+
+  nz-select {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .template-selected-description {
+    margin-top: 6px;
+    color: var(--aily-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
 .search-box {
   display: flex;
   align-items: center;

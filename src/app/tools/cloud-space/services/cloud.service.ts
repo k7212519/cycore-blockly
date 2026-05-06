@@ -200,10 +200,20 @@ export class CloudService {
    * 获取当前用户的模板项目列表
    * @param page 页码
    * @param perPage 每页数量
+   * @param board 开发板包名
    */
-  getMyTemplates(page: number = 1, perPage: number = 100): Observable<any> {
+  getMyTemplates(page: number = 1, perPage: number = 100, board?: string): Observable<any> {
+    const params: Record<string, string> = {
+      page: page.toString(),
+      perPage: perPage.toString()
+    };
+
+    if (board?.trim()) {
+      params['board'] = board.trim();
+    }
+
     return this.http.get<any>(`${this.cloudProjectsUrl}/templates`, {
-      params: { page: page.toString(), perPage: perPage.toString() }
+      params
     }).pipe(
       catchError(this.handleError)
     );

@@ -237,6 +237,7 @@
         "FORM": {
             "DEVMODE": "Development Framework",
             "BOARD": "Board",
+            "TEMPLATE": "Template",
             "PROJECT_NAME": "Project Name",
             "SAVE_PATH": "Save Path",
             "NAME_EXISTS": "Project name already exists, please modify",
@@ -249,6 +250,13 @@
             "PREV": "Previous",
             "CREATE": "Create Project",
             "CREATING": "Creating"
+        },
+        "TEMPLATES": {
+            "TITLE": "My Templates",
+            "LOADING": "Loading templates...",
+            "EMPTY": "No templates available for this board",
+            "SELECT": "Optional, no template",
+            "NONE": "No template"
         },
         "WARNINGS": {
             "BETA_VERSION": "Beta version, unverified, use with caution",

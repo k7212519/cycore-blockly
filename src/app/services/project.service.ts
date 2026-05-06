@@ -127,14 +127,50 @@ export class ProjectService {
     return chineseRegex.test(str);
   }
 
+  private buildProjectPath(newProjectData: NewProjectData): string {
+    return window['path'].join(newProjectData.path, newProjectData.name.replace(/\s/g, '_'));
+  }
+
+  private updateNewProjectPackageJson(
+    projectPath: string,
+    newProjectData: NewProjectData,
+    options?: { removeCloudId?: boolean }
+  ) {
+    const packageJson = JSON.parse(window['fs'].readFileSync(`${projectPath}/package.json`));
+    if (this.containsChineseCharacters(newProjectData.name)) {
+      packageJson.name = pinyin(newProjectData.name, {
+        toneType: "none",
+        separator: ""
+      }).replace(/\s/g, '_');
+    } else {
+      packageJson.name = newProjectData.name;
+    }
+
+    if (newProjectData.devmode) {
+      packageJson.devmode = newProjectData.devmode;
+    }
+
+    if (options?.removeCloudId) {
+      delete packageJson.cloudId;
+      delete packageJson.nickname;
+    }
+
+    window['fs'].writeFileSync(`${projectPath}/package.json`, JSON.stringify(packageJson, null, 2));
+  }
+
+  private async finishProjectCreation(projectPath: string): Promise<boolean> {
+    this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
+    await window['iWindow'].send({ to: 'main', data: { action: 'open-project', path: projectPath } });
+    return true;
+  }
+
   // 新建项目
-  async projectNew(newProjectData: NewProjectData) {
+  async projectNew(newProjectData: NewProjectData): Promise<boolean> {
     try {
       const separator = this.platformService.getPlatformSeparator();
       // console.log('newProjectData: ', newProjectData);
       const appDataPath = window['path'].getAppDataPath();
-      // const projectPath = (newProjectData.path + newProjectData.name).replace(/\s/g, '_');
-      const projectPath = window['path'].join(newProjectData.path, newProjectData.name.replace(/\s/g, '_'));
+      const projectPath = this.buildProjectPath(newProjectData);
       const boardPackage = newProjectData.board.name + '@' + newProjectData.board.version;
 
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
@@ -146,24 +182,8 @@ export class ProjectService {
       // 复制模板文件到项目目录
       await this.crossPlatformCmdService.copyItem(`${templatePath}${separator}*`, projectPath, true, true);
 
-      // 3. 修改package.json文件
-      const packageJson = JSON.parse(window['fs'].readFileSync(`${projectPath}/package.json`));
-      if (this.containsChineseCharacters(newProjectData.name)) {
-        packageJson.name = pinyin(newProjectData.name, {
-          toneType: "none",
-          separator: ""
-        }).replace(/\s/g, '_');
-      } else {
-        packageJson.name = newProjectData.name;
-      }
-      // 设置开发框架
-      packageJson.devmode = newProjectData.devmode;
-
-      window['fs'].writeFileSync(`${projectPath}/package.json`, JSON.stringify(packageJson, null, 2));
-
-      this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
-      // 此后就是打开项目(projectOpen)的逻辑，理论可复用，由于此时在新建项目窗口，因此要告知主窗口，进行打开项目操作
-      await window['iWindow'].send({ to: 'main', data: { action: 'open-project', path: projectPath } });
+      this.updateNewProjectPackageJson(projectPath, newProjectData);
+      return await this.finishProjectCreation(projectPath);
 
       // if (closeWindow) {
       //   this.uiService.closeWindow();
@@ -171,6 +191,25 @@ export class ProjectService {
     } catch (error) {
       this.message.error(this.translate.instant('PROJECT.CREATE_FAILED') + ": " + error.message);
       this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('PROJECT.CREATE_FAILED') });
+      return false;
+    }
+  }
+
+  async projectNewFromTemplate(newProjectData: NewProjectData, templatePath: string): Promise<boolean> {
+    try {
+      const separator = this.platformService.getPlatformSeparator();
+      const projectPath = this.buildProjectPath(newProjectData);
+
+      this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
+      await this.crossPlatformCmdService.createDirectory(projectPath, true);
+      await this.crossPlatformCmdService.copyItem(`${templatePath}${separator}*`, projectPath, true, true);
+
+      this.updateNewProjectPackageJson(projectPath, newProjectData, { removeCloudId: true });
+      return await this.finishProjectCreation(projectPath);
+    } catch (error) {
+      this.message.error(this.translate.instant('PROJECT.CREATE_FAILED') + ": " + error.message);
+      this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('PROJECT.CREATE_FAILED') });
+      return false;
     }
   }
 
