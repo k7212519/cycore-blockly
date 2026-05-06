@@ -92,8 +92,8 @@ export class CmdService {
         if (data.code !== 0 && collectedStderr && !isCleanupCmd && !silent) {
           const fullCmd = [command, ...(args || [])].join(' ');
           this.logService.update({
-            title: `命令执行失败: ${fullCmd}`,
-            detail: collectedStderr,
+            title: `命令执行失败`,
+            detail: `${fullCmd}\n${collectedStderr}`,
             state: 'error'
           });
         }

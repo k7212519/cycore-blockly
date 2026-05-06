@@ -4,7 +4,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: #333;
+    background: var(--aily-bg-secondary);
     padding: 0 10px;
     z-index: 19;
     overflow-y: auto;
@@ -14,7 +14,7 @@
         position: absolute;
         left: 0;
         top: 0;
-        background: rgba(0, 0, 0, 0.6);
+        background: var(--aily-bg-overlay);
         z-index: 999;
         height: 100%;
         width: 100%;
@@ -51,23 +51,23 @@
 
             .help-icon {
                 margin-top: 1px;
-                color: rgba(255, 255, 255, 0.45);
+                color: var(--aily-text-hint);
                 cursor: pointer;
                 font-size: 14px;
                 transition: color 0.3s;
 
                 &:hover {
-                    color: rgba(255, 255, 255, 0.85);
+                    color: var(--aily-text-tertiary);
                 }
             }
         }
 
         input {
-            background: #363636;
+            background: var(--aily-bg-input);
             z-index: 1;
             height: 32px;
             margin-bottom: 5px;
-            color: rgba(255, 255, 255, 0.7) !important;
+            color: var(--aily-text-primary) !important;
         }
 
         // 通用的列表样式
@@ -80,25 +80,25 @@
                 display: flex;
                 gap: 0;
                 margin-bottom: 10px;
-                border-bottom: 1px solid #444;
+                border-bottom: 1px solid var(--aily-border-secondary);
 
                 .agent-tab {
                     padding: 8px 16px;
                     cursor: pointer;
-                    color: rgba(255, 255, 255, 0.6);
+                    color: var(--aily-text-secondary);
                     font-size: 14px;
                     border-bottom: 2px solid transparent;
                     transition: all 0.2s;
                     user-select: none;
 
                     &:hover {
-                        color: rgba(255, 255, 255, 0.9);
-                        background: rgba(255, 255, 255, 0.05);
+                        color: var(--aily-text-primary);
+                        background: var(--aily-highlight-bg);
                     }
 
                     &.active {
-                        color: #1890ff;
-                        border-bottom-color: #1890ff;
+                        color: var(--aily-color-accent);
+                        border-bottom-color: var(--aily-color-accent);
                         font-weight: 500;
                     }
                 }
@@ -107,14 +107,14 @@
             // 空工具提示
             .empty-tools-tip {
                 text-align: center;
-                color: rgba(255, 255, 255, 0.4);
+                color: var(--aily-text-muted);
                 padding: 20px;
                 font-size: 13px;
             }
 
             .items-list {
                 width: 100%;
-                background: #2a2a2a;
+                background: var(--aily-bg-card);
                 border-radius: 4px;
                 padding: 10px;
 
@@ -124,10 +124,10 @@
                     align-items: center;
                     margin-bottom: 10px;
                     padding-bottom: 10px;
-                    border-bottom: 1px solid #444;
+                    border-bottom: 1px solid var(--aily-border-secondary);
 
                     .items-count {
-                        color: rgba(255, 255, 255, 0.6);
+                        color: var(--aily-text-secondary);
                         font-size: 12px;
                     }
                 }
@@ -150,7 +150,7 @@
                         .list-item {
                             display: flex;
                             padding: 5px 10px;
-                            background: #363636;
+                            background: var(--aily-bg-input);
                             border-radius: 3px;
                             transition: all 0.2s;
                             cursor: pointer;
@@ -159,7 +159,7 @@
                             text-overflow: ellipsis;
 
                             &:hover {
-                                background: #404040;
+                                background: var(--aily-bg-tertiary);
                             }
                         }
 
@@ -169,13 +169,13 @@
                                 display: flex;
                                 align-items: center;
                                 padding: 5px 10px;
-                                background: #363636;
+                                background: var(--aily-bg-input);
                                 border-radius: 3px;
                                 transition: all 0.2s;
                                 overflow: hidden;
 
                                 &:hover {
-                                    background: #404040;
+                                    background: var(--aily-bg-tertiary);
                                 }
 
                                 .list-item {
@@ -199,7 +199,7 @@
                                     }
 
                                     .model-id {
-                                        color: rgba(255, 255, 255, 0.4);
+                                        color: var(--aily-text-muted);
                                         margin-left: 10px;
                                         overflow: hidden;
                                         text-overflow: ellipsis;
@@ -232,7 +232,7 @@
 }
 
 .model-item-add {
-    border: 1px dashed #555;
+    border: 1px dashed var(--aily-border-tertiary);
     border-radius: 3px;
     text-align: center;
 
@@ -244,12 +244,12 @@
         gap: 15px;
         background: transparent;
         border-radius: 3px;
-        color: rgba(255, 255, 255, 0.5);
+        color: var(--aily-text-muted);
         cursor: pointer;
         transition: all 0.2s;
 
         &:hover {
-            background: #404040;
+            background: var(--aily-bg-tertiary);
         }
 
         i {
@@ -270,10 +270,10 @@
 
         input {
             width: 100%;
-            background: #2a2a2a;
-            border: 1px solid #444;
+            background: var(--aily-bg-card);
+            border: 1px solid var(--aily-border-secondary);
             margin-bottom: 0;
-            color: rgba(255, 255, 255, 0.7) !important;
+            color: var(--aily-text-primary) !important;
 
             &[type="password"] {
                 letter-spacing: -5px;
@@ -284,7 +284,7 @@
             }
 
             &:focus {
-                border-color: #1890ff;
+                border-color: var(--aily-color-accent);
             }
         }
 
@@ -309,7 +309,7 @@
     width: 100%;
     text-align: right;
     z-index: 9;
-    background: #3a3a3a;
+    background: var(--aily-bg-tertiary);
     padding: 10px;
 
     button {
@@ -325,7 +325,7 @@
 
     .setting-hint {
         font-size: 12px;
-        color: rgba(255, 255, 255, 0.45);
+        color: var(--aily-text-hint);
         padding-left: 24px;
     }
 }

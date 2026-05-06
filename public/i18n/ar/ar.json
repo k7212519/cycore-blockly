@@ -31,7 +31,8 @@
         "USER_SPACE": "مساحة السحابة",
         "LIB_MANAGER": "مدير المكتبة",
         "AI_ASSISTANT": "مساعد الذكاء الاصطناعي",
-        "PROJECT_HUB": "ساحة المشاريع"
+        "PROJECT_HUB": "ساحة المشاريع",
+        "NEW_INSTANCE": "نافذة جديدة"
     },
     "ESP32": {
         "UPLOAD_SPEED": "سرعة الرفع",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "نسخ إلى الموقع المحدد",
         "CONTROLS_SWITCH_CASE": "حالة",
         "CONTROLS_SWITCH_DO": "نفذ",
-        "CONTROLS_SWITCH_DEFAULT": "افتراضي"
+        "CONTROLS_SWITCH_DEFAULT": "افتراضي",
+        "CROSS_TAB_PASTE": "لصق",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "لصق %1 عناصر",
+        "WORKSPACE_SELECT_ALL": "تحديد كل الكتل"
     },
     "APP_STORE": {
         "HEADER_INFO": "سيتم عرض أول {{count}} تطبيقات في شريط الأدوات",
@@ -128,7 +132,8 @@
             "REPOSITORY": "إعدادات المستودع",
             "DEPENDENCIES": "التبعيات العامة",
             "MCP": "MCP",
-            "DEVMODE": "وضع المطور"
+            "DEVMODE": "وضع المطور",
+            "CACHE": "إدارة ذاكرة التخزين المؤقتة"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "مجلد المشروع",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "قائمة اللوحات",
             "LIBRARY_LIST": "قائمة المكتبات",
             "INSTALL": "تثبيت",
-            "UNINSTALL": "إلغاء التثبيت"
+            "UNINSTALL": "إلغاء التثبيت",
+            "CLEAR_CACHE": "مسح ذاكرة التخزين المؤقتة",
+            "CACHE_SIZE": "حجم ذاكرة التخزين المؤقتة",
+            "CACHE_LOADING": "جارٍ التحميل...",
+            "CACHE_ALL": "مسح الكل",
+            "CACHE_ONE_MONTH": "مسح ما مضى عليه شهر",
+            "CACHE_THREE_MONTHS": "مسح ما مضى عليه 3 أشهر",
+            "CACHE_CLEARING": "جارٍ المسح...",
+            "CACHE_CLEARED": "تم مسح ذاكرة التخزين المؤقتة",
+            "CACHE_CLEAR_FAILED": "فشل المسح",
+            "CACHE_CONFIRM_TITLE": "تأكيد المسح",
+            "CACHE_CONFIRM_DESC": "هل أنت متأكد من مسح جميع ذاكرات التخزين المؤقتة للتجميع؟ لا يمكن التراجع عن هذا الإجراء.",
+            "CACHE_CONFIRM_OK": "تأكيد"
         },
         "BUTTONS": {
             "CANCEL": "إلغاء",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "تسجيل الدخول بالهاتف مخصص لمختبري AI بيتا فقط",
         "PHONE_PLACEHOLDER": "أدخل رقم الهاتف",
         "PASSWORD_PLACEHOLDER": "أدخل كلمة المرور",
+        "EMAIL_PLACEHOLDER": "أدخل عنوان البريد الإلكتروني",
+        "CODE_PLACEHOLDER": "أدخل رمز التحقق",
+        "SEND_CODE": "إرسال الرمز",
         "CODE_SENDING": "يرجى الحصول على رمز التحقق أولاً",
         "LOGGING_IN": "جاري تسجيل الدخول...",
         "LOGIN": "تسجيل الدخول",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "فشل تسجيل الدخول إلى GitHub",
         "ENTER_CREDENTIALS": "يرجى إدخال اسم المستخدم وكلمة المرور",
         "LOGIN_SUCCESS": "تم تسجيل الدخول بنجاح",
+        "WECHAT_REGISTER_SUCCESS": "تم التسجيل بنجاح",
         "LOGIN_FAILED": "فشل تسجيل الدخول",
         "LOGIN_NETWORK_ERROR": "فشل تسجيل الدخول، يرجى التحقق من الاتصال بالشبكة",
         "AGREEMENT_PREFIX": "لقد قرأت ووافقت على",
@@ -529,7 +550,16 @@
         "AGREEMENT_REQUIRED": "يرجى الموافقة على اتفاقية المستخدم وسياسة الخصوصية أولاً",
         "MODAL_CLOSE": "إغلاق",
         "AGREEMENT_LOAD_FAILED": "فشل تحميل اتفاقية المستخدم",
-        "PRIVACY_LOAD_FAILED": "فشل تحميل سياسة الخصوصية"
+        "PRIVACY_LOAD_FAILED": "فشل تحميل سياسة الخصوصية",
+        "WECHAT_QRCODE_FAILED": "فشل الحصول على رمز QR",
+        "WECHAT_REFRESH": "تحديث رمز QR",
+        "WECHAT_RETRY": "إعادة المحاولة",
+        "INVITE_CODE_PLACEHOLDER": "رمز الدعوة (اختياري)",
+        "AGREEMENT_BY_LOGIN": "بتسجيل الدخول/التسجيل، فإنك توافق على",
+        "TERMS_OF_USE": "شروط الاستخدام",
+        "OTHER_LOGIN_METHODS": "يمكنك أيضاً تسجيل الدخول باستخدام",
+        "GITHUB_CONTINUE": "يرجى النقر على \"Continue\" في صفحة تفويض GitHub لإكمال تسجيل الدخول",
+        "REGISTER": "تسجيل"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "الميزة قادمة قريباً"

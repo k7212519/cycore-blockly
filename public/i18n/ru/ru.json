@@ -31,7 +31,8 @@
         "USER_SPACE": "Облачное хранилище",
         "LIB_MANAGER": "Менеджер библиотек",
         "AI_ASSISTANT": "ИИ-ассистент",
-        "PROJECT_HUB": "Центр проектов"
+        "PROJECT_HUB": "Центр проектов",
+        "NEW_INSTANCE": "Новое окно"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Скорость загрузки",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "Копировать в указанное место",
         "CONTROLS_SWITCH_CASE": "случай",
         "CONTROLS_SWITCH_DO": "выполнить",
-        "CONTROLS_SWITCH_DEFAULT": "по умолчанию"
+        "CONTROLS_SWITCH_DEFAULT": "по умолчанию",
+        "CROSS_TAB_PASTE": "Вставить",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "Вставить %1 элементов",
+        "WORKSPACE_SELECT_ALL": "Выбрать все блоки"
     },
     "APP_STORE": {
         "HEADER_INFO": "Первые {{count}} приложения будут отображаться на панели инструментов",
@@ -128,7 +132,8 @@
             "REPOSITORY": "Настройки репозитория",
             "DEPENDENCIES": "Глобальные зависимости",
             "MCP": "MCP",
-            "DEVMODE": "Режим разработчика"
+            "DEVMODE": "Режим разработчика",
+            "CACHE": "Управление кэшем"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Папка проекта",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "Список плат",
             "LIBRARY_LIST": "Список библиотек",
             "INSTALL": "Установить",
-            "UNINSTALL": "Удалить"
+            "UNINSTALL": "Удалить",
+            "CLEAR_CACHE": "Очистить кэш",
+            "CACHE_SIZE": "Размер кэша",
+            "CACHE_LOADING": "Загрузка...",
+            "CACHE_ALL": "Очистить всё",
+            "CACHE_ONE_MONTH": "Очистить старше 1 месяца",
+            "CACHE_THREE_MONTHS": "Очистить старше 3 месяцев",
+            "CACHE_CLEARING": "Очищение...",
+            "CACHE_CLEARED": "Кэш очищен",
+            "CACHE_CLEAR_FAILED": "Ошибка очистки",
+            "CACHE_CONFIRM_TITLE": "Подтвердить очистку",
+            "CACHE_CONFIRM_DESC": "Вы уверены, что хотите очистить весь кэш компиляции? Это действие нельзя отменить.",
+            "CACHE_CONFIRM_OK": "Подтвердить"
         },
         "BUTTONS": {
             "CANCEL": "Отмена",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "Вход по телефону только для бета-тестеров AI",
         "PHONE_PLACEHOLDER": "Введите номер телефона",
         "PASSWORD_PLACEHOLDER": "Введите пароль",
+        "EMAIL_PLACEHOLDER": "Введите адрес электронной почты",
+        "CODE_PLACEHOLDER": "Введите код подтверждения",
+        "SEND_CODE": "Отправить код",
         "CODE_SENDING": "Пожалуйста, сначала получите код подтверждения",
         "LOGGING_IN": "Вход...",
         "LOGIN": "Войти",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "Вход через GitHub не удался",
         "ENTER_CREDENTIALS": "Пожалуйста, введите имя пользователя и пароль",
         "LOGIN_SUCCESS": "Вход выполнен успешно",
+        "WECHAT_REGISTER_SUCCESS": "Регистрация прошла успешно",
         "LOGIN_FAILED": "Ошибка входа",
         "LOGIN_NETWORK_ERROR": "Ошибка входа, проверьте подключение к сети",
         "AGREEMENT_PREFIX": "Я прочитал и согласен с",
@@ -529,7 +550,16 @@
         "AGREEMENT_REQUIRED": "Пожалуйста, сначала примите Пользовательское соглашение и Политику конфиденциальности",
         "MODAL_CLOSE": "Закрыть",
         "AGREEMENT_LOAD_FAILED": "Не удалось загрузить Пользовательское соглашение",
-        "PRIVACY_LOAD_FAILED": "Не удалось загрузить Политику конфиденциальности"
+        "PRIVACY_LOAD_FAILED": "Не удалось загрузить Политику конфиденциальности",
+        "WECHAT_QRCODE_FAILED": "Не удалось получить QR-код",
+        "WECHAT_REFRESH": "Обновить QR-код",
+        "WECHAT_RETRY": "Повторить",
+        "INVITE_CODE_PLACEHOLDER": "Код приглашения (необязательно)",
+        "AGREEMENT_BY_LOGIN": "Входя/регистрируясь, вы соглашаетесь с",
+        "TERMS_OF_USE": "Условия использования",
+        "OTHER_LOGIN_METHODS": "Вы также можете войти с помощью",
+        "GITHUB_CONTINUE": "Нажмите \"Continue\" на странице авторизации GitHub, чтобы завершить вход",
+        "REGISTER": "Регистрация"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "Функция скоро появится"

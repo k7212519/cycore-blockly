@@ -31,7 +31,8 @@
         "USER_SPACE": "Espacio en la Nube",
         "LIB_MANAGER": "Gestor de Bibliotecas",
         "AI_ASSISTANT": "Asistente de IA",
-        "PROJECT_HUB": "Centro de Proyectos"
+        "PROJECT_HUB": "Centro de Proyectos",
+        "NEW_INSTANCE": "Nueva ventana"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Velocidad de subida",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "Copiar a ubicación especificada",
         "CONTROLS_SWITCH_CASE": "caso",
         "CONTROLS_SWITCH_DO": "hacer",
-        "CONTROLS_SWITCH_DEFAULT": "predeterminado"
+        "CONTROLS_SWITCH_DEFAULT": "predeterminado",
+        "CROSS_TAB_PASTE": "Pegar",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "Pegar %1 elementos",
+        "WORKSPACE_SELECT_ALL": "Seleccionar todos los bloques"
     },
     "APP_STORE": {
         "HEADER_INFO": "Las primeras {{count}} aplicaciones se mostrarán en la barra de herramientas",
@@ -128,7 +132,8 @@
             "REPOSITORY": "Configuración de Repositorio",
             "DEPENDENCIES": "Dependencias Globales",
             "MCP": "MCP",
-            "DEVMODE": "Modo Desarrollador"
+            "DEVMODE": "Modo Desarrollador",
+            "CACHE": "Gestión de caché"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Carpeta de Proyecto",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "Lista de Placas",
             "LIBRARY_LIST": "Lista de Bibliotecas",
             "INSTALL": "Instalar",
-            "UNINSTALL": "Desinstalar"
+            "UNINSTALL": "Desinstalar",
+            "CLEAR_CACHE": "Limpiar caché",
+            "CACHE_SIZE": "Tamaño de caché",
+            "CACHE_LOADING": "Cargando...",
+            "CACHE_ALL": "Limpiar todo",
+            "CACHE_ONE_MONTH": "Limpiar 1 mes",
+            "CACHE_THREE_MONTHS": "Limpiar 3 meses",
+            "CACHE_CLEARING": "Limpiando...",
+            "CACHE_CLEARED": "Caché limpiado",
+            "CACHE_CLEAR_FAILED": "Error al limpiar",
+            "CACHE_CONFIRM_TITLE": "Confirmar limpieza",
+            "CACHE_CONFIRM_DESC": "¿Está seguro de que desea limpiar todo el caché de compilación? Esta acción no se puede deshacer.",
+            "CACHE_CONFIRM_OK": "Confirmar"
         },
         "BUTTONS": {
             "CANCEL": "Cancelar",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "El inicio de sesión por teléfono es solo para probadores beta de AI",
         "PHONE_PLACEHOLDER": "Ingrese número de teléfono",
         "PASSWORD_PLACEHOLDER": "Ingrese contraseña",
+        "EMAIL_PLACEHOLDER": "Ingrese correo electrónico",
+        "CODE_PLACEHOLDER": "Ingrese código de verificación",
+        "SEND_CODE": "Enviar código",
         "CODE_SENDING": "Por favor, obtenga el código de verificación primero",
         "LOGGING_IN": "Iniciando sesión...",
         "LOGIN": "Iniciar sesión",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "Error en el inicio de sesión de GitHub",
         "ENTER_CREDENTIALS": "Por favor ingrese nombre de usuario y contraseña",
         "LOGIN_SUCCESS": "Inicio de sesión exitoso",
+        "WECHAT_REGISTER_SUCCESS": "Registro exitoso",
         "LOGIN_FAILED": "Error en el inicio de sesión",
         "LOGIN_NETWORK_ERROR": "Error en el inicio de sesión, verifique la conexión de red",
         "AGREEMENT_PREFIX": "He leído y acepto el",
@@ -529,7 +550,16 @@
         "AGREEMENT_REQUIRED": "Por favor, acepte el Acuerdo de Usuario y la Política de Privacidad primero",
         "MODAL_CLOSE": "Cerrar",
         "AGREEMENT_LOAD_FAILED": "Error al cargar el Acuerdo de Usuario",
-        "PRIVACY_LOAD_FAILED": "Error al cargar la Política de Privacidad"
+        "PRIVACY_LOAD_FAILED": "Error al cargar la Política de Privacidad",
+        "WECHAT_QRCODE_FAILED": "Error al obtener el código QR",
+        "WECHAT_REFRESH": "Actualizar código QR",
+        "WECHAT_RETRY": "Reintentar",
+        "INVITE_CODE_PLACEHOLDER": "Código de invitación (opcional)",
+        "AGREEMENT_BY_LOGIN": "Al iniciar sesión/registrarse, acepta los",
+        "TERMS_OF_USE": "Términos de uso",
+        "OTHER_LOGIN_METHODS": "También puede iniciar sesión con",
+        "GITHUB_CONTINUE": "Haga clic en \"Continue\" en la página de autorización de GitHub para completar el inicio de sesión",
+        "REGISTER": "Registrarse"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "Función próximamente"

@@ -31,7 +31,8 @@
         "USER_SPACE": "クラウドスペース",
         "LIB_MANAGER": "ライブラリマネージャー",
         "AI_ASSISTANT": "AIアシスタント",
-        "PROJECT_HUB": "プロジェクトハブ"
+        "PROJECT_HUB": "プロジェクトハブ",
+        "NEW_INSTANCE": "新しいウィンドウ"
     },
     "ESP32": {
         "UPLOAD_SPEED": "書き込み速度",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "指定の場所にコピー",
         "CONTROLS_SWITCH_CASE": "ケース",
         "CONTROLS_SWITCH_DO": "実行",
-        "CONTROLS_SWITCH_DEFAULT": "デフォルト"
+        "CONTROLS_SWITCH_DEFAULT": "デフォルト",
+        "CROSS_TAB_PASTE": "貼り付け",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "%1 個を貼り付け",
+        "WORKSPACE_SELECT_ALL": "すべてのブロックを選択"
     },
     "APP_STORE": {
         "HEADER_INFO": "最初の {{count}} 個のアプリがツールバーに表示されます",
@@ -128,7 +132,8 @@
             "REPOSITORY": "リポジトリ設定",
             "DEPENDENCIES": "グローバル依存関係",
             "MCP": "MCP",
-            "DEVMODE": "開発者モード"
+            "DEVMODE": "開発者モード",
+            "CACHE": "キャッシュ管理"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "プロジェクトフォルダ",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "ボードリスト",
             "LIBRARY_LIST": "ライブラリリスト",
             "INSTALL": "インストール",
-            "UNINSTALL": "アンインストール"
+            "UNINSTALL": "アンインストール",
+            "CLEAR_CACHE": "キャッシュをクリア",
+            "CACHE_SIZE": "キャッシュサイズ",
+            "CACHE_LOADING": "読み込み中...",
+            "CACHE_ALL": "すべてクリア",
+            "CACHE_ONE_MONTH": "1ヶ月前をクリア",
+            "CACHE_THREE_MONTHS": "3ヶ月前をクリア",
+            "CACHE_CLEARING": "クリア中...",
+            "CACHE_CLEARED": "キャッシュをクリアしました",
+            "CACHE_CLEAR_FAILED": "クリアに失敗しました",
+            "CACHE_CONFIRM_TITLE": "クリアの確認",
+            "CACHE_CONFIRM_DESC": "すべてのコンパイルキャッシュをクリアしますか？この操作は元に戻せません。",
+            "CACHE_CONFIRM_OK": "確認"
         },
         "BUTTONS": {
             "CANCEL": "キャンセル",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "電話番号ログインはAIベータテスター専用です",
         "PHONE_PLACEHOLDER": "電話番号を入力",
         "PASSWORD_PLACEHOLDER": "パスワードを入力",
+        "EMAIL_PLACEHOLDER": "メールアドレスを入力",
+        "CODE_PLACEHOLDER": "確認コードを入力",
+        "SEND_CODE": "確認コードを送信",
         "CODE_SENDING": "まず確認コードを取得してください",
         "LOGGING_IN": "ログイン中...",
         "LOGIN": "ログイン",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "GitHubログインに失敗しました",
         "ENTER_CREDENTIALS": "ユーザー名とパスワードを入力してください",
         "LOGIN_SUCCESS": "ログイン成功",
+        "WECHAT_REGISTER_SUCCESS": "登録成功",
         "LOGIN_FAILED": "ログイン失敗",
         "LOGIN_NETWORK_ERROR": "ログインに失敗しました。ネットワーク接続を確認してください",
         "AGREEMENT_PREFIX": "私は以下を読み、同意します：",
@@ -529,7 +550,16 @@
         "AGREEMENT_REQUIRED": "利用規約とプライバシーポリシーに同意してください",
         "MODAL_CLOSE": "閉じる",
         "AGREEMENT_LOAD_FAILED": "利用規約の読み込みに失敗しました",
-        "PRIVACY_LOAD_FAILED": "プライバシーポリシーの読み込みに失敗しました"
+        "PRIVACY_LOAD_FAILED": "プライバシーポリシーの読み込みに失敗しました",
+        "WECHAT_QRCODE_FAILED": "QRコードの取得に失敗しました",
+        "WECHAT_REFRESH": "QRコードを更新",
+        "WECHAT_RETRY": "再試行",
+        "INVITE_CODE_PLACEHOLDER": "招待コード（任意）",
+        "AGREEMENT_BY_LOGIN": "ログイン/登録により、以下に同意したものとみなされます",
+        "TERMS_OF_USE": "利用規約",
+        "OTHER_LOGIN_METHODS": "以下のアカウントでもログインできます",
+        "GITHUB_CONTINUE": "GitHub認証ページで\"Continue\"をクリックしてログインを完了してください",
+        "REGISTER": "登録"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "機能は近日公開予定"

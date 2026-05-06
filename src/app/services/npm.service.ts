@@ -10,6 +10,7 @@ import { WorkflowService } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
 import { LogService } from './log.service';
+import { satisfies, valid, gt, minVersion, coerce } from 'semver';
 
 @Injectable({
   providedIn: 'root'
@@ -168,6 +169,56 @@ export class NpmService {
 
   boardDependenciesChanged = false;
 
+  /** 已安装版本是否满足 boardDependencies 中的声明（支持 ^ / ~ 等，与 npm 行为一致） */
+  private depVersionSatisfiesDecl(installedVersion: string, declared: string): boolean {
+    const ins = String(installedVersion ?? '').trim();
+    const dec = String(declared ?? '').trim();
+    if (!ins || !dec) {
+      return false;
+    }
+    if (ins === dec) {
+      return true;
+    }
+    if (!valid(ins)) {
+      return false;
+    }
+    try {
+      return satisfies(ins, dec, { includePrerelease: true });
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 已安装版本是否高于声明所允许的最低基线（用于判断是否需先卸载再降级；升级场景不卸载）
+   */
+  private installedIsNewerThanDeclared(installedVersion: string, declared: string): boolean {
+    const ins = String(installedVersion ?? '').trim();
+    const dec = String(declared ?? '').trim();
+    if (!ins || !dec || !valid(ins)) {
+      return false;
+    }
+    let baseline: string | null = null;
+    try {
+      const m = minVersion(dec);
+      baseline = m ? m.version : null;
+    } catch {
+      baseline = null;
+    }
+    if (!baseline || !valid(baseline)) {
+      const c = coerce(dec);
+      baseline = c ? c.version : null;
+    }
+    if (!baseline || !valid(baseline)) {
+      return false;
+    }
+    try {
+      return gt(ins, baseline);
+    } catch {
+      return false;
+    }
+  }
+
   // 安装开发板依赖
   async installBoardDependencies(packageJson: any) {
     try {
@@ -185,24 +236,16 @@ export class NpmService {
       for (const [key, version] of Object.entries(boardDependencies)) {
         const depPath = `${appDataPath}/node_modules/${key}`;
         const depPathPackageJson = `${depPath}/package.json`;
+        let installedVersionWhenMismatch: string | undefined;
         // 检查依赖是否已经安装
         if (window['path'].isExists(depPathPackageJson)) {
           const depPackageJson = JSON.parse(window['fs'].readFileSync(depPathPackageJson));
-          // 检查版本是否一致
-          if (depPackageJson.version === version) {
-            console.log(`依赖 ${key} 已安装，版本一致`);
+          if (this.depVersionSatisfiesDecl(depPackageJson.version, String(version))) {
+            console.log(`依赖 ${key} 已安装，版本满足声明 (${depPackageJson.version} satisfies ${version})`);
             continue;
-          } else {
-            // console.log(`依赖 ${key} 已安装，但版本不一致，当前版本: ${depPackageJson.version}, 需要版本: ${version}`);
           }
-        } else {
-          // console.log(`依赖 ${key} 未安装`);
+          installedVersionWhenMismatch = depPackageJson.version;
         }
-
-        // if (window['path'].isExists(depPath)) {
-        //   console.log(`依赖 ${key} 已安装`);
-        //   continue;
-        // }
 
         this.boardDependenciesChanged = true;
 
@@ -216,8 +259,24 @@ export class NpmService {
         });
 
         try {
-          // 安装成功的条件是需要安装目录指私有源或者全局已经设置私有源
-          const npmCmd = `npm install ${key}@${version} --prefix "${appDataPath}"`;
+          // 仅当当前安装版本高于声明基线（需降级）时先卸载；升级或未读到版本时直接 install，避免无谓卸载
+          const needUninstallForDowngrade =
+            window['path'].isExists(depPath) &&
+            installedVersionWhenMismatch !== undefined &&
+            this.installedIsNewerThanDeclared(installedVersionWhenMismatch, String(version));
+          if (needUninstallForDowngrade) {
+            const uninstallCmd = `npm uninstall ${key} --prefix "${appDataPath}"`;
+            console.log(`执行命令: ${uninstallCmd}, 时间: ${new Date().toISOString()}`);
+            await Promise.race([
+              window['npm'].run({ cmd: uninstallCmd }),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
+              )
+            ]);
+          }
+
+          // --save-exact：与开发板声明版本一致写入 prefix 下 package.json，避免 ^ 导致再次解析到更高版
+          const npmCmd = `npm install ${key}@${version} --save-exact --prefix "${appDataPath}"`;
           console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
 
           // 添加超时保护和正确的参数名
@@ -405,8 +464,36 @@ export class NpmService {
       throw new Error(this.translate.instant('NPM.NAME_REQUIRED', { type: type }));
     }
 
+    if (version) {
+      const nmPath = `${appDataPath}/node_modules/${packageInfo.name}`;
+      const pjPath = `${nmPath}/package.json`;
+      let installedVer: string | undefined;
+      if (window['path'].isExists(pjPath)) {
+        try {
+          const pj = JSON.parse(window['fs'].readFileSync(pjPath, 'utf8'));
+          if (this.depVersionSatisfiesDecl(pj.version, String(version))) {
+            console.log(`${type} ${packageInfo.name} 已安装且满足版本声明，跳过 npm install`);
+            return;
+          }
+          installedVer = pj.version;
+        } catch {
+          /* 无法读取版本时不按「更高版」卸载 */
+        }
+      }
+      if (
+        window['path'].isExists(nmPath) &&
+        installedVer !== undefined &&
+        this.installedIsNewerThanDeclared(installedVer, String(version))
+      ) {
+        await this.cmdService.runAsync(
+          `npm uninstall ${packageInfo.name} --prefix "${appDataPath}"`,
+          appDataPath
+        );
+      }
+    }
+
     const packageName = version ? `${packageInfo.name}@${version}` : packageInfo.name;
-    const cmd = `npm install ${packageName} --prefix "${appDataPath}"`;
+    const cmd = `npm install ${packageName} --save-exact --prefix "${appDataPath}"`;
 
     // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('NPM.INSTALLING', { name: packageInfo.name }), timeout: 300000 });
     this.noticeService.update({ 

@@ -31,14 +31,14 @@ import { CommonModule } from '@angular/common';
   `,
   styles: [`
     .ac-blockly {
-      border: 1px solid #444; border-radius: 5px;
-      margin: 12px 0; overflow: hidden; background: #3a3a3a;
+      border: 1px solid var(--aily-chat-viewer-border, #444444); border-radius: 5px;
+      margin: 12px 0; overflow: hidden; background: var(--aily-chat-viewer-card-bg, #3a3a3a);
     }
-    .ac-blockly:hover { background: #3f3f3f; }
+    .ac-blockly:hover { background: var(--aily-chat-viewer-card-hover, #3f3f3f); }
     .ac-blockly-header {
       display: flex; align-items: center; gap: 6px;
-      padding: 8px 12px; border-bottom: 1px solid #444;
-      font-size: 13px; font-weight: 500; color: #d4d4d4;
+      padding: 8px 12px; border-bottom: 1px solid var(--aily-chat-viewer-border, #444444);
+      font-size: 13px; font-weight: 500; color: var(--aily-chat-viewer-blockly-header, #d4d4d4);
     }
     .ac-blockly-chips {
       display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 12px;
@@ -46,16 +46,16 @@ import { CommonModule } from '@angular/common';
     .ac-chip {
       display: inline-flex; align-items: center; gap: 4px;
       padding: 3px 8px; border-radius: 4px;
-      background: rgba(24,144,255,.12);
-      border: 1px solid rgba(24,144,255,.25);
-      font-size: 11px; color: #91caff;
+      background: var(--aily-chat-viewer-blockly-chip-bg, rgba(24,144,255,.12));
+      border: 1px solid var(--aily-chat-viewer-blockly-chip-border, rgba(24,144,255,.25));
+      font-size: 11px; color: var(--aily-chat-viewer-blockly-chip-fg, #91caff);
     }
-    .ac-chip em { font-style: normal; color: #666; font-size: 10px; }
+    .ac-chip em { font-style: normal; color: var(--aily-chat-viewer-blockly-meta, #666666); font-size: 10px; }
     .ac-blockly-code {
       margin: 0; padding: 12px; font-size: 12px;
       line-height: 1.4; overflow-x: auto;
-      background: #1e1e1e; color: #abb2bf;
-      border-top: 1px solid #444;
+      background: var(--aily-chat-viewer-blockly-code-bg, #1e1e1e); color: var(--aily-chat-viewer-code-fg, #abb2bf);
+      border-top: 1px solid var(--aily-chat-viewer-border, #444444);
       font-family: Consolas, 'Courier New', monospace;
       border-radius: 4px;
     }

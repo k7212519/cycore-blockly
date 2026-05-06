@@ -48,12 +48,12 @@ import { CommonModule } from '@angular/common';
       border-radius: 10px;
       padding: 10px;
       margin: 0;
-      background: #1e1e1e;
-      border: 1px solid #333;
+      background: var(--aily-chat-viewer-panel, #1e1e1e);
+      border: 1px solid var(--aily-chat-viewer-border-soft, #333333);
       transition: border-color 0.2s;
       min-width: 0;
     }
-    .aa-container:not(.aa-done):hover { border-color: #444; }
+    .aa-container:not(.aa-done):hover { border-color: var(--aily-chat-viewer-border, #444444); }
     .aa-done { opacity: 0.72; }
 
     .aa-header {
@@ -64,7 +64,7 @@ import { CommonModule } from '@angular/common';
     .aa-title {
       font-size: 13px;
       font-weight: 500;
-      color: #d4d4d4;
+      color: var(--aily-chat-viewer-title-fg, #d4d4d4);
       line-height: 1.5;
       flex: 1;
       min-width: 0;
@@ -74,7 +74,7 @@ import { CommonModule } from '@angular/common';
     .aa-message {
       margin-top: 10px;
       font-size: 12px;
-      color: #888;
+      color: var(--aily-chat-viewer-muted, #888888);
       line-height: 1.4;
       word-break: break-word;
       overflow-wrap: break-word;
@@ -98,36 +98,36 @@ import { CommonModule } from '@angular/common';
       border-radius: 6px 0 0 6px;
       font-size: 12px;
       font-weight: 500;
-      background: #1890ff;
-      color: #fff;
+      background: var(--aily-chat-viewer-primary, #1890ff);
+      color: var(--aily-chat-viewer-on-primary, #ffffff);
       border: none;
       outline: none;
       cursor: pointer;
       transition: background 0.15s;
     }
-    .aa-btn-primary:hover { background: #40a9ff; }
+    .aa-btn-primary:hover { background: var(--aily-chat-viewer-primary-hover, #40a9ff); }
     .aa-btn-caret {
       padding: 4px 6px;
       border-radius: 0 6px 6px 0;
       font-size: 10px;
-      background: #1890ff;
-      color: #fff;
+      background: var(--aily-chat-viewer-primary, #1890ff);
+      color: var(--aily-chat-viewer-on-primary, #ffffff);
       border: none;
-      border-left: 1px solid rgba(255,255,255,0.2);
+      border-left: 1px solid var(--aily-chat-viewer-primary-split, rgba(255,255,255,0.2));
       outline: none;
       cursor: pointer;
       transition: background 0.15s;
       display: flex;
       align-items: center;
     }
-    .aa-btn-caret:hover { background: #40a9ff; }
+    .aa-btn-caret:hover { background: var(--aily-chat-viewer-primary-hover, #40a9ff); }
 
     .aa-dropdown {
       position: fixed;
-      background: #252526;
-      border: 1px solid #444;
+      background: var(--aily-chat-viewer-dropdown-bg, #252526);
+      border: 1px solid var(--aily-chat-viewer-border, #444444);
       border-radius: 6px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: var(--aily-chat-viewer-dropdown-shadow, 0 4px 12px rgba(0,0,0,0.4));
       z-index: 9999;
       min-width: 120px;
       overflow: hidden;
@@ -137,7 +137,7 @@ import { CommonModule } from '@angular/common';
       width: 100%;
       padding: 6px 12px;
       font-size: 12px;
-      color: #ccc;
+      color: var(--aily-chat-viewer-fg, #cccccc);
       background: transparent;
       border: none;
       outline: none;
@@ -146,9 +146,9 @@ import { CommonModule } from '@angular/common';
       transition: background 0.15s;
       white-space: nowrap;
     }
-    .aa-dropdown-item:hover { background: rgba(255,255,255,0.06); color: #e0e0e0; }
-    .aa-dropdown-icon { width: 14px; margin-right: 6px; font-size: 11px; color: #888; }
-    .aa-dropdown-divider { height: 1px; background: #3a3a3a; margin: 2px 0; }
+    .aa-dropdown-item:hover { background: var(--aily-chat-viewer-overlay-hover, rgba(255,255,255,0.06)); color: var(--aily-text-quaternary, #e0e0e0); }
+    .aa-dropdown-icon { width: 14px; margin-right: 6px; font-size: 11px; color: var(--aily-chat-viewer-muted, #888888); }
+    .aa-dropdown-divider { height: 1px; background: var(--aily-chat-viewer-divider-bg, #3a3a3a); margin: 2px 0; }
 
     .aa-btn-reject {
       padding: 4px 14px;
@@ -156,13 +156,13 @@ import { CommonModule } from '@angular/common';
       font-size: 12px;
       font-weight: 500;
       background: transparent;
-      color: #999;
-      border: 1px solid #444;
+      color: var(--aily-chat-viewer-subtle, #999999);
+      border: 1px solid var(--aily-chat-viewer-border, #444444);
       outline: none;
       cursor: pointer;
       transition: all 0.15s;
     }
-    .aa-btn-reject:hover { color: #ddd; border-color: #666; }
+    .aa-btn-reject:hover { color: var(--aily-chat-viewer-reject-hover-fg, #dddddd); border-color: var(--aily-chat-viewer-reject-hover-border, #666666); }
 
     /* Done bar */
     .aa-done-bar {
@@ -172,10 +172,10 @@ import { CommonModule } from '@angular/common';
       gap: 6px;
       font-size: 12px;
     }
-    .aa-done-bar[data-approved="true"] i { color: #52c41a; }
-    .aa-done-bar[data-approved="false"] i { color: #faad14; }
+    .aa-done-bar[data-approved="true"] i { color: var(--aily-chat-viewer-state-done, #52c41a); }
+    .aa-done-bar[data-approved="false"] i { color: var(--aily-chat-viewer-state-warn, #faad14); }
     .aa-done-bar i { font-size: 13px; }
-    .aa-done-bar span { color: #888; }
+    .aa-done-bar span { color: var(--aily-chat-viewer-muted, #888888); }
   `],
 })
 export class XAilyApprovalViewerComponent implements OnChanges {

@@ -2,7 +2,7 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 const WinState = require('electron-win-state').default;
-const { app, BrowserWindow, ipcMain, dialog, screen, shell, net } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, screen, shell, Menu } = require("electron");
 
 const { isWin32, isDarwin, isLinux } = require("./platform");
 const projectLock = require("./project-lock");
@@ -10,6 +10,10 @@ const projectLock = require("./project-lock");
 // 设置应用名称，用于 Windows 系统通知显示
 app.setName("aily blockly");
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
+// 禁用 GPU 着色器磁盘缓存，避免 GPUCache 累积导致启动变慢
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+// 限制 HTTP 磁盘缓存为 100MB，防止无限增长
+app.commandLine.appendSwitch('disk-cache-size', '104857600');
 // Windows 系统中设置 AppUserModelID，用于通知分组和显示
 if (isWin32) {
   app.setAppUserModelId("pro.aily.blockly");
@@ -158,24 +162,112 @@ function sendOAuthCallbackToInstance(instanceInfo, callbackData) {
   }
 }
 
-// 隔离用户数据目录：为指定的多实例生成唯一的用户数据目录
-function setupUniqueUserDataPath() {
-  const timestamp = Date.now();
-  const randomId = Math.random().toString(36).substring(2, 8);
-  const instanceId = `${timestamp}-${randomId}`;
-
-  const originalUserDataPath = app.getPath('userData');
-  const uniqueUserDataPath = path.join(originalUserDataPath, 'instances', instanceId);
-
-  // 设置唯一的用户数据目录
-  app.setPath('userData', uniqueUserDataPath);
-  console.log('启用实例隔离，设置实例用户数据目录:', uniqueUserDataPath);
-
-  // 确保目录存在
-  if (!fs.existsSync(uniqueUserDataPath)) {
-    fs.mkdirSync(uniqueUserDataPath, { recursive: true });
+// 检查指定 PID 的进程是否仍在运行
+function isProcessRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
-  return uniqueUserDataPath;
+}
+
+// 清理实例目录中导致启动变慢的 Chromium 缓存（保留 HTTP 缓存）
+function clearSlowCaches(instancePath) {
+  const slowCacheDirs = ['GPUCache', 'Code Cache'];
+  for (const dir of slowCacheDirs) {
+    const dirPath = path.join(instancePath, dir);
+    if (fs.existsSync(dirPath)) {
+      try {
+        fs.rmSync(dirPath, { recursive: true, force: true });
+      } catch (e) {
+        console.warn(`清理 ${dir} 失败:`, e.message);
+      }
+    }
+  }
+}
+
+/** 当前进程持有的实例锁文件路径，用于退出时清理 */
+let heldInstanceLockPath = null;
+
+// 实例目录复用池：复用空闲实例目录，保留 HTTP 缓存（图片等），清理导致启动慢的缓存
+function setupPooledUserDataPath() {
+  const originalUserDataPath = app.getPath('userData');
+  const instancesDir = path.join(originalUserDataPath, 'instances');
+
+  // 确保 instances 目录存在
+  if (!fs.existsSync(instancesDir)) {
+    fs.mkdirSync(instancesDir, { recursive: true });
+  }
+
+  // 扫描现有实例目录，查找空闲的可复用目录
+  let reusedPath = null;
+  let maxIndex = -1;
+
+  try {
+    const entries = fs.readdirSync(instancesDir);
+    for (const entry of entries) {
+      // 只处理 instance-N 格式的目录
+      const match = entry.match(/^instance-(\d+)$/);
+      if (!match) continue;
+
+      const index = parseInt(match[1], 10);
+      if (index > maxIndex) maxIndex = index;
+
+      if (reusedPath) continue; // 已找到可复用目录，只继续统计 maxIndex
+
+      const instancePath = path.join(instancesDir, entry);
+      const lockFilePath = path.join(instancePath, 'instance.lock');
+
+      if (fs.existsSync(lockFilePath)) {
+        try {
+          const lockData = JSON.parse(fs.readFileSync(lockFilePath, 'utf8'));
+          if (lockData.pid && isProcessRunning(lockData.pid)) {
+            // 进程仍在运行，该目录被占用
+            continue;
+          }
+        } catch {
+          // 锁文件损坏，视为空闲
+        }
+      }
+
+      // 该目录空闲，可以复用
+      reusedPath = instancePath;
+    }
+  } catch (e) {
+    console.warn('扫描实例目录失败:', e.message);
+  }
+
+  // 如果没有可复用目录，创建新的 instance-N
+  if (!reusedPath) {
+    const newIndex = maxIndex + 1;
+    reusedPath = path.join(instancesDir, `instance-${newIndex}`);
+    fs.mkdirSync(reusedPath, { recursive: true });
+    console.log('创建新实例目录:', reusedPath);
+  } else {
+    console.log('复用空闲实例目录:', reusedPath);
+  }
+
+  // 清理导致启动慢的缓存（GPUCache、Code Cache），保留 HTTP Cache
+  clearSlowCaches(reusedPath);
+
+  // 写入锁文件
+  const lockFilePath = path.join(reusedPath, 'instance.lock');
+  try {
+    fs.writeFileSync(lockFilePath, JSON.stringify({
+      pid: process.pid,
+      startTime: Date.now()
+    }));
+    heldInstanceLockPath = lockFilePath;
+  } catch (e) {
+    console.warn('写入实例锁文件失败:', e.message);
+  }
+
+  // 设置 userData 到复用的目录
+  app.setPath('userData', reusedPath);
+  console.log('实例用户数据目录:', reusedPath);
+
+  return reusedPath;
 }
 
 // 检查是否需要多实例模式
@@ -191,7 +283,7 @@ if (shouldUseMultiInstance()) {
 
   if (!isProtocolLaunch) {
     // 只有非协议启动才设置实例隔离
-    setupUniqueUserDataPath();
+    setupPooledUserDataPath();
   } else {
     console.log('协议启动，跳过实例隔离设置');
   }
@@ -246,6 +338,23 @@ function getProjectLockStringsForMain() {
   } catch (e) {
     console.warn("getProjectLockStringsForMain:", e);
     return defaults;
+  }
+}
+
+function getMenuStringForMain(key, fallback) {
+  try {
+    const loc = (app.getLocale() || "").toLowerCase();
+    const pack = loc.startsWith("zh") ? "zh_cn" : "en";
+    const fp = path.join(__dirname, `../public/i18n/${pack}/${pack}.json`);
+    if (!fs.existsSync(fp)) {
+      return fallback;
+    }
+    const j = JSON.parse(fs.readFileSync(fp, "utf8"));
+    const v = j.MENU && j.MENU[key];
+    return v || fallback;
+  } catch (e) {
+    console.warn("getMenuStringForMain:", e);
+    return fallback;
   }
 }
 
@@ -490,10 +599,88 @@ const { initLogger, registerLoggerHandlers } = require("./logger");
 // tools
 const { registerToolsHandlers } = require("./tools");
 const { registerNotificationHandlers } = require("./notification");
-const { registerOpenocdHandlers } = require("./openocd");
+const { registerProbeRsHandlers } = require("./probe-rs");
 
 let mainWindow;
 let userConf;
+const DEFAULT_BUILD_FLAVOR = 'cn';
+const BUILD_FLAVOR_TO_OFFICIAL_REGION = {
+  cn: 'cn',
+  global: 'eu'
+};
+const OFFICIAL_REGION_KEYS = new Set(Object.values(BUILD_FLAVOR_TO_OFFICIAL_REGION));
+
+function normalizeBuildFlavor(flavor) {
+  if (typeof flavor !== 'string') {
+    return DEFAULT_BUILD_FLAVOR;
+  }
+
+  const normalizedFlavor = flavor.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(BUILD_FLAVOR_TO_OFFICIAL_REGION, normalizedFlavor)
+    ? normalizedFlavor
+    : DEFAULT_BUILD_FLAVOR;
+}
+
+let cachedPackagedBuildFlavor;
+
+function getPackagedBuildFlavor() {
+  if (cachedPackagedBuildFlavor !== undefined) {
+    return cachedPackagedBuildFlavor;
+  }
+
+  const candidatePaths = [];
+  try {
+    candidatePaths.push(path.join(app.getAppPath(), 'package.json'));
+  } catch (error) {
+    // ignore before app is fully ready
+  }
+  candidatePaths.push(path.join(__dirname, '..', 'package.json'));
+
+  for (const packageJsonPath of candidatePaths) {
+    try {
+      if (!packageJsonPath || !fs.existsSync(packageJsonPath)) {
+        continue;
+      }
+
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+      cachedPackagedBuildFlavor = packageJson.ailyBuildFlavor;
+      return cachedPackagedBuildFlavor;
+    } catch (error) {
+      console.warn('读取构建版型失败:', error.message || error);
+    }
+  }
+
+  cachedPackagedBuildFlavor = null;
+  return cachedPackagedBuildFlavor;
+}
+
+function getBuildFlavor(conf) {
+  return normalizeBuildFlavor(process.env.AILY_BUILD_FLAVOR || getPackagedBuildFlavor() || conf?.build_flavor);
+}
+
+function getOfficialRegionForFlavor(flavor) {
+  return BUILD_FLAVOR_TO_OFFICIAL_REGION[normalizeBuildFlavor(flavor)] || BUILD_FLAVOR_TO_OFFICIAL_REGION[DEFAULT_BUILD_FLAVOR];
+}
+
+function isOfficialRegion(regionKey, regions = {}) {
+  if (!regionKey || !regions[regionKey]) {
+    return false;
+  }
+
+  if (typeof regions[regionKey].official === 'boolean') {
+    return regions[regionKey].official;
+  }
+
+  return OFFICIAL_REGION_KEYS.has(regionKey);
+}
+
+function shouldFallbackToOfficialRegion(regionKey, officialRegion, regions = {}) {
+  if (!regionKey || !officialRegion || !regions[regionKey]) {
+    return true;
+  }
+
+  return isOfficialRegion(regionKey, regions) && regionKey !== officialRegion;
+}
 let isRendererReady = false;
 
 // 监听渲染进程就绪事件
@@ -524,11 +711,15 @@ function macosInstallEnv(childPath) {
   function extractVersion(filename, keyword) {
     // node 格式：node-v22.21.0-darwin-arm64.7z → 22.21.0
     // aily-builder 格式：aily-builder-1.0.7.7z → 1.0.7
+    // probe-rs 格式：probe-rs-0.31.0.7z → 0.31.0
     if (keyword === "node") {
       const match = filename.match(/node-v(\d+\.\d+\.\d+)/);
       return match ? match[1] : null;
     } else if (keyword === "aily-builder") {
       const match = filename.match(/aily-builder-(\d+\.\d+\.\d+)/);
+      return match ? match[1] : null;
+    } else if (keyword === "probe-rs") {
+      const match = filename.match(/probe-rs-(\d+\.\d+\.\d+)/);
       return match ? match[1] : null;
     }
     return null;
@@ -647,6 +838,30 @@ function macosInstallEnv(childPath) {
       console.error(`未找到 ${ailyBuilderName}: ${ailyBuilderZipPath}，搜索目录: ${sourceDir}`);
     }
   }
+  const probeRsName = "probe-rs";
+  const probeRsPath = path.join(childPath, probeRsName);
+  if (!fs.existsSync(probeRsPath)) {
+    const sourceDir = path.join(childPath, serve ? "macos" : "");
+    const probeRsZipPath = findLatestVersionFile(sourceDir, probeRsName);
+    if (probeRsZipPath && fs.existsSync(probeRsZipPath)) {
+      if (!fs.existsSync(z7Path)) {
+        console.error(`解压 ${probeRsName} 需要 7zz，但未找到: ${z7Path}`);
+      } else {
+        try {
+          const escapeProbeRsPath = escapePath(probeRsPath);
+          const escapeProbeRsZipPath = escapePath(probeRsZipPath);
+          const escapeZ7Path = escapePath(z7Path);
+          child_process.execSync(`mkdir -p ${escapeProbeRsPath} && ${escapeZ7Path} x ${escapeProbeRsZipPath} -o${escapeProbeRsPath} -t7z -y`, { stdio: 'inherit' });
+          console.log(`安装解压 ${probeRsName}: ${probeRsZipPath}成功！`);
+          if (!serve) fs.unlinkSync(probeRsZipPath);
+        } catch (error) {
+          console.error(`安装解压 ${probeRsName}: ${probeRsZipPath}失败，错误码:`, error);
+        }
+      }
+    } else {
+      console.error(`未找到 ${probeRsName}: ${probeRsZipPath}，搜索目录: ${sourceDir}`);
+    }
+  }
 }
 
 // 路径转义
@@ -655,179 +870,6 @@ function escapePath(path) {
     return path;
   }
   return path.replace(/(\s|[()&|;<>`$\\])/g, '\\$1');
-}
-
-// 检查URL延迟
-function checkLatency(url, resource=false) {
-  return new Promise((resolve) => {
-    const start = Date.now();
-    let pingUrl = url;
-    if (!pingUrl.endsWith('/')) {
-      pingUrl += '/';
-    }
-    if (resource) {
-      pingUrl += 'boards-ai.json';
-    } else {
-      pingUrl += 'ping';
-    }
-    try {
-      // console.log('[节点检测] Checking latency for URL:', pingUrl);
-      const request = net.request({ method: 'HEAD', url: pingUrl });
-      request.on('response', (response) => {
-        const end = Date.now();
-        response.on('end', () => {
-          if (response.statusCode >= 200 && response.statusCode < 300) {
-            resolve({ url, latency: end - start });
-          } else {
-            // console.warn(`[节点检测] ${pingUrl} 返回状态码: ${response.statusCode}`);
-            resolve({ url, latency: Infinity, error: `Status ${response.statusCode}` });
-          }
-        });
-        response.on('error', (err) => {
-          // console.warn(`[节点检测] ${pingUrl} 响应错误:`, err);
-          resolve({ url, latency: Infinity, error: 'Response error' });
-        });
-        response.resume();
-      });
-      request.on('error', (error) => {
-        console.warn(`[节点检测] ${pingUrl} 请求错误:`, error);
-        resolve({ url, latency: Infinity, error: error.message || 'Request error' });
-      });
-      request.end();
-    } catch (e) {
-      console.warn(`[节点检测] ${pingUrl} 异常:`, e);
-      resolve({ url, latency: Infinity, error: e.message || 'Exception' });
-    }
-  });
-}
-
-// 获取最快URL
-async function getFastestUrl(urls, item_key='') {
-
-  console.log('[节点检测] 检测最快URL列表:', urls);
-  if (!urls || urls.length === 0) return null;
-  if (urls.length === 1) return urls[0];
-
-  const isResource = item_key === 'resource';
-  const timeout = isResource ? 8000 : 5000; // resource 检测需要下载文件，给更长超时
-  
-  try {
-    // 使用 Promise.allSettled 确保获取所有结果，不会因为某个失败而中断
-    const promises = urls.map(url => checkLatency(url, isResource));
-    
-    // 创建一个可以提前返回的 Promise
-    // 当有任意一个成功的结果时，等待一小段时间收集更多结果后返回
-    const results = await Promise.race([
-      // 等待所有请求完成
-      Promise.allSettled(promises).then(settled => 
-        settled
-          .filter(r => r.status === 'fulfilled')
-          .map(r => r.value)
-      ),
-      // 超时后返回已完成的结果
-      new Promise(resolve => {
-        setTimeout(async () => {
-          // 超时时，尝试获取已完成的 Promise 结果
-          const settledResults = [];
-          for (let i = 0; i < promises.length; i++) {
-            try {
-              // 使用 Promise.race 检查是否已完成
-              const result = await Promise.race([
-                promises[i],
-                new Promise((_, reject) => setTimeout(() => reject(new Error('still pending')), 10))
-              ]);
-              settledResults.push(result);
-            } catch (e) {
-              // Promise 还未完成，跳过
-            }
-          }
-          // console.log(`[节点检测] 超时(${timeout}ms)，已完成 ${settledResults.length}/${urls.length} 个检测`);
-          resolve(settledResults);
-        }, timeout);
-      })
-    ]);
-    
-    // console.log('[节点检测] results: ', results);
-    
-    if (!results || results.length === 0) {
-      console.warn(`[节点检测] 超时且无结果，返回第一个节点: ${urls[0]}`);
-      return urls[0];
-    }
-    
-    const validResults = results.filter(r => r && r.latency !== Infinity);
-    if (validResults.length === 0) {
-      // 输出所有失败节点和原因
-      // console.warn('[节点检测] 所有已完成的节点检测都失败，详细信息如下:');
-      // results.forEach(r => {
-      //   if (r) {
-      //     console.warn(`  节点: ${r.url}, 错误: ${r.error || '未知'}, latency: ${r.latency}`);
-      //   }
-      // });
-      console.warn(`[节点检测] 所有节点检测失败，返回第一个节点: ${urls[0]}`);
-      return urls[0];
-    }
-    
-    validResults.sort((a, b) => a.latency - b.latency);
-    // console.log(`[节点检测] 成功检测 ${validResults.length} 个节点，最快: ${validResults[0].url} (${validResults[0].latency}ms)`);
-    return validResults[0].url;
-  } catch (e) {
-    console.error('[节点检测] getFastestUrl error:', e);
-    return urls[0];
-  }
-}
-
-// 初始化最快服务器配置（非阻塞异步方式，不影响启动速度）
-// 现在改为基于 region 配置，检测各个区域的服务延迟来自动选择最优区域
-function initFastestServersAsync() {
-  const configPath = path.join(__dirname, 'config', "config.json");
-  if (!fs.existsSync(configPath)) return;
-  
-  try {
-    const conf = JSON.parse(fs.readFileSync(configPath));
-    const regions = conf.regions;
-    if (!regions || Object.keys(regions).length === 0) return;
-
-    // console.log('[节点检测] 后台开始检测最优区域节点...');
-    
-    // 获取所有启用区域的 api_server 进行延迟检测（过滤掉未启用的区域、空URL和localhost）
-    const regionKeys = Object.keys(regions).filter(key => 
-      key !== 'localhost' && regions[key].enabled && regions[key].api_server
-    );
-    const regionUrls = regionKeys.map(key => regions[key].api_server);
-    
-    getFastestUrl(regionUrls, 'api_server').then(fastestUrl => {
-      if (fastestUrl) {
-        // 找到对应的区域
-        const fastestRegionKey = regionKeys.find(key => regions[key].api_server === fastestUrl);
-        if (fastestRegionKey) {
-          const fastestRegion = regions[fastestRegionKey];
-          console.log(`[节点检测] 检测到最优区域: ${fastestRegion.name} (${fastestRegionKey})`);
-          
-          // 设置环境变量
-          process.env.AILY_NPM_REGISTRY = fastestRegion.npm_registry;
-          process.env.AILY_ZIP_URL = fastestRegion.resource;
-          process.env.AILY_API_SERVER = fastestRegion.api_server;
-          process.env.AILY_REGION = fastestRegionKey;
-          
-          // 通知渲染进程区域已更新
-          if (mainWindow && mainWindow.webContents) {
-            mainWindow.webContents.send('server-node-updated', { 
-              region: fastestRegionKey,
-              npm_registry: fastestRegion.npm_registry,
-              resource: fastestRegion.resource,
-              api_server: fastestRegion.api_server
-            });
-          }
-          // console.log('[节点检测] 区域节点检测完成');
-        }
-      }
-    }).catch(e => {
-      console.error('[节点检测] 检测过程出错:', e);
-    });
-    
-  } catch (e) {
-    console.error('Error initializing fastest servers:', e);
-  }
 }
 
 // 环境变量加载
@@ -948,6 +990,19 @@ function loadEnv() {
       }
     }
     
+    // 合并配置文件
+    Object.assign(conf, userConf);
+
+    const buildFlavor = getBuildFlavor(conf);
+    const officialRegion = getOfficialRegionForFlavor(buildFlavor);
+    const configuredRegion = conf.region || officialRegion;
+
+    if (shouldFallbackToOfficialRegion(configuredRegion, officialRegion, conf.regions)) {
+      conf.region = officialRegion;
+      userConf.region = officialRegion;
+      needSave = true;
+    }
+
     // 如果配置被修改，保存回文件
     if (needSave) {
       try {
@@ -957,9 +1012,6 @@ function loadEnv() {
         console.error("保存用户配置文件失败:", error);
       }
     }
-    
-    // 合并配置文件
-    Object.assign(conf, userConf);
   } catch (error) {
     console.error("读取用户配置文件失败:", error);
     userConf = {}; // 确保userConf是一个对象
@@ -970,13 +1022,17 @@ function loadEnv() {
 
   // TODO 下一版本删除，强制将cn区域的api_server地址设置为https://api.yysc.tech
   conf.regions["cn"]["api_server"] = "https://api.yysc.tech";
-  // console.log("conf: ", conf);
-  // 从 regions 配置中获取当前区域的服务地址
-  const currentRegion = conf.region || 'cn';
-  const regionConfig = conf.regions && conf.regions[currentRegion] ? conf.regions[currentRegion] : conf.regions['cn'];
+  const buildFlavor = getBuildFlavor(conf);
+  const officialRegion = getOfficialRegionForFlavor(buildFlavor);
+  const currentRegion = shouldFallbackToOfficialRegion(conf.region, officialRegion, conf.regions)
+    ? officialRegion
+    : (conf.region || officialRegion);
+  const regionConfig = conf.regions && conf.regions[currentRegion] ? conf.regions[currentRegion] : conf.regions[officialRegion];
   
   // 当前区域
   process.env.AILY_REGION = currentRegion;
+  process.env.AILY_BUILD_FLAVOR = buildFlavor;
+  process.env.AILY_OFFICIAL_REGION = officialRegion;
   // npm registry
   process.env.AILY_NPM_REGISTRY = regionConfig.npm_registry;
   // 设置 npm 使用应用数据目录下的配置文件，忽略系统 .npmrc
@@ -1013,6 +1069,8 @@ function loadEnv() {
   process.env.AILY_7ZA_PATH = path.join(childPath, isWin32 ? "7za.exe" : "7zz");
   // rg path
   process.env.AILY_RG_PATH = path.join(childPath, isWin32 ? "rg.exe" : "rg");
+  // probe-rs path
+  process.env.AILY_PROBE_RS_PATH = path.join(childPath, "probe-rs", "probe-rs" + (isWin32 ? ".exe" : ""));
   // aily builder path
   process.env.AILY_BUILDER_PATH = path.join(childPath, "aily-builder");
   // 全局npm包路径
@@ -1027,6 +1085,7 @@ function loadEnv() {
   process.env.AILY_ZIP_URL = regionConfig.resource;
   // API服务器地址
   process.env.AILY_API_SERVER = regionConfig.api_server;
+  process.env.AILY_TOOL_WEB = regionConfig.tool_web || '';
 
   process.env.AILY_PROJECT_PATH = conf["project_path"];
 
@@ -1038,6 +1097,11 @@ function loadEnv() {
   const ninjaPath = path.join(process.env.AILY_BUILDER_PATH, 'ninja');
   if (fs.existsSync(ninjaPath)) {
     process.env.PATH = `${process.env.PATH}${path.delimiter}${ninjaPath}`;
+  }
+  // 将 probe-rs 添加到 PATH 中
+  const probeRsDir = path.join(childPath, 'probe-rs');
+  if (fs.existsSync(probeRsDir)) {
+    process.env.PATH = `${process.env.PATH}${path.delimiter}${probeRsDir}`;
   }
 
   // 当前系统语言
@@ -1257,7 +1321,7 @@ function createWindow() {
   registerMCPHandlers(mainWindow);
   registerToolsHandlers(mainWindow);
   registerNotificationHandlers(mainWindow);
-  registerOpenocdHandlers(mainWindow);
+  registerProbeRsHandlers(mainWindow);
 
   // 检查是否有待处理的OAuth回调
   // 注意：这里不再使用 setTimeout 自动发送，而是等待 renderer-ready 事件
@@ -1454,8 +1518,8 @@ if (shouldUseMultiInstance()) {
   }
 }
 
-// TODO: 增加快捷任务栏任务，仅 Windows 支持（macOS/Linux 无 app.setUserTasks）
-if (process.platform === "win32" && typeof app.setUserTasks === "function") {
+// Windows 任务栏跳转列表（Jump List），仅 Windows 有效；macOS 无对应 API，多开见 Dock 菜单「新建实例」或终端 `open -n`。
+if (typeof app.setUserTasks === "function") {
   // app.setUserTasks([
   //   {
   //     program: process.execPath,
@@ -1470,6 +1534,50 @@ if (process.platform === "win32" && typeof app.setUserTasks === "function") {
 
 // TODO: 最近项目列表
 
+/**
+ * Apple Silicon Mac 上若未装 Rosetta，内置 x86_64 子进程无法运行；本机为 arm64 应用时也需要 Rosetta。
+ * 已可用则跳过；否则异步触发 softwareupdate，不阻塞窗口创建。
+ */
+function ensureRosettaIfNeededOnDarwin() {
+  if (!isDarwin) {
+    return;
+  }
+  try {
+    const { execSync, execFile, execFileSync } = require("child_process");
+    const arm64Machine =
+      execSync("sysctl -n hw.optional.arm64", {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim() === "1";
+    if (!arm64Machine) {
+      return;
+    }
+    try {
+      execFileSync("/usr/bin/arch", ["-x86_64", "/usr/bin/true"], { stdio: "ignore" });
+      console.log("Rosetta 已就绪，内置 x86 工具可在此 Mac 上运行");
+      return;
+    } catch {
+      // 未安装或 Rosetta 不可用，继续安装流程
+    }
+    execFile(
+      "/usr/sbin/softwareupdate",
+      ["--install-rosetta", "--agree-to-license"],
+      { stdio: "inherit" },
+      (err) => {
+        if (err) {
+          console.warn(
+            "自动安装 Rosetta 未成功，内置 x86 工具可能无法运行，可手动安装 Rosetta:",
+            err.message
+          );
+        } else {
+          console.log("Rosetta：自动安装命令执行成功");
+        }
+      }
+    );
+  } catch (e) {
+    console.warn("检测 Apple Silicon / Rosetta 失败，跳过自动安装:", e.message);
+  }
+}
 
 app.on("ready", async () => {
   // 检查是否是协议启动
@@ -1501,11 +1609,17 @@ app.on("ready", async () => {
   }
 
   try {
+    ensureRosettaIfNeededOnDarwin();
     loadEnv();
-    // 异步检测最优服务器，不阻塞窗口创建
-    initFastestServersAsync();
   } catch (error) {
     console.error("loadEnv error: ", error);
+  }
+
+  if (isDarwin && app.dock) {
+    setupDarwinDockMenu();
+  }
+  if (isWin32) {
+    setupWindowsJumpListTasks();
   }
 
   if (protocolUrl) {
@@ -1584,6 +1698,15 @@ app.on("will-quit", () => {
       console.warn("will-quit release project lock:", e);
     }
     heldProjectLockNormalized = null;
+  }
+  // 释放实例锁文件，使目录可被后续启动复用
+  if (heldInstanceLockPath) {
+    try {
+      fs.unlinkSync(heldInstanceLockPath);
+    } catch (e) {
+      console.warn('will-quit release instance lock:', e.message);
+    }
+    heldInstanceLockPath = null;
   }
 });
 
@@ -1726,7 +1849,8 @@ ipcMain.handle("select-folder-saveAs", async (event, data) => {
     defaultPath: defaultPath,
     properties: ['createDirectory', 'showOverwriteConfirmation'],
     buttonLabel: '保存',
-    title: '项目另存为'
+    title: data.title || '项目另存为',
+    filters: data.filters || undefined
   });
 
   if (result.canceled) {
@@ -1767,53 +1891,84 @@ ipcMain.handle("move-to-trash", async (event, filePath) => {
   }
 })
 
+function spawnNewAppInstance(data) {
+  const { route, queryParams } = data || {};
+  const args = ["--new-instance"];
+  if (route) {
+    args.push(`--route=${route}`);
+  }
+  if (queryParams) {
+    args.push(`--query=${encodeURIComponent(JSON.stringify(queryParams))}`);
+  }
+  const { spawn } = require("child_process");
+  const execPath = process.execPath;
+  const appPath = app.getAppPath();
+  const spawnArgs = [appPath, ...args];
+  console.log("启动新实例:", execPath, spawnArgs);
+  const child = spawn(execPath, spawnArgs, {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+  return { success: true, pid: child.pid };
+}
+
+function setupDarwinDockMenu() {
+  if (!isDarwin || !app.dock) {
+    return;
+  }
+  const label = getMenuStringForMain("NEW_INSTANCE", "New Instance");
+  app.dock.setMenu(
+    Menu.buildFromTemplate([
+      {
+        label,
+        click: () => {
+          spawnNewAppInstance({});
+        },
+      },
+    ])
+  );
+}
+
+/** Windows 任务栏图标右键「跳转列表」中的用户任务，与 macOS Dock 菜单「新实例」对应 */
+function setupWindowsJumpListTasks() {
+  if (!isWin32) {
+    return;
+  }
+  try {
+    const title = getMenuStringForMain("NEW_INSTANCE", "New Instance");
+    const appPath = app.getAppPath();
+    const arg0 =
+      /[\s"]/.test(appPath) ? `"${appPath.replace(/"/g, '\\"')}"` : appPath;
+    app.setUserTasks([
+      {
+        program: process.execPath,
+        arguments: `${arg0} --new-instance`,
+        title,
+        description: title,
+        iconPath: process.execPath,
+        iconIndex: 0,
+      },
+    ]);
+  } catch (e) {
+    console.warn("setupWindowsJumpListTasks:", e);
+  }
+}
+
 // 打开新实例
 ipcMain.handle("open-new-instance", async (event, data) => {
   try {
-    const { route, queryParams } = data || {};
-
-    // 构建命令行参数
-    const args = ['--new-instance']; // 添加强制新实例标志
-
-    // 如果有路由参数，将其作为环境变量传递
-    if (route) {
-      args.push(`--route=${route}`);
-    }
-
-    // 如果有查询参数，将其序列化后传递
-    if (queryParams) {
-      args.push(`--query=${encodeURIComponent(JSON.stringify(queryParams))}`);
-    }
-
-    // 启动新实例
-    const { spawn } = require('child_process');
-    const execPath = process.execPath;
-    const appPath = app.getAppPath();
-
-    // 构建完整的启动参数
-    const spawnArgs = [appPath, ...args];
-
-    console.log('启动新实例:', execPath, spawnArgs);
-
-    const child = spawn(execPath, spawnArgs, {
-      detached: true,
-      stdio: 'ignore'
-    });
-
-    // 分离子进程，使其独立运行
-    child.unref();
-
+    const result = spawnNewAppInstance(data);
     return {
       success: true,
-      pid: child.pid,
-      message: '新实例已启动'
+      pid: result.pid,
+      message: "新实例已启动",
     };
-
   } catch (error) {
-    console.error('启动新实例失败:', error);
+    console.error("启动新实例失败:", error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 })
@@ -1833,27 +1988,57 @@ ipcMain.handle("oauth-find-instance", (event, state) => {
   return findOAuthInstance(state);
 });
 
-// 清理过期的实例目录（可选功能）
+// 清理无主实例目录和基础 userData 中的 Chromium 缓存
 function cleanupOldInstances() {
   try {
     const originalUserDataPath = app.getPath('userData').replace(/[/\\]instances[/\\][^/\\]+$/, '');
     const instancesDir = path.join(originalUserDataPath, 'instances');
 
+    // 清理基础 userData 路径下的 GPUCache 和 Code Cache（协议启动时可能累积）
+    clearSlowCaches(originalUserDataPath);
+
     if (!fs.existsSync(instancesDir)) {
       return;
     }
 
-    const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24小时
+    const currentUserData = app.getPath('userData');
 
-    fs.readdirSync(instancesDir).forEach(instanceId => {
-      const instancePath = path.join(instancesDir, instanceId);
-      const stats = fs.statSync(instancePath);
+    fs.readdirSync(instancesDir).forEach(entry => {
+      const instancePath = path.join(instancesDir, entry);
 
-      // 如果实例目录超过24小时未使用，则删除
-      if (now - stats.mtime.getTime() > maxAge) {
-        fs.rmSync(instancePath, { recursive: true, force: true });
-        console.log('已清理过期实例目录:', instancePath);
+      // 跳过当前正在使用的实例目录
+      if (instancePath === currentUserData) return;
+
+      // 检查是否是 instance-N 格式（新格式）
+      const isPooledDir = /^instance-\d+$/.test(entry);
+
+      if (isPooledDir) {
+        // 新格式：通过锁文件判断是否空闲
+        const lockFilePath = path.join(instancePath, 'instance.lock');
+        if (fs.existsSync(lockFilePath)) {
+          try {
+            const lockData = JSON.parse(fs.readFileSync(lockFilePath, 'utf8'));
+            if (lockData.pid && isProcessRunning(lockData.pid)) {
+              return; // 进程仍在运行，跳过
+            }
+          } catch {
+            // 锁文件损坏，继续清理
+          }
+        }
+        // 空闲的池化目录：不删除整个目录，只清理慢缓存
+        clearSlowCaches(instancePath);
+      } else {
+        // 旧格式（时间戳-随机ID）：清理超过 24 小时的旧目录
+        try {
+          const stats = fs.statSync(instancePath);
+          const maxAge = 24 * 60 * 60 * 1000;
+          if (Date.now() - stats.mtime.getTime() > maxAge) {
+            fs.rmSync(instancePath, { recursive: true, force: true });
+            console.log('已清理旧格式实例目录:', instancePath);
+          }
+        } catch (e) {
+          console.warn('清理旧实例目录失败:', entry, e.message);
+        }
       }
     });
   } catch (error) {

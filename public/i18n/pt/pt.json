@@ -31,7 +31,8 @@
         "USER_SPACE": "Espaço na Nuvem",
         "LIB_MANAGER": "Gerenciador de Bibliotecas",
         "AI_ASSISTANT": "Assistente de IA",
-        "PROJECT_HUB": "Central de Projetos"
+        "PROJECT_HUB": "Central de Projetos",
+        "NEW_INSTANCE": "Nova janela"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Velocidade de Upload",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "Copiar para local especificado",
         "CONTROLS_SWITCH_CASE": "caso",
         "CONTROLS_SWITCH_DO": "fazer",
-        "CONTROLS_SWITCH_DEFAULT": "padrão"
+        "CONTROLS_SWITCH_DEFAULT": "padrão",
+        "CROSS_TAB_PASTE": "Colar",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "Colar %1 itens",
+        "WORKSPACE_SELECT_ALL": "Selecionar todos os blocos"
     },
     "APP_STORE": {
         "HEADER_INFO": "Os primeiros {{count}} aplicativos serão mostrados na barra de ferramentas",
@@ -128,7 +132,8 @@
             "REPOSITORY": "Configurações de repositório",
             "DEPENDENCIES": "Dependências Globais",
             "MCP": "MCP",
-            "DEVMODE": "Modo Desenvolvedor"
+            "DEVMODE": "Modo Desenvolvedor",
+            "CACHE": "Gerenciamento de cache"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Pasta do projeto",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "Lista de placas",
             "LIBRARY_LIST": "Lista de bibliotecas",
             "INSTALL": "Instalar",
-            "UNINSTALL": "Desinstalar"
+            "UNINSTALL": "Desinstalar",
+            "CLEAR_CACHE": "Limpar cache",
+            "CACHE_SIZE": "Tamanho do cache",
+            "CACHE_LOADING": "Carregando...",
+            "CACHE_ALL": "Limpar tudo",
+            "CACHE_ONE_MONTH": "Limpar 1 mês",
+            "CACHE_THREE_MONTHS": "Limpar 3 meses",
+            "CACHE_CLEARING": "Limpando...",
+            "CACHE_CLEARED": "Cache limpo",
+            "CACHE_CLEAR_FAILED": "Falha ao limpar",
+            "CACHE_CONFIRM_TITLE": "Confirmar limpeza",
+            "CACHE_CONFIRM_DESC": "Tem certeza de que deseja limpar todo o cache de compilação? Esta ação não pode ser desfeita.",
+            "CACHE_CONFIRM_OK": "Confirmar"
         },
         "BUTTONS": {
             "CANCEL": "Cancelar",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "Login por telefone é apenas para testadores beta de AI",
         "PHONE_PLACEHOLDER": "Digite o número de telefone",
         "PASSWORD_PLACEHOLDER": "Digite a senha",
+        "EMAIL_PLACEHOLDER": "Digite o endereço de e-mail",
+        "CODE_PLACEHOLDER": "Digite o código de verificação",
+        "SEND_CODE": "Enviar código",
         "CODE_SENDING": "Por favor, obtenha o código de verificação primeiro",
         "LOGGING_IN": "Entrando...",
         "LOGIN": "Entrar",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "Falha no login do GitHub",
         "ENTER_CREDENTIALS": "Por favor, digite nome de usuário e senha",
         "LOGIN_SUCCESS": "Login bem-sucedido",
+        "WECHAT_REGISTER_SUCCESS": "Registro bem-sucedido",
         "LOGIN_FAILED": "Falha no login",
         "LOGIN_NETWORK_ERROR": "Falha no login, verifique a conexão de rede",
         "AGREEMENT_PREFIX": "Li e concordo com o",
@@ -529,7 +550,16 @@
         "AGREEMENT_REQUIRED": "Por favor, concorde com o Acordo do Usuário e a Política de Privacidade primeiro",
         "MODAL_CLOSE": "Fechar",
         "AGREEMENT_LOAD_FAILED": "Falha ao carregar o Acordo do Usuário",
-        "PRIVACY_LOAD_FAILED": "Falha ao carregar a Política de Privacidade"
+        "PRIVACY_LOAD_FAILED": "Falha ao carregar a Política de Privacidade",
+        "WECHAT_QRCODE_FAILED": "Falha ao obter o código QR",
+        "WECHAT_REFRESH": "Atualizar código QR",
+        "WECHAT_RETRY": "Tentar novamente",
+        "INVITE_CODE_PLACEHOLDER": "Código de convite (opcional)",
+        "AGREEMENT_BY_LOGIN": "Ao fazer login/registrar, você concorda com os",
+        "TERMS_OF_USE": "Termos de Uso",
+        "OTHER_LOGIN_METHODS": "Você também pode fazer login com",
+        "GITHUB_CONTINUE": "Clique em \"Continue\" na página de autorização do GitHub para concluir o login",
+        "REGISTER": "Registrar"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "Recurso em breve"

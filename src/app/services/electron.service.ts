@@ -96,6 +96,16 @@ export class ElectronService {
     return window['path'].join(...paths);
   }
 
+  // 写入系统剪贴板
+  clipboardWriteText(text: string) {
+    window['clipboard']?.writeText(text);
+  }
+
+  // 读取系统剪贴板
+  clipboardReadText(): string {
+    return window['clipboard']?.readText() || '';
+  }
+
   // 调用浏览器打开url
   openUrl(url) {
     window['other'].openByBrowser(url);

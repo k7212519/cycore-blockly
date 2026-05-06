@@ -5,7 +5,10 @@ import { ElectronService } from './services/electron.service';
 import { ConfigService } from './services/config.service';
 import { TranslationService } from './services/translation.service';
 import { AuthService } from './services/auth.service';
+import { ThemeService } from './services/theme.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { TranslateService } from '@ngx-translate/core';
+import { resolveTranslatedApiErrorMessage } from './utils/api-error.utils';
 
 // 声明 electronAPI 类型
 declare const window: any;
@@ -24,8 +27,10 @@ export class AppComponent implements OnInit, OnDestroy {
   private configService = inject(ConfigService);
   private translationService = inject(TranslationService);
   private authService = inject(AuthService);
+  private themeService = inject(ThemeService);
   private message = inject(NzMessageService);
   private router = inject(Router);
+  private translate = inject(TranslateService);
 
   private oauthResultListener: (() => void) | null = null;
   private exampleListListener: (() => void) | null = null;
@@ -33,6 +38,7 @@ export class AppComponent implements OnInit, OnDestroy {
   async ngOnInit() {
     await this.electronService.init();
     await this.configService.init();
+    this.themeService.init();
     await this.translationService.init();
 
     // 在ElectronService初始化完成后再初始化认证服务
@@ -77,6 +83,10 @@ export class AppComponent implements OnInit, OnDestroy {
             let errorMessage = 'GitHub 登录超时，请重试';
 
             switch (result.error) {
+              case 'needs_wechat_bind':
+                // 需要绑定微信，通知登录组件
+                this.authService.emitNeedsWechatBind(result.data?.pending_ticket);
+                return;
               case 'timeout':
               case 'invalid_state':
                 errorMessage = '登录状态无效或已超时，请重试';
@@ -88,17 +98,23 @@ export class AppComponent implements OnInit, OnDestroy {
                 errorMessage = '您取消了授权';
                 break;
               case 'callback_processing_failed':
-                errorMessage = result.message || '处理授权回调失败';
+                errorMessage = resolveTranslatedApiErrorMessage(result, this.translate, {
+                  fallbackMessage: result.message || '处理授权回调失败',
+                });
                 break;
               default:
-                errorMessage = result.message || 'GitHub 登录超时，请重试';
+                errorMessage = resolveTranslatedApiErrorMessage(result, this.translate, {
+                  fallbackMessage: result.message || 'GitHub 登录超时，请重试',
+                });
             }
 
             this.message.error(errorMessage);
           }
         } catch (error) {
           console.error('处理OAuth回调异常:', error);
-          this.message.error('登录处理失败，请重试');
+          this.message.error(resolveTranslatedApiErrorMessage(error, this.translate, {
+            fallbackMessage: '登录处理失败，请重试',
+          }));
         }
       });
     }

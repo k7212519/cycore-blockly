@@ -31,6 +31,7 @@ interface ProjectPackageData {
   type?: string;
   framework?: string;
   cloudId?: string; // 云端项目ID
+  blocklyToolboxOrder?: string[];
 }
 
 @Injectable({
@@ -533,26 +534,40 @@ export class ProjectService {
     const packageJsonPath = `${this.currentProjectPath}/package.json`;
 
     try {
-      // 尝试直接写入
-      window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
+      this.writePackageJsonFile(packageJsonPath, data);
     } catch (error) {
-      // 如果写入失败，尝试移除只读属性后重试
-      console.warn('写入package.json失败，尝试修改权限后重试:', error);
-      try {
-        if (window['fs'].existsSync(packageJsonPath)) {
-          // 0o666 确保文件可读写
-          window['fs'].chmodSync(packageJsonPath, 0o666);
-          // 重试写入
-          window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
-        }
-      } catch (retryError) {
-        console.error('修改权限后写入仍然失败:', retryError);
-        throw retryError;
+      console.error('写入package.json失败:', error);
+      throw error;
+    }
+
+    const tempPackageJsonPath = window['path'].join(this.currentProjectPath, '.temp', 'package.json');
+    try {
+      const tempDir = window['path'].dirname(tempPackageJsonPath);
+      if (!window['fs'].existsSync(tempDir)) {
+        window['fs'].mkdirSync(tempDir, { recursive: true });
       }
+      this.writePackageJsonFile(tempPackageJsonPath, data);
+    } catch (error) {
+      console.warn('同步 package.json 到 temp 失败:', error);
     }
 
     // 更新当前packageData
     this.currentPackageData = data;
+  }
+
+  private writePackageJsonFile(packageJsonPath: string, data: any) {
+    try {
+      window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.warn('写入package.json失败，尝试修改权限后重试:', error);
+      if (window['fs'].existsSync(packageJsonPath)) {
+        window['fs'].chmodSync(packageJsonPath, 0o666);
+        window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
+        return;
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -1198,7 +1213,9 @@ export class ProjectService {
   // 更新STM32配置菜单项
   async updateStm32ConfigMenu(boardName: string) {
     try {
+      console.log("updateStm32ConfigMenu: " + boardName);
       const boardConfig = await this.getStm32BoardConfig(boardName);
+      console.log(boardConfig);
 
       if (!boardConfig) {
         console.warn(`无法获取开发板 "${boardName}" 的配置`);
@@ -1418,6 +1435,7 @@ export class ProjectService {
     if (pinConfig.data == this.currentStm32Config.board) {
       return true;
     } else if (pinConfig.extra?.build.variant == this.currentStm32Config.variant) {
+      this.currentStm32Config.board = pinConfig.data;
       return true;
     } else {
       let newPinConfig = pinConfig;
@@ -1448,11 +1466,10 @@ export class ProjectService {
       // 保存更新后的board.json
       if (isChanged) {
         await this.setBoardJson(currentBoardJson);
-        this.currentStm32Config.board = pinConfig.data;
-        this.currentStm32Config.variant = variant;
-        this.currentStm32Config.variant_h = variant_h;
-        // console.log('Updated STM32 pin config:', this.currentStm32Config);
       }
+      this.currentStm32Config.board = pinConfig.data;
+      this.currentStm32Config.variant = variant;
+      this.currentStm32Config.variant_h = variant_h;
 
       // // // 获取到的config格式为“STM32F1xx/F100C(4-6)T”
       // // // 我们需要转换为“F1XXC”
@@ -1692,18 +1709,18 @@ export class ProjectService {
       // 2.5. 获取新开发板的模板并更新package.json
       console.log('更新项目配置文件...');
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.UPDATING_PROJECT_CONFIG') });
-      
+
       // 读取当前package.json保留项目基本信息
       const currentPackageJson = await this.getPackageJson();
-      
+
       // 获取新开发板的模板package.json（从 appDataPath 读取）
       const templatePath = `${appDataPath}${separator}node_modules${separator}${boardInfo.name}${separator}template`;
       const templatePackageJsonPath = `${templatePath}${separator}package.json`;
-      
+
       if (window['fs'].existsSync(templatePackageJsonPath)) {
         // 读取模板package.json
         const templatePackageJson = JSON.parse(window['fs'].readFileSync(templatePackageJsonPath, 'utf8'));
-        
+
         // 合并配置：保留当前项目的基本信息，使用新开发板的依赖和配置
         const newPackageJson = {
           ...templatePackageJson,
@@ -1724,7 +1741,7 @@ export class ProjectService {
           // ...(currentPackageJson.projectConfig && { projectConfig: currentPackageJson.projectConfig }),
           // ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }),
         };
-        
+
         // 写入新的package.json
         window['fs'].writeFileSync(`${this.currentProjectPath}/package.json`, JSON.stringify(newPackageJson, null, 2));
         console.log('package.json 更新完成');

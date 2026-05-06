@@ -173,6 +173,7 @@ export class _UploaderService {
 
         // 提前捕获串口号，避免 build 期间设备重新插拔导致端口变化的竞态条件
         const capturedSerialPort = this.serialService.currentPort;
+        const capturedPortInfo = this.serialService.currentPortInfo;
         if (!capturedSerialPort) {
           this.uploadInProgress = false;
           this.handleUploadError('请先选择串口', '未选择串口');
@@ -258,19 +259,26 @@ export class _UploaderService {
         const boardJson = await this.projectService.getBoardJson()
         const boardModule = await this.projectService.getBoardModule();
 
-        // 获取上传参数并提取标志
-        const uploadParam = boardJson.uploadParam;
+        // 根据烧录方式选择上传参数：调试探针使用 linkUploadParam，串口使用 uploadParam
+        const isDebuggerUpload = capturedPortInfo?.type === 'debugger';
+        const uploadParam = isDebuggerUpload
+          ? (boardJson.linkUploadParam || boardJson.uploadParam)
+          : boardJson.uploadParam;
         if (!uploadParam) {
           this.uploadInProgress = false; // 重置上传状态
-          this.handleUploadError('缺少上传参数，请检查板子配置');
+          const errMsg = isDebuggerUpload ? '缺少调试探针上传参数(linkUploadParam)，请检查板子配置' : '缺少上传参数，请检查板子配置';
+          this.handleUploadError(errMsg);
           this.workflowService.finishUpload(false, 'Missing upload parameters');
-          reject({ state: 'error', text: '缺少上传参数' });
+          reject({ state: 'error', text: errMsg });
           return;
         }
 
         const { flags, cleanParam } = this.extractFlags(uploadParam);
-        const use_1200bps_touch = flags['use_1200bps_touch'];
-        const wait_for_upload = flags['wait_for_upload'];
+        const use_1200bps_touch = isDebuggerUpload ? false : !!flags['use_1200bps_touch'];
+        // 兼容两种写法(--wait_for_upload_port和--wait_for_upload)，优先使用标准名
+        const wait_for_upload = isDebuggerUpload
+          ? false
+          : !!(flags['wait_for_upload_port'] || flags['wait_for_upload']);
 
         console.log('提取的上传标志:', flags);
         console.log('清理后的上传参数:', cleanParam);
@@ -284,15 +292,23 @@ export class _UploaderService {
           window['fs'].mkdirSync(tempPath, { recursive: true });
         }
 
+        // 获取当前选中的 STM32.BOARD (pnum) 选项，用于 probe-rs download 参数
+        const pnum = this.projectService.currentStm32Config?.board || null;
+
         const uploadConfig = {
           currentProjectPath,
           buildPath,
           boardModule,
           appDataPath: window['path'].getAppDataPath(),
           serialPort: capturedSerialPort,
+          portType: capturedPortInfo?.type || 'serial',
+          portText: capturedPortInfo?.text || '',
+          probeSerial: capturedPortInfo?.probeSerial || '',
+          probeVidPid: capturedPortInfo?.probeVidPid || '',
           uploadParam: cleanParam, // 传递清理后的上传参数
           use_1200bps_touch,
-          wait_for_upload
+          wait_for_upload,
+          pnum
         };
 
         const configFilePath = window['path'].join(tempPath, 'upload-config.json');
@@ -324,6 +340,53 @@ export class _UploaderService {
 
         this.uploadInProgress = true;
         this.noticeService.update({ title: title, text: lastUploadText, state: 'doing', progress: 0, setTimeout: 0, stop: () => { this.cancel(); } });
+
+        // probe-rs/调试探针上传: 使用合成进度（因为 probe-rs 在非 TTY 模式下不输出进度条）
+        let hasRealProgress = false;
+        let syntheticProgressTimer: any = null;
+        if (isDebuggerUpload) {
+          const syntheticPhases = [
+            { delay: 300,  progress: 3,  text: '正在连接设备...' },
+            { delay: 800,  progress: 8,  text: '正在擦除...' },
+            { delay: 1200, progress: 15, text: '正在擦除...' },
+            { delay: 1800, progress: 20, text: '正在上传...' },
+            { delay: 2500, progress: 35, text: '正在上传...' },
+            { delay: 3500, progress: 50, text: '正在上传...' },
+            { delay: 5000, progress: 65, text: '正在上传...' },
+            { delay: 6500, progress: 78, text: '正在上传...' },
+            { delay: 8000, progress: 88, text: '验证中...' },
+            { delay: 9500, progress: 95, text: '验证中...' },
+          ];
+          const startTime = Date.now();
+          syntheticProgressTimer = setInterval(() => {
+            if (hasRealProgress || this.cancelled || this.isErrored || this.uploadCompleted) {
+              clearInterval(syntheticProgressTimer);
+              syntheticProgressTimer = null;
+              return;
+            }
+            const elapsed = Date.now() - startTime;
+            // 找到当前时间点应该显示的最新阶段
+            let currentPhase = null;
+            for (let i = syntheticPhases.length - 1; i >= 0; i--) {
+              if (elapsed >= syntheticPhases[i].delay) {
+                currentPhase = syntheticPhases[i];
+                break;
+              }
+            }
+            if (currentPhase && currentPhase.progress > lastProgress) {
+              lastProgress = currentPhase.progress;
+              lastUploadText = currentPhase.text;
+              this.safeUpdateNotice({
+                title: title,
+                text: currentPhase.text,
+                state: 'doing',
+                progress: currentPhase.progress,
+                setTimeout: 0,
+                stop: () => { this.cancel(); }
+              });
+            }
+          }, 300);
+        }
 
         let bufferData = '';
         this.cmdService.run(uploadCmd, null, false).subscribe({
@@ -402,6 +465,12 @@ export class _UploaderService {
                       this.logService.update({ "detail": line });
                     }
 
+                    // probe-rs 进度跟踪 (Erasing/Programming/Verifying 三阶段)
+                    // 匹配直接输出格式和 upload.js 中继的 [probe-rs:phase] 标记
+                    const probeRsMatch = trimmedLine.match(/^\s*(?:\[probe-rs:phase\]\s*)?(Erasing|Programming|Verifying)\s+.*?(\d+)%/i);
+                    // probe-rs 完成标志: "Finished in X.XXs" 或 "[probe-rs:phase] Finished"
+                    const probeRsFinished = /(?:^\s*Finished\s+in\s+[\d.]+s|\[probe-rs:phase\]\s*Finished)/i.test(trimmedLine);
+
                     // ESP32特定进度跟踪
                     let isESP32Format = /Writing\s+at\s+0x[0-9a-f]+\s+\[[^\]]*\]\s+\d+\.\d+%\s+\d+\/\d+\s+bytes\.\.\./i.test(trimmedLine);
                     
@@ -435,8 +504,30 @@ export class _UploaderService {
 
                     let progressValue = 0;
 
-                    // 优先处理ESP32格式
-                    if (isESP32Format) {
+                    // 优先处理 probe-rs 格式
+                    if (probeRsMatch) {
+                      hasRealProgress = true; // 检测到真实进度数据，停止合成进度
+                      const phase = probeRsMatch[1].toLowerCase();
+                      const phaseProgress = parseInt(probeRsMatch[2], 10);
+                      // Erasing: 0-15%, Programming: 15-85%, Verifying: 85-99%
+                      if (phase === 'erasing') {
+                        progressValue = Math.floor(phaseProgress * 0.15);
+                        lastUploadText = '正在擦除...';
+                      } else if (phase === 'programming') {
+                        progressValue = 15 + Math.floor(phaseProgress * 0.70);
+                        lastUploadText = '正在上传...';
+                      } else if (phase === 'verifying') {
+                        progressValue = 85 + Math.floor(phaseProgress * 0.14);
+                        lastUploadText = '验证中...';
+                      }
+                      // 强制刷新显示（probe-rs 阶段切换时进度可能回到0再上升）
+                      lastProgress = Math.min(lastProgress, progressValue - 1);
+                    } else if (probeRsFinished) {
+                      hasRealProgress = true;
+                      progressValue = 100;
+                      lastUploadText = '上传完成';
+                      this.uploadCompleted = true;
+                    } else if (isESP32Format) {
                       const numericMatch = trimmedLine.match(/(\d+\.\d+)%/);
                       if (numericMatch) {
                         const regionProgress = parseInt(numericMatch[1], 10);
@@ -525,6 +616,11 @@ export class _UploaderService {
                       this.uploadCompleted = true;
                     }
 
+                    // probe-rs: Finished in X.XXs
+                    if (/^\s*Finished\s+in\s+[\d.]+s/i.test(trimmedLine)) {
+                      this.uploadCompleted = true;
+                    }
+
                     // 记录进程退出码
                     const exitCodeMatch = trimmedLine.match(/^exit code: (\d+)$/i);
                     if (exitCodeMatch) {
@@ -541,6 +637,7 @@ export class _UploaderService {
             }
           },
           error: (error: any) => {
+            if (syntheticProgressTimer) { clearInterval(syntheticProgressTimer); syntheticProgressTimer = null; }
             console.log("上传命令错误:", error);
             this.uploadInProgress = false; // 确保重置上传状态
             this._builderService.isUploading = false;
@@ -551,6 +648,7 @@ export class _UploaderService {
             reject({ state: 'error', text: error.message || '上传失败' });
           },
           complete: () => {
+            if (syntheticProgressTimer) { clearInterval(syntheticProgressTimer); syntheticProgressTimer = null; }
             console.log("上传命令完成，cancelled:", this.cancelled, "isErrored:", this.isErrored, "uploadCompleted:", this.uploadCompleted, "processExitCode:", this.processExitCode);
             
             // 确保 uploadInProgress 在所有情况下都被重置
@@ -653,22 +751,26 @@ export class _UploaderService {
     if (typeof uploadParam === 'string') {
       cleanParam = uploadParam;
       
-      // 只处理方括号包裹的预处理标志 [--flag] 或 [-flag] 或 [--flag=value]
-      const bracketFlagPattern = /\[(--?\w+(?:=\S+)?)\]/g;
+      // 处理方括号包裹的预处理标志，支持逗号分隔的多个标志
+      // 例如: [--use_1200bps_touch] 或 [--use_1200bps_touch,--wait_for_upload_port] 或 [--flag=value]
+      const bracketGroupPattern = /\[((?:--?\w+(?:=\S+)?)(?:,--?\w+(?:=\S+)?)*)\]/g;
       let match;
       
-      while ((match = bracketFlagPattern.exec(uploadParam)) !== null) {
-        const fullFlag = match[1]; // 例如: --use_1200bps_touch
-        const flagMatch = fullFlag.match(/--?(\w+)(?:=(\S+))?/);
-        if (flagMatch) {
-          const flagName = flagMatch[1];
-          const flagValue = flagMatch[2];
-          flags[flagName] = flagValue !== undefined ? flagValue : true;
+      while ((match = bracketGroupPattern.exec(uploadParam)) !== null) {
+        const groupContent = match[1]; // 例如: --use_1200bps_touch,--wait_for_upload_port
+        const flagItems = groupContent.split(',');
+        for (const item of flagItems) {
+          const flagMatch = item.trim().match(/--?(\w+)(?:=(\S+))?/);
+          if (flagMatch) {
+            const flagName = flagMatch[1];
+            const flagValue = flagMatch[2];
+            flags[flagName] = flagValue !== undefined ? flagValue : true;
+          }
         }
       }
       
-      // 只移除方括号包裹的标志，保留其他所有参数（如 -a -U -e 等）
-      cleanParam = cleanParam.replace(/\[--?\w+(?:=\S+)?\]\s*/g, '');
+      // 移除方括号包裹的标志组（含逗号分隔），保留其他所有参数
+      cleanParam = cleanParam.replace(/\[(?:--?\w+(?:=\S+)?)(?:,--?\w+(?:=\S+)?)*\]\s*/g, '');
       
       // 清理多余的空格
       cleanParam = cleanParam.trim().replace(/\s+/g, ' ');

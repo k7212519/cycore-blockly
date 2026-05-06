@@ -61,6 +61,16 @@ class CommandManager {
     }
 
     // 打印执行命令的日志
+    // When using a shell, quote arguments containing spaces to prevent path splitting
+    if (shell) {
+      args = args.map(arg => {
+        if (arg.includes(' ') && !arg.startsWith('"') && !arg.startsWith("'")) {
+          return `"${arg}"`;
+        }
+        return arg;
+      });
+    }
+
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command;
     console.log(`[CMD] 执行命令: ${fullCommand}`);
     console.log(`[CMD] 工作目录: ${cwd || process.cwd()}`);

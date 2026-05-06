@@ -27,15 +27,15 @@ import { CommonModule } from '@angular/common';
         border-radius: 5px;
         font-size: 13px;
         margin: 0;
-        background-color: #3a3a3a;
-        color: #ccc;
+        background-color: var(--aily-chat-viewer-card-bg, #3a3a3a);
+        color: var(--aily-chat-viewer-fg, #cccccc);
         overflow: hidden;
       }
-      .ac-state[data-state='doing'] i { color: #1890ff; }
-      .ac-state[data-state='done'] i { color: #52c41a; }
-      .ac-state[data-state='warn'] i { color: #faad14; }
-      .ac-state[data-state='error'] i { color: #ff4d4f; }
-      .ac-state[data-state='info'] i { color: #1890ff; }
+      .ac-state[data-state='doing'] i { color: var(--aily-chat-viewer-state-info, #1890ff); }
+      .ac-state[data-state='done'] i { color: var(--aily-chat-viewer-state-done, #52c41a); }
+      .ac-state[data-state='warn'] i { color: var(--aily-chat-viewer-state-warn, #faad14); }
+      .ac-state[data-state='error'] i { color: var(--aily-chat-viewer-state-error, #ff4d4f); }
+      .ac-state[data-state='info'] i { color: var(--aily-chat-viewer-state-info, #1890ff); }
       .ac-state i { flex-shrink: 0; font-size: 14px; margin-right: 5px; }
       .ac-state-text {
         flex: 1;
@@ -46,19 +46,19 @@ import { CommonModule } from '@angular/common';
       .ac-state-progress {
         width: 80px;
         height: 4px;
-        background: rgba(255, 255, 255, 0.12);
+        background: var(--aily-chat-viewer-progress-track, rgba(255, 255, 255, 0.12));
         border-radius: 2px;
         overflow: hidden;
       }
       .ac-state-bar {
         height: 100%;
-        background: #1890ff;
+        background: var(--aily-chat-viewer-primary, #1890ff);
         border-radius: 2px;
         transition: width 0.3s;
       }
       .ac-state-pct {
         font-size: 11px;
-        color: #a5a5a5;
+        color: var(--aily-text-muted, #a5a5a5);
         min-width: 32px;
         text-align: right;
       }

@@ -23,6 +23,7 @@ import { AuthService } from '../../../services/auth.service';
 import { BoardSelectorDialogComponent } from '../board-selector-dialog/board-selector-dialog.component';
 import { LoginDialogComponent } from '../login-dialog/login-dialog.component';
 import { PlatformService } from '../../../services/platform.service';
+import { ProbeRsService } from '../../../services/probe-rs.service';
 // import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { AppItem } from '../../../tools/app-store/app-store.config';
 import { APP_LIST } from '../../../configs/tool.config';
@@ -59,9 +60,11 @@ export class HeaderComponent implements OnDestroy {
   private unsubscribeMaximizeChanged?: () => void;
   private unsubscribeCloseRequest?: () => void;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
+  private selectDebounceTimer: ReturnType<typeof setTimeout> | null = null; // 防抖计时器
+  private lastSelectedSubItemKey: string | null = null; // 上次选择子菜单项的key（用于判断重复选择）
 
   get projectData() {
-    return this.projectService.currentPackageData;
+    return this.projectService.currentPackageData || { path: '', name: '' };
   }
 
   get openToolList() {
@@ -111,6 +114,7 @@ export class HeaderComponent implements OnDestroy {
     private authService: AuthService,
     private translate: TranslateService,
     private platformService: PlatformService,
+    private probeRsService: ProbeRsService,
     // private appStoreService: AppStoreService
   ) { }
 
@@ -196,6 +200,12 @@ export class HeaderComponent implements OnDestroy {
       if (ports && ports.length === 1 && !this.currentPort) {
         // 只有一个串口且当前没有选择串口时，设为默认
         this.currentPort = ports[0].name;
+        this.serialService.currentPortInfo = {
+          name: ports[0].name,
+          text: ports[0].text,
+          type: ports[0].type,
+          icon: ports[0].icon,
+        };
         // 使用 setTimeout 将变更检测推迟到下一个变更检测周期，避免 ExpressionChangedAfterItHasBeenCheckedError
         setTimeout(() => {
           this.cd.detectChanges();
@@ -217,7 +227,49 @@ export class HeaderComponent implements OnDestroy {
 
   showPortList = false;
   configList: PortItem[] = []
-  boardKeywords = []; // 这个用来高亮显示正确开发板，如['arduino uno']，则端口菜单中如有包含'arduino uno'的串口则高亮显示
+  boardKeywords = [];
+  private cachedDebuggerItems: IMenuItem[] = [];
+  private portListGeneration = 0; // 这个用来高亮显示正确开发板，如['arduino uno']，则端口菜单中如有包含'arduino uno'的串口则高亮显示
+
+  /**
+   * 异步检测调试探针，完成后更新缓存并重建端口列表
+   */
+  private detectProbes(generation: number, portList: IMenuItem[], skipDetect: boolean) {
+
+    console.log('detectProbes');
+
+    if (!skipDetect) {
+      if (this.cachedDebuggerItems.length > 0) {
+        portList.push(...this.cachedDebuggerItems);
+      }
+      this.probeRsService.listProbes().then(result => {
+        if (generation !== this.portListGeneration) return;
+        const newDebuggerItems: IMenuItem[] = [];
+        if (result.success && result.probes && result.probes.length > 0) {
+          newDebuggerItems.push({ sep: true });
+          for (const probe of result.probes) {
+            console.log('Detected probe:', probe);
+            const typeName = probe.type || probe.name || 'Unknown';
+            newDebuggerItems.push({
+              name: typeName,
+              text: probe.shortSerial || '',
+              type: 'debugger',
+              icon: 'fa-brands fa-usb',
+              extra: { vidPid: probe.vidPid, serial: probe.serial },
+            });
+          }
+        }
+        if (JSON.stringify(newDebuggerItems) !== JSON.stringify(this.cachedDebuggerItems)) {
+          this.cachedDebuggerItems = newDebuggerItems;
+          this.getDevicePortList(true);
+        }
+      }).catch(e => {
+        console.warn('调试探针检测失败:', e);
+      });
+    } else if (this.cachedDebuggerItems.length > 0) {
+      portList.push(...this.cachedDebuggerItems);
+    }
+  }
   openPortList(event?: MouseEvent) {
     if (event) {
       this.calculatePortListPosition(event);
@@ -237,9 +289,9 @@ export class HeaderComponent implements OnDestroy {
     }
     let boardname = this.currentBoard.replace(' 2560', ' ').replace(' R3', '');
     this.boardKeywords = [boardname];
-    this.getDevicePortList();
+    // 如果已有缓存列表，先展示旧数据，再后台刷新
     this.showPortList = true;
-    // this.cd.detectChanges();
+    this.getDevicePortList();
   }
 
   closePortList() {
@@ -253,10 +305,19 @@ export class HeaderComponent implements OnDestroy {
       return
     }
     this.currentPort = item.name;
+    this.serialService.currentPortInfo = {
+      name: item.name,
+      text: item.text,
+      type: item.type,
+      icon: item.icon,
+      probeSerial: item.extra?.serial || '',
+      probeVidPid: item.extra?.vidPid || '',
+    };
     this.closePortList();
   }
 
-  async getDevicePortList() {
+  async getDevicePortList(skipDetect = false) {
+    const generation = ++this.portListGeneration;
     let portList0: IMenuItem[] = await this.serialService.getSerialPorts();
     if (portList0.length == 0) {
       portList0 = [
@@ -270,8 +331,12 @@ export class HeaderComponent implements OnDestroy {
       ];
     }
 
+    let core = this.projectService.currentBoardConfig['core'].toLowerCase();
+
+
     // 添加ESP32相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('esp32') > -1) {
+    // console.log('core:' + core);
+    if (core.indexOf('esp32') > -1) {
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
       let esp32config = await this.projectService.updateEsp32ConfigMenu(board);
@@ -282,28 +347,27 @@ export class HeaderComponent implements OnDestroy {
     }
 
     // 添加STM32相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('stm32') > -1 &&
-      this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
+    else if (core.indexOf('stm32') > -1) {
+      // 异步检测调试探针，完成后更新缓存并重建列表
+      this.detectProbes(generation, portList0, skipDetect);
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
-      // console.log('STM32开发板标识:', board);
       let stm32config = await this.projectService.updateStm32ConfigMenu(board);
       if (stm32config) {
         portList0 = portList0.concat(stm32config)
       }
-      // console.log('STM32配置选项:', stm32config);
     }
 
     // 添加nRF5相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('nRF5') > -1) {
+    else if (core.indexOf('nrf5') > -1) {
+      // 异步检测调试探针（nRF52）
+      this.detectProbes(generation, portList0, skipDetect);
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
-      // console.log('nRF5开发板标识:', board);
       let nrf5config = await this.projectService.updateNrf5ConfigMenu(board);
       if (nrf5config) {
         portList0 = portList0.concat(nrf5config)
       }
-      // console.log('nRF5配置选项:', nrf5config);
     }
 
     // 添加切换开发板功能
@@ -769,64 +833,78 @@ export class HeaderComponent implements OnDestroy {
   // 选择子菜单项-修改编译上传配置
   async selectSubItem(subItem: IMenuItem) {
     console.log('选择子菜单项:', subItem);
-    let packageJson = await this.projectService.getPackageJson();
-    packageJson['projectConfig'] = packageJson['projectConfig'] || {};
 
-    // // 判断是否为PartitionScheme并且值为'custom'，如果是则弹出文件选择
-    // if (subItem.key === 'PartitionScheme' && subItem.data.toLowerCase() === 'custom') {
-    //   const folderPath = await window['ipcRenderer'].invoke('select-file', {
-    //     title: '选择分区文件',
-    //     path: this.projectService.currentProjectPath,
-    //   });
-
-    //   // console.log('选中的分区文件路径：', folderPath);
-
-    //   if (!folderPath) {
-    //     this.message.warning('未选择分区文件，已取消');
-    //     return;
-    //   }
-
-    //   // 执行复制操作，复制到项目根目录下的 'partitions.csv'
-    //   const destPath = window['path'].join(this.projectService.currentProjectPath, 'partitions.csv');
-    //   if (folderPath != destPath) {
-    //     // console.log('复制分区文件到项目目录:', destPath);
-    //     try {
-    //       window['fs'].copySync(folderPath, destPath);
-    //     } catch (error) {
-    //       console.warn('复制分区文件失败:', error);
-    //       this.message.error('复制分区文件失败');
-    //       return;
-    //     }
-    //   }
-    // }
-
-    packageJson['projectConfig'][subItem.key] = subItem.data;
-    this.projectService.setPackageJson(packageJson);
-    // 判断是否是STM32，是则更新项目配置
-    if (this.projectService.currentBoardConfig['core'].indexOf('stm32') > -1 &&
-      this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
-      // 如果subItem包含pnum variant字段，则调用比较函数
-      if (subItem.key === 'pnum' && subItem.extra?.build.variant) {
-        let newPinConfig = subItem;
-        this.projectService.compareStm32PinConfig(newPinConfig)
-      }
+    if (this.lastSelectedSubItemKey === (subItem.key + '_' + subItem.name)) {
+      return;
     }
 
-    // 判断是否是nRF5的softdevice选择，如果是则直接烧录softdevice
-    if (this.projectService.currentBoardConfig['core']?.indexOf('nRF5') > -1 &&
-      subItem.key === 'softdevice') {
-      // 检查串口是否已选择
-      if (!this.serialService.currentPort) {
-        this.message.warning(this.translate.instant('NRF5.SELECT_PORT_FIRST') || '请先选择串口');
-        return;
-      }
-
-      // 通过 UploaderService 调用烧录方法（使用 ActionService 分发到 _UploaderService）
-      await this.uploaderService.flashSoftdevice(subItem.data, this.serialService.currentPort);
+    if (this.selectDebounceTimer !== null) {
+      clearTimeout(this.selectDebounceTimer);
     }
 
-    // 触发预编译操作：配置变更后自动触发预编译
-    this.builderService.triggerPreprocess('config-changed');
+    this.selectDebounceTimer = setTimeout(async () => {
+      this.selectDebounceTimer = null;
+      this.lastSelectedSubItemKey = subItem.key + '_' + subItem.name;
+
+      let packageJson = await this.projectService.getPackageJson();
+      packageJson['projectConfig'] = packageJson['projectConfig'] || {};
+
+      // // 判断是否为PartitionScheme并且值为'custom'，如果是则弹出文件选择
+      // if (subItem.key === 'PartitionScheme' && subItem.data.toLowerCase() === 'custom') {
+      //   const folderPath = await window['ipcRenderer'].invoke('select-file', {
+      //     title: '选择分区文件',
+      //     path: this.projectService.currentProjectPath,
+      //   });
+
+      //   // console.log('选中的分区文件路径：', folderPath);
+
+      //   if (!folderPath) {
+      //     this.message.warning('未选择分区文件，已取消');
+      //     return;
+      //   }
+
+      //   // 执行复制操作，复制到项目根目录下的 'partitions.csv'
+      //   const destPath = window['path'].join(this.projectService.currentProjectPath, 'partitions.csv');
+      //   if (folderPath != destPath) {
+      //     // console.log('复制分区文件到项目目录:', destPath);
+      //     try {
+      //       window['fs'].copySync(folderPath, destPath);
+      //     } catch (error) {
+      //       console.warn('复制分区文件失败:', error);
+      //       this.message.error('复制分区文件失败');
+      //       return;
+      //     }
+      //   }
+      // }
+
+      packageJson['projectConfig'][subItem.key] = subItem.data;
+      this.projectService.setPackageJson(packageJson);
+      // 判断是否是STM32，是则更新项目配置
+      if (this.projectService.currentBoardConfig['core'].indexOf('stm32') > -1 &&
+        this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
+        // 如果subItem包含pnum variant字段，则调用比较函数
+        if (subItem.key === 'pnum' && subItem.extra?.build.variant) {
+          let newPinConfig = subItem;
+          this.projectService.compareStm32PinConfig(newPinConfig)
+        }
+      }
+
+      // 判断是否是nRF5的softdevice选择，如果是则直接烧录softdevice
+      if (this.projectService.currentBoardConfig['core']?.indexOf('nRF5') > -1 &&
+        subItem.key === 'softdevice') {
+        // 检查串口是否已选择
+        if (!this.serialService.currentPort) {
+          this.message.warning(this.translate.instant('NRF5.SELECT_PORT_FIRST') || '请先选择串口');
+          return;
+        }
+
+        // 通过 UploaderService 调用烧录方法（使用 ActionService 分发到 _UploaderService）
+        await this.uploaderService.flashSoftdevice(subItem.data, this.serialService.currentPort);
+      }
+
+      // 触发预编译操作：配置变更后自动触发预编译
+      this.builderService.triggerPreprocess('config-changed');
+    }, 500);
   }
 
   showUser = false;

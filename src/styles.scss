@@ -1,17 +1,24 @@
+@use './styles/themes/index';
+
 body {
   width: 100vw;
   height: 100vh;
   margin: 0;
   font-family: "MiSans Regular", "FiraCode Regular" !important;
   overflow: hidden;
-  background-color: #2b2d30 !important;
+  background-color: var(--aily-bg-primary) !important;
+  color: var(--aily-text-primary);
   user-select: none;
+}
+
+img {
+  -webkit-user-drag: none;
 }
 
 .loading-box {
   width: 100vw;
   height: 100vh;
-  background: #2b2d30;
+  background: var(--aily-bg-primary);
   position: fixed;
   top: 0;
   left: 0;
@@ -23,7 +30,7 @@ body {
   border-radius: 5px;
 
   .text {
-    color: #fff;
+    color: var(--aily-text-primary);
     margin-left: 12px;
     margin-top: 5px;
     font-size: 18px;
@@ -56,6 +63,12 @@ body {
   background: transparent !important;
 }
 
+.merge-confirm-modal .ant-modal-content {
+  background: var(--aily-bg-elevated) !important;
+  border: 1px solid var(--aily-border-input);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+}
+
 nz-modal-container {
   overflow: hidden !important;
 }
@@ -83,10 +96,10 @@ nz-option-container {
   cursor: pointer;
 
   &.link {
-    color: rgb(30, 124, 211);
+    color: var(--aily-color-link);
 
     &:hover {
-      color: rgb(75, 151, 221);
+      color: var(--aily-color-link-hover);
     }
   }
 }
@@ -96,17 +109,17 @@ nz-option-container {
 }
 
 .ddark {
-  $bbackground: #2b2d30;
-  $lline: #222427;
+  $bbackground: var(--aily-bg-primary);
+  $lline: var(--aily-border-primary);
 }
 
 .sscroll {
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--aily-scrollbar-thumb) transparent;
 }
 
 .bborder {
-  border: 1px solid #505050;
+  border: 1px solid var(--aily-border-subtle);
 }
 
 .vsfont {
@@ -154,6 +167,97 @@ nz-sider {
 
 .blocklyWidgetDiv {
   .blocklyHtmlInput {
-    color: #333;
+    color: var(--aily-blockly-text-primary);
+  }
+}
+
+// Blockly 下拉选择框 美化（对齐 menu 组件风格）
+.blocklyDropDownDiv {
+  background: var(--aily-bg-primary) !important;
+  border: 1px solid var(--aily-border-subtle) !important;
+  border-radius: 5px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+  padding: 3px 0 !important;
+  color: var(--aily-menu-text) !important;
+
+  .blocklyDropDownContent {
+    background: transparent !important;
+    max-height: 320px;
+    overflow-y: auto;
+
+    // 滚动条
+    scrollbar-width: thin;
+    scrollbar-color: var(--aily-border-tertiary) transparent;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--aily-border-tertiary);
+      border-radius: 2px;
+
+      &:hover {
+        background: var(--aily-scrollbar-thumb-hover);
+      }
+    }
+  }
+
+  .blocklyMenu {
+    background: transparent !important;
+    padding: 0 !important;
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .blocklyMenuItem {
+    display: flex;
+    align-items: center;
+    min-width: 50px;
+    padding: 6px 10px !important;
+    margin: 0 3px !important;
+    border-radius: 5px !important;
+    color: var(--aily-menu-text) !important;
+    cursor: pointer;
+    background: transparent !important;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    font-size: 14px;
+
+    &:hover,
+    &.blocklyMenuItemHighlight,
+    &.goog-menuitem-highlight,
+    &.goog-menuitem-hover {
+      background: var(--aily-menu-hover) !important;
+      color: var(--aily-menu-text) !important;
+    }
+
+    &.blocklyMenuItemSelected,
+    &.goog-option-selected {
+      font-weight: bold;
+      color: var(--aily-color-accent) !important;
+    }
+  }
+
+  .blocklyMenuItemContent {
+    display: flex;
+    align-items: center;
+    padding: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+  }
+
+  .goog-menuitem-checkbox {
+    display: none;
+  }
+
+  // 底部/顶部小箭头与容器同色
+  .blocklyDropDownArrow {
+    background-color: var(--aily-bg-primary) !important;
+    border-color: var(--aily-border-subtle) !important;
   }
 }

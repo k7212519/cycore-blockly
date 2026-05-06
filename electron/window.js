@@ -3,6 +3,10 @@ const { ipcMain, BrowserWindow, app } = require("electron");
 const { exec, execSync } = require('child_process');
 const path = require('path');
 
+const CODE_VIEWER_STATE_CHANNEL = 'blockly-code-viewer-state';
+const CODE_VIEWER_STATE_UPDATE_CHANNEL = 'blockly-code-viewer-state-update';
+const CODE_VIEWER_STATE_GET_CHANNEL = 'blockly-code-viewer-state-get';
+
 function terminateAilyProcess() {
     const platform = process.platform;
     let checkCommand;
@@ -66,6 +70,27 @@ function terminateAilyProcess() {
 function registerWindowHandlers(mainWindow) {
     // 添加一个映射来存储已打开的窗口
     const openWindows = new Map();
+    let codeViewerState = {
+        code: '',
+        selectedBlockId: null,
+        blockCodeMap: [],
+        updatedAt: 0,
+    };
+
+    const sendCodeViewerState = (targetWindow) => {
+        try {
+            if (targetWindow && !targetWindow.isDestroyed() && targetWindow.webContents && !targetWindow.webContents.isDestroyed()) {
+                targetWindow.webContents.send(CODE_VIEWER_STATE_CHANNEL, codeViewerState);
+            }
+        } catch (error) {
+            console.error('[IPC] send blockly code-viewer state failed:', error.message);
+        }
+    };
+
+    const broadcastCodeViewerState = () => {
+        sendCodeViewerState(mainWindow);
+        openWindows.forEach((subWindow) => sendCodeViewerState(subWindow));
+    };
 
     mainWindow.on('focus', () => {
         try {
@@ -359,6 +384,17 @@ function registerWindowHandlers(mainWindow) {
         }
         return true;
     });
+
+    ipcMain.on(CODE_VIEWER_STATE_UPDATE_CHANNEL, (_event, data = {}) => {
+        codeViewerState = {
+            ...codeViewerState,
+            ...data,
+            updatedAt: Date.now(),
+        };
+        broadcastCodeViewerState();
+    });
+
+    ipcMain.handle(CODE_VIEWER_STATE_GET_CHANNEL, () => codeViewerState);
 
     // 用于sub窗口改变main窗口状态显示
     ipcMain.on('state-update', (event, data) => {

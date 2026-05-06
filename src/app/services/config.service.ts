@@ -4,12 +4,15 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { lastValueFrom, Subject } from 'rxjs';
 import { ElectronService } from './electron.service';
 import { API, setServerUrl, setRegistryUrl, setToolWebUrl } from '../configs/api.config';
+import { calculateSimilarity, extractKeywords } from '../utils/fuzzy-search.utils';
 
 @Injectable({
   providedIn: 'root',
 })
 export class ConfigService {
   private static readonly ERROR_MESSAGE_DEDUP_MS = 10000;
+  private static readonly DEFAULT_BUILD_FLAVOR = 'cn';
+  private static readonly DEFAULT_OFFICIAL_REGION = 'cn';
 
   data: AppConfig | any = {};
 
@@ -46,6 +49,56 @@ export class ConfigService {
     private electronService: ElectronService,
     private message: NzMessageService
   ) { }
+
+  private normalizeBuildFlavor(flavor?: string): string {
+    return flavor === 'global' ? 'global' : ConfigService.DEFAULT_BUILD_FLAVOR;
+  }
+
+  private resolveOfficialRegionKey(): string {
+    if (typeof this.data?.official_region === 'string' && this.data.official_region) {
+      return this.data.official_region;
+    }
+
+    return this.normalizeBuildFlavor(this.data?.build_flavor) === 'global'
+      ? 'eu'
+      : ConfigService.DEFAULT_OFFICIAL_REGION;
+  }
+
+  private isOfficialRegionKey(regionKey: string): boolean {
+    const regionConfig = this.data?.regions?.[regionKey];
+    if (!regionConfig) {
+      return false;
+    }
+
+    if (typeof regionConfig.official === 'boolean') {
+      return regionConfig.official;
+    }
+
+    return regionKey === 'cn' || regionKey === 'eu';
+  }
+
+  private isRegionSelectable(regionKey: string): boolean {
+    if (!this.data?.regions?.[regionKey]) {
+      return false;
+    }
+
+    if (!this.isOfficialRegionKey(regionKey)) {
+      return true;
+    }
+
+    return regionKey === this.resolveOfficialRegionKey();
+  }
+
+  private applyRegionRuntimeConfig(regionKey: string): void {
+    if (!regionKey || !this.data?.regions?.[regionKey]) {
+      return;
+    }
+
+    this.data.region = regionKey;
+    setRegistryUrl(this.data.regions[regionKey].npm_registry);
+    setServerUrl(this.data.regions[regionKey].api_server);
+    setToolWebUrl(this.data.regions[regionKey].tool_web);
+  }
 
   async init() {
     if (!this.electronService.isElectron) {
@@ -91,34 +144,38 @@ export class ConfigService {
 
     // 合并用户配置和默认配置
     this.data = { ...this.data, ...userConfData };
-    this.configReloaded$.next();
+    this.data.build_flavor = this.normalizeBuildFlavor(this.data.build_flavor);
+    this.data.official_region = this.resolveOfficialRegionKey();
 
-    // 使用Electron检测到的最优区域覆盖配置
+    // 使用主进程已确定的 region 与官方 region 覆盖配置
     if (this.electronService.isElectron) {
       try {
-        // 获取当前区域
-        const region = await this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION');
+        const [region, officialRegion, buildFlavor] = await Promise.all([
+          this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION'),
+          this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_OFFICIAL_REGION'),
+          this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_BUILD_FLAVOR')
+        ]);
+
+        this.data.build_flavor = this.normalizeBuildFlavor(buildFlavor || this.data.build_flavor);
+        this.data.official_region = officialRegion || this.resolveOfficialRegionKey();
+
         if (region && this.data.regions && this.data.regions[region]) {
-          this.data.region = region;
-          // 更新 API 配置模块的缓存
-          setRegistryUrl(this.data.regions[region].npm_registry);
-          setServerUrl(this.data.regions[region].api_server);
+          this.applyRegionRuntimeConfig(region);
         } else {
-          // 使用默认区域
-          const defaultRegion = this.data.region || 'cn';
-          if (this.data.regions && this.data.regions[defaultRegion]) {
-            setRegistryUrl(this.data.regions[defaultRegion].npm_registry);
-            setServerUrl(this.data.regions[defaultRegion].api_server);
-          }
+          this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
         }
       } catch (e) {
         console.error('Failed to get env vars', e);
+        this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
       }
+    } else {
+      this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
     }
 
     // 添加当前系统类型到data中
     this.data["platform"] = window['platform'].type;
     this.data["lang"] = this.get_lang_filename(window['platform'].lang);
+    this.configReloaded$.next();
 
     // 并行加载缓存的boards.json、libraries.json和tags.json（旧格式，用于基础功能）
     // await Promise.all([
@@ -130,29 +187,6 @@ export class ConfigService {
     // 注意：boardIndex 和 libraryIndex（新格式索引）延迟到 AI 组件加载时再加载
     // 以减轻软件启动耗时，参见 loadHardwareIndexForAI()
 
-    // 延迟后再次尝试加载，确保最优节点检测完成后能成功下载最新数据
-    if (this.electronService.isElectron) {
-      setTimeout(async () => {
-        try {
-          // 重新获取区域配置（可能已经由主进程检测到最优节点并更新）
-          const newRegion = await this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION');
-          if (newRegion && this.data.regions && this.data.regions[newRegion]) {
-            // 更新区域配置
-            if (newRegion !== this.data.region) {
-              this.data.region = newRegion;
-              setRegistryUrl(this.data.regions[newRegion].npm_registry);
-              setServerUrl(this.data.regions[newRegion].api_server);
-            }
-            // 重新加载数据，确保获取最新内容
-            this.loadAndCacheBoardList(configFilePath);
-            this.loadAndCacheLibraryList(configFilePath);
-            this.loadAndCacheTagList(configFilePath);
-          }
-        } catch (e) {
-          console.error('Failed to reload data after region detection:', e);
-        }
-      }, 5000); // 5秒后重试，给主进程足够时间完成最优节点检测
-    }
   }
 
   private async loadAndCacheBoardList(configFilePath: string): Promise<void> {
@@ -266,6 +300,15 @@ export class ConfigService {
   }
 
   /**
+   * 获取用户中心 URL（如果配置了）
+   */
+  getUcenterWebUrl(): string {
+    const url = this.getCurrentRegionConfig()?.ucenter_web || this.data?.ucenter_web || 'https://c.aily.pro';
+    return url.endsWith('/') ? url.slice(0, -1) : url;
+  }
+
+
+  /**
    * 获取所有可用区域列表
    */
   getRegionList(): Array<{key: string, name: string, enabled: boolean}> {
@@ -281,14 +324,14 @@ export class ConfigService {
    * 获取启用的区域列表
    */
   getEnabledRegionList(): Array<{key: string, name: string, enabled: boolean}> {
-    return this.getRegionList().filter(region => region.enabled);
+    return this.getRegionList().filter(region => region.enabled && this.isRegionSelectable(region.key));
   }
 
   /**
    * 设置当前区域
    */
   async setRegion(regionKey: string) {
-    if (this.data.regions && this.data.regions[regionKey]) {
+    if (this.data.regions && this.data.regions[regionKey] && this.isRegionSelectable(regionKey)) {
       this.data.region = regionKey;
       const regionConfig = this.data.regions[regionKey];
       
@@ -834,14 +877,14 @@ export class ConfigService {
 
     // 3. 模糊匹配 - 计算相似度并找最佳匹配
     const candidates = this.libraryList.map(lib => {
-      const nameScore = this.calculateSimilarity(queryLower, lib.name?.toLowerCase() || '');
-      const nicknameScore = this.calculateSimilarity(queryLower, lib.nickname?.toLowerCase() || '');
+      const nameScore = calculateSimilarity(queryLower, lib.name?.toLowerCase() || '');
+      const nicknameScore = calculateSimilarity(queryLower, lib.nickname?.toLowerCase() || '');
       
       // 关键词匹配 - 提高权重
       let keywordScore = 0;
       if (lib.keywords && Array.isArray(lib.keywords)) {
         // 提取查询中的关键词（去除特殊字符、分割、提取有意义的部分）
-        const queryKeywords = this.extractKeywords(queryLower);
+        const queryKeywords = extractKeywords(queryLower);
         
         for (const queryKw of queryKeywords) {
           for (const libKw of lib.keywords) {
@@ -862,7 +905,7 @@ export class ConfigService {
       let descriptionScore = 0;
       if (lib.description) {
         const descLower = lib.description.toLowerCase();
-        const queryKeywords = this.extractKeywords(queryLower);
+        const queryKeywords = extractKeywords(queryLower);
         for (const queryKw of queryKeywords) {
           if (descLower.includes(queryKw)) {
             descriptionScore += 0.3;
@@ -920,15 +963,15 @@ export class ConfigService {
 
     // 3. 模糊匹配 - 计算相似度并找最佳匹配
     const candidates = this.boardList.map(board => {
-      const nameScore = this.calculateSimilarity(queryLower, board.name?.toLowerCase() || '');
-      const nicknameScore = this.calculateSimilarity(queryLower, board.nickname?.toLowerCase() || '');
-      const displayNameScore = this.calculateSimilarity(queryLower, board.displayName?.toLowerCase() || '');
+      const nameScore = calculateSimilarity(queryLower, board.name?.toLowerCase() || '');
+      const nicknameScore = calculateSimilarity(queryLower, board.nickname?.toLowerCase() || '');
+      const displayNameScore = calculateSimilarity(queryLower, board.displayName?.toLowerCase() || '');
       
       // 描述匹配
       let descriptionScore = 0;
       if (board.description) {
         const descLower = board.description.toLowerCase();
-        const queryKeywords = this.extractKeywords(queryLower);
+        const queryKeywords = extractKeywords(queryLower);
         for (const queryKw of queryKeywords) {
           if (descLower.includes(queryKw)) {
             descriptionScore += 0.3;
@@ -955,66 +998,6 @@ export class ConfigService {
     return { exists: false, board: null, fuzzyMatch: false, originalQuery: boardName };
   }
 
-  /**
-   * 提取查询字符串中的关键词
-   * 例如: "@aily-project/lib-oled-ssd1306" => ["aily", "project", "lib", "oled", "ssd1306"]
-   */
-  private extractKeywords(query: string): string[] {
-    if (!query) return [];
-    
-    // 移除常见的前缀/后缀
-    let cleaned = query
-      .replace(/@aily-project\//gi, '')  // 移除包前缀
-      .replace(/^lib-/gi, '')             // 移除lib-前缀
-      .replace(/\s+/g, ' ')               // 合并空格
-      .trim();
-    
-    // 按多种分隔符分割：连字符、下划线、空格等
-    const keywords = cleaned.split(/[-_\s\/]+/)
-      .filter(kw => kw.length >= 2)  // 过滤太短的词
-      .map(kw => kw.toLowerCase());
-    
-    return [...new Set(keywords)];  // 去重
-  }
-
-  /**
-   * 计算两个字符串的相似度（Dice系数 + 包含关系）
-   */
-  private calculateSimilarity(str1: string, str2: string): number {
-    if (!str1 || !str2) return 0;
-    if (str1 === str2) return 1;
-    
-    // 包含关系检查
-    if (str1.includes(str2) || str2.includes(str1)) {
-      const shorter = str1.length < str2.length ? str1 : str2;
-      const longer = str1.length < str2.length ? str2 : str1;
-      return shorter.length / longer.length * 0.8 + 0.2;
-    }
-
-    // Dice 系数计算
-    const bigrams1 = this.getBigrams(str1);
-    const bigrams2 = this.getBigrams(str2);
-    
-    let intersection = 0;
-    for (const bigram of bigrams1) {
-      if (bigrams2.has(bigram)) {
-        intersection++;
-      }
-    }
-    
-    return (2 * intersection) / (bigrams1.size + bigrams2.size);
-  }
-
-  /**
-   * 获取字符串的 bigrams 集合
-   */
-  private getBigrams(str: string): Set<string> {
-    const bigrams = new Set<string>();
-    for (let i = 0; i < str.length - 1; i++) {
-      bigrams.add(str.substring(i, i + 2));
-    }
-    return bigrams;
-  }
 }
 
 interface AppConfig {
@@ -1040,6 +1023,12 @@ interface AppConfig {
   /** 项目默认路径 */
   project_path: string;
 
+  /** 打包版型 */
+  build_flavor?: string;
+
+  /** 当前版型允许的官方区域 */
+  official_region?: string;
+
   /** 当前选中的区域 */
   region: string;
 
@@ -1047,7 +1036,11 @@ interface AppConfig {
   regions: {
     [key: string]: {
       name: string;
+      enabled?: boolean;
+      official?: boolean;
       api_server: string;
+      web?: string;
+      ucenter_web?: string;
       tool_web: string;
       npm_registry: string;
       resource: string;

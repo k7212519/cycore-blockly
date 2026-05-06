@@ -31,7 +31,8 @@
         "USER_SPACE": "雲空間",
         "LIB_MANAGER": "庫管理",
         "AI_ASSISTANT": "AI助手",
-        "PROJECT_HUB": "專案廣場"
+        "PROJECT_HUB": "專案廣場",
+        "NEW_INSTANCE": "新建視窗"
     },
     "ESP32": {
         "UPLOAD_SPEED": "燒錄速度",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "複製到指定位置",
         "CONTROLS_SWITCH_CASE": "情況",
         "CONTROLS_SWITCH_DO": "執行",
-        "CONTROLS_SWITCH_DEFAULT": "預設執行"
+        "CONTROLS_SWITCH_DEFAULT": "預設執行",
+        "CROSS_TAB_PASTE": "貼上",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "貼上 %1 項",
+        "WORKSPACE_SELECT_ALL": "全選積木"
     },
     "APP_STORE": {
         "HEADER_INFO": "前 {{count}} 個應用會顯示在頂部工具欄",
@@ -128,7 +132,8 @@
             "REPOSITORY": "倉庫設定",
             "DEPENDENCIES": "全域依賴",
             "MCP": "MCP",
-            "DEVMODE": "開發者模式"
+            "DEVMODE": "開發者模式",
+            "CACHE": "緩存管理"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "專案資料夾",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "開發板清單",
             "LIBRARY_LIST": "函式庫清單",
             "INSTALL": "安裝",
-            "UNINSTALL": "解除安裝"
+            "UNINSTALL": "解除安裝",
+            "CLEAR_CACHE": "清除緩存",
+            "CACHE_SIZE": "緩存大小",
+            "CACHE_LOADING": "獲取中...",
+            "CACHE_ALL": "全部清除",
+            "CACHE_ONE_MONTH": "清除一個月前",
+            "CACHE_THREE_MONTHS": "清除三個月前",
+            "CACHE_CLEARING": "正在清除...",
+            "CACHE_CLEARED": "緩存已清除",
+            "CACHE_CLEAR_FAILED": "清除失敗",
+            "CACHE_CONFIRM_TITLE": "確認清除",
+            "CACHE_CONFIRM_DESC": "確定要清除所有編譯緩存嗎？此操作不可撤銷。",
+            "CACHE_CONFIRM_OK": "確認"
         },
         "BUTTONS": {
             "CANCEL": "取消",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "手機號登錄僅限AI功能內測用戶使用",
         "PHONE_PLACEHOLDER": "請輸入手機號",
         "PASSWORD_PLACEHOLDER": "請輸入密碼",
+        "EMAIL_PLACEHOLDER": "請輸入電郵地址",
+        "CODE_PLACEHOLDER": "請輸入驗證碼",
+        "SEND_CODE": "取得驗證碼",
         "CODE_SENDING": "請先獲取驗證碼",
         "LOGGING_IN": "登錄中...",
         "LOGIN": "登錄",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "GitHub 登錄失敗",
         "ENTER_CREDENTIALS": "請輸入用戶名和密碼",
         "LOGIN_SUCCESS": "登錄成功",
+        "WECHAT_REGISTER_SUCCESS": "註冊成功",
         "LOGIN_FAILED": "登錄失敗",
         "LOGIN_NETWORK_ERROR": "登錄失敗，請檢查網絡連接",
         "AGREEMENT_PREFIX": "我已閱讀並同意",
@@ -529,7 +550,28 @@
         "AGREEMENT_REQUIRED": "請先勾選同意用戶協議和隱私政策",
         "MODAL_CLOSE": "關閉",
         "AGREEMENT_LOAD_FAILED": "加載用戶協議失敗",
-        "PRIVACY_LOAD_FAILED": "加載隱私政策失敗"
+        "PRIVACY_LOAD_FAILED": "加載隱私政策失敗",
+        "WECHAT_QRCODE_FAILED": "獲取二維碼失敗",
+        "WECHAT_REFRESH": "刷新二維碼",
+        "WECHAT_RETRY": "重試",
+        "INVITE_CODE_PLACEHOLDER": "邀請碼（選填）",
+        "AGREEMENT_BY_LOGIN": "登入/註冊即表示同意",
+        "TERMS_OF_USE": "使用條款",
+        "OTHER_LOGIN_METHODS": "您還可以使用以下帳號登入",
+        "GITHUB_CONTINUE": "請在Github授權頁面點擊\"Continue\"完成登入",
+        "REGISTER": "註冊"
+    },
+    "AUTH_ERRORS": {
+        "AUTH_CREDENTIALS_MISMATCH": "帳號或憑證不正確",
+        "AUTH_TOKEN_INVALID": "登入狀態無效，請重新登入",
+        "AUTH_TOKEN_EXPIRED": "登入已過期，請重新登入",
+        "AUTH_USER_NOT_FOUND": "用戶不存在或已被刪除",
+        "AUTH_VERIFICATION_FAILED": "驗證碼無效或已過期",
+        "COMMON_RATE_LIMITED": "操作過於頻繁，請稍後重試",
+        "AUTH_INVITE_CODE_INVALID": "邀請碼無效",
+        "AUTH_INVITE_CODE_USED": "邀請碼已被使用",
+        "AUTH_INVITER_EXISTS": "當前帳號已存在邀請關係",
+        "AUTH_SELF_INVITATION_NOT_ALLOWED": "不能填寫自己的邀請碼"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "功能即將上線"

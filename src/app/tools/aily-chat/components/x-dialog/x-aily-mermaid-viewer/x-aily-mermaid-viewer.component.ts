@@ -31,22 +31,22 @@ import { CommonModule } from '@angular/common';
   styles: [`
     .ac-mermaid {
       border-radius: 5px; margin: 4px 0; overflow: auto;
-      background-color: #3a3a3a; max-height: 500px;
+      background-color: var(--aily-chat-viewer-card-bg, #3a3a3a); max-height: 500px;
     }
-    .ac-mermaid:hover { background-color: #3f3f3f; }
+    .ac-mermaid:hover { background-color: var(--aily-chat-viewer-card-hover, #3f3f3f); }
     .ac-mermaid-pending {
       display: flex; align-items: center; justify-content: center;
       gap: 12px; padding: 24px 16px; min-height: 120px;
-      color: #888; font-size: 13px;
+      color: var(--aily-chat-viewer-muted, #888888); font-size: 13px;
     }
     .ac-mermaid-svg {
       text-align: center; overflow-x: auto; padding: 16px;
     }
     .ac-mermaid-svg ::ng-deep svg { max-width: 100%; height: auto; background: transparent !important; }
-    .ac-mermaid-svg ::ng-deep .label-container { fill: #333 !important; }
+    .ac-mermaid-svg ::ng-deep .label-container { fill: var(--aily-chat-viewer-mermaid-label, #333333) !important; }
     .ac-mermaid-err {
       padding: 16px; display: flex; align-items: center; gap: 8px;
-      color: #999; font-size: 13px;
+      color: var(--aily-chat-viewer-subtle, #999999); font-size: 13px;
     }
     @keyframes ac-spin { to { transform: rotate(360deg); } }
     .ac-spin { animation: ac-spin 0.8s linear infinite; display: inline-block; }

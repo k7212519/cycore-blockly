@@ -31,7 +31,8 @@
         "USER_SPACE": "Cloud-Speicher",
         "LIB_MANAGER": "Bibliotheksverwaltung",
         "AI_ASSISTANT": "KI-Assistent",
-        "PROJECT_HUB": "Projekt-Hub"
+        "PROJECT_HUB": "Projekt-Hub",
+        "NEW_INSTANCE": "Neues Fenster"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Upload-Geschwindigkeit",
@@ -99,7 +100,10 @@
         "CROSS_TAB_COPY": "An angegebenen Ort kopieren",
         "CONTROLS_SWITCH_CASE": "Fall",
         "CONTROLS_SWITCH_DO": "ausführen",
-        "CONTROLS_SWITCH_DEFAULT": "Standard"
+        "CONTROLS_SWITCH_DEFAULT": "Standard",
+        "CROSS_TAB_PASTE": "Einfügen",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "%1 Elemente einfügen",
+        "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen"
     },
     "APP_STORE": {
         "HEADER_INFO": "Die ersten {{count}} Apps werden in der Symbolleiste angezeigt",
@@ -128,7 +132,8 @@
             "REPOSITORY": "Repository-Einstellungen",
             "DEPENDENCIES": "Globale Abhängigkeiten",
             "MCP": "MCP",
-            "DEVMODE": "Entwicklermodus"
+            "DEVMODE": "Entwicklermodus",
+            "CACHE": "Cache-Verwaltung"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "Projektordner",
@@ -146,7 +151,19 @@
             "BOARD_LIST": "Board-Liste",
             "LIBRARY_LIST": "Bibliotheksliste",
             "INSTALL": "Installieren",
-            "UNINSTALL": "Deinstallieren"
+            "UNINSTALL": "Deinstallieren",
+            "CLEAR_CACHE": "Cache leeren",
+            "CACHE_SIZE": "Cache-Größe",
+            "CACHE_LOADING": "Laden...",
+            "CACHE_ALL": "Alles löschen",
+            "CACHE_ONE_MONTH": "1 Monat alt löschen",
+            "CACHE_THREE_MONTHS": "3 Monate alt löschen",
+            "CACHE_CLEARING": "Wird gelöscht...",
+            "CACHE_CLEARED": "Cache geleert",
+            "CACHE_CLEAR_FAILED": "Löschen fehlgeschlagen",
+            "CACHE_CONFIRM_TITLE": "Löschen bestätigen",
+            "CACHE_CONFIRM_DESC": "Möchten Sie wirklich alle Kompilierungscaches löschen? Dies kann nicht rückgängig gemacht werden.",
+            "CACHE_CONFIRM_OK": "Bestätigen"
         },
         "BUTTONS": {
             "CANCEL": "Abbrechen",
@@ -511,6 +528,9 @@
         "PHONE_BETA_ONLY": "Telefonanmeldung ist nur für AI-Beta-Tester",
         "PHONE_PLACEHOLDER": "Telefonnummer eingeben",
         "PASSWORD_PLACEHOLDER": "Passwort eingeben",
+        "EMAIL_PLACEHOLDER": "E-Mail-Adresse eingeben",
+        "CODE_PLACEHOLDER": "Bestätigungscode eingeben",
+        "SEND_CODE": "Code senden",
         "CODE_SENDING": "Bitte zuerst den Bestätigungscode abrufen",
         "LOGGING_IN": "Anmeldung...",
         "LOGIN": "Anmelden",
@@ -520,6 +540,7 @@
         "GITHUB_ERROR": "GitHub-Anmeldung fehlgeschlagen",
         "ENTER_CREDENTIALS": "Bitte geben Sie Benutzername und Passwort ein",
         "LOGIN_SUCCESS": "Anmeldung erfolgreich",
+        "WECHAT_REGISTER_SUCCESS": "Registrierung erfolgreich",
         "LOGIN_FAILED": "Anmeldung fehlgeschlagen",
         "LOGIN_NETWORK_ERROR": "Anmeldung fehlgeschlagen, bitte überprüfen Sie die Netzwerkverbindung",
         "AGREEMENT_PREFIX": "Ich akzeptiere die",
@@ -529,7 +550,16 @@
         "AGREEMENT_REQUIRED": "Bitte stimmen Sie den Nutzungsbedingungen und der Datenschutzrichtlinie zu",
         "MODAL_CLOSE": "Schließen",
         "AGREEMENT_LOAD_FAILED": "Nutzungsbedingungen konnten nicht geladen werden",
-        "PRIVACY_LOAD_FAILED": "Datenschutzrichtlinie konnte nicht geladen werden"
+        "PRIVACY_LOAD_FAILED": "Datenschutzrichtlinie konnte nicht geladen werden",
+        "WECHAT_QRCODE_FAILED": "QR-Code konnte nicht abgerufen werden",
+        "WECHAT_REFRESH": "QR-Code aktualisieren",
+        "WECHAT_RETRY": "Erneut versuchen",
+        "INVITE_CODE_PLACEHOLDER": "Einladungscode (optional)",
+        "AGREEMENT_BY_LOGIN": "Mit der Anmeldung/Registrierung stimmen Sie zu",
+        "TERMS_OF_USE": "Nutzungsbedingungen",
+        "OTHER_LOGIN_METHODS": "Sie können sich auch anmelden mit",
+        "GITHUB_CONTINUE": "Bitte klicken Sie auf \"Continue\" auf der GitHub-Autorisierungsseite, um die Anmeldung abzuschließen",
+        "REGISTER": "Registrieren"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "Funktion demnächst verfügbar"

@@ -1,7 +1,7 @@
 {
   "name": "aily-blockly",
   "productName": "aily blockly",
-  "version": "0.9.38",
+  "version": "0.9.48",
   "author": "coloz",
   "description": "aily blockly dev",
   "main": "electron/main.js",
@@ -19,6 +19,9 @@
       "electron/preload.js",
       "electron/node_modules/**/*.node",
       "electron/node_modules/@lydell/**",
+      "electron/node_modules/debug/**",
+      "electron/node_modules/ms/**",
+      "electron/node_modules/node-gyp-build/**",
       "electron/node_modules/@serialport/**",
       "electron/node_modules/serialport/**"
     ],
@@ -39,7 +42,11 @@
       {
         "from": "electron",
         "to": "electron",
-        "filter": ["**/*", "!package-lock.json", "!.gitignore"]
+        "filter": [
+          "**/*",
+          "!package-lock.json",
+          "!.gitignore"
+        ]
       },
       {
         "from": "electron/node_modules",
@@ -88,7 +95,7 @@
     },
     "mac": {
       "icon": "public/icon-512.ico",
-      "artifactName": "aily-blockly-${version}-${arch}.${ext}",
+      "artifactName": "aily-blockly-macos-${version}-${arch}.${ext}",
       "fileAssociations": [
         {
           "ext": "abi",
@@ -136,6 +143,8 @@
     "watch": "ng build --watch --configuration development",
     "electron": "concurrently \"npm start\" \"wait-on tcp:4200 && electron ./electron/main.js --serve\"",
     "build": "ng build --base-href ./ && electron-builder build",
+    "build:cn": "node ./scripts/build-electron.js --flavor cn",
+    "build:global": "node ./scripts/build-electron.js --flavor global",
     "build:mac": "ng build --base-href ./ && electron-builder --mac --arm64 --x64",
     "build:mac:universal": "ng build --base-href ./ && electron-builder --mac --universal"
   },
@@ -157,6 +166,8 @@
     "@lydell/node-pty": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@ngx-translate/core": "^16.0.3",
+    "@orama/orama": "^3.1.18",
+    "@orama/tokenizers": "^3.1.18",
     "@splidejs/splide": "^4.1.4",
     "@tanstack/angular-virtual": "^4.0.6",
     "@types/uuid": "^10.0.0",
@@ -189,6 +200,7 @@
     "penpal": "^7.0.6",
     "pinyin-pro": "^3.26.0",
     "rxjs": "~7.8.0",
+    "semver": "^7.7.4",
     "shiki": "^3.5.0",
     "simplebar-angular": "^3.3.0",
     "sortablejs": "^1.15.6",
@@ -217,5 +229,8 @@
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.6.2",
     "wait-on": "^8.0.2"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
   }
 }

@@ -53,7 +53,6 @@ export class ChatService {
    * 消息被 ChatEngineService 消费后会立即清空，避免重新打开面板时重复自动发送。
    */
   private textSubject = new ReplaySubject<ChatTextMessage | null>(1);
-  private static instance: ChatService;
 
   private async readHttpErrorBody(response: Response): Promise<any> {
     try {
@@ -127,7 +126,6 @@ export class ChatService {
     private http: HttpClient,
     private ailyChatConfigService: AilyChatConfigService,
   ) {
-    ChatService.instance = this;
     // 从配置加载AI聊天模式
     this.loadChatMode();
     // 从配置加载AI模型
@@ -235,19 +233,6 @@ export class ChatService {
     }
 
     this.textSubject.next(null);
-  }
-
-  /**
-   * 静态方法，提供全局访问
-   * @param text 要发送的文本内容
-   * @param options 发送选项，包含 sender、type、cover 等参数
-   */
-  static sendToChat(text: string, options?: ChatTextOptions): void {
-    if (ChatService.instance) {
-      ChatService.instance.sendTextToChat(text, options);
-    } else {
-      console.warn('ChatService尚未初始化');
-    }
   }
 
   startSession(mode: string, tools: MCPTool[] | null = null, maxCount?: number, customllmConfig?: any, selectModel?: string, customSessionId?: string): Observable<any> {

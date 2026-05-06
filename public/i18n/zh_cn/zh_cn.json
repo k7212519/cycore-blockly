@@ -67,7 +67,8 @@
         "MULTI_COMPRESS": "压缩为zip",
         "LIB_MANAGER": "库管理",
         "AI_ASSISTANT": "AI助手",
-        "PROJECT_HUB": "项目广场"
+        "PROJECT_HUB": "项目广场",
+        "NEW_INSTANCE": "新建窗口"
     },
     "ESP32": {
         "UPLOAD_SPEED": "烧录速度",
@@ -135,6 +136,9 @@
         "CONTROLS_SWITCH_CASE": "情况",
         "CONTROLS_SWITCH_DO": "执行",
         "CONTROLS_SWITCH_DEFAULT": "默认执行",
+        "CROSS_TAB_PASTE": "粘贴",
+        "CROSS_TAB_PASTE_X_ELEMENTS": "粘贴 %1 项",
+        "WORKSPACE_SELECT_ALL": "全选积木",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "积木工具箱",
             "TOOLBOX_DESC": "这里是积木分类区域，点击不同的分类可以找到各种功能积木块，拖拽到右边工作区使用。",
@@ -175,7 +179,8 @@
             "REPOSITORY": "服务区域",
             "DEPENDENCIES": "全局依赖",
             "MCP": "MCP",
-            "DEVMODE": "开发者模式"
+            "DEVMODE": "开发者模式",
+            "CACHE": "缓存管理"
         },
         "FIELDS": {
             "PROJECT_FOLDER": "项目文件夹",
@@ -195,7 +200,19 @@
             "BOARD_LIST": "开发板列表",
             "LIBRARY_LIST": "库列表",
             "INSTALL": "安装",
-            "UNINSTALL": "卸载"
+            "UNINSTALL": "卸载",
+            "CLEAR_CACHE": "清除缓存",
+            "CACHE_SIZE": "缓存大小",
+            "CACHE_LOADING": "获取中...",
+            "CACHE_ALL": "全部清除",
+            "CACHE_ONE_MONTH": "清除一个月前",
+            "CACHE_THREE_MONTHS": "清除三个月前",
+            "CACHE_CLEARING": "正在清除...",
+            "CACHE_CLEARED": "缓存已清除",
+            "CACHE_CLEAR_FAILED": "清除失败",
+            "CACHE_CONFIRM_TITLE": "确认清除",
+            "CACHE_CONFIRM_DESC": "确定要清除所有编译缓存吗？此操作不可撤销。",
+            "CACHE_CONFIRM_OK": "确认"
         },
         "BUTTONS": {
             "CANCEL": "取消",
@@ -278,6 +295,12 @@
         "CURRENT_BOARD_CORE": "当前开发板内核：",
         "CANCEL": "取消",
         "CONTINUE_INSTALL": "继续安装"
+    },
+    "PASTE_INSTALL": {
+        "TITLE": "需要安装库",
+        "MESSAGE": "粘贴的积木块需要以下未安装的库，是否安装？",
+        "CANCEL": "取消",
+        "INSTALL_AND_PASTE": "安装并粘贴"
     },
     "BOARD_SELECTOR": {
         "TITLE": "切换开发板",
@@ -579,6 +602,7 @@
         "GITHUB_ERROR": "GitHub 登录失败",
         "ENTER_CREDENTIALS": "请输入用户名和密码",
         "LOGIN_SUCCESS": "登录成功",
+        "WECHAT_REGISTER_SUCCESS": "注册成功",
         "LOGIN_FAILED": "登录失败",
         "LOGIN_NETWORK_ERROR": "登录失败，请检查网络连接",
         "AGREEMENT_PREFIX": "我已阅读并同意",
@@ -588,7 +612,33 @@
         "AGREEMENT_REQUIRED": "请先勾选同意用户协议和隐私政策",
         "MODAL_CLOSE": "关闭",
         "AGREEMENT_LOAD_FAILED": "加载用户协议失败",
-        "PRIVACY_LOAD_FAILED": "加载隐私政策失败"
+        "PRIVACY_LOAD_FAILED": "加载隐私政策失败",
+        "WECHAT_QRCODE_FAILED": "获取二维码失败",
+        "WECHAT_REFRESH": "刷新二维码",
+        "WECHAT_RETRY": "重试",
+        "INVITE_CODE_PLACEHOLDER": "邀请码(选填)",
+        "AGREEMENT_BY_LOGIN": "登录/注册即表示同意",
+        "TERMS_OF_USE": "使用条款",
+        "OTHER_LOGIN_METHODS": "您还可以使用以下账号登录",
+        "GITHUB_CONTINUE": "请在Github授权页面点击\"Continue\"完成登录",
+        "REGISTER": "注册",
+        "WECHAT_BIND_REQUIRED": "需要绑定微信",
+        "WECHAT_BIND_SCAN": "请使用微信扫码绑定",
+        "WECHAT_BIND_SUCCESS": "绑定成功",
+        "WECHAT_BIND_CONFLICT": "该微信已绑定其他账号",
+        "BACK_TO_LOGIN": "返回登录"
+    },
+    "AUTH_ERRORS": {
+        "AUTH_CREDENTIALS_MISMATCH": "账号或凭证不正确",
+        "AUTH_TOKEN_INVALID": "登录状态无效，请重新登录",
+        "AUTH_TOKEN_EXPIRED": "登录已过期，请重新登录",
+        "AUTH_USER_NOT_FOUND": "用户不存在或已被删除",
+        "AUTH_VERIFICATION_FAILED": "验证码无效或已过期",
+        "COMMON_RATE_LIMITED": "操作过于频繁，请稍后重试",
+        "AUTH_INVITE_CODE_INVALID": "邀请码无效",
+        "AUTH_INVITE_CODE_USED": "邀请码已使用",
+        "AUTH_INVITER_EXISTS": "当前账号已存在邀请关系",
+        "AUTH_SELF_INVITATION_NOT_ALLOWED": "不能填写自己的邀请码"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "功能即将上线",

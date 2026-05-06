@@ -52,6 +52,16 @@
                 "glob": "*.json",
                 "input": "src/app/tools/aily-chat/assets/tiktoken",
                 "output": "aily-chat/tiktoken"
+              },
+              {
+                "glob": "ng-zorro-antd.dark.css",
+                "input": "node_modules/ng-zorro-antd",
+                "output": "/"
+              },
+              {
+                "glob": "ng-zorro-antd.min.css",
+                "input": "node_modules/ng-zorro-antd",
+                "output": "/"
               }
             ],
             "styles": [
