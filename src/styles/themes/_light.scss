@@ -6,10 +6,10 @@
   --aily-bg-tertiary: #d6d6d6;
   --aily-bg-elevated: #ededed;
   --aily-bg-input: #f5f5f5;
-  --aily-bg-hover: #c5ddf3;
+  --aily-bg-hover: #7bb6ee;
   --aily-bg-active: #3893d8;
   --aily-bg-overlay: rgba(0, 0, 0, 0.45);
-  --aily-bg-card: #ededed;
+  --aily-bg-card: #d6d6d6;
 
   // ─── 文本色 ───
   --aily-text-primary: #2e2e2e;
@@ -74,6 +74,10 @@
 
   // ─── blockly ───
   --aily-blockly-text-primary: #2e2e2e;
+  --aily-blockly-minimap-bg: #e8e8e8;
+  --aily-blockly-minimap-border: rgba(0, 0, 0, 0.16);
+  --aily-blockly-minimap-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  --aily-blockly-minimap-focus-region: rgba(0, 0, 0, 0.1);
   // toolbox 折叠箭头（mask 着色），浅色侧栏用 #000 透明度
   --aily-blockly-toolbox-tree-icon: rgba(0, 0, 0, 0.85);
   // toolbox 分类行选中背景（相对侧栏略提亮，配深色字）

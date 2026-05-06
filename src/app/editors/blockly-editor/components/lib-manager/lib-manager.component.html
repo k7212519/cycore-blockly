@@ -88,9 +88,9 @@
                         (click)="openExample(lib.example)">示例</button>
                     } -->
                     @if(lib.state=='installed') {
-                    <button nz-button nzType="text" nzSize="small" [disabled]="true">
+                    <!-- <button nz-button nzType="text" nzSize="small" [disabled]="true">
                         {{ 'LIB_MANAGER.INSTALLED_TEXT' | translate }}
-                    </button>
+                    </button> -->
                     <button nz-button nzType="default" nzDanger nzSize="small" (click)="removeLib(lib)">
                         {{'LIB_MANAGER.REMOVE' | translate }}
                     </button>

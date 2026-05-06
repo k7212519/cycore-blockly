@@ -602,6 +602,7 @@
         "GITHUB_ERROR": "GitHub login failed",
         "ENTER_CREDENTIALS": "Please enter username and password",
         "LOGIN_SUCCESS": "Login successful",
+        "WECHAT_REGISTER_SUCCESS": "Registration successful",
         "LOGIN_FAILED": "Login failed",
         "LOGIN_NETWORK_ERROR": "Login failed, please check network connection",
         "AGREEMENT_PREFIX": "I have read and agree to the",
@@ -626,6 +627,18 @@
         "WECHAT_BIND_SUCCESS": "Binding successful",
         "WECHAT_BIND_CONFLICT": "This WeChat is already bound to another account",
         "BACK_TO_LOGIN": "Back to Login"
+    },
+    "AUTH_ERRORS": {
+        "AUTH_CREDENTIALS_MISMATCH": "Incorrect account or credentials",
+        "AUTH_TOKEN_INVALID": "Your login session is invalid. Please sign in again",
+        "AUTH_TOKEN_EXPIRED": "Your login session has expired. Please sign in again",
+        "AUTH_USER_NOT_FOUND": "The user does not exist or has been removed",
+        "AUTH_VERIFICATION_FAILED": "The verification code is invalid or has expired",
+        "COMMON_RATE_LIMITED": "Too many attempts. Please try again later",
+        "AUTH_INVITE_CODE_INVALID": "The invitation code is invalid",
+        "AUTH_INVITE_CODE_USED": "The invitation code has already been used",
+        "AUTH_INVITER_EXISTS": "This account already has an inviter relationship",
+        "AUTH_SELF_INVITATION_NOT_ALLOWED": "You cannot use your own invitation code"
     },
     "COMMON": {
         "FEATURE_COMING_SOON": "Feature coming soon",

@@ -36,11 +36,14 @@ export interface BlocklyProjectDocument {
 
 export interface BlocklyToolboxFacadeItem {
   key: string;
+  sortKey: string;
   name: string;
   kind: string;
   iconClass: string;
   selectable: boolean;
   toolboxItemId: string;
+  libraryName?: string | null;
+  libraryPath?: string | null;
   parentKey: string | null;
   level: number;
   expanded: boolean;
@@ -106,6 +109,7 @@ export class BlocklyService {
   private externalToolboxHost: HTMLElement | null = null;
   private nativeToolboxElement: HTMLElement | null = null;
   private blockSearcher = new BlockSearcher();
+  private toolboxSortOrder: string[] = [];
 
   aiWaiting = false;
   private _aiWriting = new BehaviorSubject<boolean>(false);
@@ -185,6 +189,49 @@ export class BlocklyService {
 
   getSelectedToolboxKey(): string | null {
     return this.toolboxSelectedKeySubject.value;
+  }
+
+  setToolboxSortOrder(order: unknown) {
+    this.toolboxSortOrder = Array.isArray(order)
+      ? order
+          .filter((key): key is string => typeof key === 'string' && key.length > 0)
+      : [];
+
+    this.applyToolboxSortOrderToContents(this.toolbox.contents);
+    if (this.hasToolboxCategories(this.toolbox.contents)) {
+      this.refreshToolboxFromContents();
+    } else {
+      this.rebuildToolboxFacade();
+    }
+  }
+
+  getToolboxSortOrder(): string[] {
+    return this.toolbox.contents
+      .filter((item) => this.isSortableToolboxCategory(item))
+      .map((item) => this.getToolboxItemSortKey(item));
+  }
+
+  moveToolboxFacadeItem(itemKey: string, categoryIndex: number): boolean {
+    this.ensureToolboxItemIds(this.toolbox.contents);
+
+    const currentIndex = this.toolbox.contents.findIndex((item: any) => item?.kind === 'category' && item.toolboxitemid === itemKey);
+    if (currentIndex === -1) {
+      return false;
+    }
+
+    const nextCategoryIndex = Math.max(0, categoryIndex);
+    const [movedItem] = this.toolbox.contents.splice(currentIndex, 1);
+    const categoryIndexes = this.toolbox.contents
+      .map((item: any, index: number) => this.isSortableToolboxCategory(item) ? index : -1)
+      .filter((index: number) => index !== -1);
+    const insertIndex = nextCategoryIndex >= categoryIndexes.length
+      ? this.toolbox.contents.length
+      : categoryIndexes[nextCategoryIndex];
+
+    this.toolbox.contents.splice(insertIndex, 0, movedItem);
+    this.toolboxSortOrder = this.getToolboxSortOrder();
+    this.refreshToolboxFromContents();
+    return true;
   }
 
   setToolboxSearchQuery(query: string) {
@@ -299,6 +346,30 @@ export class BlocklyService {
 
     this.syncToolboxFacadeWithWorkspace();
     return true;
+  }
+
+  collapseToolboxFacadeItem(itemKey: string): boolean {
+    const item = this.findToolboxFacadeItemByKey(itemKey);
+    if (!item || !item.isCollapsible) {
+      return false;
+    }
+
+    const hasChanged = this.updateToolboxCategoryExpandedState(item.toolboxItemId, false);
+    const nativeItem = this.getNativeToolboxItem(item.toolboxItemId);
+    const nativeExpanded = nativeItem?.isExpanded?.();
+
+    if (nativeItem?.setExpanded) {
+      nativeItem.setExpanded(false);
+    } else if (nativeItem?.toggleExpanded && nativeExpanded === true) {
+      nativeItem.toggleExpanded();
+    }
+
+    if (hasChanged) {
+      this.rebuildToolboxFacade();
+    }
+
+    this.syncToolboxFacadeWithWorkspace();
+    return hasChanged || nativeExpanded === true;
   }
 
   syncToolboxSelectionFromNativeItem(selectedItemId?: string | null, selectedItemName?: string | null) {
@@ -573,6 +644,7 @@ export class BlocklyService {
           if (i18nData) {
             toolbox = processToolboxI18n(toolbox, i18nData);
           }
+          this.attachLibraryMetadataToToolbox(toolbox, libPackageName, libPackagePath);
           this.loadLibToolbox(toolbox);
         }
       } else {
@@ -645,12 +717,48 @@ export class BlocklyService {
 
     this.toolbox.contents.push(toolboxItem);
     this.ensureToolboxItemIds(this.toolbox.contents);
+    this.applyToolboxSortOrderToContents(this.toolbox.contents);
     if (this.workspace) {
       this.workspace.updateToolbox(this.toolbox);
       this.workspace.render();
     }
     this.rebuildToolboxFacade();
     this.syncToolboxFacadeWithWorkspace();
+  }
+
+  private attachLibraryMetadataToToolbox(toolboxItem: any, libraryName: string, libraryPath: string) {
+    if (!toolboxItem || typeof toolboxItem !== 'object') {
+      return;
+    }
+
+    if (toolboxItem.kind === 'category') {
+      toolboxItem.ailyLibraryName = libraryName;
+      toolboxItem.ailyLibraryPath = libraryPath;
+    }
+
+    if (Array.isArray(toolboxItem.contents)) {
+      toolboxItem.contents.forEach((child: any) => this.attachLibraryMetadataToToolbox(child, libraryName, libraryPath));
+    }
+  }
+
+  isLibraryUsedByCurrentProject(libPackagePath: string): boolean {
+    if (!libPackagePath) {
+      return false;
+    }
+
+    const libBlockPath = this.electronService.pathJoin(libPackagePath, 'block.json');
+    if (!this.electronService.exists(libBlockPath)) {
+      return false;
+    }
+
+    try {
+      const blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
+      const abiJson = JSON.stringify(this.getProjectDocument());
+      return blocksData.some((block: any) => block?.type && abiJson.includes(block.type));
+    } catch (error) {
+      console.error('检查库使用情况失败:', libPackagePath, error);
+      return false;
+    }
   }
 
   loadLibGenerator(filePath): Promise<boolean> {
@@ -922,6 +1030,7 @@ export class BlocklyService {
     this.resetDocumentState();
     this.toolboxSearchQuerySubject.next('');
     this.toolboxSelectedKeySubject.next(null);
+    this.toolboxSortOrder = [];
     this.rebuildToolboxFacade();
 
     // console.log('BlocklyService 重置完成');
@@ -1000,11 +1109,14 @@ export class BlocklyService {
 
     return {
       key: item.toolboxitemid || item.categoryId || `${item.kind}:${item.name}`,
+      sortKey: this.getToolboxItemSortKey(item),
       name: item.name || '',
       kind: item.kind,
       iconClass: item.icon || 'fa-light fa-cube',
       selectable: true,
       toolboxItemId: item.toolboxitemid || item.categoryId || `${item.kind}:${item.name}`,
+      libraryName: item.ailyLibraryName || null,
+      libraryPath: item.ailyLibraryPath || null,
       parentKey,
       level,
       expanded: this.normalizeToolboxExpandedState(item.expanded, false),
@@ -1047,6 +1159,63 @@ export class BlocklyService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'category';
     return `toolbox-item-${path.join('-')}-${safeName}`;
+  }
+
+  private refreshToolboxFromContents() {
+    this.ensureToolboxItemIds(this.toolbox.contents);
+    if (this.workspace) {
+      this.workspace.updateToolbox(this.toolbox);
+      this.workspace.render();
+    }
+    this.rebuildToolboxFacade();
+    this.syncToolboxFacadeWithWorkspace();
+  }
+
+  private isSortableToolboxCategory(item: any): boolean {
+    return !!item && item.kind === 'category';
+  }
+
+  private hasToolboxCategories(items: any[]): boolean {
+    return Array.isArray(items) && items.some((item) => this.isSortableToolboxCategory(item));
+  }
+
+  private getToolboxItemSortKey(item: any): string {
+    if (typeof item?.ailyLibraryName === 'string' && item.ailyLibraryName) {
+      return item.ailyLibraryName;
+    }
+
+    if (typeof item?.categoryId === 'string' && item.categoryId) {
+      return `category:${item.categoryId}`;
+    }
+
+    if (typeof item?.toolboxitemid === 'string' && item.toolboxitemid) {
+      return `toolboxitemid:${item.toolboxitemid}`;
+    }
+
+    return `category-name:${item?.name || ''}`;
+  }
+
+  private applyToolboxSortOrderToContents(items: any[]) {
+    if (!Array.isArray(items) || !this.toolboxSortOrder.length) {
+      return;
+    }
+
+    const orderIndex = new Map(this.toolboxSortOrder.map((key, index) => [key, index]));
+    const sortedCategories = items
+      .filter((item) => this.isSortableToolboxCategory(item))
+      .sort((a, b) => {
+        const aIndex = orderIndex.has(this.getToolboxItemSortKey(a)) ? orderIndex.get(this.getToolboxItemSortKey(a))! : Number.MAX_SAFE_INTEGER;
+        const bIndex = orderIndex.has(this.getToolboxItemSortKey(b)) ? orderIndex.get(this.getToolboxItemSortKey(b))! : Number.MAX_SAFE_INTEGER;
+        return aIndex - bIndex;
+      });
+
+    let categoryIndex = 0;
+    items.forEach((item, index) => {
+      if (this.isSortableToolboxCategory(item)) {
+        items[index] = sortedCategories[categoryIndex++];
+      }
+    });
+
   }
 
   private findToolboxFacadeItemByKey(itemKey: string, items = this.toolboxFacadeItemsSubject.value): BlocklyToolboxFacadeItem | null {
@@ -1199,11 +1368,16 @@ export class BlocklyService {
       return;
     }
 
+    const query = this.toolboxSearchQuerySubject.value.trim();
+    if (!query) {
+      this.clearToolboxSelection();
+      return;
+    }
+
     const toolbox = this.workspace?.getToolbox();
     toolbox?.clearSelection();
 
-    const query = this.toolboxSearchQuerySubject.value.trim();
-    const blockTypes = query ? this.blockSearcher.blockTypesMatching(query) : [];
+    const blockTypes = this.blockSearcher.blockTypesMatching(query);
     const flyoutDef = blockTypes.length
       ? blockTypes.map((blockType) => ({
           kind: 'block',
@@ -1211,7 +1385,7 @@ export class BlocklyService {
         }))
       : [{
           kind: 'label',
-          text: query ? 'No matching blocks found' : 'Type to search for blocks',
+          text: 'No matching blocks found',
         }];
 
     flyout.show(flyoutDef as any);

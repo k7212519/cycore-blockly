@@ -540,6 +540,7 @@
         "GITHUB_ERROR": "Error en el inicio de sesión de GitHub",
         "ENTER_CREDENTIALS": "Por favor ingrese nombre de usuario y contraseña",
         "LOGIN_SUCCESS": "Inicio de sesión exitoso",
+        "WECHAT_REGISTER_SUCCESS": "Registro exitoso",
         "LOGIN_FAILED": "Error en el inicio de sesión",
         "LOGIN_NETWORK_ERROR": "Error en el inicio de sesión, verifique la conexión de red",
         "AGREEMENT_PREFIX": "He leído y acepto el",

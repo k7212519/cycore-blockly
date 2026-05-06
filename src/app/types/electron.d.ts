@@ -17,6 +17,7 @@ declare global {
       terminal: any;
       iWindow: any;
       subWindow: any;
+      codeViewer: any;
       builder: any;
       uploader: any;
       fs: any;

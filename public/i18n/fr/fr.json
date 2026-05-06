@@ -540,6 +540,7 @@
         "GITHUB_ERROR": "Échec de la connexion GitHub",
         "ENTER_CREDENTIALS": "Veuillez entrer le nom d'utilisateur et le mot de passe",
         "LOGIN_SUCCESS": "Connexion réussie",
+        "WECHAT_REGISTER_SUCCESS": "Inscription réussie",
         "LOGIN_FAILED": "Échec de la connexion",
         "LOGIN_NETWORK_ERROR": "Échec de la connexion, veuillez vérifier la connexion réseau",
         "AGREEMENT_PREFIX": "J'ai lu et j'accepte les",

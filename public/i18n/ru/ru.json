@@ -540,6 +540,7 @@
         "GITHUB_ERROR": "Вход через GitHub не удался",
         "ENTER_CREDENTIALS": "Пожалуйста, введите имя пользователя и пароль",
         "LOGIN_SUCCESS": "Вход выполнен успешно",
+        "WECHAT_REGISTER_SUCCESS": "Регистрация прошла успешно",
         "LOGIN_FAILED": "Ошибка входа",
         "LOGIN_NETWORK_ERROR": "Ошибка входа, проверьте подключение к сети",
         "AGREEMENT_PREFIX": "Я прочитал и согласен с",

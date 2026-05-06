@@ -228,16 +228,37 @@
 
 :host ::ng-deep .blockly-minimap {
     position: absolute;
+    box-sizing: border-box;
+    background-color: var(--aily-blockly-minimap-bg);
+    border: 1px solid var(--aily-blockly-minimap-border);
     border-radius: 5px;
     overflow: hidden;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--aily-blockly-minimap-shadow);
     width: 200px;
     height: 150px;
     right: 16px;
     top: 16px;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+
+    .blocklySvg {
+        background-color: var(--aily-blockly-minimap-bg) !important;
+    }
 
     .blocklyMainBackground {
-        fill: rgb(43, 43, 43) !important;
+        fill: var(--aily-blockly-minimap-bg) !important;
+        stroke: transparent !important;
+    }
+
+    .blockly-focus-region {
+        fill: var(--aily-blockly-minimap-focus-region) !important;
+    }
+
+    // 隐藏 minimap 内部的滚动条（水平/垂直）
+    .blocklyScrollbarHorizontal,
+    .blocklyScrollbarVertical,
+    .blocklyScrollbarBackground,
+    .blocklyScrollbarHandle {
+        display: none !important;
     }
 }
 

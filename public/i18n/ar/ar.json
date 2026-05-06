@@ -540,6 +540,7 @@
         "GITHUB_ERROR": "فشل تسجيل الدخول إلى GitHub",
         "ENTER_CREDENTIALS": "يرجى إدخال اسم المستخدم وكلمة المرور",
         "LOGIN_SUCCESS": "تم تسجيل الدخول بنجاح",
+        "WECHAT_REGISTER_SUCCESS": "تم التسجيل بنجاح",
         "LOGIN_FAILED": "فشل تسجيل الدخول",
         "LOGIN_NETWORK_ERROR": "فشل تسجيل الدخول، يرجى التحقق من الاتصال بالشبكة",
         "AGREEMENT_PREFIX": "لقد قرأت ووافقت على",

@@ -17,12 +17,12 @@ import { _BuilderService } from './services/builder.service';
 import { BitmapUploadService } from './services/bitmap-upload.service';
 import { ProjectService } from '../../services/project.service';
 import { DevToolComponent } from './components/dev-tool/dev-tool.component';
-import { HistoryService } from './services/history.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { BLOCKLY_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 import { NoticeService } from '../../services/notice.service';
 import { FloatSiderComponent } from '../../components/float-sider/float-sider.component';
 import { LocalLibrarySyncService } from '../../services/local-library-sync.service';
+import { CodeViewerIpcService } from './services/code-viewer-ipc.service';
 
 @Component({
   selector: 'app-blockly-editor',
@@ -71,6 +71,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     private el: ElementRef,
     private ngZone: NgZone,
     private localLibrarySyncService: LocalLibrarySyncService,
+    private codeViewerIpcService: CodeViewerIpcService,
   ) { }
 
   ngOnInit(): void {
@@ -133,6 +134,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this._builderService.destroy();
     this._uploadService.cancel();
     this._uploadService.destroy();
+    this.codeViewerIpcService.clear();
     this.electronService.setTitle('aily blockly');
     this.blocklyService.reset();
     this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);
@@ -160,6 +162,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this._projectService.currentPackageData = packageJson;
     this.projectService.currentPackageData = packageJson;
     window['packageJson'] = packageJson;
+    this.blocklyService.setToolboxSortOrder(packageJson.blocklyToolboxOrder);
     // 暴露 ProjectService 到全局，供 generator.js 使用
     window['projectService'] = this.projectService;
 

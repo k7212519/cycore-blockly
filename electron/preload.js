@@ -188,6 +188,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
       },
     };
   })(),
+  codeViewer: {
+    publishState: (state) => ipcRenderer.send("blockly-code-viewer-state-update", state),
+    getState: () => ipcRenderer.invoke("blockly-code-viewer-state-get"),
+    onState: (callback) => {
+      const listener = (_event, state) => callback(state);
+      ipcRenderer.on("blockly-code-viewer-state", listener);
+      return () => ipcRenderer.removeListener("blockly-code-viewer-state", listener);
+    },
+  },
   builder: {
     init: (data) => {
       return new Promise((resolve, reject) => {

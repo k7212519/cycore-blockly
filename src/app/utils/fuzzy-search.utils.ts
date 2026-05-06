@@ -129,6 +129,13 @@ function extractSearchAliases(value: string): string[] {
       aliases.add(run);
     }
 
+    // 为字母数字串生成所有长度 >= 3 的后缀，以便支持内部子串匹配
+    // 例如 "mfrc522" => "frc522" / "rc522" / "c522" / "522"
+    // 这样查询 "RC522" 也能命中包名 "MFRC522"
+    for (let i = 1; i <= run.length - 3; i++) {
+      aliases.add(run.substring(i));
+    }
+
     for (const alphaPart of run.match(/[a-z]{2,}/g) ?? []) {
       aliases.add(alphaPart);
     }
@@ -279,10 +286,11 @@ export function createLibrarySearchIndex(libraries: any[]): AnyOrama {
  */
 export function searchLibraries(db: AnyOrama, term: string, limit: number = 500): string[] {
   const normalizedTerm = normalizeSearchText(term);
+  const lowerTerm = (term || '').toLowerCase();
   const results = search(db, {
-    term,
+    term: lowerTerm,
     properties: ['name', 'nickname', 'keywords', 'tags', 'aliases', 'description', 'brand', 'author'],
-    tolerance: normalizedTerm.length <= 4 ? 0 : 1,
+    tolerance: normalizedTerm.length <= 2 ? 0 : normalizedTerm.length <= 5 ? 1 : 2,
     boost: {
       name: 3,
       nickname: 2.5,
@@ -397,10 +405,11 @@ export function createBoardSearchIndex(boards: any[]): AnyOrama {
  */
 export function searchBoards(db: AnyOrama, term: string, limit: number = 500): string[] {
   const normalizedTerm = normalizeSearchText(term);
+  const lowerTerm = (term || '').toLowerCase();
   const results = search(db, {
-    term,
+    term: lowerTerm,
     properties: ['name', 'nickname', 'brand', 'description', 'keywords', 'type', 'aliases'],
-    tolerance: normalizedTerm.length <= 4 ? 0 : 1,
+    tolerance: normalizedTerm.length <= 2 ? 0 : normalizedTerm.length <= 5 ? 1 : 2,
     boost: {
       name: 3,
       nickname: 3,

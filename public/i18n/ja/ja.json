@@ -540,6 +540,7 @@
         "GITHUB_ERROR": "GitHubログインに失敗しました",
         "ENTER_CREDENTIALS": "ユーザー名とパスワードを入力してください",
         "LOGIN_SUCCESS": "ログイン成功",
+        "WECHAT_REGISTER_SUCCESS": "登録成功",
         "LOGIN_FAILED": "ログイン失敗",
         "LOGIN_NETWORK_ERROR": "ログインに失敗しました。ネットワーク接続を確認してください",
         "AGREEMENT_PREFIX": "私は以下を読み、同意します：",

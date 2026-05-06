@@ -14,6 +14,8 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { UiService } from '../../services/ui.service';
 import { NzToolTipModule } from "ng-zorro-antd/tooltip";
 import { ConfigService } from '../../services/config.service';
+import { TranslateService } from '@ngx-translate/core';
+import { resolveTranslatedApiErrorMessage } from '../../utils/api-error.utils';
 
 @Component({
   selector: 'app-user-center',
@@ -40,6 +42,7 @@ export class UserCenterComponent {
   private message = inject(NzMessageService);
   private authService = inject(AuthService);
   private electronService = inject(ElectronService);
+  private translate = inject(TranslateService);
 
   userInfo = {
     username: '',
@@ -157,7 +160,7 @@ export class UserCenterComponent {
 
       this.authService.register(registerData).subscribe({
         next: (response) => {
-          this.message.success('注册成功，请登录');
+          this.message.success(this.translate.instant('LOGIN.WECHAT_REGISTER_SUCCESS') || '注册成功');
           this.isRegistering = false;
           // 清空密码，保留用户名用于登录
           this.userInfo.password = '';
@@ -165,7 +168,7 @@ export class UserCenterComponent {
         },
         error: (error) => {
           console.warn('注册错误:', error);
-          this.message.error('注册失败，请检查网络连接');
+          this.message.error(this.getAuthErrorMessage(error, '注册失败，请检查网络连接'));
         },
         complete: () => {
           this.isWaiting = false;
@@ -173,9 +176,15 @@ export class UserCenterComponent {
       });
     } catch (error) {
       console.warn('注册过程中出错:', error);
-      this.message.error('注册失败');
+      this.message.error(this.getAuthErrorMessage(error, '注册失败'));
       this.isWaiting = false;
     }
+  }
+
+  private getAuthErrorMessage(error: unknown, fallback: string): string {
+    return resolveTranslatedApiErrorMessage(error, this.translate, {
+      fallbackMessage: fallback,
+    });
   }
 
   async onLogout() {

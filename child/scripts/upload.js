@@ -55,7 +55,7 @@ function loadSerialPort() {
         try {
             const serialportModule = require(modulePath);
             SerialPort = serialportModule.SerialPort || serialportModule;
-            logger.log('成功加载 serialport 模块:', modulePath);
+            // logger.log('成功加载 serialport 模块:', modulePath);
             return SerialPort;
         } catch (e) {
             lastError = e;
@@ -124,7 +124,7 @@ async function waitForNewPort(portsBefore, timeout = 10000, interval = 200) {
     logger.log(`开始轮询等待新串口（超时 ${timeout}ms，间隔 ${interval}ms）...`);
     while (Date.now() - startTime < timeout) {
         const portsNow = await getPortsList();
-        console.log('当前串口列表:', portsNow.map(p => p.path));
+        // console.log('当前串口列表:', portsNow.map(p => p.path));
         const newPorts = portsNow.filter(
             p => !portsBefore.some(ep => ep.path === p.path)
         );
@@ -393,7 +393,7 @@ async function main() {
         // 注意：只要做了 1200bps touch，就必须轮询等待新的 bootloader 端口出现
         // （与 Arduino IDE 行为一致；SAMD / UNO R4 等板子枚举 bootloader 通常需要 1-3 秒）
         if (wait_for_upload || use_1200bps_touch) {
-            const newPort = await waitForNewPort(portsBefore, 10000, 200);
+            const newPort = await waitForNewPort(portsBefore, 3000, 200);
             if (newPort) {
                 finalSerialPort = newPort;
             } else {

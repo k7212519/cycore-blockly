@@ -540,6 +540,7 @@
         "GITHUB_ERROR": "GitHub-Anmeldung fehlgeschlagen",
         "ENTER_CREDENTIALS": "Bitte geben Sie Benutzername und Passwort ein",
         "LOGIN_SUCCESS": "Anmeldung erfolgreich",
+        "WECHAT_REGISTER_SUCCESS": "Registrierung erfolgreich",
         "LOGIN_FAILED": "Anmeldung fehlgeschlagen",
         "LOGIN_NETWORK_ERROR": "Anmeldung fehlgeschlagen, bitte überprüfen Sie die Netzwerkverbindung",
         "AGREEMENT_PREFIX": "Ich akzeptiere die",

@@ -75,6 +75,10 @@
 
   // ─── blockly ───
   --aily-blockly-text-primary: #2e2e2e;
+  --aily-blockly-minimap-bg: #262626;
+  --aily-blockly-minimap-border: rgba(255, 255, 255, 0.12);
+  --aily-blockly-minimap-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --aily-blockly-minimap-focus-region: rgba(255, 255, 255, 0.1);
   // toolbox 折叠箭头（mask 着色），深色侧栏用浅色以保证对比
   --aily-blockly-toolbox-tree-icon: rgba(255, 255, 255, 0.85);
   // toolbox 分类行选中背景
