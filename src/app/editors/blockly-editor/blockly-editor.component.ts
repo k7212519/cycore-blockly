@@ -221,7 +221,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       await this.npmService.getAllInstalledLibraries(projectPath)
     ).map((item) => item.name);
 
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    await this.blocklyService.waitForWorkspace();
 
     for (let index = 0; index < libraryModuleList.length; index++) {
       const libPackageName = libraryModuleList[index];

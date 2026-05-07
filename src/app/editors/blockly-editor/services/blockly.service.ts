@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject, debounceTime, filter, firstValueFrom, map, switchMap, take, timer } from 'rxjs';
 import * as Blockly from 'blockly';
 import { processI18n, processJsonVar, processStaticFilePath, processToolboxI18n } from '../components/blockly/abf';
 import { TranslateService } from '@ngx-translate/core';
@@ -61,7 +61,17 @@ export class BlocklyService {
   private readonly sharedProcedureBlockPrefixes = ['procedures_'];
   private readonly toolboxSearchKey = BLOCKLY_TOOLBOX_SEARCH_KEY;
 
-  workspace: Blockly.WorkspaceSvg;
+  private _workspace: Blockly.WorkspaceSvg | null = null;
+  private workspaceReadySubject = new BehaviorSubject<Blockly.WorkspaceSvg | null>(null);
+
+  get workspace(): Blockly.WorkspaceSvg {
+    return this._workspace as Blockly.WorkspaceSvg;
+  }
+
+  set workspace(workspace: Blockly.WorkspaceSvg | null) {
+    this._workspace = workspace;
+    this.workspaceReadySubject.next(workspace);
+  }
 
   toolbox = {
     kind: 'categoryToolbox',
@@ -110,6 +120,7 @@ export class BlocklyService {
   private nativeToolboxElement: HTMLElement | null = null;
   private blockSearcher = new BlockSearcher();
   private toolboxSortOrder: string[] = [];
+  private loadLibraryFinishedLoadingSubject = new Subject<void>();
 
   aiWaiting = false;
   private _aiWriting = new BehaviorSubject<boolean>(false);
@@ -139,8 +150,29 @@ export class BlocklyService {
   ) {
     (window as any).__ailyBlockDefinitionsMap = this.blockDefinitionsMap;
     (window as any).__ailyBlockTypeToLibMap = this.blockTypeToLibMap;
+    this.loadLibraryFinishedLoadingSubject.pipe(
+      debounceTime(500),
+      switchMap(() => timer(0, 50).pipe(
+        map(() => this.workspace || Blockly.getMainWorkspace()),
+        filter((workspace): workspace is Blockly.WorkspaceSvg => !!workspace && Blockly.Events.isEnabled()),
+        take(1),
+      )),
+    ).subscribe((workspace) => {
+      Blockly.Events.fire(new Blockly.Events.FinishedLoading(workspace));
+    });
     this.resetDocumentState();
     this.rebuildToolboxFacade();
+  }
+
+  waitForWorkspace(): Promise<Blockly.WorkspaceSvg> {
+    if (this._workspace) {
+      return Promise.resolve(this._workspace);
+    }
+
+    return firstValueFrom(this.workspaceReadySubject.pipe(
+      filter((workspace): workspace is Blockly.WorkspaceSvg => !!workspace),
+      take(1),
+    ));
   }
 
   registerExternalToolboxHost(host: HTMLElement | null) {
@@ -194,7 +226,7 @@ export class BlocklyService {
   setToolboxSortOrder(order: unknown) {
     this.toolboxSortOrder = Array.isArray(order)
       ? order
-          .filter((key): key is string => typeof key === 'string' && key.length > 0)
+        .filter((key): key is string => typeof key === 'string' && key.length > 0)
       : [];
 
     this.applyToolboxSortOrderToContents(this.toolbox.contents);
@@ -599,7 +631,7 @@ export class BlocklyService {
         let libVersion = '';
         const libPkgJsonPath = this.electronService.pathJoin(libPackagePath, 'package.json');
         if (this.electronService.exists(libPkgJsonPath)) {
-          try { libVersion = JSON.parse(this.electronService.readFile(libPkgJsonPath)).version || ''; } catch (e) {}
+          try { libVersion = JSON.parse(this.electronService.readFile(libPkgJsonPath)).version || ''; } catch (e) { }
         }
         let i18nData = null;
         // 检查多语言文件是否存在（先于 generator.js 加载，确保动态扩展能读取到 i18n 数据）
@@ -632,7 +664,7 @@ export class BlocklyService {
               libLocalPath = this.electronService.pathJoin(projectPath, relativePath);
             }
           }
-        } catch (e) {}
+        } catch (e) { }
         // 替换block中静态图片路径
         const staticFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'static'));
         this.loadLibBlocks(blocks, staticFileIsExist ? this.electronService.pathJoin(libPackagePath, 'static') : null, libPackageName, libVersion, libLocalPath);
@@ -656,6 +688,8 @@ export class BlocklyService {
       if (generatorLoadSuccess) {
         this.loadedLibraries.add(libPackagePath);
       }
+      // 补发Blockly.Events.FINISHED_LOADING
+      this.loadLibraryFinishedLoadingSubject.next();
     } catch (error) {
       console.error('加载库失败:', libPackageName, error);
     }
@@ -1009,6 +1043,7 @@ export class BlocklyService {
     // 处理工作区
     if (this.workspace) {
       this.workspace.dispose();
+      this.workspace = null;
       // console.log('工作区已销毁');
     }
 
@@ -1102,8 +1137,8 @@ export class BlocklyService {
 
     const childCategories = Array.isArray(item.contents)
       ? item.contents
-          .map((child: any, childIndex: number) => this.mapToolboxItemToFacade(child, childIndex, level + 1, item.toolboxitemid || null))
-          .filter((child): child is BlocklyToolboxFacadeItem => !!child)
+        .map((child: any, childIndex: number) => this.mapToolboxItemToFacade(child, childIndex, level + 1, item.toolboxitemid || null))
+        .filter((child): child is BlocklyToolboxFacadeItem => !!child)
       : [];
     const isCollapsible = childCategories.length > 0;
 
@@ -1380,13 +1415,13 @@ export class BlocklyService {
     const blockTypes = this.blockSearcher.blockTypesMatching(query);
     const flyoutDef = blockTypes.length
       ? blockTypes.map((blockType) => ({
-          kind: 'block',
-          type: blockType,
-        }))
+        kind: 'block',
+        type: blockType,
+      }))
       : [{
-          kind: 'label',
-          text: 'No matching blocks found',
-        }];
+        kind: 'label',
+        text: 'No matching blocks found',
+      }];
 
     flyout.show(flyoutDef as any);
     if (markSelected) {
@@ -1577,6 +1612,7 @@ export class BlocklyService {
     this.selectedBlockSubject.next(null);
     this.restoreWorkspaceViewState(activePage.viewState);
     this.mountExternalToolbox();
+    this.loadLibraryFinishedLoadingSubject.next();
   }
 
   private restoreWorkspaceViewState(viewState?: BlocklyWorkspaceViewState) {
