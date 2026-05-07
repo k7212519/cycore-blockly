@@ -15,11 +15,12 @@ import type { StreamingOption, ComponentMap } from 'ngx-x-markdown';
 import { AilyChatCodeComponent } from '../aily-chat-code.component';
 import { getClosingTagsForOpenBlocks } from '../../../services/content-sanitizer.service';
 import { getThinkContent } from '../../../core/think-content-store';
+import { AilyMarkdownExternalLinksDirective } from '../../../directives/aily-markdown-external-links.directive';
 
 @Component({
   selector: 'x-aily-think-viewer',
   standalone: true,
-  imports: [CommonModule, XMarkdownComponent],
+  imports: [CommonModule, XMarkdownComponent, AilyMarkdownExternalLinksDirective],
   template: `
     <div class="ac-think" [class.expanded]="thinkExpanded">
       <div class="ac-think-header" (click)="thinkExpanded = !thinkExpanded">
@@ -32,7 +33,7 @@ import { getThinkContent } from '../../../core/think-content-store';
         <i class="fa-light fa-chevron-down ac-think-arrow"></i>
       </div>
       @if (thinkExpanded) {
-        <div class="ac-think-body" #thinkBody (scroll)="onThinkBodyScroll($event)">
+        <div class="ac-think-body" #thinkBody ailyMarkdownExternalLinks (scroll)="onThinkBodyScroll($event)">
           @if (markdownContent()) {
             <x-markdown
               [content]="markdownContent()"

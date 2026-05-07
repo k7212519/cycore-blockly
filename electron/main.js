@@ -311,6 +311,15 @@ let pendingQueryParams = null;
 /** 当前主进程已持有的项目锁（规范化路径） */
 let heldProjectLockNormalized = null;
 
+/** 主进程读取 i18n JSON：开发态在仓库 public；打包后 Angular 资源在 app.asar/renderer */
+function getMainProcessI18nJsonPath(pack) {
+  const file = path.join(pack, `${pack}.json`);
+  if (app.isPackaged) {
+    return path.join(__dirname, "..", "renderer", "i18n", file);
+  }
+  return path.join(__dirname, "..", "public", "i18n", file);
+}
+
 function getProjectLockStringsForMain() {
   const defaults = {
     LOCK_CONFLICT_TITLE: "Project already open",
@@ -322,7 +331,7 @@ function getProjectLockStringsForMain() {
   try {
     const loc = (app.getLocale() || "").toLowerCase();
     const pack = loc.startsWith("zh") ? "zh_cn" : "en";
-    const fp = path.join(__dirname, `../public/i18n/${pack}/${pack}.json`);
+    const fp = getMainProcessI18nJsonPath(pack);
     if (!fs.existsSync(fp)) {
       return defaults;
     }
@@ -345,7 +354,7 @@ function getMenuStringForMain(key, fallback) {
   try {
     const loc = (app.getLocale() || "").toLowerCase();
     const pack = loc.startsWith("zh") ? "zh_cn" : "en";
-    const fp = path.join(__dirname, `../public/i18n/${pack}/${pack}.json`);
+    const fp = getMainProcessI18nJsonPath(pack);
     if (!fs.existsSync(fp)) {
       return fallback;
     }

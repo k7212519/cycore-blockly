@@ -133,8 +133,8 @@ export class ProjectService {
       const separator = this.platformService.getPlatformSeparator();
       // console.log('newProjectData: ', newProjectData);
       const appDataPath = window['path'].getAppDataPath();
-      // const projectPath = (newProjectData.path + newProjectData.name).replace(/\s/g, '_');
-      const projectPath = window['path'].join(newProjectData.path, newProjectData.name.replace(/\s/g, '_'));
+      const inputName = String(newProjectData.name ?? '').trim();
+      const projectPath = window['path'].join(newProjectData.path, inputName.replace(/\s/g, '_'));
       const boardPackage = newProjectData.board.name + '@' + newProjectData.board.version;
 
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
@@ -148,13 +148,15 @@ export class ProjectService {
 
       // 3. 修改package.json文件
       const packageJson = JSON.parse(window['fs'].readFileSync(`${projectPath}/package.json`));
-      if (this.containsChineseCharacters(newProjectData.name)) {
-        packageJson.name = pinyin(newProjectData.name, {
+      if (this.containsChineseCharacters(inputName)) {
+        packageJson.name = pinyin(inputName, {
           toneType: "none",
           separator: ""
         }).replace(/\s/g, '_');
+        packageJson.nickname = inputName;
       } else {
-        packageJson.name = newProjectData.name;
+        packageJson.name = inputName;
+        packageJson.nickname = packageJson.name;
       }
       // 设置开发框架
       packageJson.devmode = newProjectData.devmode;
@@ -269,15 +271,17 @@ export class ProjectService {
     if (packageJson.cloudId) {
       delete packageJson.cloudId;
     }
-    // 获取新的项目名称
-    let name = path.split('\\').pop();
+    // 获取新的项目名称（文件夹名）
+    let name = window['path'].basename(path);
     if (this.containsChineseCharacters(name)) {
       packageJson.name = pinyin(name, {
         toneType: "none",
         separator: ""
       }).replace(/\s/g, '_');
+      packageJson.nickname = name;
     } else {
       packageJson.name = name;
+      packageJson.nickname = name;
     }
     window['fs'].writeFileSync(`${path}/package.json`, JSON.stringify(packageJson, null, 2));
     // 修改当前项目路径

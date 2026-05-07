@@ -26,6 +26,7 @@ import { EditCheckpointService } from '../../services/edit-checkpoint.service';
 import { ChatPerformanceTracer } from '../../services/chat-perf-tracer';
 import { storeThinkContent, deleteThinkContent } from '../../core/think-content-store';
 import { ResourceItem } from '../../core/chat-types';
+import { AilyMarkdownExternalLinksDirective } from '../../directives/aily-markdown-external-links.directive';
 
 
 @Component({
@@ -33,7 +34,7 @@ import { ResourceItem } from '../../core/chat-types';
   templateUrl: './x-dialog.component.html',
   styleUrls: ['./x-dialog.component.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, NzToolTipModule, XMarkdownComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, NzToolTipModule, XMarkdownComponent, AilyMarkdownExternalLinksDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class XDialogComponent implements OnChanges, AfterViewChecked, OnDestroy {

@@ -484,18 +484,25 @@ export class SerialMonitorComponent {
     this.serialMonitorService.inputMode[name] = !this.serialMonitorService.inputMode[name];
   }
 
-  send(data = this.inputValue) {
-    this.serialMonitorService.sendData(data);
-    // this.serialMonitorService.dataUpdated.next({});
-    if (this.inputValue.trim() !== '') {
-      // 避免保存空内容到历史记录
-      if (!this.serialMonitorService.sendHistoryList.includes(this.inputValue)) {
-        this.serialMonitorService.sendHistoryList.unshift(this.inputValue); // 添加到列表开头
-        // 限制历史记录数量，例如最多保存20条
+  async send(data?: string) {
+    const fromTextarea = arguments.length === 0;
+    const payload = fromTextarea ? this.inputValue : data;
+
+    const ok = await this.serialMonitorService.sendData(payload);
+
+    const histRaw = typeof payload === 'string' ? payload : String(payload ?? '');
+    if (ok && histRaw.trim() !== '') {
+      if (!this.serialMonitorService.sendHistoryList.includes(histRaw)) {
+        this.serialMonitorService.sendHistoryList.unshift(histRaw);
         if (this.serialMonitorService.sendHistoryList.length > 20) {
           this.serialMonitorService.sendHistoryList.pop();
         }
       }
+    }
+
+    if (ok && fromTextarea) {
+      this.inputValue = '';
+      this.cd.detectChanges();
     }
   }
 
