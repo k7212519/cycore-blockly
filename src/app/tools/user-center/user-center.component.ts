@@ -13,7 +13,6 @@ import { NzProgressModule } from 'ng-zorro-antd/progress';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { UiService } from '../../services/ui.service';
 import { NzToolTipModule } from "ng-zorro-antd/tooltip";
-import { ConfigService } from '../../services/config.service';
 import { TranslateService } from '@ngx-translate/core';
 import { resolveTranslatedApiErrorMessage } from '../../utils/api-error.utils';
 
@@ -33,7 +32,7 @@ import { resolveTranslatedApiErrorMessage } from '../../utils/api-error.utils';
   styleUrl: './user-center.component.scss'
 })
 export class UserCenterComponent {
-  currentUrl = '/user-center';
+  currentUrl = '/user/settings';
   windowInfo = '用户中心';
   @ViewChild('menuBox') menuBox: ElementRef;
   @ViewChild('nicknameInput') nicknameInput?: ElementRef<HTMLInputElement>;
@@ -63,8 +62,7 @@ export class UserCenterComponent {
   benefits: any = null;
 
   constructor(
-    private uiService: UiService,
-    private configService: ConfigService
+    private uiService: UiService
   ) {
 
   }
@@ -312,6 +310,17 @@ export class UserCenterComponent {
     return (this.currentUser?.nickname || this.currentUser?.login || '').trim();
   }
 
+  get displayPlanName(): string {
+    const subscriptionPlan = this.currentUser?.subscription_plan;
+    return subscriptionPlan?.display_name || subscriptionPlan?.name || 'Free Plan';
+  }
+
+  get isProPlanSubscriber(): boolean {
+    const subscriptionPlan = this.currentUser?.subscription_plan;
+    const planName = `${subscriptionPlan?.name || ''} ${subscriptionPlan?.display_name || ''}`.trim().toLowerCase();
+    return planName.includes('pro');
+  }
+
   get quotaRemainingPercent(): number {
     return Math.max(0, 100 - this.quotaUsagePercent);
   }
@@ -343,15 +352,20 @@ export class UserCenterComponent {
    * 点击头像时触发 SSO 跳转
    */
   async onAvatarClick(): Promise<void> {
+    this.openUserCenterPage(this.currentUrl);
+  }
+
+  private openUserCenterPage(path?: string): void {
     if (!this.authService.isLoggedIn) {
       return;
     }
+
     try {
       // 显示加载提示
       const loadingMessage = this.message.loading('正在生成登录链接...', { nzDuration: 0 });
 
       // 生成 SSO Token
-      this.authService.generateSSOToken().subscribe({
+      this.authService.generateSSOToken(path).subscribe({
         next: (response) => {
           loadingMessage.messageId && this.message.remove(loadingMessage.messageId);
 
@@ -380,9 +394,6 @@ export class UserCenterComponent {
 
 
   OpenUrl(url?: string) {
-    this.message.warning('测试版期间免费使用，无需购买');
-    return;
-    const target = url || this.configService.getUcenterWebUrl();
-    this.electronService.openUrl(target);
+    this.openUserCenterPage(url);
   }
 }

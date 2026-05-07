@@ -16,7 +16,7 @@
                     {{ displayNickname }}
                 </div>
                 <div class="plan">
-                    Free Plan
+                    {{ displayPlanName }} Plan
                 </div>
             </div>
             <div class="action">
@@ -38,9 +38,11 @@
                     <span class="label">AI可用次数</span>
                     <span class="value">{{ benefits?.ai_calls?.unlimited ? '♾️' : (benefits?.ai_calls?.used ?? 0) + '/' + (benefits?.ai_calls?.total ?? 0) }}</span>
                 </div>
-                <div class="action btn link" (click)="OpenUrl('')">
+                @if (!isProPlanSubscriber) {
+                <div class="action btn link" (click)="OpenUrl('/user/subscription')">
                     增加使用次数
                 </div>
+                }
             </div>
             <!-- 云存储使用 -->
             <div class="item">
@@ -51,9 +53,11 @@
                     <span class="label">云存储</span>
                     <span class="value">{{ benefits?.cloud_storage?.unlimited ? '♾️' : (benefits?.cloud_storage?.used ?? 0) + '/' + (benefits?.cloud_storage?.total ?? 0) }}</span>
                 </div>
-                <div class="action btn link" (click)="OpenUrl('')">
+                @if (!isProPlanSubscriber) {
+                <div class="action btn link" (click)="OpenUrl('/user/subscription')">
                     增加存储空间
                 </div>
+                }
             </div>
             <!-- 物联网设备 -->
             <div class="item">
@@ -64,9 +68,11 @@
                     <span class="label">物联网设备</span>
                     <span class="value">{{ benefits?.iot_devices?.unlimited ? '♾️' : (benefits?.iot_devices?.used ?? 0) + '/' + (benefits?.iot_devices?.total ?? 0) }}</span>
                 </div>
-                <div class="action btn link" (click)="OpenUrl('')">
+                @if (!isProPlanSubscriber) {
+                <div class="action btn link" (click)="OpenUrl('/user/subscription')">
                     增加设备数量
                 </div>
+                }
             </div>
             <!-- 积分 -->
             <div class="item">
@@ -77,7 +83,7 @@
                     <span class="label">账户积分<i class="fa-light fa-circle-question" style="margin-left: 5px;"></i></span>
                     <span class="value">{{ benefits?.points ?? 0 }}</span>
                 </div>
-                <div class="action btn link" (click)="OpenUrl('')">
+                <div class="action btn link" (click)="OpenUrl('/user/gift')">
                     积分兑换
                 </div>
             </div>
