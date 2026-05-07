@@ -972,21 +972,51 @@ function loadEnv() {
     }
   }
 
+  const cnRegionUrlKeys = [
+    "api_server",
+    "web",
+    "ucenter_web",
+    "tool_web",
+    "npm_registry",
+    "resource",
+    "updater",
+  ];
+  const defaultCnRegion = (conf.regions && conf.regions.cn) || {};
+  const forcedCnRegionUrls = cnRegionUrlKeys.reduce((urls, key) => {
+    if (typeof defaultCnRegion[key] === 'string') {
+      urls[key] = defaultCnRegion[key];
+    }
+    return urls;
+  }, {});
+  const hasCnRegionUrlChanges = (region) => {
+    if (!region) {
+      return true;
+    }
+    return cnRegionUrlKeys.some((key) => {
+      const correctValue = forcedCnRegionUrls[key];
+      return typeof correctValue === 'string' && region[key] !== correctValue;
+    });
+  };
+
   // 读取用户配置文件
   try {
     userConf = JSON.parse(fs.readFileSync(userConfigPath));
     
-    // TODO: 下一版删除，统一修正 regions.cn.api_server 地址为标准地址
+    // TODO: 下一版删除，统一修正 regions.cn 下所有地址为标准地址
     let needSave = false;
     if (userConf.regions && userConf.regions.cn) {
-      const correctApiServer = "https://api.yysc.tech";
-      const currentApiServer = userConf.regions.cn.api_server;
-      
-      // 检查当前地址是否需要修正（只要不是正确地址就修正）
-      if (currentApiServer !== correctApiServer) {
-        console.log(`检测到需要更新的 API 地址: ${currentApiServer || '(空)'} → ${correctApiServer}`);
-        userConf.regions.cn.api_server = correctApiServer;
-        needSave = true;
+      for (const key of cnRegionUrlKeys) {
+        const correctValue = forcedCnRegionUrls[key];
+        if (typeof correctValue !== 'string') {
+          continue;
+        }
+
+        const currentValue = userConf.regions.cn[key];
+        if (currentValue !== correctValue) {
+          console.log(`检测到需要更新的 cn.${key} 地址: ${currentValue || '(空)'} → ${correctValue}`);
+          userConf.regions.cn[key] = correctValue;
+          needSave = true;
+        }
       }
     }
     
@@ -1020,8 +1050,10 @@ function loadEnv() {
   // child Path
   process.env.AILY_CHILD_PATH = childPath;
 
-  // TODO 下一版本删除，强制将cn区域的api_server地址设置为https://api.yysc.tech
-  conf.regions["cn"]["api_server"] = "https://api.yysc.tech";
+  // TODO 下一版本删除，强制将 cn 区域所有地址设置为标准地址
+  if (hasCnRegionUrlChanges(conf.regions && conf.regions["cn"])) {
+    Object.assign(conf.regions["cn"], forcedCnRegionUrls);
+  }
   const buildFlavor = getBuildFlavor(conf);
   const officialRegion = getOfficialRegionForFlavor(buildFlavor);
   const currentRegion = shouldFallbackToOfficialRegion(conf.region, officialRegion, conf.regions)
