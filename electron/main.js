@@ -618,6 +618,7 @@ const BUILD_FLAVOR_TO_OFFICIAL_REGION = {
   global: 'eu'
 };
 const OFFICIAL_REGION_KEYS = new Set(Object.values(BUILD_FLAVOR_TO_OFFICIAL_REGION));
+const ZIP_URL_REGION_KEYS = ['eu', 'cn'];
 
 function normalizeBuildFlavor(flavor) {
   if (typeof flavor !== 'string') {
@@ -689,6 +690,19 @@ function shouldFallbackToOfficialRegion(regionKey, officialRegion, regions = {})
   }
 
   return isOfficialRegion(regionKey, regions) && regionKey !== officialRegion;
+}
+
+function buildZipUrls(regions = {}) {
+  const urls = [];
+
+  for (const regionKey of ZIP_URL_REGION_KEYS) {
+    const resource = regions[regionKey] && regions[regionKey].resource;
+    if (typeof resource === 'string' && resource.trim()) {
+      urls.push(resource);
+    }
+  }
+
+  return JSON.stringify(urls);
 }
 let isRendererReady = false;
 
@@ -1122,6 +1136,8 @@ function loadEnv() {
   process.env.AILY_TOOLS_PATH = path.join(process.env.AILY_APPDATA_PATH, "tools");
   // 默认全局SDK路径
   process.env.AILY_SDK_PATH = path.join(process.env.AILY_APPDATA_PATH, "sdk");
+  // zip包下载镜像地址，eu优先，cn兜底
+  process.env.AILY_ZIP_URLS = buildZipUrls(conf.regions);
   // zip包下载地址
   process.env.AILY_ZIP_URL = regionConfig.resource;
   // API服务器地址
