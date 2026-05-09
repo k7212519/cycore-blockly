@@ -3,6 +3,48 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const { isWin32, isDarwin, isLinux } = require('./platform');
 
+function sendRendererLog(targetWebContents, detail, state = 'doing') {
+  if (!targetWebContents || targetWebContents.isDestroyed()) {
+    return;
+  }
+
+  targetWebContents.send('window-receive', {
+    data: {
+      action: 'log',
+      log: {
+        detail,
+        state
+      }
+    }
+  });
+}
+
+function isNoisyNpmLogLine(line) {
+  return /^(npm http|npm verbose|npm info ok\b)/i.test(line)
+    || /^>\s+@?[^\s@]+(?:\/[^\s@]+)?@[^\s]+\s+postinstall\b/i.test(line)
+    || /^>\s+node\s+\.\/postinstall\.js\b/i.test(line)
+    || /^(added|changed|removed|updated|audited)\s+\d+\s+packages?\s+in\s+/i.test(line)
+    || /^up to date\s+in\s+/i.test(line);
+}
+
+function logCommandOutput(streamId, type, output, targetWebContents) {
+  const lines = output.split(/\r\n|\n|\r/g).map(line => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (isNoisyNpmLogLine(line)) {
+      continue;
+    }
+
+    const message = line.length > 2000 ? `${line.slice(0, 2000)}...` : line;
+    if (type === 'stderr') {
+      console.error(`[CMD][${streamId}] stderr: ${message}`);
+      sendRendererLog(targetWebContents, message, 'error');
+    } else {
+      console.log(`[CMD][${streamId}] stdout: ${message}`);
+      sendRendererLog(targetWebContents, message, 'doing');
+    }
+  }
+}
+
 class CommandManager {
   constructor() {
     this.processes = new Map(); // 存储进程
@@ -45,18 +87,14 @@ class CommandManager {
       }
     }
 
-    // 【调试增强】为 npm install 命令自动添加 --loglevel verbose 参数
+    // 为 npm install 命令自动添加 --foreground-scripts，确保 postinstall 输出可见
     const isNpmCmd = command === 'npm' || command === 'npm.cmd';
     const isInstallCmd = args.includes('install') || args.includes('i');
+    const shouldLogOutput = isNpmCmd && isInstallCmd;
     if (isNpmCmd && isInstallCmd) {
-      // 检查是否已经有 loglevel 或 verbose 相关参数
-      const hasLogLevel = args.some(arg => 
-        arg.includes('--loglevel') || arg === '--verbose' || arg === '-d' || arg === '--silent' || arg === '-s'
-      );
-      
-      if (!hasLogLevel) {
-        // 添加 --loglevel verbose 以获取详细日志
-        args = [...args, '--loglevel', 'verbose'];
+      const hasForegroundScripts = args.some(arg => arg === '--foreground-scripts' || arg.startsWith('--foreground-scripts='));
+      if (!hasForegroundScripts) {
+        args = [...args, '--foreground-scripts'];
       }
     }
 
@@ -92,7 +130,8 @@ class CommandManager {
 
     return {
       pid: child.pid,
-      process: child
+      process: child,
+      shouldLogOutput
     };
   }
 
@@ -155,7 +194,9 @@ function registerCmdHandlers(mainWindow) {
       // 监听标准输出
       process.stdout.on('data', (data) => {
         const output = data.toString();
-        // console.log(`[CMD][${streamId}] stdout: ${output}`);
+        if (result.shouldLogOutput) {
+          logCommandOutput(streamId, 'stdout', output, senderWindow);
+        }
         senderWindow.send(`cmd-data-${streamId}`, {
           type: 'stdout',
           data: output,
@@ -166,7 +207,9 @@ function registerCmdHandlers(mainWindow) {
       // 监听错误输出
       process.stderr.on('data', (data) => {
         const output = data.toString();
-        // console.error(`[CMD][${streamId}] stderr: ${output}`);
+        if (result.shouldLogOutput) {
+          logCommandOutput(streamId, 'stderr', output, senderWindow);
+        }
         senderWindow.send(`cmd-data-${streamId}`, {
           type: 'stderr',
           data: output,
