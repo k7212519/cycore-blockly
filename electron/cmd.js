@@ -3,28 +3,47 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const { isWin32, isDarwin, isLinux } = require('./platform');
 
-function sendRendererLog(targetWebContents, detail, state = 'doing') {
+function sendRendererLog(targetWebContents, detail, state = 'doing', mergeKey) {
   if (!targetWebContents || targetWebContents.isDestroyed()) {
     return;
+  }
+
+  const log = {
+    detail,
+    state
+  };
+
+  if (mergeKey) {
+    log.mergeKey = mergeKey;
   }
 
   targetWebContents.send('window-receive', {
     data: {
       action: 'log',
-      log: {
-        detail,
-        state
-      }
+      log
     }
   });
 }
 
 function isNoisyNpmLogLine(line) {
   return /^(npm http|npm verbose|npm info ok\b)/i.test(line)
+    || /^npm error\b/i.test(line)
     || /^>\s+@?[^\s@]+(?:\/[^\s@]+)?@[^\s]+\s+postinstall\b/i.test(line)
     || /^>\s+node\s+\.\/postinstall\.js\b/i.test(line)
     || /^(added|changed|removed|updated|audited)\s+\d+\s+packages?\s+in\s+/i.test(line)
     || /^up to date\s+in\s+/i.test(line);
+}
+
+function getProgressMergeKey(sourceId, line) {
+  if (/^下载进度[:：]/i.test(line) || /^下载完成[:：]/i.test(line)) {
+    return `${sourceId}:download-progress`;
+  }
+
+  if (/^解压进度[:：]/i.test(line)) {
+    return `${sourceId}:extract-progress`;
+  }
+
+  return undefined;
 }
 
 function logCommandOutput(streamId, type, output, targetWebContents) {
@@ -35,12 +54,17 @@ function logCommandOutput(streamId, type, output, targetWebContents) {
     }
 
     const message = line.length > 2000 ? `${line.slice(0, 2000)}...` : line;
+    const mergeKey = getProgressMergeKey(streamId, message);
     if (type === 'stderr') {
-      console.error(`[CMD][${streamId}] stderr: ${message}`);
-      sendRendererLog(targetWebContents, message, 'error');
+      if (!mergeKey) {
+        console.error(`[CMD][${streamId}] stderr: ${message}`);
+      }
+      sendRendererLog(targetWebContents, message, 'error', mergeKey);
     } else {
-      console.log(`[CMD][${streamId}] stdout: ${message}`);
-      sendRendererLog(targetWebContents, message, 'doing');
+      if (!mergeKey) {
+        console.log(`[CMD][${streamId}] stdout: ${message}`);
+      }
+      sendRendererLog(targetWebContents, message, 'doing', mergeKey);
     }
   }
 }

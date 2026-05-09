@@ -31,6 +31,10 @@ export class NpmService {
 
   isInstalling = false;
 
+  private getNpmErrorMessage(error: any): string {
+    return (error?.message || String(error)).replace(/^Error invoking remote method 'npm-run': Error:\s*/i, '');
+  }
+
   async init() {
     if (this.electronService.isElectron) {
       window['ipcRenderer'].on('window-receive', async (event, message) => {
@@ -136,15 +140,16 @@ export class NpmService {
         )
       ]);
     } catch (error) {
+      const errorMessage = this.getNpmErrorMessage(error);
       console.error(`安装开发板 ${board.name} 失败:`, error);
       this.noticeService.update({
         title: this.translate.instant('NPM.INSTALL_FAILED_TITLE'),
         text: this.translate.instant('NPM.INSTALLING', { name: board.name }),
-        detail: error?.message || String(error),
+        detail: errorMessage,
         state: 'error'
       });
       this.isInstalling = false;
-      this.workflowService.finishInstall(false, error?.message || String(error));
+      this.workflowService.finishInstall(false, errorMessage);
       throw error;
     }
 
@@ -289,10 +294,11 @@ export class NpmService {
 
           console.log(`依赖 ${key} 安装成功, 时间: ${new Date().toISOString()}`);
         } catch (error) {
+          const errorMessage = this.getNpmErrorMessage(error);
           console.error(`依赖 ${key} 安装失败:`, error);
           this.logService.update({
             title: `npm install ${key}@${version} 失败`,
-            detail: error?.message || String(error),
+            detail: errorMessage,
             state: 'error'
           });
         }
@@ -309,12 +315,13 @@ export class NpmService {
       }
       this.workflowService.finishInstall(true);
     } catch (error) {
+      const errorMessage = this.getNpmErrorMessage(error);
       console.error('安装开发板依赖时出错:', error);
       // this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED') });
       this.noticeService.update({ 
         title: this.translate.instant('NPM.INSTALL_FAILED_TITLE'), 
         text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED'), 
-        detail: error?.message || String(error),
+        detail: errorMessage,
         state: 'error'
       });
       this.workflowService.finishInstall(false, this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED'));

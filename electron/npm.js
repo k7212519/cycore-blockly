@@ -18,18 +18,24 @@ function shouldLogStreamingOutput(cmd) {
     return /^npm(\.cmd)?\s+(install|i)\b/i.test(cmd);
 }
 
-function sendRendererLog(mainWindow, detail, state = 'doing') {
+function sendRendererLog(mainWindow, detail, state = 'doing', mergeKey) {
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
         return;
+    }
+
+    const log = {
+        detail,
+        state
+    };
+
+    if (mergeKey) {
+        log.mergeKey = mergeKey;
     }
 
     mainWindow.webContents.send('window-receive', {
         data: {
             action: 'log',
-            log: {
-                detail,
-                state
-            }
+            log
         }
     });
 }
@@ -42,81 +48,155 @@ function isNoisyNpmLogLine(line) {
         || /^up to date\s+in\s+/i.test(line);
 }
 
-function logNpmOutput(type, output, mainWindow) {
+function isNpmErrorMetadataLine(line) {
+    return /^npm error\b/i.test(line);
+}
+
+function isBusyRenameError(text) {
+    return /\bEBUSY\b/i.test(text) && /\brename\b/i.test(text);
+}
+
+function extractNpmErrorValue(text, key) {
+    const match = text.match(new RegExp(`^npm error ${key}\\s+(.+)$`, 'im'));
+    return match ? match[1].trim() : '';
+}
+
+function formatNpmError(stderr, code) {
+    if (isBusyRenameError(stderr)) {
+        const targetPath = extractNpmErrorValue(stderr, 'path');
+        const detail = targetPath ? `\n被占用目录: ${targetPath}` : '';
+        return `npm 安装失败：目标目录正在被占用，无法替换安装包。请关闭正在使用该工具链的编译/烧录/终端任务，稍后重试。${detail}`;
+    }
+
+    return stderr || `命令退出码 ${code}`;
+}
+
+function createNpmError(stderr, code) {
+    const error = new Error(formatNpmError(stderr, code));
+    error.isBusyRename = isBusyRenameError(stderr);
+    return error;
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getProgressMergeKey(sourceId, line) {
+    if (/^下载进度[:：]/i.test(line) || /^下载完成[:：]/i.test(line)) {
+        return `${sourceId}:download-progress`;
+    }
+
+    if (/^解压进度[:：]/i.test(line)) {
+        return `${sourceId}:extract-progress`;
+    }
+
+    return undefined;
+}
+
+function logNpmOutput(type, output, mainWindow, sourceId) {
     const lines = output.split(/\r\n|\n|\r/g).map(line => line.trim()).filter(Boolean);
     for (const line of lines) {
         if (isNoisyNpmLogLine(line)) {
             continue;
         }
 
+        if (isNpmErrorMetadataLine(line)) {
+            continue;
+        }
+
         const message = line.length > 2000 ? `${line.slice(0, 2000)}...` : line;
+        const mergeKey = getProgressMergeKey(sourceId, message);
         if (type === 'stderr') {
-            console.error(`[NPM] stderr: ${message}`);
-            sendRendererLog(mainWindow, message, 'error');
+            if (!mergeKey) {
+                console.error(`[NPM] stderr: ${message}`);
+            }
+            sendRendererLog(mainWindow, message, 'error', mergeKey);
         } else {
-            console.log(`[NPM] stdout: ${message}`);
-            sendRendererLog(mainWindow, message, 'doing');
+            if (!mergeKey) {
+                console.log(`[NPM] stdout: ${message}`);
+            }
+            sendRendererLog(mainWindow, message, 'doing', mergeKey);
         }
     }
+}
+
+function runNpmCommand(cmd, option, mainWindow) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(cmd, {
+            shell: true,
+            windowsHide: true,
+            env: process.env,
+        });
+        const shouldLogOutput = shouldLogStreamingOutput(cmd);
+        const sourceId = `npm_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+            const output = data.toString();
+            stdout += output;
+            if (shouldLogOutput) {
+                logNpmOutput('stdout', output, mainWindow, sourceId);
+            }
+        });
+
+        child.stderr.on('data', (data) => {
+            const output = data.toString();
+            stderr += output;
+            if (shouldLogOutput) {
+                logNpmOutput('stderr', output, mainWindow, sourceId);
+            }
+        });
+
+        child.on('error', (error) => {
+            if (option?.ignoreErr) {
+                return resolve(false);
+            }
+            console.error(`执行命令出错: ${error}`);
+            reject(error);
+        });
+
+        child.on('close', (code) => {
+            if (code !== 0) {
+                if (option?.ignoreErr) {
+                    return resolve(false);
+                }
+                return reject(createNpmError(stderr, code));
+            }
+            if (stderr && !stdout) {
+                return reject(createNpmError(stderr, code));
+            }
+            try {
+                resolve(stdout);
+            } catch (e) {
+                reject(new Error(e.message));
+            }
+        });
+    });
 }
 
 function registerNpmHandlers(mainWindow) {
     ipcMain.handle('npm-run', async (event, { cmd, option = {} }) => {
         cmd = ensureForegroundScripts(cmd);
         console.log('npm run cmd: ', cmd);
-        return new Promise((resolve, reject) => {
-            const child = spawn(cmd, {
-                shell: true,
-                windowsHide: true,
-                env: process.env,
-            });
-            const shouldLogOutput = shouldLogStreamingOutput(cmd);
-            let stdout = '';
-            let stderr = '';
+        const maxBusyRetries = shouldLogStreamingOutput(cmd) ? 2 : 0;
 
-            child.stdout.on('data', (data) => {
-                const output = data.toString();
-                stdout += output;
-                if (shouldLogOutput) {
-                    logNpmOutput('stdout', output, mainWindow);
+        for (let attempt = 1; attempt <= maxBusyRetries + 1; attempt++) {
+            try {
+                return await runNpmCommand(cmd, option, mainWindow);
+            } catch (error) {
+                if (attempt <= maxBusyRetries && error?.isBusyRename) {
+                    const message = `npm 安装目录被占用，等待后重试 (${attempt}/${maxBusyRetries})...`;
+                    console.warn(message);
+                    sendRendererLog(mainWindow, message, 'warn', `${cmd}:busy-retry`);
+                    await sleep(2000 * attempt);
+                    continue;
                 }
-            });
 
-            child.stderr.on('data', (data) => {
-                const output = data.toString();
-                stderr += output;
-                if (shouldLogOutput) {
-                    logNpmOutput('stderr', output, mainWindow);
-                }
-            });
-
-            child.on('error', (error) => {
-                if (option?.ignoreErr) {
-                    return resolve(false);
-                }
-                console.error(`执行命令出错: ${error}`);
-                reject(error);
-            });
-
-            child.on('close', (code) => {
-                if (code !== 0) {
-                    if (option?.ignoreErr) {
-                        return resolve(false);
-                    }
-                    const error = new Error(stderr || `命令退出码 ${code}`);
-                    console.error(`执行命令出错: ${error.message}`);
-                    return reject(error);
-                }
-                if (stderr && !stdout) {
-                    return reject(new Error(stderr));
-                }
-                try {
-                    resolve(stdout);
-                } catch (e) {
-                    reject(new Error(e.message));
-                }
-            });
-        })
+                console.error(`执行命令出错: ${error.message || error}`);
+                throw error;
+            }
+        }
     });
 }
 
