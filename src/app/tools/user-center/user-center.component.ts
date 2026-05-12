@@ -312,7 +312,7 @@ export class UserCenterComponent {
 
   get displayPlanName(): string {
     const subscriptionPlan = this.currentUser?.subscription_plan;
-    return subscriptionPlan?.display_name || subscriptionPlan?.name || 'Free Plan';
+    return subscriptionPlan?.display_name || subscriptionPlan?.name || 'Free';
   }
 
   get isProPlanSubscriber(): boolean {
@@ -394,8 +394,8 @@ export class UserCenterComponent {
 
 
   OpenUrl(url?: string) {
-    this.message.warning('测试版期间免费使用，无需购买');
-    return;
+    // this.message.warning('测试版期间免费使用，无需购买');
+    // return;
     this.openUserCenterPage(url);
   }
 }
