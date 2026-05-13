@@ -3,8 +3,7 @@ const os = require('os');
 const path = require('path');
 const { ipcMain, app } = require('electron');
 
-const LOCK_DIR = '.aily';
-const LEGACY_LOCK_FILE = 'appdata-resource.lock';
+const LOCK_DIR = '.lock';
 const LOCK_ROOT = 'appdata-resource-lock';
 const WRITER_FILE = 'writer.lock';
 const READERS_DIR = 'readers';
@@ -16,10 +15,6 @@ let handlersRegistered = false;
 
 function getAppDataPath() {
   return process.env.AILY_APPDATA_PATH || app.getPath('userData');
-}
-
-function getLegacyLockPath() {
-  return path.join(getAppDataPath(), LOCK_DIR, LEGACY_LOCK_FILE);
 }
 
 function getLockRootPath() {
@@ -116,13 +111,7 @@ function isLockAlive(lockPath) {
 function getActiveWriter() {
   const writerPath = getWriterLockPath();
   const writer = fs.existsSync(writerPath) ? isLockAlive(writerPath) : null;
-  if (writer) {
-    return { lockPath: writerPath, holder: writer };
-  }
-
-  const legacyPath = getLegacyLockPath();
-  const legacy = fs.existsSync(legacyPath) ? isLockAlive(legacyPath) : null;
-  return legacy ? { lockPath: legacyPath, holder: legacy, legacy: true } : null;
+  return writer ? { lockPath: writerPath, holder: writer } : null;
 }
 
 function getActiveReaders() {
