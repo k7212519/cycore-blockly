@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, ElementRef, isDevMode, OnDestroy, ViewChild, viewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, isDevMode, NgZone, OnDestroy, ViewChild, viewChild } from '@angular/core';
 import { HEADER_BTNS, HEADER_MENU } from '../../../configs/menu.config';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { FormsModule } from '@angular/forms';
@@ -27,6 +27,8 @@ import { ProbeRsService } from '../../../services/probe-rs.service';
 // import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { AppItem } from '../../../tools/app-store/app-store.config';
 import { APP_LIST } from '../../../configs/tool.config';
+import { Subscription } from 'rxjs';
+import { BleOtaDeviceItem, UploaderBleService } from '../../../services/uploader-ble.service';
 
 @Component({
   selector: 'app-header',
@@ -59,6 +61,8 @@ export class HeaderComponent implements OnDestroy {
   private unsubscribeFullScreenChanged?: () => void;
   private unsubscribeMaximizeChanged?: () => void;
   private unsubscribeCloseRequest?: () => void;
+  private bleDevicesSubscription?: Subscription;
+  private blePortListRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
   private selectDebounceTimer: ReturnType<typeof setTimeout> | null = null; // 防抖计时器
   private lastSelectedSubItemKey: string | null = null; // 上次选择子菜单项的key（用于判断重复选择）
@@ -76,6 +80,9 @@ export class HeaderComponent implements OnDestroy {
   }
 
   get currentPort() {
+    if (this.serialService.currentPortInfo?.type === 'ble') {
+      return this.serialService.currentPortInfo?.text || this.serialService.currentPort;
+    }
     return this.serialService.currentPort;
   }
 
@@ -115,10 +122,19 @@ export class HeaderComponent implements OnDestroy {
     private translate: TranslateService,
     private platformService: PlatformService,
     private probeRsService: ProbeRsService,
+    private uploaderBleService: UploaderBleService,
+    private ngZone: NgZone,
     // private appStoreService: AppStoreService
   ) { }
 
   async ngAfterViewInit() {
+    this.bleDevicesSubscription = this.uploaderBleService.scanStateChanged.subscribe((state) => {
+      console.log('[BLE:header] scan state changed', state);
+      this.ngZone.run(() => {
+        this.scheduleBlePortListRefresh();
+      });
+    });
+
     if (this.electronService.isElectron) {
       // 初始化窗口最大化状态缓存
       this._isWindowFullScreen = this.electronService.isWindowFullScreen();
@@ -287,7 +303,7 @@ export class HeaderComponent implements OnDestroy {
         this.portListPosition = { x: 40, y: 40 };
       }
     }
-    let boardname = this.currentBoard.replace(' 2560', ' ').replace(' R3', '');
+    let boardname = (this.currentBoard || '').replace(' 2560', ' ').replace(' R3', '');
     this.boardKeywords = [boardname];
     // 如果已有缓存列表，先展示旧数据，再后台刷新
     this.showPortList = true;
@@ -295,16 +311,39 @@ export class HeaderComponent implements OnDestroy {
   }
 
   closePortList() {
+    if (this.uploaderBleService.isScanning() || this.uploaderBleService.hasActiveRequest()) {
+      this.uploaderBleService.cancelScan();
+    }
     this.showPortList = false;
     // this.cd.detectChanges();
   }
 
-  selectPort(item) {
+  async selectPort(item) {
     if (item.action) {
       this.process(item)
       return
     }
-    this.currentPort = item.name;
+
+    if (item.type === 'ble') {
+      try {
+        const device = await this.uploaderBleService.selectDevice(item.extra?.deviceId || item.name);
+        item = {
+          ...item,
+          name: device.id,
+          text: device.name,
+          icon: item.icon || 'fa-brands fa-bluetooth-b',
+          extra: {
+            ...(item.extra || {}),
+            deviceId: device.id,
+          }
+        };
+      } catch (error) {
+        this.message.error(error?.message || '选择 BLE 设备失败');
+        return;
+      }
+    }
+
+    this.serialService.currentPort = item.name;
     this.serialService.currentPortInfo = {
       name: item.name,
       text: item.text,
@@ -312,6 +351,7 @@ export class HeaderComponent implements OnDestroy {
       icon: item.icon,
       probeSerial: item.extra?.serial || '',
       probeVidPid: item.extra?.vidPid || '',
+      extra: item.extra,
     };
     this.closePortList();
   }
@@ -319,7 +359,25 @@ export class HeaderComponent implements OnDestroy {
   async getDevicePortList(skipDetect = false) {
     const generation = ++this.portListGeneration;
     let portList0: IMenuItem[] = await this.serialService.getSerialPorts();
-    if (portList0.length == 0) {
+    let hasSelectablePort = portList0.length > 0;
+
+    let core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase();
+    const isEsp32Core = this.isEsp32Core(core);
+    const canShowBleOtaPorts = await this.canShowBleOtaPorts(core);
+
+    if (canShowBleOtaPorts) {
+      const bleItems = this.uploaderBleService.getPortMenuItems(this.serialService.currentPort);
+      console.log('[BLE:header] getDevicePortList BLE items', bleItems.length, bleItems);
+      if (bleItems.length > 0) {
+        if (portList0.length > 0) {
+          portList0.push({ sep: true });
+        }
+        portList0 = portList0.concat(bleItems);
+        hasSelectablePort = true;
+      }
+    }
+
+    if (!hasSelectablePort) {
       portList0 = [
         {
           name: 'Device not found',
@@ -331,12 +389,10 @@ export class HeaderComponent implements OnDestroy {
       ];
     }
 
-    let core = this.projectService.currentBoardConfig['core'].toLowerCase();
-
 
     // 添加ESP32相关配置选项
     // console.log('core:' + core);
-    if (core.indexOf('esp32') > -1) {
+    if (isEsp32Core) {
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
       let esp32config = await this.projectService.updateEsp32ConfigMenu(board);
@@ -383,6 +439,30 @@ export class HeaderComponent implements OnDestroy {
     setTimeout(() => {
       this.cd.detectChanges();
     }, 0);
+  }
+
+  private isEsp32Core(core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase()): boolean {
+    return core === 'esp32' || core.startsWith('esp32:');
+  }
+
+  private async canShowBleOtaPorts(core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase()): Promise<boolean> {
+    return this.isEsp32Core(core) && await this.hasProjectDependency('@aily-project/lib-bleota');
+  }
+
+  private async hasProjectDependency(dependencyName: string): Promise<boolean> {
+    try {
+      const packageJson = await this.projectService.getPackageJson();
+      const dependencies = {
+        ...(packageJson?.dependencies || {}),
+        ...(packageJson?.devDependencies || {}),
+        ...(packageJson?.optionalDependencies || {}),
+      };
+
+      return Object.prototype.hasOwnProperty.call(dependencies, dependencyName);
+    } catch (error) {
+      console.warn('读取项目依赖失败:', error);
+      return false;
+    }
   }
 
   onClick(item, event = null) {
@@ -467,6 +547,9 @@ export class HeaderComponent implements OnDestroy {
         break;
       case 'tool-open':
         this.uiService.turnTool(item.data);
+        break;
+      case 'ble-scan':
+        this.startBleScan();
         break;
       // case 'terminal':
       //   this.uiService.turnTerminal(item.data);
@@ -572,6 +655,13 @@ export class HeaderComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    if (this.bleDevicesSubscription) {
+      this.bleDevicesSubscription.unsubscribe();
+    }
+    if (this.blePortListRefreshTimer) {
+      clearTimeout(this.blePortListRefreshTimer);
+      this.blePortListRefreshTimer = null;
+    }
     if (this.electronService.isElectron) {
       // 取消窗口全屏状态变化监听
       if (this.unsubscribeFullScreenChanged) {
@@ -828,6 +918,58 @@ export class HeaderComponent implements OnDestroy {
         return true;
       }
     }
+  }
+
+  private async startBleScan() {
+    if (!await this.canShowBleOtaPorts()) {
+      if (this.showPortList) {
+        this.getDevicePortList(true);
+      }
+      return;
+    }
+
+    console.log('[BLE:header] start scan clicked');
+    this.getDevicePortList(true);
+    this.uploaderBleService.beginScan().then((device: BleOtaDeviceItem) => {
+      console.log('[BLE:header] scan selected device', device);
+      this.selectBleDevice(device);
+      if (this.showPortList) {
+        this.getDevicePortList(true);
+      }
+    }).catch(error => {
+      const message = error?.message || String(error || '');
+      console.warn('[BLE:header] scan failed', error);
+      if (message && !/cancel|cancelled|no device selected|user cancelled/i.test(message)) {
+        this.message.warning(message);
+      }
+      if (this.showPortList) {
+        this.getDevicePortList(true);
+      }
+    });
+  }
+
+  private scheduleBlePortListRefresh() {
+    if (!this.showPortList || this.blePortListRefreshTimer) return;
+
+    this.blePortListRefreshTimer = setTimeout(() => {
+      this.blePortListRefreshTimer = null;
+      if (this.showPortList) {
+        console.log('[BLE:header] refresh port list after BLE state change');
+        this.getDevicePortList(true);
+      }
+    }, 100);
+  }
+
+  private selectBleDevice(device: BleOtaDeviceItem) {
+    this.serialService.currentPort = device.id;
+    this.serialService.currentPortInfo = {
+      name: device.id,
+      text: device.name,
+      type: 'ble',
+      icon: 'fa-brands fa-bluetooth-b',
+      extra: { deviceId: device.id },
+    };
+    this.closePortList();
   }
 
   // 选择子菜单项-修改编译上传配置
