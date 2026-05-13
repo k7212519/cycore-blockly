@@ -308,11 +308,6 @@ export class HeaderComponent implements OnDestroy {
     // 如果已有缓存列表，先展示旧数据，再后台刷新
     this.showPortList = true;
     this.getDevicePortList();
-    this.uploaderBleService.refreshGrantedDevices().then(() => {
-      if (this.showPortList) {
-        this.getDevicePortList(true);
-      }
-    });
   }
 
   closePortList() {
@@ -367,8 +362,10 @@ export class HeaderComponent implements OnDestroy {
     let hasSelectablePort = portList0.length > 0;
 
     let core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase();
+    const isEsp32Core = this.isEsp32Core(core);
+    const canShowBleOtaPorts = await this.canShowBleOtaPorts(core);
 
-    if (core.indexOf('esp32') > -1) {
+    if (canShowBleOtaPorts) {
       const bleItems = this.uploaderBleService.getPortMenuItems(this.serialService.currentPort);
       console.log('[BLE:header] getDevicePortList BLE items', bleItems.length, bleItems);
       if (bleItems.length > 0) {
@@ -395,7 +392,7 @@ export class HeaderComponent implements OnDestroy {
 
     // 添加ESP32相关配置选项
     // console.log('core:' + core);
-    if (core.indexOf('esp32') > -1) {
+    if (isEsp32Core) {
       let temp = this.projectService.currentBoardConfig['type'].split(':');
       let board = temp[temp.length - 1];
       let esp32config = await this.projectService.updateEsp32ConfigMenu(board);
@@ -442,6 +439,30 @@ export class HeaderComponent implements OnDestroy {
     setTimeout(() => {
       this.cd.detectChanges();
     }, 0);
+  }
+
+  private isEsp32Core(core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase()): boolean {
+    return core === 'esp32' || core.startsWith('esp32:');
+  }
+
+  private async canShowBleOtaPorts(core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase()): Promise<boolean> {
+    return this.isEsp32Core(core) && await this.hasProjectDependency('@aily-project/lib-bleota');
+  }
+
+  private async hasProjectDependency(dependencyName: string): Promise<boolean> {
+    try {
+      const packageJson = await this.projectService.getPackageJson();
+      const dependencies = {
+        ...(packageJson?.dependencies || {}),
+        ...(packageJson?.devDependencies || {}),
+        ...(packageJson?.optionalDependencies || {}),
+      };
+
+      return Object.prototype.hasOwnProperty.call(dependencies, dependencyName);
+    } catch (error) {
+      console.warn('读取项目依赖失败:', error);
+      return false;
+    }
   }
 
   onClick(item, event = null) {
@@ -899,7 +920,14 @@ export class HeaderComponent implements OnDestroy {
     }
   }
 
-  private startBleScan() {
+  private async startBleScan() {
+    if (!await this.canShowBleOtaPorts()) {
+      if (this.showPortList) {
+        this.getDevicePortList(true);
+      }
+      return;
+    }
+
     console.log('[BLE:header] start scan clicked');
     this.getDevicePortList(true);
     this.uploaderBleService.beginScan().then((device: BleOtaDeviceItem) => {

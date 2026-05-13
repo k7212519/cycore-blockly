@@ -9,6 +9,8 @@ const DEVICE_INFORMATION_SERVICE_UUID = '0000180a-0000-1000-8000-00805f9b34fb';
 
 const SECTOR_SIZE = 4096;
 const COMMAND_FRAME_SIZE = 20;
+const FIRMWARE_PACKET_HEADER_SIZE = 3;
+const FIRMWARE_PACKET_CRC_SIZE = 2;
 const CMD_START_FLASH = 0x0001;
 const CMD_STOP = 0x0002;
 const CMD_ACK = 0x0003;
@@ -24,6 +26,7 @@ const STOP_COMMAND_RETRY_TIMEOUT_MS = 15000;
 const DEFAULT_SCAN_TIMEOUT_MS = 3000;
 const GATT_CONNECT_MAX_ATTEMPTS = 3;
 const GATT_CONNECT_RETRY_DELAY_MS = 800;
+const DEVICE_AUTHORIZATION_TIMEOUT_MS = 10000;
 
 export type BleOtaUpdateType = 'flash' | 'filesystem';
 
@@ -196,19 +199,7 @@ export class UploaderBleService implements BleOtaTransport {
   }
 
   getDevices(): BleOtaDeviceItem[] {
-    const merged = new Map<string, BleOtaDeviceItem>();
-
-    this.knownDevices.forEach(device => merged.set(device.id, device));
-    this.discoveredDevices.forEach(device => {
-      const duplicateKnownDevice = Array.from(this.knownDevices.values()).some(knownDevice => (
-        this.getDeviceDedupKey(knownDevice) === this.getDeviceDedupKey(device)
-      ));
-      if (!duplicateKnownDevice) {
-        merged.set(device.id, device);
-      }
-    });
-
-    return Array.from(merged.values());
+    return Array.from(this.discoveredDevices.values());
   }
 
   getPortMenuItems(currentPort?: string): IMenuItem[] {
@@ -362,28 +353,18 @@ export class UploaderBleService implements BleOtaTransport {
       return selected;
     }
 
-    if (this.scanPromise && window['ble']?.selectDevice) {
-      const discovered = this.discoveredDevices.get(deviceId);
-      const result = await window['ble'].selectDevice(deviceId);
-      if (result?.success === false) {
-        throw new Error(result.error || '选择 BLE 设备失败');
-      }
-      const selected = await this.scanPromise;
-      this.selectedDeviceId = selected.id;
-      this.removeDiscoveredDuplicates(selected, deviceId, discovered?.name);
-      return this.releaseDeviceConnection(selected, 'device selection');
-    }
-
     const discovered = this.discoveredDevices.get(deviceId);
     if (discovered) {
-      throw new Error('请重新扫描并授权该 BLE 设备');
+      this.selectedDeviceId = discovered.id;
+      this.emitDevices(this.isScanning());
+      return discovered;
     }
 
     throw new Error('未找到 BLE 设备');
   }
 
   async connect(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<void> {
-    const deviceItem = await this.ensureDevice(deviceId || this.selectedDeviceId || undefined);
+    const deviceItem = await this.ensureDevice(deviceId || this.selectedDeviceId || undefined, progress);
     const device = deviceItem.device;
     if (!device?.gatt) {
       throw new Error('BLE 设备未授权，请重新扫描选择');
@@ -454,6 +435,11 @@ export class UploaderBleService implements BleOtaTransport {
       this.throwIfCancelled(options.signal);
       emitProgress({ state: 'probing', progress: 1, text: '正在协商 BLE 包大小...' });
       const packetSize = options.packetSize || await this.probePacketSize();
+      emitProgress({
+        state: 'probing',
+        progress: 1,
+        text: `BLE 包大小 ${packetSize}B，数据负载 ${Math.max(0, packetSize - FIRMWARE_PACKET_HEADER_SIZE)}B/包`,
+      });
 
       this.throwIfCancelled(options.signal);
       emitProgress({ state: 'starting', progress: 2, text: '正在启动 OTA...' });
@@ -521,8 +507,9 @@ export class UploaderBleService implements BleOtaTransport {
   private async sendFirmware(data: Uint8Array, packetSize: number, options: BleOtaUploadOptions): Promise<void> {
     const sectorCount = Math.ceil(data.byteLength / SECTOR_SIZE);
     const retries = options.retries ?? 3;
-    const payloadSize = packetSize - 5;
-    if (payloadSize <= 0) throw new Error(`BLE 包大小异常: ${packetSize}`);
+    const payloadSize = packetSize - FIRMWARE_PACKET_HEADER_SIZE;
+    const finalPayloadSize = packetSize - FIRMWARE_PACKET_HEADER_SIZE - FIRMWARE_PACKET_CRC_SIZE;
+    if (finalPayloadSize <= 0) throw new Error(`BLE 包大小异常: ${packetSize}`);
 
     let sectorIndex = 0;
     const startTime = Date.now();
@@ -538,7 +525,7 @@ export class UploaderBleService implements BleOtaTransport {
         const sector = data.subarray(sectorStart, sectorEnd);
 
         const ackPromise = this.waitForSectorAck(sectorIndex);
-        await this.writeSector(sectorIndex, sector, payloadSize, data.byteLength, startTime, options.progress, options.signal);
+        await this.writeSector(sectorIndex, sector, payloadSize, finalPayloadSize, data.byteLength, startTime, options.progress, options.signal);
         const ack = await ackPromise;
 
         if (ack.status === ACK_OK) {
@@ -566,6 +553,7 @@ export class UploaderBleService implements BleOtaTransport {
     sectorIndex: number,
     sector: Uint8Array,
     payloadSize: number,
+    finalPayloadSize: number,
     totalBytes: number,
     startTime: number,
     progress?: (progress: BleOtaProgress) => void,
@@ -577,14 +565,20 @@ export class UploaderBleService implements BleOtaTransport {
 
     while (offset < sector.byteLength) {
       this.throwIfCancelled(signal);
-      const chunkSize = Math.min(payloadSize, sector.byteLength - offset);
-      const isLast = offset + chunkSize >= sector.byteLength;
-      const packet = new Uint8Array(3 + chunkSize + (isLast ? 2 : 0));
+      const remaining = sector.byteLength - offset;
+      const isLast = remaining <= finalPayloadSize;
+      let chunkSize = isLast ? remaining : Math.min(payloadSize, remaining);
+
+      if (!isLast && remaining - chunkSize === 0) {
+        chunkSize = remaining - finalPayloadSize;
+      }
+
+      const packet = new Uint8Array(FIRMWARE_PACKET_HEADER_SIZE + chunkSize + (isLast ? FIRMWARE_PACKET_CRC_SIZE : 0));
       this.writeUint16LE(packet, 0, sectorIndex);
       packet[2] = isLast ? 0xff : seq++;
-      packet.set(sector.subarray(offset, offset + chunkSize), 3);
+      packet.set(sector.subarray(offset, offset + chunkSize), FIRMWARE_PACKET_HEADER_SIZE);
       if (isLast) {
-        this.writeUint16LE(packet, 3 + chunkSize, sectorCrc);
+        this.writeUint16LE(packet, FIRMWARE_PACKET_HEADER_SIZE + chunkSize, sectorCrc);
       }
 
       await this.writeCharacteristic(this.recvFwCharacteristic, packet, true);
@@ -723,14 +717,85 @@ export class UploaderBleService implements BleOtaTransport {
     await characteristic.writeValue(value);
   }
 
-  private async ensureDevice(deviceId?: string): Promise<BleOtaDeviceItem> {
-    await this.refreshGrantedDevices();
+  private async ensureDevice(
+    deviceId?: string,
+    progress?: (progress: BleOtaProgress) => void,
+  ): Promise<BleOtaDeviceItem> {
     const id = deviceId || this.selectedDeviceId;
     const device = id ? this.knownDevices.get(id) : this.getSelectedDevice();
     if (!device?.device) {
-      throw new Error('请先选择 BLE OTA 设备');
+      const discovered = id ? this.discoveredDevices.get(id) : null;
+      if (discovered) {
+        return this.authorizeDiscoveredDevice(discovered, progress);
+      }
+
+      await this.refreshGrantedDevices();
+      const grantedDevice = id ? this.knownDevices.get(id) : this.getSelectedDevice();
+      if (grantedDevice?.device) {
+        return grantedDevice;
+      }
+
+      throw new Error('请先搜索并选择 BLE OTA 设备');
     }
     return device;
+  }
+
+  private async authorizeDiscoveredDevice(
+    discovered: BleOtaDeviceItem,
+    progress?: (progress: BleOtaProgress) => void,
+  ): Promise<BleOtaDeviceItem> {
+    const bluetooth = this.getBluetooth();
+    if (!bluetooth?.requestDevice) {
+      throw new Error('当前环境不支持 Web Bluetooth');
+    }
+
+    progress?.({ state: 'connecting', progress: 0, text: '正在确认 BLE 设备...' });
+
+    const requestOptions = {
+      filters: [{ services: [BLE_OTA_SERVICE_UUID] }],
+      optionalServices: [BLE_OTA_SERVICE_UUID, DEVICE_INFORMATION_SERVICE_UUID],
+    };
+
+    let timeoutTimer: any = null;
+    let timedOut = false;
+
+    try {
+      this.setupElectronBluetoothBridge();
+      if (this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
+        const result = await window['ble'].setPreferredDevice(discovered.id);
+        if (result?.success === false) {
+          throw new Error(result.error || '准备 BLE 设备选择失败');
+        }
+      }
+
+      const requestPromise = bluetooth.requestDevice(requestOptions);
+      const timeoutPromise = new Promise<never>((_resolve, reject) => {
+        timeoutTimer = setTimeout(() => {
+          timedOut = true;
+          window['ble']?.cancelDeviceRequest?.().catch?.(() => undefined);
+          reject(new Error('确认 BLE 设备超时，请确认设备仍在附近并重新上传'));
+        }, DEVICE_AUTHORIZATION_TIMEOUT_MS);
+      });
+
+      const device = await Promise.race([requestPromise, timeoutPromise]);
+      const item = this.cacheBluetoothDevice(device);
+      this.selectedDeviceId = item.id;
+      this.removeDiscoveredDuplicates(item, discovered.id, discovered.name);
+      progress?.({ state: 'connecting', progress: 0, text: '已选择 BLE 设备，正在连接...' });
+      return item;
+    } catch (error) {
+      if (timedOut) throw error;
+
+      const message = error?.message || String(error || '');
+      if (/cancel|cancelled|no device selected|user cancelled/i.test(message)) {
+        throw new Error('已取消 BLE 设备选择');
+      }
+      throw error;
+    } finally {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer);
+      }
+    }
   }
 
   private async connectGattWithRetry(
@@ -911,6 +976,7 @@ export class UploaderBleService implements BleOtaTransport {
         timeoutMs,
         discoveredCount: this.discoveredDevices.size,
       });
+      window['ble']?.cancelDeviceRequest?.().catch?.(() => undefined);
       this.emitDevices(false);
     }, Math.max(0, timeoutMs));
   }

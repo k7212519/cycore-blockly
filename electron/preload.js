@@ -274,6 +274,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => ipcRenderer.removeListener('ble-device-list', listener);
     },
     selectDevice: (deviceId) => ipcRenderer.invoke('ble-select-device', deviceId),
+    setPreferredDevice: (deviceId) => ipcRenderer.invoke('ble-set-preferred-device', deviceId),
     cancelDeviceRequest: () => ipcRenderer.invoke('ble-cancel-device-request'),
     startDeviceListUpdates: () => ipcRenderer.invoke('ble-start-device-list-updates'),
     stopDeviceListUpdates: () => ipcRenderer.invoke('ble-stop-device-list-updates'),
