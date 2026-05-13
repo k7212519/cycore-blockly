@@ -18,7 +18,8 @@ export class UploaderService {
 
   /** 当前选中的是否为串口设备（非 debugger） */
   private get isSerialDevice(): boolean {
-    return this.serialService.currentPortInfo?.type !== 'debugger';
+    const type = this.serialService.currentPortInfo?.type;
+    return !type || type === 'serial';
   }
 
   async upload() {
@@ -27,7 +28,8 @@ export class UploaderService {
       if (needSerialToggle) {
         this.uiService.sendToolSignal('serial-monitor:disconnect');
       }
-      const feedback = await this.actionService.dispatchWithFeedback('upload-begin', {}, 300000).toPromise();
+      const timeout = this.serialService.currentPortInfo?.type === 'ble' ? 900000 : 300000;
+      const feedback = await this.actionService.dispatchWithFeedback('upload-begin', {}, timeout).toPromise();
 
       const uploadResult = feedback?.data?.result;
       const uploadSuccess = feedback?.success !== false

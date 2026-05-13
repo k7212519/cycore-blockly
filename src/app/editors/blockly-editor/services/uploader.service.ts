@@ -14,6 +14,7 @@ import { ActionService } from "../../../services/action.service";
 import { arduinoGenerator } from "../components/blockly/generators/arduino/arduino";
 import { BlocklyService } from "./blockly.service";
 import { WorkflowService, ProcessState } from '../../../services/workflow.service';
+import { BleOtaProgress, UploaderBleService } from '../../../services/uploader-ble.service';
 
 @Injectable()
 export class _UploaderService {
@@ -31,7 +32,8 @@ export class _UploaderService {
     private serialMonitorService: SerialMonitorService,
     private actionService: ActionService,
     private blocklyService: BlocklyService,
-    private workflowService: WorkflowService
+    private workflowService: WorkflowService,
+    private uploaderBleService: UploaderBleService
   ) { }
 
   uploadInProgress = false;
@@ -257,6 +259,19 @@ export class _UploaderService {
         this._builderService.isUploading = true;
 
         const boardJson = await this.projectService.getBoardJson()
+
+        if (capturedPortInfo?.type === 'ble') {
+          try {
+            const result = await this.uploadByBle(buildPath, capturedPortInfo, boardJson?.name);
+            this.uploadPromiseReject = null;
+            resolve(result);
+          } catch (error) {
+            this.uploadPromiseReject = null;
+            reject(error);
+          }
+          return;
+        }
+
         const boardModule = await this.projectService.getBoardModule();
 
         // 根据烧录方式选择上传参数：调试探针使用 linkUploadParam，串口使用 uploadParam
@@ -787,6 +802,141 @@ export class _UploaderService {
     return { flags, cleanParam };
   }
 
+  private async uploadByBle(buildPath: string, portInfo: any, boardName = ''): Promise<ActionState> {
+    const firmwarePath = this.uploaderBleService.findFirmwareFile(buildPath);
+    if (!firmwarePath) {
+      const message = '未找到可用于 BLE OTA 的应用固件 .bin';
+      this.logBleUpload(`错误: ${message}`, 'error');
+      this.logBleUpload(`构建目录: ${buildPath}`, 'error');
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+      this.handleUploadError(message, 'BLE OTA 上传失败', `构建目录: ${buildPath}`);
+      this.workflowService.finishUpload(false, 'BLE OTA firmware not found');
+      throw { state: 'error', text: message };
+    }
+
+    const firmware = this.uploaderBleService.readFirmwareFile(firmwarePath);
+    const firmwareName = window['path'].basename(firmwarePath);
+    let lastProgress = -1;
+    let lastLoggedProgress = -1;
+    let lastLoggedState = '';
+    let lastLoggedText = '';
+    const targetName = boardName || portInfo?.text || portInfo?.name || 'BLE OTA 设备';
+
+    this.logBleUpload(`准备上传到 ${targetName}`);
+    this.logBleUpload(`固件文件: ${firmwarePath}`);
+    this.logBleUpload(`固件大小: ${this.formatBytes(firmware.byteLength)}`);
+
+    this.uploadInProgress = true;
+    this.uploadCompleted = false;
+    this.noticeService.update({
+      title: 'BLE OTA 上传中',
+      text: `正在准备 ${boardName || portInfo?.text || firmwareName}`,
+      state: 'doing',
+      progress: 0,
+      setTimeout: 0,
+      stop: () => { this.cancel(); }
+    });
+
+    const updateProgress = (progress: BleOtaProgress) => {
+      if (this.cancelled) return;
+      const progressValue = Math.max(0, Math.min(100, Math.floor(progress.progress || 0)));
+      const progressText = progress.text || 'BLE OTA 上传中...';
+      const shouldLogState = progress.state !== lastLoggedState;
+      const shouldLogText = progress.state !== 'sending' && progressText !== lastLoggedText;
+      const shouldLogProgress = progress.state === 'sending'
+        && progressValue > lastLoggedProgress
+        && (progressValue === 100 || progressValue - lastLoggedProgress >= 5);
+
+      if (shouldLogState || shouldLogText || shouldLogProgress) {
+        const bytesText = typeof progress.bytesSent === 'number' && typeof progress.totalBytes === 'number'
+          ? ` (${this.formatBytes(progress.bytesSent)} / ${this.formatBytes(progress.totalBytes)})`
+          : '';
+        const sectorText = typeof progress.sectorIndex === 'number' && typeof progress.sectorCount === 'number'
+          ? ` sector ${progress.sectorIndex + 1}/${progress.sectorCount}`
+          : '';
+        const speedText = progress.speed ? `, ${this.formatBytes(progress.speed)}/s` : '';
+        this.logBleUpload(`${progressText} ${progressValue}%${bytesText}${sectorText}${speedText}`.trim());
+        lastLoggedState = progress.state;
+        lastLoggedText = progressText;
+        if (progress.state === 'sending') {
+          lastLoggedProgress = progressValue;
+        }
+      }
+
+      if (progressValue === lastProgress && progress.state === 'sending') return;
+      lastProgress = progressValue;
+      this.safeUpdateNotice({
+        title: 'BLE OTA上传中',
+        text: progress.text || 'BLE OTA上传中',
+        state: 'doing',
+        progress: progressValue,
+        setTimeout: 0,
+        stop: () => { this.cancel(); },
+      });
+    };
+
+    try {
+      const result = await this.uploaderBleService.uploadFirmware(firmware, {
+        updateType: 'flash',
+        progress: updateProgress,
+      });
+
+      if (this.cancelled) {
+        throw { state: 'warn', text: '上传已取消' };
+      }
+
+      this.uploadCompleted = true;
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+      this.workflowService.finishUpload(true);
+      this.logBleUpload(`上传完成: ${this.formatBytes(result.bytes)}, 耗时 ${(result.elapsedMs / 1000).toFixed(1)}s`, 'done');
+      this.safeUpdateNotice({
+        title: 'BLE OTA 上传完成',
+        text: `上传完成 ${this.formatBytes(result.bytes)}`,
+        state: 'done',
+        setTimeout: 55000,
+      });
+      return { state: 'done', text: '上传完成' };
+    } catch (error) {
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+
+      if (this.cancelled || error?.state === 'warn') {
+        this.logBleUpload('上传已取消', 'warn');
+        this.safeUpdateNotice({
+          title: '上传已取消',
+          text: '上传已取消',
+          state: 'warn',
+          setTimeout: 55000,
+        });
+        this.workflowService.finishUpload(false, 'BLE OTA cancelled');
+        throw { state: 'warn', text: '上传已取消' };
+      }
+
+      const message = error?.message || error?.text || 'BLE OTA 上传失败';
+    this.logBleUpload(`上传失败: ${message}`, 'error');
+      this.handleUploadError(message, 'BLE OTA 上传失败', message);
+      this.workflowService.finishUpload(false, message);
+      throw { state: 'error', text: message };
+    } finally {
+      await this.uploaderBleService.disconnect().catch(() => undefined);
+    }
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  private logBleUpload(detail: string, state?: string) {
+    this.logService.update({
+      detail: `[BLE OTA] ${detail}`,
+      state,
+    });
+  }
+
   /**
 * 取消当前上传过程
 */
@@ -801,6 +951,7 @@ export class _UploaderService {
     this.cancelled = true;
     this.uploadInProgress = false;
     this._builderService.isUploading = false;
+    this.uploaderBleService.cancel();
     
     // 立即更新通知状态为已取消
     this.noticeService.update({
@@ -820,6 +971,8 @@ export class _UploaderService {
     if (this.streamId) {
       console.log("杀死上传进程:", this.streamId);
       this.cmdService.kill(this.streamId);
+    } else if (this.serialService.currentPortInfo?.type === 'ble') {
+      console.log("BLE OTA 上传已请求取消");
     } else {
       console.log("streamId尚未设置，将在获取后立即杀死");
       // 标记为需要立即杀死，当streamId被设置后会立即杀死
