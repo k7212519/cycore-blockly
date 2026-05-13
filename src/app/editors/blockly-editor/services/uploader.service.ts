@@ -391,7 +391,7 @@ export class _UploaderService {
         }
 
         let bufferData = '';
-        void this.appDataResourceLock.runExclusive('upload:run', () => new Promise<void>((releaseUploadLock) => {
+        void this.appDataResourceLock.runShared('upload:run', () => new Promise<void>((releaseUploadLock) => {
         if (this.cancelled) {
           releaseUploadLock();
           return;
@@ -938,7 +938,7 @@ export class _UploaderService {
         let lastProgress = 0;
         let currentStage = '';
 
-        void this.appDataResourceLock.runExclusive('upload:softdevice', () => new Promise<void>((releaseUploadLock) => {
+        void this.appDataResourceLock.runShared('upload:softdevice', () => new Promise<void>((releaseUploadLock) => {
         this.cmdService.run(uploadCmd, null, false).subscribe({
           next: (output: CmdOutput) => {
             if (output.type === 'close') {

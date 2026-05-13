@@ -660,7 +660,7 @@ export class _BuilderService {
     this.currentProgress = 0; // 重置进度
     this.hasReceivedRealProgress = false; // 重置进度标记
 
-    return this.appDataResourceLock.runExclusive('build:preprocess-and-compile', () => {
+    return this.appDataResourceLock.runShared('build:preprocess-and-compile', () => {
       if (this.cancelled) {
         return Promise.reject({ state: 'warn', text: '编译已取消' });
       }
