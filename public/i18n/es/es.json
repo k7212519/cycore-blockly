@@ -589,6 +589,8 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "Compilador",
         "INSTALLING_TITLE": "Instalando",
+        "DEPENDENCY_INSTALLING_TITLE": "Instalando dependencias",
+        "DEPENDENCY_INSTALL_FAILED_TITLE": "Error al instalar dependencias",
         "INSTALL_COMPLETE_TITLE": "Instalación Completada",
         "INSTALL_FAILED_TITLE": "Instalación Fallida",
         "UNINSTALLING_TITLE": "Desinstalando",

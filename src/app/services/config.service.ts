@@ -1048,6 +1048,13 @@ interface AppConfig {
     }
   };
 
+  /** 更新包下载镜像策略 */
+  update_download_strategy?: {
+    enabled?: boolean;
+    mirror_region_order?: string[];
+    fallback_on_error?: boolean;
+  };
+
   /** 编译选项 */
   compile: {
     /** 是否显示详细日志 */

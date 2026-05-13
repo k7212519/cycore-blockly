@@ -573,6 +573,8 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "컴파일러",
         "INSTALLING_TITLE": "설치 중",
+        "DEPENDENCY_INSTALLING_TITLE": "의존성 설치 중",
+        "DEPENDENCY_INSTALL_FAILED_TITLE": "의존성 설치 실패",
         "INSTALL_COMPLETE_TITLE": "설치 완료",
         "INSTALL_FAILED_TITLE": "설치 실패",
         "UNINSTALLING_TITLE": "제거 중",

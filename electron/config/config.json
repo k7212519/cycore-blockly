@@ -10,6 +10,11 @@
   "project_path": "%HOMEPATH%\\Documents\\aily-project",
   "build_flavor": "cn",
   "region": "cn",
+  "update_download_strategy": {
+    "enabled": true,
+    "mirror_region_order": ["eu", "cn"],
+    "fallback_on_error": true
+  },
   "regions": {
     "cn": {
       "name": "China",

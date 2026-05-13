@@ -164,7 +164,13 @@ export class XAilyButtonViewerComponent implements OnChanges {
         this.handlePath(btn);
         break;
       default:
-        this.chatService.sendTextToChat(btn.text, { sender: 'button', type: 'button', cover: false });
+        this.chatService.sendTextToChat(btn.text, {
+          sender: 'button',
+          type: 'button',
+          cover: false,
+          action: btn.action,
+          payload: btn.actionPayload || btn
+        });
         break;
     }
   }

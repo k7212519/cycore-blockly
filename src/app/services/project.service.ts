@@ -19,6 +19,7 @@ import { WorkflowService } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
 import { NzModalRef, NzModalService } from 'ng-zorro-antd/modal';
+import { AppDataResourceLockService } from './appdata-resource-lock.service';
 
 interface ProjectPackageData {
   name: string;
@@ -80,6 +81,7 @@ export class ProjectService {
     private translate: TranslateService,
     private noticeService: NoticeService,
     private modal: NzModalService,
+    private appDataResourceLock: AppDataResourceLockService,
   ) {
   }
 
@@ -172,9 +174,17 @@ export class ProjectService {
       const boardPackage = newProjectData.board.name + '@' + newProjectData.board.version;
 
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
-      await this.cmdService.runAsync(`npm install ${boardPackage} --prefix "${appDataPath}"`);
+      const npmInstallResult = await this.appDataResourceLock.runExclusive(`project:new:install-board:${boardPackage}`, () =>
+        this.cmdService.runAsync(`npm install ${boardPackage} --prefix "${appDataPath}"`)
+      );
+      if (npmInstallResult.code !== 0) {
+        throw new Error(npmInstallResult.stderr || npmInstallResult.stdout || `npm install failed with exit code ${npmInstallResult.code}`);
+      }
       // const templatePath = `${appDataPath}${separator}node_modules${separator}${newProjectData.board.name}${separator}template`;
       const templatePath = window['path'].join(appDataPath, 'node_modules', newProjectData.board.name, 'template');
+      if (!window['fs'].existsSync(templatePath)) {
+        throw new Error(`板卡模板目录不存在，可能是板卡包安装失败或模板缺失: ${templatePath}`);
+      }
       // 创建项目目录
       await this.crossPlatformCmdService.createDirectory(projectPath, true);
       // 复制模板文件到项目目录
@@ -1735,15 +1745,17 @@ export class ProjectService {
       if (currentBoardModule) {
         console.log('卸载当前开发板模块:', currentBoardModule);
         this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.UNINSTALLING_CURRENT_BOARD') });
-        await this.cmdService.runAsync(`npm uninstall ${currentBoardModule}`, this.currentProjectPath);
+        await this.cmdService.runAsyncChecked(`npm uninstall ${currentBoardModule}`, this.currentProjectPath);
       }
       // 2. npm install 安装boardInfo.name@boardInfo.version 到 appDataPath（与 projectNew 一致）
       const appDataPath = window['path'].getAppDataPath();
       const newBoardPackage = `${boardInfo.name}@${boardInfo.version}`;
       console.log('安装新开发板模块:', newBoardPackage);
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.INSTALLING_NEW_BOARD') });
-      await this.cmdService.runAsync(`npm install ${newBoardPackage}`, this.currentProjectPath);
-      await this.cmdService.runAsync(`npm install ${newBoardPackage} --prefix "${appDataPath}"`);
+      await this.cmdService.runAsyncChecked(`npm install ${newBoardPackage}`, this.currentProjectPath);
+      await this.appDataResourceLock.runExclusive(`project:switch-board:install-appdata:${newBoardPackage}`, () =>
+        this.cmdService.runAsyncChecked(`npm install ${newBoardPackage} --prefix "${appDataPath}"`)
+      );
 
       // 2.5. 获取新开发板的模板并更新package.json
       console.log('更新项目配置文件...');

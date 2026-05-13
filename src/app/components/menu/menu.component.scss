@@ -42,27 +42,46 @@
     cursor: pointer;
     color: var(--aily-menu-text);
     position: relative;
-    overflow: hidden;
-
-    .name {
-      white-space: nowrap;
-      flex-shrink: 0;
-      min-width: 0;
-      padding: 0 1px;
-    }
+    overflow: visible;
 
     .icon {
+      position: sticky;
+      left: 0;
       width: 20px;
       margin-right: 10px;
       flex-shrink: 0;
+      z-index: 1;
+      background: var(--aily-bg-primary);
     }
 
-    .text {
-      margin-left: auto;
-      padding-left: 10px;
-      white-space: nowrap;
-      color: var(--aily-menu-text-secondary);
-      flex-shrink: 0;
+    .text-wrapper {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      .name {
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: 0;
+        padding: 0 1px;
+      }
+
+      .text {
+        margin-left: auto;
+        padding-left: 10px;
+        white-space: nowrap;
+        color: var(--aily-menu-text-secondary);
+        flex-shrink: 0;
+      }
     }
 
     &:hover {

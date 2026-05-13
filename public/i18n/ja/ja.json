@@ -589,6 +589,8 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "コンパイラ",
         "INSTALLING_TITLE": "インストール中",
+        "DEPENDENCY_INSTALLING_TITLE": "依存関係をインストール中",
+        "DEPENDENCY_INSTALL_FAILED_TITLE": "依存関係のインストールに失敗しました",
         "INSTALL_COMPLETE_TITLE": "インストール完了",
         "INSTALL_FAILED_TITLE": "インストール失敗",
         "UNINSTALLING_TITLE": "アンインストール中",

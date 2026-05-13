@@ -16,6 +16,9 @@ import { injectTodoReminder } from '../tools';
 import { getMemoryPromptSnippet } from '../tools/memoryTool';
 import {
   getPreferredHttpErrorMessage as _getPreferredHttpErrorMessage,
+  getQuotaExceededMessage as _getQuotaExceededMessage,
+  getQuotaUsageText as _getQuotaUsageText,
+  isQuotaExceededError as _isQuotaExceededError,
   isTransientNetworkError as _isTransientNetworkError,
   isLikelySessionLostError as _isLikelySessionLostError,
 } from '../services/http-error-handler.service';
@@ -243,6 +246,10 @@ export class StreamProcessorHelper {
               this.engine.msg.appendMessage('aily', `\n\n\n\`\`\`aily-state\n{\n  "state": "done",\n  "text": "${data.content}",\n  "id": "${data.id}"\n}\n\`\`\`\n\n\n`, messageSource);
             }
           } else if (data.type === 'error') {
+            if (_isQuotaExceededError(data)) {
+              this._emitQuotaExceededError(data, messageSource);
+              return;
+            }
             this.engine.viewAdapter.markLastMessageDone();
             const errorClosingTags = this.engine.msg.getClosingTagsForOpenBlocks();
             this.engine.msg.appendMessage('aily', `${errorClosingTags}\n\`\`\`aily-error\n{\n  "message": "${this.engine.msg.makeJsonSafe(data.message || '未知错误')}"\n}\n\`\`\`\n\n\`\`\`aily-button\n[{"text":"重试","action":"retry","type":"primary"}]\n\`\`\`\n\n`, messageSource);
@@ -711,6 +718,11 @@ export class StreamProcessorHelper {
 
   /** 向用户展示流错误信息并结束等待状态 */
   private _emitStreamError(err: any): void {
+    if (_isQuotaExceededError(err)) {
+      this._emitQuotaExceededError(err);
+      return;
+    }
+
     this.engine.viewAdapter.markLastMessageDone();
     const httpErrorText = _getPreferredHttpErrorMessage(err);
     const errorClosingTags = this.engine.msg.getClosingTagsForOpenBlocks();
@@ -718,6 +730,20 @@ export class StreamProcessorHelper {
     this.engine.ngZone.run(() => { this.engine.isWaiting = false; });
     this.engine.viewAdapter.markLastMessageDone();
     // 应用延迟的模型/模式切换
+    this.engine.applyPendingSwitch();
+  }
+
+  private _emitQuotaExceededError(err: any, messageSource?: string): void {
+    this.engine.viewAdapter.markLastMessageDone();
+    const baseMessage = _getQuotaExceededMessage(err);
+    const usageText = _getQuotaUsageText(err);
+    const text = usageText
+      ? `${baseMessage}，${usageText}`
+      : `${baseMessage}`;
+    const errorClosingTags = this.engine.msg.getClosingTagsForOpenBlocks();
+    this.engine.msg.appendMessage('aily', `${errorClosingTags}\n\`\`\`aily-state\n{\n  "state": "warn",\n  "text": "${this.engine.msg.makeJsonSafe(text)}",\n  "id": "quota-exceeded-${Date.now()}"\n}\n\`\`\`\n\n\`\`\`aily-button\n[{"text":"升级账户","action":"open-subscription","type":"primary"},{"text":"查看套餐","action":"open-user-center","type":"default"}]\n\`\`\`\n\n`, messageSource);
+    this.engine.ngZone.run(() => { this.engine.isWaiting = false; });
+    this.engine.viewAdapter.markLastMessageDone();
     this.engine.applyPendingSwitch();
   }
 }

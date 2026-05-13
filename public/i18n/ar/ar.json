@@ -589,6 +589,8 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "مترجم",
         "INSTALLING_TITLE": "جاري التثبيت",
+        "DEPENDENCY_INSTALLING_TITLE": "جاري تثبيت التبعيات",
+        "DEPENDENCY_INSTALL_FAILED_TITLE": "فشل تثبيت التبعيات",
         "INSTALL_COMPLETE_TITLE": "اكتمل التثبيت",
         "INSTALL_FAILED_TITLE": "فشل التثبيت",
         "UNINSTALLING_TITLE": "جاري إلغاء التثبيت",

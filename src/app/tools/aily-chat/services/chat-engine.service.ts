@@ -50,6 +50,7 @@ import { TurnManager } from '../core/turn-manager';
 import { AilyChatHookService } from './chat-hook.service';
 import { ChatViewAdapter } from './chat-view-adapter';
 import { ChatPerformanceTracer } from './chat-perf-tracer';
+import { getQuotaExceededMessage, getQuotaUsageText, isQuotaExceededError } from './http-error-handler.service';
 
 @Injectable()
 export class ChatEngineService {
@@ -616,6 +617,7 @@ Do not create non-existent boards and libraries.
 
   receiveTextFromExternal(text: string, options?: ChatTextOptions): void {
     if (options?.type === 'button') {
+      if (this.handleButtonAction(options.action, text, options.payload)) return;
       if (text === '重试') { this.retryLastAction(); return; }
       if (text === '重新生成') { this.regenerateTurn(); return; }
       if (text === '撤销变更') { this.undoLastEdits(); return; }
@@ -653,6 +655,72 @@ Do not create non-existent boards and libraries.
         }
       }
     }, 100);
+  }
+
+  private handleButtonAction(action: string | undefined, text: string, payload?: any): boolean {
+    const normalizedAction = (action || '').trim();
+    if (text === '继续') { this.continueConversation(); return true; }
+
+    switch (normalizedAction) {
+      case 'continue': this.continueConversation(); return true;
+      case 'retry': this.retryLastAction(); return true;
+      case 'regenerate': this.regenerateTurn(payload?.checkpointId); return true;
+      case 'undoEdits':
+      case 'undo-edits': this.undoLastEdits(); return true;
+      case 'newChat':
+      case 'new-chat': this.newChat(); return true;
+      case 'open-user-center':
+      case 'view-plans': this.openUserCenterTool(); return true;
+      case 'open-subscription':
+      case 'upgrade':
+      case 'upgrade-plan':
+      case 'subscribe': this.openSubscriptionPage(payload?.path || payload?.targetUrl || '/user/subscription'); return true;
+      default: break;
+    }
+
+    if (text === '升级账户' || text === '升级' || text === '购买' || text === '查看套餐') {
+      this.openSubscriptionPage('/user/subscription');
+      return true;
+    }
+
+    return false;
+  }
+
+  private openUserCenterTool(): void {
+    AilyHost.get().ui?.openTool?.('user-center');
+  }
+
+  private openSubscriptionPage(path: string = '/user/subscription'): void {
+    const host = AilyHost.get();
+    const auth = host.authFull;
+    if (!auth?.isLoggedIn || typeof auth.generateSSOToken !== 'function') {
+      this.openUserCenterTool();
+      this.message.warning('请先登录后查看套餐');
+      return;
+    }
+
+    const loadingMessage = this.message.loading('正在打开套餐页面...', { nzDuration: 0 });
+    auth.generateSSOToken(path).subscribe({
+      next: (response: any) => {
+        if (loadingMessage.messageId) { this.message.remove(loadingMessage.messageId); }
+        const targetUrl = response?.target_url;
+        if (!targetUrl) {
+          this.openUserCenterTool();
+          this.message.warning('已打开用户中心，可在套餐页查看');
+          return;
+        }
+        if (typeof host.electron?.openUrl === 'function') {
+          host.electron.openUrl(targetUrl);
+        } else {
+          host.shell?.openByBrowser?.(targetUrl);
+        }
+      },
+      error: () => {
+        if (loadingMessage.messageId) { this.message.remove(loadingMessage.messageId); }
+        this.openUserCenterTool();
+        this.message.error('套餐页面打开失败，已为你打开用户中心');
+      }
+    });
   }
 
   // ==================== 外观方法（转发到 helper） ====================
@@ -782,6 +850,10 @@ Do not create non-existent boards and libraries.
       },
       error: (error) => {
         console.warn('发送消息失败:', error);
+        if (isQuotaExceededError(error)) {
+          this.appendQuotaExceededMessage(error);
+          return;
+        }
         if ((error.status === 502 || error.status === 503 || error.status === 504) && retryCount > 0) {
           setTimeout(() => { this.sendMessageWithRetry(sessionId, text, sender, clear, retryCount - 1); }, 1500);
         } else {
@@ -795,6 +867,17 @@ Do not create non-existent boards and libraries.
         }
       }
     });
+  }
+
+  private appendQuotaExceededMessage(error: any): void {
+    const baseMessage = getQuotaExceededMessage(error);
+    const usageText = getQuotaUsageText(error);
+    const text = usageText
+      ? `${baseMessage}，${usageText}可升级账户或查看套餐继续使用。`
+      : `${baseMessage}，可升级账户或查看套餐继续使用。`;
+    this.isWaiting = false;
+    this.msg.appendMessage('aily', `\n\`\`\`aily-state\n{\n  "state": "warn",\n  "text": "${this.msg.makeJsonSafe(text)}",\n  "id": "quota-exceeded-${Date.now()}"\n}\n\`\`\`\n\n\`\`\`aily-button\n[{"text":"升级账户","action":"open-subscription","type":"primary"},{"text":"查看套餐","action":"open-user-center","type":"default"}]\n\`\`\`\n\n`);
+    this.viewAdapter.markLastMessageDone();
   }
 
   resetChat(): Promise<void> { return this.session.startSession(); }

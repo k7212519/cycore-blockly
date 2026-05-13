@@ -16,6 +16,7 @@ import { PlatformService } from "../../../services/platform.service";
 import { ElectronService } from '../../../services/electron.service';
 import { WorkflowService, ProcessState } from '../../../services/workflow.service';
 import { CompileValidationService } from '../../../services/compile-validation.service';
+import { AppDataResourceLockService } from '../../../services/appdata-resource-lock.service';
 
 @Injectable()
 export class _BuilderService {
@@ -33,7 +34,8 @@ export class _BuilderService {
     private blocklyService: BlocklyService,
     private platformService: PlatformService,
     private electronService: ElectronService,
-    private compileValidationService: CompileValidationService
+    private compileValidationService: CompileValidationService,
+    private appDataResourceLock: AppDataResourceLockService
   ) { }
 
   // buildInProgress = false;
@@ -658,7 +660,12 @@ export class _BuilderService {
     this.currentProgress = 0; // 重置进度
     this.hasReceivedRealProgress = false; // 重置进度标记
 
-    return new Promise<ActionState>(async (resolve, reject) => {
+    return this.appDataResourceLock.runExclusive('build:preprocess-and-compile', () => {
+      if (this.cancelled) {
+        return Promise.reject({ state: 'warn', text: '编译已取消' });
+      }
+
+      return new Promise<ActionState>(async (resolve, reject) => {
       // 保存 reject 函数，以便在 cancel 时使用
       this.buildPromiseReject = reject;
       
@@ -1198,6 +1205,7 @@ export class _BuilderService {
         this.workflowService.finishBuild(false, error.message);
         reject({ state: 'error', text: error.message });
       }
+      });
     });
   }
 
@@ -1447,24 +1455,7 @@ export class _BuilderService {
       );
     }
     
-    // 3. 添加备用终止方案：强制杀死所有相关的 node 进程（compile.js）
-    const killBackupCommand = this.platformService.isWindows
-      ? `taskkill /F /FI "COMMANDLINE like %compile.js%" /T`
-      : `pkill -f "compile.js"`;
-    
-    killPromises.push(
-      this.cmdService.run(killBackupCommand, null, false).toPromise()
-        .then(() => {
-          console.log('备用终止方案执行成功');
-          return true;
-        })
-        .catch(err => {
-          console.log('备用终止方案执行（可能没有匹配的进程）');
-          return false;
-        })
-    );
-
-    // 等待所有终止操作完成
+    // 等待已登记的终止操作完成
     Promise.all(killPromises).then(() => {
       console.log('所有终止操作已完成');
     });

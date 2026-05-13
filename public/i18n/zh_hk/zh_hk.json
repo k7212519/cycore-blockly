@@ -601,6 +601,8 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "編譯器",
         "INSTALLING_TITLE": "正在安裝",
+        "DEPENDENCY_INSTALLING_TITLE": "依賴安裝中",
+        "DEPENDENCY_INSTALL_FAILED_TITLE": "依賴安裝失敗",
         "INSTALL_COMPLETE_TITLE": "安裝完成",
         "INSTALL_FAILED_TITLE": "安裝失敗",
         "UNINSTALLING_TITLE": "正在卸載",

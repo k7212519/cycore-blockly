@@ -10,11 +10,79 @@
  * 获取首选的 HTTP 错误消息
  */
 export function getPreferredHttpErrorMessage(err: any): string {
+  if (isQuotaExceededError(err)) {
+    return getQuotaExceededMessage(err);
+  }
+
   const detailMessage = extractErrorDetailMessage(err);
   if (detailMessage) {
     return detailMessage;
   }
   return getHttpErrorFallbackMessage(err);
+}
+
+function getNestedErrorData(err: any): any[] {
+  return [
+    err,
+    err?.error,
+    err?.data,
+    err?.response?.data,
+    err?.cause,
+    err?.cause?.error,
+  ].filter(Boolean);
+}
+
+export function isQuotaExceededError(err: any): boolean {
+  if (!err) return false;
+
+  const status = extractHttpStatusCode(err);
+  const candidates = getNestedErrorData(err);
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      if (candidate === 'quota_exceeded') return true;
+      continue;
+    }
+
+    if (!candidate || typeof candidate !== 'object') continue;
+    const codeCandidates = [
+      candidate.error,
+      candidate.code,
+      candidate.error_code,
+      candidate.errorCode,
+      candidate.type,
+      candidate.reason,
+    ];
+
+    if (codeCandidates.some(code => code === 'quota_exceeded')) {
+      return true;
+    }
+  }
+
+  return status === 429 && candidates.some(candidate => {
+    const text = typeof candidate === 'string'
+      ? candidate
+      : [candidate?.message, candidate?.detail, candidate?.msg].filter(Boolean).join(' ');
+    return /quota_exceeded|AI对话免费次数已用完|对话次数已用完/.test(String(text));
+  });
+}
+
+export function getQuotaExceededMessage(err: any): string {
+  const detail = extractErrorDetailMessage(err);
+  return detail || '本月AI对话免费次数已用完';
+}
+
+export function getQuotaUsageText(err: any): string {
+  const candidates = getNestedErrorData(err);
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const limit = Number(candidate.limit);
+    const used = Number(candidate.used);
+    if (Number.isFinite(limit) && limit > 0 && Number.isFinite(used)) {
+      return `本月已用 ${used}/${limit} 次。`;
+    }
+  }
+  return '';
 }
 
 function isGenericTransportErrorText(text: string): boolean {

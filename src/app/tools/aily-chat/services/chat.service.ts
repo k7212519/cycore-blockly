@@ -18,6 +18,8 @@ export interface ChatTextOptions {
   cover?: boolean;  // 是否覆盖之前的内容
   autoSend?: boolean; // 是否自动发送
   newChatFirst?: boolean; // 发送前先新建会话
+  action?: string;
+  payload?: any;
 }
 
 export interface ChatTextMessage {
