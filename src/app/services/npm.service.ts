@@ -11,6 +11,7 @@ import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
 import { LogOptions, LogService } from './log.service';
 import { satisfies, valid, gt, minVersion, coerce } from 'semver';
+import { AppDataResourceLockService } from './appdata-resource-lock.service';
 
 @Injectable({
   providedIn: 'root'
@@ -26,7 +27,8 @@ export class NpmService {
     private workflowService: WorkflowService,
     private translate: TranslateService,
     private noticeService: NoticeService,
-    private logService: LogService
+    private logService: LogService,
+    private appDataResourceLock: AppDataResourceLockService
   ) {
     this.logService.stateSubject.subscribe((log) => {
       this.handleBoardDependencyProgressLog(log);
@@ -38,6 +40,18 @@ export class NpmService {
 
   private getNpmErrorMessage(error: any): string {
     return (error?.message || String(error)).replace(/^Error invoking remote method 'npm-run': Error:\s*/i, '');
+  }
+
+  private traceToAppLog(event: string, data: any = {}): void {
+    try {
+      if (window['ipcRenderer']?.invoke) {
+        void window['ipcRenderer']
+          .invoke('log-info', `[PROC_TRACE][NPM_SERVICE_${event}] ${JSON.stringify(data)}`)
+          .catch(() => {});
+      }
+    } catch {
+      // 诊断日志不能影响安装流程
+    }
   }
 
   private clampProgress(value: number): number {
@@ -199,12 +213,12 @@ export class NpmService {
     });
     try {
       // 添加超时保护和正确的参数名
-      await Promise.race([
+      await this.appDataResourceLock.runExclusive(`npm:install-board:${board.name}`, () => Promise.race([
         window['npm'].run({ cmd: cmd }),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error(this.translate.instant('NPM.INSTALL_TIMEOUT'))), 300000) // 5分钟超时
         )
-      ]);
+      ]));
     } catch (error) {
       const errorMessage = this.getNpmErrorMessage(error);
       console.error(`安装开发板 ${board.name} 失败:`, error);
@@ -303,6 +317,11 @@ export class NpmService {
       const appDataPath = window['path'].getAppDataPath();
       const boardDependencies = packageJson.boardDependencies || {};
       const dependenciesToInstall: BoardDependencyToInstall[] = [];
+      this.traceToAppLog('DEPS_START', {
+        packageName: packageJson?.name || '',
+        packageVersion: packageJson?.version || '',
+        dependencyCount: Object.keys(boardDependencies).length
+      });
 
       // console.log("boardDependencies: ", boardDependencies);
 
@@ -316,6 +335,7 @@ export class NpmService {
           const depPackageJson = JSON.parse(window['fs'].readFileSync(depPathPackageJson));
           if (this.depVersionSatisfiesDecl(depPackageJson.version, declaredVersion)) {
             console.log(`依赖 ${key} 已安装，版本满足声明 (${depPackageJson.version} satisfies ${version})`);
+            this.traceToAppLog('DEP_SKIP', { name: key, declaredVersion, installedVersion: depPackageJson.version });
             continue;
           }
           installedVersionWhenMismatch = depPackageJson.version;
@@ -331,6 +351,7 @@ export class NpmService {
           version: declaredVersion,
           needUninstallForDowngrade
         });
+        this.traceToAppLog('DEP_PLAN', { name: key, declaredVersion, installedVersionWhenMismatch, needUninstallForDowngrade });
       }
 
       if (dependenciesToInstall.length === 0) {
@@ -340,48 +361,53 @@ export class NpmService {
 
       this.boardDependenciesChanged = true;
 
-      for (let index = 0; index < dependenciesToInstall.length; index++) {
-        const dependency = dependenciesToInstall[index];
-        const progress: BoardDependencyInstallProgress = {
-          total: dependenciesToInstall.length,
-          index,
-          name: dependency.name,
-          downloadProgress: 0,
-          extractProgress: 0,
-          lastProgress: this.clampProgress((index / dependenciesToInstall.length) * 100)
-        };
-        this.boardDependencyInstallProgress = progress;
+      await this.appDataResourceLock.runExclusive(`npm:board-dependencies:${packageJson?.name || ''}`, async () => {
+        for (let index = 0; index < dependenciesToInstall.length; index++) {
+          const dependency = dependenciesToInstall[index];
+          const progress: BoardDependencyInstallProgress = {
+            total: dependenciesToInstall.length,
+            index,
+            name: dependency.name,
+            downloadProgress: 0,
+            extractProgress: 0,
+            lastProgress: this.clampProgress((index / dependenciesToInstall.length) * 100)
+          };
+          this.boardDependencyInstallProgress = progress;
 
-        // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('NPM.INSTALLING_DEPENDENCY', { name: key }), timeout: 300000 });
-        this.updateBoardDependencyNotice(progress, progress.lastProgress);
+          // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('NPM.INSTALLING_DEPENDENCY', { name: key }), timeout: 300000 });
+          this.updateBoardDependencyNotice(progress, progress.lastProgress);
 
-        // 仅当当前安装版本高于声明基线（需降级）时先卸载；升级或未读到版本时直接 install，避免无谓卸载
-        if (dependency.needUninstallForDowngrade) {
-          const uninstallCmd = `npm uninstall ${dependency.name} --prefix "${appDataPath}"`;
-          console.log(`执行命令: ${uninstallCmd}, 时间: ${new Date().toISOString()}`);
+          // 仅当当前安装版本高于声明基线（需降级）时先卸载；升级或未读到版本时直接 install，避免无谓卸载
+          if (dependency.needUninstallForDowngrade) {
+            const uninstallCmd = `npm uninstall ${dependency.name} --prefix "${appDataPath}"`;
+            console.log(`执行命令: ${uninstallCmd}, 时间: ${new Date().toISOString()}`);
+            this.traceToAppLog('DEP_UNINSTALL_START', { name: dependency.name, version: dependency.version });
+            await Promise.race([
+              window['npm'].run({ cmd: uninstallCmd }),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
+              )
+            ]);
+          }
+
+          // --save-exact：与开发板声明版本一致写入 prefix 下 package.json，避免 ^ 导致再次解析到更高版
+          const npmCmd = `npm install ${dependency.name}@${dependency.version} --save-exact --prefix "${appDataPath}"`;
+          console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
+          this.traceToAppLog('DEP_INSTALL_START', { name: dependency.name, version: dependency.version });
+
+          // 添加超时保护和正确的参数名
           await Promise.race([
-            window['npm'].run({ cmd: uninstallCmd }),
+            window['npm'].run({ cmd: npmCmd }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
+              setTimeout(() => reject(new Error(this.translate.instant('NPM.INSTALL_TIMEOUT'))), 300000) // 5分钟超时
             )
           ]);
+
+          this.updateBoardDependencyNotice(progress, ((index + 1) / dependenciesToInstall.length) * 100);
+          console.log(`依赖 ${dependency.name} 安装成功, 时间: ${new Date().toISOString()}`);
+          this.traceToAppLog('DEP_INSTALL_DONE', { name: dependency.name, version: dependency.version });
         }
-
-        // --save-exact：与开发板声明版本一致写入 prefix 下 package.json，避免 ^ 导致再次解析到更高版
-        const npmCmd = `npm install ${dependency.name}@${dependency.version} --save-exact --prefix "${appDataPath}"`;
-        console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
-
-        // 添加超时保护和正确的参数名
-        await Promise.race([
-          window['npm'].run({ cmd: npmCmd }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(this.translate.instant('NPM.INSTALL_TIMEOUT'))), 300000) // 5分钟超时
-          )
-        ]);
-
-        this.updateBoardDependencyNotice(progress, ((index + 1) / dependenciesToInstall.length) * 100);
-        console.log(`依赖 ${dependency.name} 安装成功, 时间: ${new Date().toISOString()}`);
-      }
+      });
 
       // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_COMPLETE') });
       this.noticeService.update({
@@ -395,6 +421,7 @@ export class NpmService {
     } catch (error) {
       const errorMessage = this.getNpmErrorMessage(error);
       console.error('安装开发板依赖时出错:', error);
+      this.traceToAppLog('DEPS_ERROR', { error: errorMessage });
       // this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED') });
       this.noticeService.update({ 
         title: this.translate.instant('NPM.INSTALL_FAILED_TITLE'), 
@@ -463,38 +490,40 @@ export class NpmService {
 
       // 检查每个依赖是否被其他开发板使用
       console.log("installedBoards: ", installedBoards);
-      for (const [depName, depVersion] of Object.entries(boardDependenciesToUninstall)) {
-        const isUsedByOtherBoards = installedBoards.some(board =>
-          board.dependencies && board.dependencies[depName] !== undefined
-        );
+      await this.appDataResourceLock.runExclusive(`npm:uninstall-board-dependencies:${depName}`, async () => {
+        for (const [depName, depVersion] of Object.entries(boardDependenciesToUninstall)) {
+          const isUsedByOtherBoards = installedBoards.some(board =>
+            board.dependencies && board.dependencies[depName] !== undefined
+          );
 
-        if (!isUsedByOtherBoards) {
-          // 如果不被其他开发板使用，则卸载它
-          try {
-            const depPath = `${appDataPath}/node_modules/${depName}`;
-            if (!window['path'].isExists(depPath)) {
-              console.log(`依赖 ${depName} 未安装，跳过卸载`);
-              continue;
+          if (!isUsedByOtherBoards) {
+            // 如果不被其他开发板使用，则卸载它
+            try {
+              const depPath = `${appDataPath}/node_modules/${depName}`;
+              if (!window['path'].isExists(depPath)) {
+                console.log(`依赖 ${depName} 未安装，跳过卸载`);
+                continue;
+              }
+
+              const npmCmd = `npm uninstall ${depName} --prefix "${appDataPath}"`;
+              console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
+
+              await Promise.race([
+                window['npm'].run({ cmd: npmCmd }),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
+                )
+              ]);
+
+              console.log(`依赖 ${depName} 卸载成功, 时间: ${new Date().toISOString()}`);
+            } catch (error) {
+              console.error(`依赖 ${depName} 卸载失败:`, error);
             }
-
-            const npmCmd = `npm uninstall ${depName} --prefix "${appDataPath}"`;
-            console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
-
-            await Promise.race([
-              window['npm'].run({ cmd: npmCmd }),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
-              )
-            ]);
-
-            console.log(`依赖 ${depName} 卸载成功, 时间: ${new Date().toISOString()}`);
-          } catch (error) {
-            console.error(`依赖 ${depName} 卸载失败:`, error);
+          } else {
+            console.log(`依赖 ${depName} 被其他开发板使用，跳过卸载`);
           }
-        } else {
-          console.log(`依赖 ${depName} 被其他开发板使用，跳过卸载`);
         }
-      }
+      });
 
       // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.DEPS_UNINSTALL_COMPLETE') });
       this.noticeService.update({ 
@@ -530,7 +559,7 @@ export class NpmService {
       setTimeout: 300000
     });
     // 添加超时保护和正确的参数名
-    window['npm'].run({ cmd: cmd });
+    await this.appDataResourceLock.runExclusive(`npm:uninstall-board:${board.name}`, () => window['npm'].run({ cmd: cmd }));
     // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.BOARD_UNINSTALL_COMPLETE') });
     this.noticeService.update({ 
       title: this.translate.instant('NPM.UNINSTALL_COMPLETE_TITLE'), 
@@ -551,56 +580,50 @@ export class NpmService {
       throw new Error(this.translate.instant('NPM.NAME_REQUIRED', { type: type }));
     }
 
-    if (version) {
-      const nmPath = `${appDataPath}/node_modules/${packageInfo.name}`;
-      const pjPath = `${nmPath}/package.json`;
-      let installedVer: string | undefined;
-      if (window['path'].isExists(pjPath)) {
-        try {
-          const pj = JSON.parse(window['fs'].readFileSync(pjPath, 'utf8'));
-          if (this.depVersionSatisfiesDecl(pj.version, String(version))) {
-            console.log(`${type} ${packageInfo.name} 已安装且满足版本声明，跳过 npm install`);
-            return;
-          }
-          installedVer = pj.version;
-        } catch {
-          /* 无法读取版本时不按「更高版」卸载 */
-        }
-      }
-      if (
-        window['path'].isExists(nmPath) &&
-        installedVer !== undefined &&
-        this.installedIsNewerThanDeclared(installedVer, String(version))
-      ) {
-        await this.cmdService.runAsync(
-          `npm uninstall ${packageInfo.name} --prefix "${appDataPath}"`,
-          appDataPath
-        );
-      }
-    }
-
-    const packageName = version ? `${packageInfo.name}@${version}` : packageInfo.name;
-    const cmd = `npm install ${packageName} --save-exact --prefix "${appDataPath}"`;
-
-    // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('NPM.INSTALLING', { name: packageInfo.name }), timeout: 300000 });
-    this.noticeService.update({ 
-      title: this.translate.instant('NPM.INSTALLING_TITLE'), 
-      text: this.translate.instant('NPM.INSTALLING', { name: packageInfo.name }), 
-      state: 'doing',
-      showProgress: false,
-      setTimeout: 300000
-    });
-
     try {
-      // // 添加超时保护
-      // await Promise.race([
-      //   window['npm'].run({ cmd: cmd }),
-      //   new Promise((_, reject) =>
-      //     setTimeout(() => reject(new Error('安装超时')), 300000) // 5分钟超时
-      //   )
-      // ]);
+      await this.appDataResourceLock.runExclusive(`npm:install-package:${packageInfo.name}`, async () => {
+        if (version) {
+          const nmPath = `${appDataPath}/node_modules/${packageInfo.name}`;
+          const pjPath = `${nmPath}/package.json`;
+          let installedVer: string | undefined;
+          if (window['path'].isExists(pjPath)) {
+            try {
+              const pj = JSON.parse(window['fs'].readFileSync(pjPath, 'utf8'));
+              if (this.depVersionSatisfiesDecl(pj.version, String(version))) {
+                console.log(`${type} ${packageInfo.name} 已安装且满足版本声明，跳过 npm install`);
+                return;
+              }
+              installedVer = pj.version;
+            } catch {
+              /* 无法读取版本时不按「更高版」卸载 */
+            }
+          }
+          if (
+            window['path'].isExists(nmPath) &&
+            installedVer !== undefined &&
+            this.installedIsNewerThanDeclared(installedVer, String(version))
+          ) {
+            await this.cmdService.runAsyncChecked(
+              `npm uninstall ${packageInfo.name} --prefix "${appDataPath}"`,
+              appDataPath
+            );
+          }
+        }
 
-      await this.cmdService.runAsync(cmd, appDataPath);
+        const packageName = version ? `${packageInfo.name}@${version}` : packageInfo.name;
+        const cmd = `npm install ${packageName} --save-exact --prefix "${appDataPath}"`;
+
+        // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('NPM.INSTALLING', { name: packageInfo.name }), timeout: 300000 });
+        this.noticeService.update({ 
+          title: this.translate.instant('NPM.INSTALLING_TITLE'), 
+          text: this.translate.instant('NPM.INSTALLING', { name: packageInfo.name }), 
+          state: 'doing',
+          showProgress: false,
+          setTimeout: 300000
+        });
+
+        await this.cmdService.runAsyncChecked(cmd, appDataPath);
+      });
 
       // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.INSTALL_COMPLETE', { name: packageInfo.name }) });
       this.noticeService.update({ 
@@ -669,12 +692,12 @@ export class NpmService {
 
     let cmd = `npm run uninstall`
     console.log("PackageNodeModulesPath: ", packageNodeModulesPath);
-    await this.cmdService.runAsync(cmd, packageNodeModulesPath)
+    await this.appDataResourceLock.runExclusive(`npm:run-uninstall-script:${packageInfo.name}`, () => this.cmdService.runAsyncChecked(cmd, packageNodeModulesPath));
 
     // 卸载包
     cmd = `npm uninstall ${packageInfo.name} --prefix "${appDataPath}"`;
     // await window['npm'].run({ cmd: cmd });
-    await this.cmdService.runAsync(cmd, appDataPath);
+    await this.appDataResourceLock.runExclusive(`npm:uninstall-package:${packageInfo.name}`, () => this.cmdService.runAsyncChecked(cmd, appDataPath));
     // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.UNINSTALL_COMPLETE', { name: packageInfo.name }) });
     this.noticeService.update({ 
       title: this.translate.instant('NPM.UNINSTALL_COMPLETE_TITLE'), 

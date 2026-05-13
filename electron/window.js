@@ -1,6 +1,5 @@
 // 窗口控制
 const { ipcMain, BrowserWindow, app } = require("electron");
-const { exec, execSync } = require('child_process');
 const path = require('path');
 
 const CODE_VIEWER_STATE_CHANNEL = 'blockly-code-viewer-state';
@@ -8,63 +7,7 @@ const CODE_VIEWER_STATE_UPDATE_CHANNEL = 'blockly-code-viewer-state-update';
 const CODE_VIEWER_STATE_GET_CHANNEL = 'blockly-code-viewer-state-get';
 
 function terminateAilyProcess() {
-    const platform = process.platform;
-    let checkCommand;
-    let killCommand;
-    const processName = platform === 'win32' ? 'aily blockly.exe' : 'aily blockly';
-
-    if (platform === 'win32') {
-        checkCommand = `tasklist /FI "IMAGENAME eq ${processName}" /FO CSV`;
-        killCommand = `taskkill /F /IM "${processName}"`;
-    } else {
-        checkCommand = `pgrep -f "${processName}"`;
-        killCommand = `pkill -f "${processName}"`;
-    }
-
-    try {
-        let count = 0;
-        try {
-            const stdout = execSync(checkCommand, { encoding: 'utf8' });
-            if (platform === 'win32') {
-                const matches = stdout.match(new RegExp(processName.replace('.', '\\.'), 'gi'));
-                count = matches ? matches.length : 0;
-            } else {
-                count = stdout.trim().split('\n').length;
-            }
-        } catch (e) {
-            if (platform !== 'win32' && e.status === 1) {
-                count = 0;
-            } else {
-                console.warn('Error checking process count:', e.message);
-            }
-        }
-
-        console.log(`Current aily-blockly process count: ${count}`);
-
-        if (count > 1) {
-            console.log('Multiple instances detected. Skipping forced termination.');
-            return;
-        }
-
-        exec(killCommand, (error, stdout, stderr) => {
-            if (error) {
-                const notFound =
-                    (platform === 'win32' && stderr && stderr.includes('not found')) ||
-                    (platform !== 'win32' && error.code === 1);
-                if (notFound) {
-                    console.log('No aily-blockly process found to terminate.');
-                    return;
-                }
-                console.error(`Error killing aily-blockly process: ${error.message}`);
-                return;
-            }
-            if (stdout) {
-                console.log(`aily-blockly process terminated: ${stdout}`);
-            }
-        });
-    } catch (commandError) {
-        console.warn('Error attempting to kill aily-blockly process:', commandError.message);
-    }
+    console.info('[PROC_TRACE][APP_NAME_KILL_DISABLED]');
 }
 
 function registerWindowHandlers(mainWindow) {

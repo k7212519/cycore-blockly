@@ -3,6 +3,58 @@ const { ipcMain } = require('electron');
 const path = require('path');
 const { isWin32, isDarwin, isLinux } = require('./platform');
 
+function summarizeArgs(args = []) {
+  return args.join(' ').slice(0, 1000);
+}
+
+function killRegisteredProcessTree(pid, label) {
+  if (!pid) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    if (isWin32) {
+      exec(`taskkill /PID ${pid} /T /F`, (error, stdout, stderr) => {
+        const success = !error;
+        console.info('[PROC_TRACE][PROCESS_TREE_KILL]', {
+          label,
+          pid,
+          method: 'taskkill',
+          success,
+          durationMs: Date.now() - startedAt,
+          error: error?.message || '',
+          stderr: stderr?.trim?.() || ''
+        });
+        resolve(success);
+      });
+      return;
+    }
+
+    try {
+      process.kill(pid, 'SIGTERM');
+      console.info('[PROC_TRACE][PROCESS_TREE_KILL]', {
+        label,
+        pid,
+        method: 'SIGTERM',
+        success: true,
+        durationMs: Date.now() - startedAt
+      });
+      resolve(true);
+    } catch (error) {
+      console.warn('[PROC_TRACE][PROCESS_TREE_KILL]', {
+        label,
+        pid,
+        method: 'SIGTERM',
+        success: false,
+        durationMs: Date.now() - startedAt,
+        error: error?.message || String(error)
+      });
+      resolve(false);
+    }
+  });
+}
+
 function sendRendererLog(targetWebContents, detail, state = 'doing', mergeKey) {
   if (!targetWebContents || targetWebContents.isDestroyed()) {
     return;
@@ -23,6 +75,14 @@ function sendRendererLog(targetWebContents, detail, state = 'doing', mergeKey) {
       log
     }
   });
+}
+
+function sendCmdData(targetWebContents, channel, payload) {
+  if (!targetWebContents || targetWebContents.isDestroyed()) {
+    return;
+  }
+
+  targetWebContents.send(channel, payload);
 }
 
 function isNoisyNpmLogLine(line) {
@@ -145,7 +205,23 @@ class CommandManager {
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    this.processes.set(streamId, child);
+    const startedAt = Date.now();
+    this.processes.set(streamId, {
+      process: child,
+      command,
+      args,
+      cwd: cwd || process.cwd(),
+      shell,
+      startedAt
+    });
+    console.info('[PROC_TRACE][CMD_SPAWN]', {
+      streamId,
+      pid: child.pid,
+      command,
+      args: summarizeArgs(args),
+      cwd: cwd || process.cwd(),
+      shell: String(shell)
+    });
 
     // console.log("====child:" , child,{
     //   pid: child.pid,
@@ -161,9 +237,14 @@ class CommandManager {
 
   // 终止进程
   killProcess(streamId) {
-    const process = this.processes.get(streamId);
-    if (process) {
-      process.kill('SIGTERM');
+    const entry = this.processes.get(streamId);
+    if (entry?.process) {
+      console.info('[PROC_TRACE][CMD_KILL]', {
+        streamId,
+        pid: entry.process.pid,
+        command: entry.command
+      });
+      void killRegisteredProcessTree(entry.process.pid, `cmd:${streamId}`);
       this.processes.delete(streamId);
       this.streams.delete(streamId);
       return true;
@@ -173,7 +254,27 @@ class CommandManager {
 
   // 获取进程
   getProcess(streamId) {
-    return this.processes.get(streamId);
+    return this.processes.get(streamId)?.process;
+  }
+
+  getActiveProcessSummaries() {
+    return Array.from(this.processes.entries()).map(([streamId, entry]) => ({
+      streamId,
+      pid: entry.process?.pid,
+      command: entry.command,
+      cwd: entry.cwd,
+      durationMs: Date.now() - entry.startedAt
+    }));
+  }
+
+  async killAllProcesses() {
+    const entries = Array.from(this.processes.entries());
+    console.info('[PROC_TRACE][CMD_KILL_ALL]', { count: entries.length, processes: this.getActiveProcessSummaries() });
+    await Promise.all(entries.map(async ([streamId, entry]) => {
+      await killRegisteredProcessTree(entry.process?.pid, `cmd:${streamId}`);
+      this.processes.delete(streamId);
+      this.streams.delete(streamId);
+    }));
   }
 
     /**
@@ -181,25 +282,8 @@ class CommandManager {
    * @param {string} processName - 要杀掉的进程名称，例如 'node.exe'
    */
   killProcessByName(processName) {
-    // taskkill /IM [进程名称] /F
-    // /IM 表示通过图像名（进程名）终止
-    // /F 表示强制终止进程
-    const command = `taskkill /IM ${processName} /F`;
-
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`执行 taskkill 失败: ${error.message}`);
-        // 检查 stderr 以确定是否是“未找到进程”的错误
-        if (stderr.includes(`No tasks are running which match the specified criteria`)) {
-          console.log(`没有找到名称为 ${processName} 的进程.`);
-        } else {
-          console.error(`终止进程 ${processName} 时发生错误: ${stderr}`);
-        }
-        return;
-      }
-
-      console.log(`所有名称为 ${processName} 的进程已成功终止: ${stdout}`);
-    });
+    console.warn('[PROC_TRACE][CMD_KILL_BY_NAME_BLOCKED]', { processName });
+    return false;
   }
 }
 
@@ -221,7 +305,7 @@ function registerCmdHandlers(mainWindow) {
         if (result.shouldLogOutput) {
           logCommandOutput(streamId, 'stdout', output, senderWindow);
         }
-        senderWindow.send(`cmd-data-${streamId}`, {
+        sendCmdData(senderWindow, `cmd-data-${streamId}`, {
           type: 'stdout',
           data: output,
           streamId
@@ -234,7 +318,7 @@ function registerCmdHandlers(mainWindow) {
         if (result.shouldLogOutput) {
           logCommandOutput(streamId, 'stderr', output, senderWindow);
         }
-        senderWindow.send(`cmd-data-${streamId}`, {
+        sendCmdData(senderWindow, `cmd-data-${streamId}`, {
           type: 'stderr',
           data: output,
           streamId
@@ -243,8 +327,16 @@ function registerCmdHandlers(mainWindow) {
 
       // 监听进程关闭
       process.on('close', (code, signal) => {
+        const entry = commandManager.processes.get(streamId);
         console.log(`[CMD][${streamId}] close, code: ${code}, signal: ${signal}`);
-        senderWindow.send(`cmd-data-${streamId}`, {
+        console.info('[PROC_TRACE][CMD_CLOSE]', {
+          streamId,
+          pid: process.pid,
+          code,
+          signal,
+          durationMs: entry ? Date.now() - entry.startedAt : undefined
+        });
+        sendCmdData(senderWindow, `cmd-data-${streamId}`, {
           type: 'close',
           code,
           signal,
@@ -255,8 +347,15 @@ function registerCmdHandlers(mainWindow) {
 
       // 监听进程错误
       process.on('error', (error) => {
+        const entry = commandManager.processes.get(streamId);
         console.error(`[CMD][${streamId}] error: ${error.message}`);
-        senderWindow.send(`cmd-data-${streamId}`, {
+        console.error('[PROC_TRACE][CMD_ERROR]', {
+          streamId,
+          pid: process.pid,
+          error: error.message,
+          durationMs: entry ? Date.now() - entry.startedAt : undefined
+        });
+        sendCmdData(senderWindow, `cmd-data-${streamId}`, {
           type: 'error',
           error: error.message,
           streamId
@@ -287,8 +386,8 @@ function registerCmdHandlers(mainWindow) {
 
   // 终止指定名称的进程
   ipcMain.handle('cmd-kill-by-name', async (event, { processName }) => {
-    commandManager.killProcessByName(processName);
-    return { success: true };
+    console.warn('[PROC_TRACE][CMD_KILL_BY_NAME_BLOCKED]', { processName });
+    return { success: false, error: 'Killing processes by name is disabled. Use a registered streamId instead.' };
   });
 
   // 向进程发送输入
@@ -302,4 +401,8 @@ function registerCmdHandlers(mainWindow) {
   });
 }
 
-module.exports = { registerCmdHandlers };
+module.exports = {
+  registerCmdHandlers,
+  killAllCmdProcesses: () => commandManager.killAllProcesses(),
+  getActiveCmdProcesses: () => commandManager.getActiveProcessSummaries()
+};

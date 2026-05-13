@@ -1,6 +1,7 @@
 // 这个文件用于和cli交互，进行编译和烧录等操作
 const { ipcMain } = require("electron");
 const pty = require("@lydell/node-pty");
+const { exec } = require('child_process');
 const { isWin32 } = require("./platform");
 
 // 匹配 PowerShell 提示符: PS D:\path>   以后需要匹配mac os和linux的提示符（陈吕洲 2025.3.4）
@@ -18,6 +19,67 @@ const shellMap = {
 
 const promptRegex = promptRegexMap[process.platform]
 const terminals = new Map();
+
+function killRegisteredProcessTree(pid, label) {
+  if (!pid) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    if (process.platform === 'win32') {
+      exec(`taskkill /PID ${pid} /T /F`, (error, stdout, stderr) => {
+        const success = !error;
+        console.info('[PROC_TRACE][PROCESS_TREE_KILL]', {
+          label,
+          pid,
+          method: 'taskkill',
+          success,
+          durationMs: Date.now() - startedAt,
+          error: error?.message || '',
+          stderr: stderr?.trim?.() || ''
+        });
+        resolve(success);
+      });
+      return;
+    }
+
+    try {
+      process.kill(pid, 'SIGTERM');
+      console.info('[PROC_TRACE][PROCESS_TREE_KILL]', { label, pid, method: 'SIGTERM', success: true, durationMs: Date.now() - startedAt });
+      resolve(true);
+    } catch (error) {
+      console.warn('[PROC_TRACE][PROCESS_TREE_KILL]', { label, pid, method: 'SIGTERM', success: false, durationMs: Date.now() - startedAt, error: error?.message || String(error) });
+      resolve(false);
+    }
+  });
+}
+
+function getActiveTerminals() {
+  return Array.from(terminals.entries()).map(([key, ptyProcess]) => ({
+    key,
+    pid: ptyProcess?.pid,
+    durationMs: ptyProcess?.__startedAt ? Date.now() - ptyProcess.__startedAt : undefined,
+    cwd: ptyProcess?.__cwd
+  }));
+}
+
+function deleteTerminalEntry(ptyProcess) {
+  for (const [key, terminal] of terminals.entries()) {
+    if (terminal === ptyProcess) {
+      terminals.delete(key);
+    }
+  }
+}
+
+async function killAllTerminals() {
+  const entries = Array.from(terminals.entries());
+  console.info('[PROC_TRACE][PTY_KILL_ALL]', { count: entries.length, terminals: getActiveTerminals() });
+  await Promise.all(entries.map(async ([key, ptyProcess]) => {
+    await killRegisteredProcessTree(ptyProcess?.pid, `pty:${key}`);
+    terminals.delete(key);
+  }));
+}
 
 function registerTerminalHandlers(mainWindow) {
   // 获取当前平台的shell
@@ -55,8 +117,15 @@ function registerTerminalHandlers(mainWindow) {
         cwd: cwd,
         env: process.env,
       });
+      ptyProcess.__startedAt = Date.now();
+      ptyProcess.__cwd = cwd;
 
       console.log("new terminal pid: ", ptyProcess.pid);
+      console.info('[PROC_TRACE][PTY_SPAWN]', { pid: ptyProcess.pid, cwd, shell });
+      ptyProcess.onExit(({ exitCode, signal }) => {
+        console.info('[PROC_TRACE][PTY_EXIT]', { pid: ptyProcess.pid, exitCode, signal });
+        deleteTerminalEntry(ptyProcess);
+      });
       // 当前win10上有问题，所以先固定一个terminal
       terminals.set("currentPid", ptyProcess);
 
@@ -299,13 +368,14 @@ function registerTerminalHandlers(mainWindow) {
     // const ptyProcess = terminals.get(parseInt(pid, 10));
     const ptyProcess = terminals.get("currentPid");
     if (ptyProcess) {
+      console.info('[PROC_TRACE][PTY_CLOSE]', { pid: ptyProcess.pid });
       // 清理流回调
       if (streamCallbacks.has(pid)) {
         streamCallbacks.delete(pid);
       }
 
-      ptyProcess.kill();
-      terminals.delete(parseInt(pid, 10));
+      void killRegisteredProcessTree(ptyProcess.pid, `pty:${pid || 'current'}`);
+      deleteTerminalEntry(ptyProcess);
     }
   });
 
@@ -326,6 +396,7 @@ function registerTerminalHandlers(mainWindow) {
         // Unix/Linux/macOS 上发送 SIGINT 信号
         ptyProcess.write('\x03');
       }
+      console.info('[PROC_TRACE][PTY_INTERRUPT]', { pid: ptyProcess.pid });
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message || 'Failed to interrupt process' };
@@ -341,22 +412,18 @@ function registerTerminalHandlers(mainWindow) {
     }
 
     try {
+      console.info('[PROC_TRACE][PTY_KILL_REQUEST]', { pid: ptyProcess.pid, processName: processName || '' });
+      if (processName) {
+        console.warn('[PROC_TRACE][PTY_KILL_BY_NAME_BLOCKED]', { pid: ptyProcess.pid, processName });
+        return { success: false, error: 'Killing processes by name is disabled. Use terminal interrupt or registered PID cleanup instead.' };
+      }
+
       if (process.platform === 'win32') {
         // Windows上终止进程
-        if (processName) {
-          // 先尝试用taskkill终止指定名称的进程
-          ptyProcess.write(`taskkill /F /IM ${processName} /T\r`);
-        } else {
-          // 无名称则发送Ctrl+Break
-          ptyProcess.write('\x03\x1A');  // Ctrl+C 然后 Ctrl+Z
-        }
+        ptyProcess.write('\x03\x1A');  // Ctrl+C 然后 Ctrl+Z
       } else {
         // Unix系统
         ptyProcess.write('\x03\x1A');  // Ctrl+C 然后 Ctrl+Z
-        // 也可以使用 killall
-        if (processName) {
-          ptyProcess.write(`pkill -9 ${processName}\r`);
-        }
       }
       return { success: true };
     } catch (error) {
@@ -368,4 +435,6 @@ function registerTerminalHandlers(mainWindow) {
 
 module.exports = {
   registerTerminalHandlers,
+  killAllTerminals,
+  getActiveTerminals,
 };

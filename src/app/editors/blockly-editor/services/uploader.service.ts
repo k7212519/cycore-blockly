@@ -14,6 +14,7 @@ import { ActionService } from "../../../services/action.service";
 import { arduinoGenerator } from "../components/blockly/generators/arduino/arduino";
 import { BlocklyService } from "./blockly.service";
 import { WorkflowService, ProcessState } from '../../../services/workflow.service';
+import { AppDataResourceLockService } from '../../../services/appdata-resource-lock.service';
 
 @Injectable()
 export class _UploaderService {
@@ -31,7 +32,8 @@ export class _UploaderService {
     private serialMonitorService: SerialMonitorService,
     private actionService: ActionService,
     private blocklyService: BlocklyService,
-    private workflowService: WorkflowService
+    private workflowService: WorkflowService,
+    private appDataResourceLock: AppDataResourceLockService
   ) { }
 
   uploadInProgress = false;
@@ -389,6 +391,12 @@ export class _UploaderService {
         }
 
         let bufferData = '';
+        void this.appDataResourceLock.runExclusive('upload:run', () => new Promise<void>((releaseUploadLock) => {
+        if (this.cancelled) {
+          releaseUploadLock();
+          return;
+        }
+
         this.cmdService.run(uploadCmd, null, false).subscribe({
           next: async (output: CmdOutput) => {
             this.streamId = output.streamId;
@@ -638,6 +646,7 @@ export class _UploaderService {
           },
           error: (error: any) => {
             if (syntheticProgressTimer) { clearInterval(syntheticProgressTimer); syntheticProgressTimer = null; }
+            releaseUploadLock();
             console.log("上传命令错误:", error);
             this.uploadInProgress = false; // 确保重置上传状态
             this._builderService.isUploading = false;
@@ -649,6 +658,7 @@ export class _UploaderService {
           },
           complete: () => {
             if (syntheticProgressTimer) { clearInterval(syntheticProgressTimer); syntheticProgressTimer = null; }
+            releaseUploadLock();
             console.log("上传命令完成，cancelled:", this.cancelled, "isErrored:", this.isErrored, "uploadCompleted:", this.uploadCompleted, "processExitCode:", this.processExitCode);
             
             // 确保 uploadInProgress 在所有情况下都被重置
@@ -727,7 +737,8 @@ export class _UploaderService {
               reject({ state: 'error', text: '上传未完成，请检查日志' });
             }
           }
-        })
+        });
+        }));
       } catch (error) {
         this._builderService.isUploading = false; // 确保在异常情况下设置为false
         const fullErrorMessage = (error?.error || error?.stack || error?.message || String(error)).toString();
@@ -927,6 +938,7 @@ export class _UploaderService {
         let lastProgress = 0;
         let currentStage = '';
 
+        void this.appDataResourceLock.runExclusive('upload:softdevice', () => new Promise<void>((releaseUploadLock) => {
         this.cmdService.run(uploadCmd, null, false).subscribe({
           next: (output: CmdOutput) => {
             if (output.type === 'close') {
@@ -1034,6 +1046,7 @@ export class _UploaderService {
           },
           error: (error: any) => {
             console.error('Softdevice 烧录错误:', error);
+            releaseUploadLock();
             this.noticeService.update({
               title: errorTitle,
               text: `烧录失败: ${error.message || error}`,
@@ -1044,6 +1057,7 @@ export class _UploaderService {
           },
           complete: () => {
             console.log('Softdevice 烧录命令执行完成, hasError:', hasError, 'uploadCompleted:', uploadCompleted);
+            releaseUploadLock();
             if (hasError) {
               this.noticeService.update({
                 title: errorTitle,
@@ -1063,6 +1077,7 @@ export class _UploaderService {
             }
           }
         });
+        }));
       });
     } catch (error: any) {
       console.error('烧录 softdevice 失败:', error);

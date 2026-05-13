@@ -597,12 +597,13 @@ function handleProtocol(url) {
 }
 
 // ipc handlers模块
-const { registerTerminalHandlers } = require("./terminal");
+const { registerTerminalHandlers, killAllTerminals, getActiveTerminals } = require("./terminal");
 const { registerWindowHandlers } = require("./window");
-const { registerNpmHandlers } = require("./npm");
+const { registerNpmHandlers, killAllNpmProcesses, getActiveNpmProcesses } = require("./npm");
 const { registerUpdaterHandlers } = require("./updater");
-const { registerCmdHandlers } = require("./cmd");
+const { registerCmdHandlers, killAllCmdProcesses, getActiveCmdProcesses } = require("./cmd");
 const { registerMCPHandlers } = require("./mcp");
+const { registerAppDataResourceLockHandlers, releaseAllAppDataResourceLocks } = require("./appdata-resource-lock");
 // debug模块
 const { initLogger, registerLoggerHandlers } = require("./logger");
 // tools
@@ -612,6 +613,8 @@ const { registerProbeRsHandlers } = require("./probe-rs");
 
 let mainWindow;
 let userConf;
+let isProcessCleanupInProgress = false;
+let hasProcessCleanupCompleted = false;
 const DEFAULT_BUILD_FLAVOR = 'cn';
 const BUILD_FLAVOR_TO_OFFICIAL_REGION = {
   cn: 'cn',
@@ -977,6 +980,8 @@ function loadEnv() {
   } catch (error) {
     console.error("initLogger error: ", error);
   }
+
+  registerAppDataResourceLockHandlers();
 
   if (isDarwin) {
     macosInstallEnv(childPath);
@@ -1747,7 +1752,53 @@ app.on("window-all-closed", () => {
   }
 });
 
+function cleanupRegisteredChildProcesses() {
+  console.info('[PROC_TRACE][APP_CLEANUP_START]', {
+    cmd: getActiveCmdProcesses(),
+    npm: getActiveNpmProcesses(),
+    terminals: getActiveTerminals()
+  });
+
+  return Promise.allSettled([
+    killAllCmdProcesses(),
+    killAllNpmProcesses(),
+    killAllTerminals()
+  ]).then((results) => {
+    console.info('[PROC_TRACE][APP_CLEANUP_DONE]', { results });
+  });
+}
+
+app.on("before-quit", (event) => {
+  if (hasProcessCleanupCompleted) {
+    return;
+  }
+
+  event.preventDefault();
+  if (isProcessCleanupInProgress) {
+    return;
+  }
+
+  isProcessCleanupInProgress = true;
+  cleanupRegisteredChildProcesses()
+    .catch((error) => {
+      console.warn('[PROC_TRACE][APP_CLEANUP_ERROR]', error?.message || String(error));
+    })
+    .finally(() => {
+      hasProcessCleanupCompleted = true;
+      isProcessCleanupInProgress = false;
+      app.quit();
+    });
+});
+
 app.on("will-quit", () => {
+  console.info('[PROC_TRACE][APP_WILL_QUIT]', {
+    cmd: getActiveCmdProcesses(),
+    npm: getActiveNpmProcesses(),
+    terminals: getActiveTerminals()
+  });
+
+  releaseAllAppDataResourceLocks();
+
   if (heldProjectLockNormalized) {
     try {
       projectLock.releaseLock(heldProjectLockNormalized);

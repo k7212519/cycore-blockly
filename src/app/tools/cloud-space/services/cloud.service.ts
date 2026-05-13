@@ -1,11 +1,12 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError, from } from 'rxjs';
+import { Observable, throwError, from, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { API } from '../../../configs/api.config';
 import { CmdService, CmdOutput } from '../../../services/cmd.service';
 import { PlatformService } from "../../../services/platform.service";
+import { AuthService } from '../../../services/auth.service';
 
 declare global {
   interface Window {
@@ -29,7 +30,8 @@ export class CloudService {
   constructor(
       private http: HttpClient,
       private cmdService: CmdService,
-      private platformService: PlatformService
+      private platformService: PlatformService,
+      private authService: AuthService
   ) { }
 
   /** 
@@ -203,6 +205,17 @@ export class CloudService {
    * @param board 开发板包名
    */
   getMyTemplates(page: number = 1, perPage: number = 100, board?: string): Observable<any> {
+    if (!this.authService.isLoggedIn) {
+      return of({
+        status: 401,
+        message: '未登录',
+        data: {
+          list: [],
+          total: 0
+        }
+      });
+    }
+
     const params: Record<string, string> = {
       page: page.toString(),
       perPage: perPage.toString()

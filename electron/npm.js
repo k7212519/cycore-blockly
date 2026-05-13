@@ -1,6 +1,56 @@
 // 这个文件用于和npm交互，获取仓库信息
 const { ipcMain } = require("electron");
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
+
+const activeNpmProcesses = new Map();
+
+function killRegisteredProcessTree(pid, label) {
+    if (!pid) {
+        return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+        const startedAt = Date.now();
+        if (process.platform === 'win32') {
+            exec(`taskkill /PID ${pid} /T /F`, (error, stdout, stderr) => {
+                const success = !error;
+                console.info('[PROC_TRACE][PROCESS_TREE_KILL]', {
+                    label,
+                    pid,
+                    method: 'taskkill',
+                    success,
+                    durationMs: Date.now() - startedAt,
+                    error: error?.message || '',
+                    stderr: stderr?.trim?.() || ''
+                });
+                resolve(success);
+            });
+            return;
+        }
+
+        try {
+            process.kill(pid, 'SIGTERM');
+            console.info('[PROC_TRACE][PROCESS_TREE_KILL]', {
+                label,
+                pid,
+                method: 'SIGTERM',
+                success: true,
+                durationMs: Date.now() - startedAt
+            });
+            resolve(true);
+        } catch (error) {
+            console.warn('[PROC_TRACE][PROCESS_TREE_KILL]', {
+                label,
+                pid,
+                method: 'SIGTERM',
+                success: false,
+                durationMs: Date.now() - startedAt,
+                error: error?.message || String(error)
+            });
+            resolve(false);
+        }
+    });
+}
 
 function ensureForegroundScripts(cmd) {
     if (!/^npm(\.cmd)?\s+(install|i)\b/i.test(cmd)) {
@@ -61,6 +111,13 @@ function extractNpmErrorValue(text, key) {
     return match ? match[1].trim() : '';
 }
 
+function extractBusyRenameDetails(stderr) {
+    return {
+        path: extractNpmErrorValue(stderr, 'path'),
+        dest: extractNpmErrorValue(stderr, 'dest')
+    };
+}
+
 function formatNpmError(stderr, code) {
     if (isBusyRenameError(stderr)) {
         const targetPath = extractNpmErrorValue(stderr, 'path');
@@ -74,6 +131,7 @@ function formatNpmError(stderr, code) {
 function createNpmError(stderr, code) {
     const error = new Error(formatNpmError(stderr, code));
     error.isBusyRename = isBusyRenameError(stderr);
+    error.busyRenameDetails = extractBusyRenameDetails(stderr);
     return error;
 }
 
@@ -122,6 +180,7 @@ function logNpmOutput(type, output, mainWindow, sourceId) {
 
 function runNpmCommand(cmd, option, mainWindow) {
     return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
         const child = spawn(cmd, {
             shell: true,
             windowsHide: true,
@@ -129,6 +188,8 @@ function runNpmCommand(cmd, option, mainWindow) {
         });
         const shouldLogOutput = shouldLogStreamingOutput(cmd);
         const sourceId = `npm_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        activeNpmProcesses.set(sourceId, { process: child, cmd, startedAt });
+        console.info('[PROC_TRACE][NPM_SPAWN]', { sourceId, pid: child.pid, cmd: cmd.slice(0, 1000) });
         let stdout = '';
         let stderr = '';
 
@@ -149,6 +210,13 @@ function runNpmCommand(cmd, option, mainWindow) {
         });
 
         child.on('error', (error) => {
+            activeNpmProcesses.delete(sourceId);
+            console.error('[PROC_TRACE][NPM_ERROR]', {
+                sourceId,
+                pid: child.pid,
+                error: error.message,
+                durationMs: Date.now() - startedAt
+            });
             if (option?.ignoreErr) {
                 return resolve(false);
             }
@@ -157,6 +225,16 @@ function runNpmCommand(cmd, option, mainWindow) {
         });
 
         child.on('close', (code) => {
+            activeNpmProcesses.delete(sourceId);
+            const busyRename = isBusyRenameError(stderr);
+            console.info('[PROC_TRACE][NPM_CLOSE]', {
+                sourceId,
+                pid: child.pid,
+                code,
+                durationMs: Date.now() - startedAt,
+                busyRename,
+                ...extractBusyRenameDetails(stderr)
+            });
             if (code !== 0) {
                 if (option?.ignoreErr) {
                     return resolve(false);
@@ -188,6 +266,12 @@ function registerNpmHandlers(mainWindow) {
                 if (attempt <= maxBusyRetries && error?.isBusyRename) {
                     const message = `npm 安装目录被占用，等待后重试 (${attempt}/${maxBusyRetries})...`;
                     console.warn(message);
+                    console.warn('[PROC_TRACE][NPM_BUSY_RETRY]', {
+                        attempt,
+                        maxBusyRetries,
+                        cmd: cmd.slice(0, 1000),
+                        ...(error.busyRenameDetails || {})
+                    });
                     sendRendererLog(mainWindow, message, 'warn', `${cmd}:busy-retry`);
                     await sleep(2000 * attempt);
                     continue;
@@ -200,6 +284,26 @@ function registerNpmHandlers(mainWindow) {
     });
 }
 
+function getActiveNpmProcesses() {
+    return Array.from(activeNpmProcesses.entries()).map(([sourceId, entry]) => ({
+        sourceId,
+        pid: entry.process?.pid,
+        cmd: entry.cmd,
+        durationMs: Date.now() - entry.startedAt
+    }));
+}
+
+async function killAllNpmProcesses() {
+    const entries = Array.from(activeNpmProcesses.entries());
+    console.info('[PROC_TRACE][NPM_KILL_ALL]', { count: entries.length, processes: getActiveNpmProcesses() });
+    await Promise.all(entries.map(async ([sourceId, entry]) => {
+        await killRegisteredProcessTree(entry.process?.pid, `npm:${sourceId}`);
+        activeNpmProcesses.delete(sourceId);
+    }));
+}
+
 module.exports = {
     registerNpmHandlers,
+    killAllNpmProcesses,
+    getActiveNpmProcesses,
 };
