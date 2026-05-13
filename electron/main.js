@@ -1222,6 +1222,54 @@ async function updateMainWindowWithPendingData() {
   }
 }
 
+function rectsOverlap(a, b) {
+  return !(
+    a.x + a.width <= b.x ||
+    a.x >= b.x + b.width ||
+    a.y + a.height <= b.y ||
+    a.y >= b.y + b.height
+  );
+}
+
+/** Windows：持久化坐标可能落在已移除的显示器上；electron-win-state 不会按当前屏幕校验。macOS 不处理。 */
+function ensureWinStateOnVisibleDisplay(winState) {
+  if (!isWin32) {
+    return;
+  }
+  const s = winState.state;
+  const w = Number(s.width);
+  const h = Number(s.height);
+  const x = Number(s.x);
+  const y = Number(s.y);
+  if (![w, h].every((n) => Number.isFinite(n) && n > 0) || ![x, y].every((n) => Number.isFinite(n))) {
+    return;
+  }
+  const winRect = { x, y, width: w, height: h };
+  const displays = screen.getAllDisplays();
+  const visible = displays.some((d) => rectsOverlap(winRect, d.workArea));
+  if (visible) {
+    return;
+  }
+  const wa = screen.getPrimaryDisplay().workArea;
+  let nw = w;
+  let nh = h;
+  if (nw > wa.width) {
+    nw = wa.width;
+  }
+  if (nh > wa.height) {
+    nh = wa.height;
+  }
+  s.width = nw;
+  s.height = nh;
+  s.x = Math.round(wa.x + Math.max(0, (wa.width - nw) / 2));
+  s.y = Math.round(wa.y + Math.max(0, (wa.height - nh) / 2));
+  try {
+    winState.saveState();
+  } catch (e) {
+    console.warn('修正窗口位置后保存状态失败:', e);
+  }
+}
+
 function createWindow() {
   // 检查是否为首次启动（没有窗口状态记录文件）
   const winStateFilePath = path.join(process.env.AILY_APPDATA_PATH, 'window-state.json');
@@ -1234,7 +1282,8 @@ function createWindow() {
       name: 'window-state',
       cwd: process.env.AILY_APPDATA_PATH,
     },
-  })
+  });
+  ensureWinStateOnVisibleDisplay(winState);
 
   mainWindow = new BrowserWindow({
     ...winState.winOptions,

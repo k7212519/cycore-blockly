@@ -247,15 +247,53 @@ export class SerialMonitorComponent {
 
   private scrollTimeoutId: any;
 
+  /** 用户是否停留在列表尾部（上滚查看历史时为 false，避免新数据强行拉到底） */
+  private userFollowingTail = true;
+  /** 距底部 ≤ 此值视为贴底（与 RELEASE 形成滞回，避免阈值附近上下抖动） */
+  private static readonly FOLLOW_STICK_PX = 40;
+  /** 距底部 ≥ 此值视为已离开尾部（须大于 STICK） */
+  private static readonly FOLLOW_RELEASE_PX = 100;
+  /** scrollToIndex 触发的 scroll 期间为 true，用于避免误判贴底 */
+  private serialScrollProgrammatic = false;
+
+  onDataListScroll(): void {
+    const el = this.dataListScrollEl()?.nativeElement;
+    if (!el) return;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    const distanceFromBottom = maxScroll - el.scrollTop;
+    const prevFollowing = this.userFollowingTail;
+
+    // 跟到底过程中中间帧 distanceFromBottom 可能暂时很大，不得误判为用户离开
+    if (this.serialScrollProgrammatic && prevFollowing) {
+      return;
+    }
+
+    if (distanceFromBottom >= SerialMonitorComponent.FOLLOW_RELEASE_PX) {
+      this.userFollowingTail = false;
+    } else if (distanceFromBottom <= SerialMonitorComponent.FOLLOW_STICK_PX) {
+      // 程序滚动且用户已上滚时，不得把 false 误判成贴底
+      if (!(this.serialScrollProgrammatic && !prevFollowing)) {
+        this.userFollowingTail = true;
+      }
+    }
+    // STICK～RELEASE 之间保持原状态（滞回带）
+  }
+
   private scrollToBottom() {
-    if (!this.autoScroll) return;
+    if (!this.autoScroll || !this.userFollowingTail) return;
     if (this.scrollTimeoutId) {
       clearTimeout(this.scrollTimeoutId);
     }
     this.scrollTimeoutId = setTimeout(() => {
       const count = this.dataCount();
       if (count > 0) {
+        this.serialScrollProgrammatic = true;
         this.virtualizer.scrollToIndex(count - 1, { align: 'end' });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            this.serialScrollProgrammatic = false;
+          });
+        });
       }
     }, 30);
   }
@@ -468,11 +506,16 @@ export class SerialMonitorComponent {
 
   changeViewMode(name) {
     this.serialMonitorService.viewMode[name] = !this.serialMonitorService.viewMode[name];
+    if (name === 'autoScroll' && this.serialMonitorService.viewMode.autoScroll) {
+      this.userFollowingTail = true;
+      this.scrollToBottom();
+    }
   }
 
   clearView() {
     this.serialMonitorService.clearData();
     this.dataCount.set(0);
+    this.userFollowingTail = true;
     this.cd.detectChanges();
     // 清空图表数据
     if (this.serialChartRef) {
