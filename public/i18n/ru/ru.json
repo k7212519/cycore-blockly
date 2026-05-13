@@ -589,6 +589,7 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "Компилятор",
         "INSTALLING_TITLE": "Установка",
+        "DEPENDENCY_INSTALLING_TITLE": "Установка зависимостей",
         "INSTALL_COMPLETE_TITLE": "Установка завершена",
         "INSTALL_FAILED_TITLE": "Ошибка установки",
         "UNINSTALLING_TITLE": "Удаление",

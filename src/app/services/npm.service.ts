@@ -9,7 +9,7 @@ import { CmdService } from './cmd.service';
 import { WorkflowService } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
-import { LogService } from './log.service';
+import { LogOptions, LogService } from './log.service';
 import { satisfies, valid, gt, minVersion, coerce } from 'semver';
 
 @Injectable({
@@ -27,12 +27,78 @@ export class NpmService {
     private translate: TranslateService,
     private noticeService: NoticeService,
     private logService: LogService
-  ) { }
+  ) {
+    this.logService.stateSubject.subscribe((log) => {
+      this.handleBoardDependencyProgressLog(log);
+    });
+  }
 
   isInstalling = false;
+  private boardDependencyInstallProgress?: BoardDependencyInstallProgress;
 
   private getNpmErrorMessage(error: any): string {
     return (error?.message || String(error)).replace(/^Error invoking remote method 'npm-run': Error:\s*/i, '');
+  }
+
+  private clampProgress(value: number): number {
+    return Math.max(0, Math.min(100, Math.floor(value)));
+  }
+
+  private updateBoardDependencyNotice(progress: BoardDependencyInstallProgress, value: number) {
+    const nextProgress = Math.max(progress.lastProgress, this.clampProgress(value));
+    progress.lastProgress = nextProgress;
+
+    this.noticeService.update({
+      title: this.translate.instant('NPM.DEPENDENCY_INSTALLING_TITLE'),
+      text: this.translate.instant('NPM.INSTALLING_DEPENDENCY', { name: progress.name }),
+      state: 'doing',
+      progress: nextProgress,
+      setTimeout: 300000
+    });
+  }
+
+  private parseDependencyProgressLog(log: LogOptions): { phase: 'download' | 'extract', percent: number } | null {
+    const text = String(log?.detail || log?.title || '').trim();
+    if (!text) {
+      return null;
+    }
+
+    if (/^下载完成[:：]/i.test(text)) {
+      return { phase: 'download', percent: 100 };
+    }
+
+    const match = text.match(/^(下载进度|解压进度)[:：]\s*(\d+(?:\.\d+)?)/i);
+    if (!match) {
+      return null;
+    }
+
+    const percent = Math.max(0, Math.min(100, Number(match[2])));
+    return {
+      phase: match[1].startsWith('下载') ? 'download' : 'extract',
+      percent
+    };
+  }
+
+  private handleBoardDependencyProgressLog(log: LogOptions) {
+    const progress = this.boardDependencyInstallProgress;
+    if (!progress) {
+      return;
+    }
+
+    const parsed = this.parseDependencyProgressLog(log);
+    if (!parsed) {
+      return;
+    }
+
+    if (parsed.phase === 'download') {
+      progress.downloadProgress = Math.max(progress.downloadProgress, parsed.percent);
+    } else {
+      progress.extractProgress = Math.max(progress.extractProgress, parsed.percent);
+    }
+
+    const singleDependencyProgress = progress.downloadProgress * 0.5 + progress.extractProgress * 0.5;
+    const overallProgress = ((progress.index + singleDependencyProgress / 100) / progress.total) * 100;
+    this.updateBoardDependencyNotice(progress, overallProgress);
   }
 
   async init() {
@@ -229,90 +295,102 @@ export class NpmService {
     try {
       this.isInstalling = true;
       this.boardDependenciesChanged = false;
+      this.boardDependencyInstallProgress = undefined;
 
       this.workflowService.startInstall();
       console.log('开始安装开发板依赖...');
       // const appDataPath = this.configService.data.appdata_path[this.configService.data.platform].replace('%HOMEPATH%', window['path'].getUserHome());
       const appDataPath = window['path'].getAppDataPath();
       const boardDependencies = packageJson.boardDependencies || {};
+      const dependenciesToInstall: BoardDependencyToInstall[] = [];
 
       // console.log("boardDependencies: ", boardDependencies);
 
       for (const [key, version] of Object.entries(boardDependencies)) {
+        const declaredVersion = String(version);
         const depPath = `${appDataPath}/node_modules/${key}`;
         const depPathPackageJson = `${depPath}/package.json`;
         let installedVersionWhenMismatch: string | undefined;
         // 检查依赖是否已经安装
         if (window['path'].isExists(depPathPackageJson)) {
           const depPackageJson = JSON.parse(window['fs'].readFileSync(depPathPackageJson));
-          if (this.depVersionSatisfiesDecl(depPackageJson.version, String(version))) {
+          if (this.depVersionSatisfiesDecl(depPackageJson.version, declaredVersion)) {
             console.log(`依赖 ${key} 已安装，版本满足声明 (${depPackageJson.version} satisfies ${version})`);
             continue;
           }
           installedVersionWhenMismatch = depPackageJson.version;
         }
 
-        this.boardDependenciesChanged = true;
+        const needUninstallForDowngrade =
+          window['path'].isExists(depPath) &&
+          installedVersionWhenMismatch !== undefined &&
+          this.installedIsNewerThanDeclared(installedVersionWhenMismatch, declaredVersion);
+
+        dependenciesToInstall.push({
+          name: key,
+          version: declaredVersion,
+          needUninstallForDowngrade
+        });
+      }
+
+      if (dependenciesToInstall.length === 0) {
+        this.workflowService.finishInstall(true);
+        return;
+      }
+
+      this.boardDependenciesChanged = true;
+
+      for (let index = 0; index < dependenciesToInstall.length; index++) {
+        const dependency = dependenciesToInstall[index];
+        const progress: BoardDependencyInstallProgress = {
+          total: dependenciesToInstall.length,
+          index,
+          name: dependency.name,
+          downloadProgress: 0,
+          extractProgress: 0,
+          lastProgress: this.clampProgress((index / dependenciesToInstall.length) * 100)
+        };
+        this.boardDependencyInstallProgress = progress;
 
         // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('NPM.INSTALLING_DEPENDENCY', { name: key }), timeout: 300000 });
-        this.noticeService.update({ 
-          title: this.translate.instant('NPM.INSTALLING_TITLE'), 
-          text: this.translate.instant('NPM.INSTALLING_DEPENDENCY', { name: key }), 
-          state: 'doing',
-          showProgress: false,
-          setTimeout: 300000
-        });
+        this.updateBoardDependencyNotice(progress, progress.lastProgress);
 
-        try {
-          // 仅当当前安装版本高于声明基线（需降级）时先卸载；升级或未读到版本时直接 install，避免无谓卸载
-          const needUninstallForDowngrade =
-            window['path'].isExists(depPath) &&
-            installedVersionWhenMismatch !== undefined &&
-            this.installedIsNewerThanDeclared(installedVersionWhenMismatch, String(version));
-          if (needUninstallForDowngrade) {
-            const uninstallCmd = `npm uninstall ${key} --prefix "${appDataPath}"`;
-            console.log(`执行命令: ${uninstallCmd}, 时间: ${new Date().toISOString()}`);
-            await Promise.race([
-              window['npm'].run({ cmd: uninstallCmd }),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
-              )
-            ]);
-          }
-
-          // --save-exact：与开发板声明版本一致写入 prefix 下 package.json，避免 ^ 导致再次解析到更高版
-          const npmCmd = `npm install ${key}@${version} --save-exact --prefix "${appDataPath}"`;
-          console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
-
-          // 添加超时保护和正确的参数名
+        // 仅当当前安装版本高于声明基线（需降级）时先卸载；升级或未读到版本时直接 install，避免无谓卸载
+        if (dependency.needUninstallForDowngrade) {
+          const uninstallCmd = `npm uninstall ${dependency.name} --prefix "${appDataPath}"`;
+          console.log(`执行命令: ${uninstallCmd}, 时间: ${new Date().toISOString()}`);
           await Promise.race([
-            window['npm'].run({ cmd: npmCmd }),
+            window['npm'].run({ cmd: uninstallCmd }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error(this.translate.instant('NPM.INSTALL_TIMEOUT'))), 300000) // 5分钟超时
+              setTimeout(() => reject(new Error(this.translate.instant('NPM.UNINSTALL_TIMEOUT'))), 300000)
             )
           ]);
-
-          console.log(`依赖 ${key} 安装成功, 时间: ${new Date().toISOString()}`);
-        } catch (error) {
-          const errorMessage = this.getNpmErrorMessage(error);
-          console.error(`依赖 ${key} 安装失败:`, error);
-          this.logService.update({
-            title: `npm install ${key}@${version} 失败`,
-            detail: errorMessage,
-            state: 'error'
-          });
         }
+
+        // --save-exact：与开发板声明版本一致写入 prefix 下 package.json，避免 ^ 导致再次解析到更高版
+        const npmCmd = `npm install ${dependency.name}@${dependency.version} --save-exact --prefix "${appDataPath}"`;
+        console.log(`执行命令: ${npmCmd}, 时间: ${new Date().toISOString()}`);
+
+        // 添加超时保护和正确的参数名
+        await Promise.race([
+          window['npm'].run({ cmd: npmCmd }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(this.translate.instant('NPM.INSTALL_TIMEOUT'))), 300000) // 5分钟超时
+          )
+        ]);
+
+        this.updateBoardDependencyNotice(progress, ((index + 1) / dependenciesToInstall.length) * 100);
+        console.log(`依赖 ${dependency.name} 安装成功, 时间: ${new Date().toISOString()}`);
       }
 
-      if (this.boardDependenciesChanged) {
-        // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_COMPLETE') });
-        this.noticeService.update({ 
-          title: this.translate.instant('NPM.INSTALL_COMPLETE_TITLE'), 
-          text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_COMPLETE'), 
-          state: 'done',
-          setTimeout: 3000
-        });
-      }
+      // this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_COMPLETE') });
+      this.noticeService.update({
+        title: this.translate.instant('NPM.INSTALL_COMPLETE_TITLE'),
+        text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_COMPLETE'),
+        state: 'done',
+        progress: 100,
+        setTimeout: 3000
+      });
       this.workflowService.finishInstall(true);
     } catch (error) {
       const errorMessage = this.getNpmErrorMessage(error);
@@ -324,8 +402,10 @@ export class NpmService {
         detail: errorMessage,
         state: 'error'
       });
-      this.workflowService.finishInstall(false, this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED'));
+      this.workflowService.finishInstall(false, errorMessage);
+      throw error;
     } finally {
+      this.boardDependencyInstallProgress = undefined;
       this.isInstalling = false;
     }
   }
@@ -789,6 +869,21 @@ export class NpmService {
     return Array.from(dependencyMap.values())
       .sort((a, b) => a.name.localeCompare(b.name));
   }
+}
+
+interface BoardDependencyToInstall {
+  name: string;
+  version: string;
+  needUninstallForDowngrade: boolean;
+}
+
+interface BoardDependencyInstallProgress {
+  total: number;
+  index: number;
+  name: string;
+  downloadProgress: number;
+  extractProgress: number;
+  lastProgress: number;
 }
 
 export interface SearchResponseModel {

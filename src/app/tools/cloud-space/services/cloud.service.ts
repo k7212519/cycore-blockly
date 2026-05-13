@@ -510,7 +510,7 @@ export class CloudService {
       }
     } else {
       // 非标准错误对象（可能是网络错误、CORS错误等）
-      console.error('非标准HTTP错误:', error);
+      console.debug('非标准HTTP错误:', error);
       if (error.message) {
         errMsg = `网络错误: ${error.message}`;
       } else if (typeof error === 'string') {
@@ -520,7 +520,7 @@ export class CloudService {
       }
     }
     
-    console.error('处理后的错误信息:', errMsg);
+    console.debug('处理后的错误信息:', errMsg);
     return throwError(() => errMsg);
   }
 }

@@ -589,6 +589,7 @@
         "TYPE_SDK": "SDK",
         "TYPE_COMPILER": "Compiler",
         "INSTALLING_TITLE": "Installation",
+        "DEPENDENCY_INSTALLING_TITLE": "Abhängigkeiten werden installiert",
         "INSTALL_COMPLETE_TITLE": "Installation Abgeschlossen",
         "INSTALL_FAILED_TITLE": "Installation Fehlgeschlagen",
         "UNINSTALLING_TITLE": "Deinstallation",
