@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { TranslateService } from '@ngx-translate/core';
 import { BehaviorSubject } from 'rxjs';
 import { IMenuItem } from '../configs/menu.config';
 
@@ -108,6 +109,8 @@ interface PendingSectorAck {
   providedIn: 'root'
 })
 export class UploaderBleService implements BleOtaTransport {
+  private translate = inject(TranslateService);
+
   readonly devicesChanged = new BehaviorSubject<BleOtaDeviceItem[]>([]);
   readonly scanStateChanged = new BehaviorSubject<BleOtaScanState>({ scanning: false, devices: [] });
 
@@ -175,7 +178,7 @@ export class UploaderBleService implements BleOtaTransport {
       this.knownDevices.set(device.id, { ...cached, connected: false });
       this.emitDevices(this.isScanning());
     }
-    this.rejectPendingAcks(new Error('BLE 设备已断开'));
+    this.rejectPendingAcks(new Error(this.t('DEVICE_DISCONNECTED')));
     this.server = null;
     this.recvFwCharacteristic = null;
     this.commandCharacteristic = null;
@@ -217,7 +220,7 @@ export class UploaderBleService implements BleOtaTransport {
     });
 
     items.push({
-      name: scanning ? '正在搜索BLE设备' : '搜索BLE设备',
+      name: scanning ? this.t('SEARCHING_DEVICE') : this.t('SEARCH_DEVICE'),
       // text: supported ? 'Web Bluetooth' : 'Not supported',
       action: supported && !scanning ? 'ble-scan' : undefined,
       type: 'ble-action',
@@ -227,7 +230,7 @@ export class UploaderBleService implements BleOtaTransport {
 
     for (const device of devices) {
       items.push({
-        name: device.name || 'BLE OTA Device',
+        name: device.name || this.t('DEFAULT_DEVICE_NAME'),
         text: 'BLE OTA',
         type: 'ble',
         icon: 'fa-light fa-bluetooth',
@@ -274,11 +277,11 @@ export class UploaderBleService implements BleOtaTransport {
     });
 
     if (!bluetooth?.requestDevice) {
-      throw new Error('当前环境不支持 Web Bluetooth');
+      throw new Error(this.t('WEB_BLUETOOTH_UNSUPPORTED'));
     }
 
     if (this.isElectronRuntime() && !window['ble']?.onDeviceList) {
-      throw new Error('BLE 扫描桥接未加载，请重启 Electron 应用后重试');
+      throw new Error(this.t('SCAN_BRIDGE_MISSING'));
     }
 
     this.setupElectronBluetoothBridge();
@@ -343,7 +346,7 @@ export class UploaderBleService implements BleOtaTransport {
   }
 
   async selectDevice(deviceId: string): Promise<BleOtaDeviceItem> {
-    if (!deviceId) throw new Error('BLE 设备 ID 为空');
+    if (!deviceId) throw new Error(this.t('DEVICE_ID_EMPTY'));
 
     const cached = this.knownDevices.get(deviceId);
     if (cached?.device) {
@@ -360,14 +363,14 @@ export class UploaderBleService implements BleOtaTransport {
       return discovered;
     }
 
-    throw new Error('未找到 BLE 设备');
+    throw new Error(this.t('DEVICE_NOT_FOUND'));
   }
 
   async connect(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<void> {
     const deviceItem = await this.ensureDevice(deviceId || this.selectedDeviceId || undefined, progress);
     const device = deviceItem.device;
     if (!device?.gatt) {
-      throw new Error('BLE 设备未授权，请重新扫描选择');
+      throw new Error(this.t('DEVICE_NOT_AUTHORIZED'));
     }
 
     if (device.gatt.connected && this.recvFwCharacteristic && this.commandCharacteristic) {
@@ -412,13 +415,13 @@ export class UploaderBleService implements BleOtaTransport {
       this.server = null;
       this.recvFwCharacteristic = null;
       this.commandCharacteristic = null;
-      this.rejectPendingAcks(new Error('BLE 连接已关闭'));
+      this.rejectPendingAcks(new Error(this.t('CONNECTION_CLOSED')));
     }
   }
 
   async uploadFirmware(firmware: Uint8Array | ArrayBuffer, options: BleOtaUploadOptions = {}): Promise<BleOtaUploadResult> {
     const data = firmware instanceof Uint8Array ? firmware : new Uint8Array(firmware);
-    if (!data.byteLength) throw new Error('固件为空');
+    if (!data.byteLength) throw new Error(this.t('FIRMWARE_EMPTY'));
 
     const startTime = Date.now();
     this.cancelRequested = false;
@@ -429,20 +432,23 @@ export class UploaderBleService implements BleOtaTransport {
 
     try {
       this.throwIfCancelled(options.signal);
-      emitProgress({ state: 'connecting', progress: 0, text: '正在连接 BLE 设备...' });
+      emitProgress({ state: 'connecting', progress: 0, text: this.t('CONNECTING_DEVICE') });
       await this.connect(undefined, emitProgress);
 
       this.throwIfCancelled(options.signal);
-      emitProgress({ state: 'probing', progress: 1, text: '正在协商 BLE 包大小...' });
+      emitProgress({ state: 'probing', progress: 1, text: this.t('NEGOTIATING_PACKET_SIZE') });
       const packetSize = options.packetSize || await this.probePacketSize();
       emitProgress({
         state: 'probing',
         progress: 1,
-        text: `BLE 包大小 ${packetSize}B，数据负载 ${Math.max(0, packetSize - FIRMWARE_PACKET_HEADER_SIZE)}B/包`,
+        text: this.t('PACKET_SIZE_INFO', {
+          packetSize,
+          payloadSize: Math.max(0, packetSize - FIRMWARE_PACKET_HEADER_SIZE),
+        }),
       });
 
       this.throwIfCancelled(options.signal);
-      emitProgress({ state: 'starting', progress: 2, text: '正在启动 OTA...' });
+      emitProgress({ state: 'starting', progress: 2, text: this.t('STARTING_OTA') });
       await this.sendStartCommand(options.updateType || 'flash', data.byteLength);
 
       await this.sendFirmware(data, packetSize, {
@@ -451,14 +457,14 @@ export class UploaderBleService implements BleOtaTransport {
       });
 
       this.throwIfCancelled(options.signal);
-      emitProgress({ state: 'stopping', progress: 99, text: '正在校验并更新固件...' });
+      emitProgress({ state: 'stopping', progress: 99, text: this.t('VERIFYING_FIRMWARE') });
       await this.sendStopCommand();
 
       const elapsedMs = Date.now() - startTime;
       emitProgress({
         state: 'done',
         progress: 100,
-        text: 'BLE OTA完成',
+        text: this.t('DONE'),
         bytesSent: data.byteLength,
         totalBytes: data.byteLength,
         speed: elapsedMs > 0 ? Math.round(data.byteLength / (elapsedMs / 1000)) : 0,
@@ -472,7 +478,7 @@ export class UploaderBleService implements BleOtaTransport {
       };
     } catch (error) {
       if (this.cancelRequested || options.signal?.aborted) {
-        throw new Error('上传已取消');
+        throw new Error(this.t('CANCELLED'));
       }
       throw error;
     }
@@ -480,7 +486,7 @@ export class UploaderBleService implements BleOtaTransport {
 
   cancel(): void {
     this.cancelRequested = true;
-    this.rejectPendingAcks(new Error('上传已取消'));
+    this.rejectPendingAcks(new Error(this.t('CANCELLED')));
   }
 
   findFirmwareFile(buildPath: string): string {
@@ -509,7 +515,7 @@ export class UploaderBleService implements BleOtaTransport {
     const retries = options.retries ?? 3;
     const payloadSize = packetSize - FIRMWARE_PACKET_HEADER_SIZE;
     const finalPayloadSize = packetSize - FIRMWARE_PACKET_HEADER_SIZE - FIRMWARE_PACKET_CRC_SIZE;
-    if (finalPayloadSize <= 0) throw new Error(`BLE 包大小异常: ${packetSize}`);
+    if (finalPayloadSize <= 0) throw new Error(this.t('PACKET_SIZE_INVALID', { packetSize }));
 
     let sectorIndex = 0;
     const startTime = Date.now();
@@ -544,7 +550,7 @@ export class UploaderBleService implements BleOtaTransport {
       }
 
       if (!sent) {
-        throw new Error(`Sector ${sectorIndex} 重试失败`);
+        throw new Error(this.t('SECTOR_RETRY_FAILED', { sectorIndex }));
       }
     }
   }
@@ -589,7 +595,7 @@ export class UploaderBleService implements BleOtaTransport {
       progress?.({
         state: 'sending',
         progress: Math.max(2, Math.floor((bytesSent / totalBytes) * 98)),
-        text: `BLE OTA上传中 ${Math.floor((bytesSent / totalBytes) * 100)}%`,
+        text: this.t('SENDING_PROGRESS', { progress: Math.floor((bytesSent / totalBytes) * 100) }),
         sectorIndex,
         sectorCount: Math.ceil(totalBytes / SECTOR_SIZE),
         bytesSent,
@@ -625,7 +631,7 @@ export class UploaderBleService implements BleOtaTransport {
   }
 
   private async sendCommand(commandId: number, totalSize?: number, timeout = COMMAND_ACK_TIMEOUT_MS): Promise<void> {
-    if (!this.commandCharacteristic) throw new Error('BLE OTA 命令特征不可用');
+    if (!this.commandCharacteristic) throw new Error(this.t('COMMAND_CHARACTERISTIC_UNAVAILABLE'));
 
     const frame = this.buildCommandFrame(commandId, totalSize);
     const ackPromise = this.waitForCommandAck(commandId, timeout);
@@ -643,7 +649,7 @@ export class UploaderBleService implements BleOtaTransport {
   }
 
   private async probePacketSize(): Promise<number> {
-    if (!this.recvFwCharacteristic) throw new Error('BLE OTA 固件特征不可用');
+    if (!this.recvFwCharacteristic) throw new Error(this.t('FIRMWARE_CHARACTERISTIC_UNAVAILABLE'));
 
     for (const candidate of [510, 247, 185, 122, 23]) {
       try {
@@ -665,7 +671,7 @@ export class UploaderBleService implements BleOtaTransport {
         reject,
         timer: setTimeout(() => {
           this.pendingCommandAcks = this.pendingCommandAcks.filter(item => item !== pending);
-          reject(new Error(`等待命令 ACK 超时: 0x${commandId.toString(16)}`));
+          reject(new Error(this.getCommandAckTimeoutMessage(commandId)));
         }, timeout),
       };
       this.pendingCommandAcks.push(pending);
@@ -687,7 +693,7 @@ export class UploaderBleService implements BleOtaTransport {
         reject,
         timer: setTimeout(() => {
           this.pendingSectorAcks = this.pendingSectorAcks.filter(item => item !== pending);
-          reject(new Error(`等待 Sector ${sectorIndex} ACK 超时`));
+          reject(new Error(this.t('SECTOR_ACK_TIMEOUT', { sectorIndex })));
         }, timeout),
       };
       this.pendingSectorAcks.push(pending);
@@ -735,7 +741,7 @@ export class UploaderBleService implements BleOtaTransport {
         return grantedDevice;
       }
 
-      throw new Error('请先搜索并选择 BLE OTA 设备');
+      throw new Error(this.t('SELECT_DEVICE_FIRST'));
     }
     return device;
   }
@@ -746,10 +752,10 @@ export class UploaderBleService implements BleOtaTransport {
   ): Promise<BleOtaDeviceItem> {
     const bluetooth = this.getBluetooth();
     if (!bluetooth?.requestDevice) {
-      throw new Error('当前环境不支持 Web Bluetooth');
+      throw new Error(this.t('WEB_BLUETOOTH_UNSUPPORTED'));
     }
 
-    progress?.({ state: 'connecting', progress: 0, text: '正在确认 BLE 设备...' });
+    progress?.({ state: 'connecting', progress: 0, text: this.t('CONFIRMING_DEVICE') });
 
     const requestOptions = {
       filters: [{ services: [BLE_OTA_SERVICE_UUID] }],
@@ -764,7 +770,7 @@ export class UploaderBleService implements BleOtaTransport {
       if (this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
         const result = await window['ble'].setPreferredDevice(discovered.id);
         if (result?.success === false) {
-          throw new Error(result.error || '准备 BLE 设备选择失败');
+          throw new Error(result.error || this.t('PREPARE_DEVICE_SELECTION_FAILED'));
         }
       }
 
@@ -773,7 +779,7 @@ export class UploaderBleService implements BleOtaTransport {
         timeoutTimer = setTimeout(() => {
           timedOut = true;
           window['ble']?.cancelDeviceRequest?.().catch?.(() => undefined);
-          reject(new Error('确认 BLE 设备超时，请确认设备仍在附近并重新上传'));
+          reject(new Error(this.t('CONFIRM_DEVICE_TIMEOUT')));
         }, DEVICE_AUTHORIZATION_TIMEOUT_MS);
       });
 
@@ -781,14 +787,14 @@ export class UploaderBleService implements BleOtaTransport {
       const item = this.cacheBluetoothDevice(device);
       this.selectedDeviceId = item.id;
       this.removeDiscoveredDuplicates(item, discovered.id, discovered.name);
-      progress?.({ state: 'connecting', progress: 0, text: '已选择 BLE 设备，正在连接...' });
+      progress?.({ state: 'connecting', progress: 0, text: this.t('DEVICE_SELECTED_CONNECTING') });
       return item;
     } catch (error) {
       if (timedOut) throw error;
 
       const message = error?.message || String(error || '');
       if (/cancel|cancelled|no device selected|user cancelled/i.test(message)) {
-        throw new Error('已取消 BLE 设备选择');
+        throw new Error(this.t('DEVICE_SELECTION_CANCELLED'));
       }
       throw error;
     } finally {
@@ -808,8 +814,8 @@ export class UploaderBleService implements BleOtaTransport {
       this.throwIfCancelled();
 
       const retryText = attempt === 1
-        ? '正在连接 BLE 设备...'
-        : `BLE 连接失败，正在重试 (${attempt}/${GATT_CONNECT_MAX_ATTEMPTS})...`;
+        ? this.t('CONNECTING_DEVICE')
+        : this.t('CONNECT_RETRY', { attempt, maxAttempts: GATT_CONNECT_MAX_ATTEMPTS });
       progress?.({ state: 'connecting', progress: 0, text: retryText });
 
       try {
@@ -839,7 +845,7 @@ export class UploaderBleService implements BleOtaTransport {
       }
     }
 
-    throw lastError || new Error('BLE 连接失败');
+    throw lastError || new Error(this.t('CONNECT_FAILED'));
   }
 
   private safeDisconnectGatt(device: any): void {
@@ -855,7 +861,7 @@ export class UploaderBleService implements BleOtaTransport {
   private cacheBluetoothDevice(device: any): BleOtaDeviceItem {
     const item: BleOtaDeviceItem = {
       id: device.id,
-      name: device.name || 'BLE OTA Device',
+      name: device.name || this.t('DEFAULT_DEVICE_NAME'),
       device,
       connected: !!device.gatt?.connected,
       source: 'web-bluetooth',
@@ -920,7 +926,7 @@ export class UploaderBleService implements BleOtaTransport {
     this.server = null;
     this.recvFwCharacteristic = null;
     this.commandCharacteristic = null;
-    this.rejectPendingAcks(new Error('BLE 连接已关闭'));
+    this.rejectPendingAcks(new Error(this.t('CONNECTION_CLOSED')));
     const updated = { ...deviceItem, connected: false };
     this.knownDevices.set(deviceItem.id, updated);
     this.emitDevices(this.isScanning());
@@ -932,7 +938,7 @@ export class UploaderBleService implements BleOtaTransport {
     if (!id) return;
     this.discoveredDevices.set(id, {
       id,
-      name: rawDevice.deviceName || rawDevice.name || 'BLE OTA Device',
+      name: rawDevice.deviceName || rawDevice.name || this.t('DEFAULT_DEVICE_NAME'),
       source: 'electron-scan',
     });
   }
@@ -1027,8 +1033,16 @@ export class UploaderBleService implements BleOtaTransport {
 
   private throwIfCancelled(signal?: AbortSignal): void {
     if (this.cancelRequested || signal?.aborted) {
-      throw new Error('上传已取消');
+      throw new Error(this.t('CANCELLED'));
     }
+  }
+
+  private t(key: string, params?: Record<string, any>): string {
+    return this.translate.instant(`BLE_OTA.${key}`, params);
+  }
+
+  private getCommandAckTimeoutMessage(commandId: number): string {
+    return this.t('COMMAND_ACK_TIMEOUT', { commandId: commandId.toString(16) });
   }
 
   private getBluetooth(): any {
@@ -1045,12 +1059,15 @@ export class UploaderBleService implements BleOtaTransport {
 
   private isCommandAckTimeout(error: any, commandId: number): boolean {
     const message = error?.message || String(error || '');
-    return message.includes(`等待命令 ACK 超时: 0x${commandId.toString(16)}`);
+    return message.includes(this.getCommandAckTimeoutMessage(commandId))
+      || message.includes(`等待命令 ACK 超时: 0x${commandId.toString(16)}`);
   }
 
   private isDisconnectedError(error: any): boolean {
     const message = error?.message || String(error || '');
-    return /BLE 设备已断开|GATT Server is disconnected|device is disconnected|disconnected/i.test(message);
+    return message.includes(this.t('DEVICE_DISCONNECTED'))
+      || message.includes(this.t('CONNECTION_CLOSED'))
+      || /BLE 设备已断开|BLE 连接已关闭|GATT Server is disconnected|device is disconnected|disconnected/i.test(message);
   }
 
   private isTransientConnectionError(error: any): boolean {
@@ -1103,18 +1120,20 @@ export class UploaderBleService implements BleOtaTransport {
   }
 
   private formatAckError(status: number, commandId?: number): string {
-    const prefix = typeof commandId === 'number' ? `命令 0x${commandId.toString(16)} ` : '';
+    const prefix = typeof commandId === 'number'
+      ? this.t('ACK_COMMAND_PREFIX', { commandId: commandId.toString(16) })
+      : '';
     switch (status) {
       case ACK_CRC_ERROR:
-        return `${prefix}CRC 错误或写入失败`;
+        return `${prefix}${this.t('ACK_CRC_ERROR')}`;
       case ACK_INDEX_ERROR:
-        return `${prefix}Sector 序号错误`;
+        return `${prefix}${this.t('ACK_INDEX_ERROR')}`;
       case ACK_SIGNATURE_ERROR:
-        return `${prefix}签名校验失败或负载长度错误`;
+        return `${prefix}${this.t('ACK_SIGNATURE_ERROR')}`;
       case ACK_START_ERROR:
-        return `${prefix}无法启动 OTA，可能分区空间不足或设备正忙`;
+        return `${prefix}${this.t('ACK_START_ERROR')}`;
       default:
-        return `${prefix}返回未知状态: 0x${status.toString(16)}`;
+        return `${prefix}${this.t('ACK_UNKNOWN_STATUS', { status: status.toString(16) })}`;
     }
   }
 
