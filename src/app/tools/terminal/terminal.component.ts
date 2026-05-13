@@ -144,13 +144,7 @@ export class TerminalComponent {
     this.terminal.loadAddon(this.clipboardAddon);
     this.contextMenuListener = (event) => {
       event.preventDefault();
-      navigator.clipboard.readText().then(text => {
-        if (text) {
-          this.terminalService.send(text);
-        }
-      }).catch(err => {
-        console.error('获取剪贴板内容失败:', err);
-      });
+      this.pasteClipboardToTerminal();
     };
     this.terminalEl.nativeElement.addEventListener('contextmenu', this.contextMenuListener);
 
@@ -159,21 +153,36 @@ export class TerminalComponent {
       // Ctrl+C 用于复制（当有选中文本时）
       if (event.type === 'keydown' && event.ctrlKey && event.key === 'c') {
         if (this.terminal.hasSelection()) {
-          navigator.clipboard.writeText(this.terminal.getSelection());
+          this.copyTerminalSelection();
           return false; // 阻止事件继续传播
         }
       }
       // 也可以添加 Ctrl+Shift+V 用于粘贴
       if (event.type === 'keydown' && event.ctrlKey && event.key === 'v') {
-        navigator.clipboard.readText().then(text => {
-          if (text) {
-            this.terminalService.send(text);
-          }
-        });
+        this.pasteClipboardToTerminal();
         return false;
       }
       return true; // 允许其他键盘事件正常处理
     });
+  }
+
+  private async pasteClipboardToTerminal() {
+    try {
+      const text = await this.electronService.clipboardReadText();
+      if (text) {
+        this.terminalService.send(text);
+      }
+    } catch (err) {
+      console.error('获取剪贴板内容失败:', err);
+    }
+  }
+
+  private async copyTerminalSelection() {
+    try {
+      await this.electronService.clipboardWriteText(this.terminal.getSelection());
+    } catch (err) {
+      console.error('写入剪贴板失败:', err);
+    }
   }
 
   async nodePtyInit() {
