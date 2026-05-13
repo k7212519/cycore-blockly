@@ -1,5 +1,5 @@
 // 窗口控制
-const { ipcMain, BrowserWindow, app } = require("electron");
+const { ipcMain, BrowserWindow, app, screen } = require("electron");
 const { exec, execSync } = require('child_process');
 const path = require('path');
 
@@ -102,6 +102,32 @@ function removePoolHandlersFromWin(win, loadBasePage) {
         delete win.__subWindowPoolClosedHandler;
     }
     scheduleReplenishSubWindowPool(loadBasePage);
+}
+
+/**
+ * 将子窗口居中到「主窗口当前所在显示器」的工作区内（多屏跟随主窗口）。
+ * @param {import('electron').BrowserWindow} subWindow
+ * @param {import('electron').BrowserWindow | null} mainWin
+ * @param {number} width
+ * @param {number} height
+ */
+function centerSubWindowOnMainDisplay(subWindow, mainWin, width, height) {
+    try {
+        if (!subWindow || subWindow.isDestroyed()) {
+            return;
+        }
+        const wa =
+            mainWin && !mainWin.isDestroyed()
+                ? screen.getDisplayMatching(mainWin.getBounds()).workArea
+                : screen.getPrimaryDisplay().workArea;
+        const w = Math.min(Math.max(1, width), wa.width);
+        const h = Math.min(Math.max(1, height), wa.height);
+        const x = Math.round(wa.x + Math.max(0, (wa.width - w) / 2));
+        const y = Math.round(wa.y + Math.max(0, (wa.height - h) / 2));
+        subWindow.setBounds({ x, y, width: w, height: h });
+    } catch (e) {
+        console.warn('[SubWindowPool] 子窗口居中定位失败:', e.message);
+    }
 }
 
 function terminateAilyProcess() {
@@ -360,11 +386,12 @@ function registerWindowHandlers(mainWindow) {
         } else {
             try {
                 subWindow.setAlwaysOnTop(!!alwaysOnTop);
-                subWindow.setSize(width, height);
             } catch (e) {
-                console.warn('[SubWindowPool] 应用子窗口尺寸/置顶失败:', e.message);
+                console.warn('[SubWindowPool] 子窗口置顶设置失败:', e.message);
             }
         }
+
+        centerSubWindowOnMainDisplay(subWindow, mainWindow, width, height);
 
         openWindows.set(windowUrl, subWindow);
         attachSubWindowLifecycleListeners(subWindow, windowUrl);
