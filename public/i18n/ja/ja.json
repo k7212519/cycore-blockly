@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "ユーザーセンターと設定",
         "SIMULATOR_DESC": "シミュレータ（開発中）"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "プロジェクトを読み込み中...",
+        "PROJECT_LOADED": "プロジェクトを読み込みました",
+        "PROJECT_SAVING": "プロジェクトを保存中...",
+        "PROJECT_SAVED": "プロジェクトを保存しました",
+        "PROJECT_CLOSED": "プロジェクトを閉じました"
+    },
     "SETTINGS": {
         "TITLE": "設定",
         "SECTIONS": {

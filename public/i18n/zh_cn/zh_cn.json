@@ -169,6 +169,13 @@
         "USER_CENTER_DESC": "用户中心与设置",
         "SIMULATOR_DESC": "仿真器（开发中）"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "项目加载中...",
+        "PROJECT_LOADED": "项目已加载",
+        "PROJECT_SAVING": "项目保存中...",
+        "PROJECT_SAVED": "项目已保存",
+        "PROJECT_CLOSED": "项目已关闭"
+    },
     "SETTINGS": {
         "TITLE": "设置",
         "SECTIONS": {

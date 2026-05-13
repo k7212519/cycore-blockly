@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "Benutzerzentrum und Einstellungen",
         "SIMULATOR_DESC": "Simulator (In Entwicklung)"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "Projekt wird geladen...",
+        "PROJECT_LOADED": "Projekt geladen",
+        "PROJECT_SAVING": "Projekt wird gespeichert...",
+        "PROJECT_SAVED": "Projekt gespeichert",
+        "PROJECT_CLOSED": "Projekt geschlossen"
+    },
     "SETTINGS": {
         "TITLE": "Einstellungen",
         "SECTIONS": {

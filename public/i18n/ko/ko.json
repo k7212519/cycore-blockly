@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "사용자 센터 및 설정",
         "SIMULATOR_DESC": "시뮬레이터 (개발 중)"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "프로젝트 불러오는 중...",
+        "PROJECT_LOADED": "프로젝트를 불러왔습니다",
+        "PROJECT_SAVING": "프로젝트 저장 중...",
+        "PROJECT_SAVED": "프로젝트가 저장되었습니다",
+        "PROJECT_CLOSED": "프로젝트를 닫았습니다"
+    },
     "SETTINGS": {
         "TITLE": "설정",
         "SECTIONS": {

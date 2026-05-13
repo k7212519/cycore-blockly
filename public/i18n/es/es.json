@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "Centro de usuario y configuración",
         "SIMULATOR_DESC": "Simulador (En desarrollo)"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "Cargando proyecto...",
+        "PROJECT_LOADED": "Proyecto cargado",
+        "PROJECT_SAVING": "Guardando proyecto...",
+        "PROJECT_SAVED": "Proyecto guardado",
+        "PROJECT_CLOSED": "Proyecto cerrado"
+    },
     "SETTINGS": {
         "TITLE": "Configuración",
         "SECTIONS": {

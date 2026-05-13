@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "مركز المستخدم والإعدادات",
         "SIMULATOR_DESC": "المحاكي (قيد التطوير)"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "جارٍ تحميل المشروع...",
+        "PROJECT_LOADED": "تم تحميل المشروع",
+        "PROJECT_SAVING": "جارٍ حفظ المشروع...",
+        "PROJECT_SAVED": "تم حفظ المشروع",
+        "PROJECT_CLOSED": "تم إغلاق المشروع"
+    },
     "SETTINGS": {
         "TITLE": "الإعدادات",
         "SECTIONS": {

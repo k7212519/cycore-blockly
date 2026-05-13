@@ -170,6 +170,13 @@
         "USER_CENTER_DESC": "User center and settings",
         "SIMULATOR_DESC": "Simulator (In Development)"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "Project Loading...",
+        "PROJECT_LOADED": "Project Loaded",
+        "PROJECT_SAVING": "Project Saving...",
+        "PROJECT_SAVED": "Project Saved",
+        "PROJECT_CLOSED": "Project Closed"
+    },
     "SETTINGS": {
         "TITLE": "Settings",
         "SECTIONS": {

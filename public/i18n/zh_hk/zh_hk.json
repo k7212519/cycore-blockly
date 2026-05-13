@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "用戶中心與設定",
         "SIMULATOR_DESC": "仿真器（開發中）"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "專案載入中...",
+        "PROJECT_LOADED": "專案已載入",
+        "PROJECT_SAVING": "專案儲存中...",
+        "PROJECT_SAVED": "專案已儲存",
+        "PROJECT_CLOSED": "專案已關閉"
+    },
     "SETTINGS": {
         "TITLE": "設定",
         "SECTIONS": {

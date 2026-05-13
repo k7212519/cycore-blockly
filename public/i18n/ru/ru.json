@@ -122,6 +122,13 @@
         "USER_CENTER_DESC": "Центр пользователя и настройки",
         "SIMULATOR_DESC": "Симулятор (В разработке)"
     },
+    "MAIN_WINDOW": {
+        "PROJECT_LOADING": "Загрузка проекта...",
+        "PROJECT_LOADED": "Проект загружен",
+        "PROJECT_SAVING": "Сохранение проекта...",
+        "PROJECT_SAVED": "Проект сохранён",
+        "PROJECT_CLOSED": "Проект закрыт"
+    },
     "SETTINGS": {
         "TITLE": "Настройки",
         "SECTIONS": {
