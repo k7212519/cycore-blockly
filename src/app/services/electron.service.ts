@@ -97,13 +97,48 @@ export class ElectronService {
   }
 
   // 写入系统剪贴板
-  clipboardWriteText(text: string) {
-    window['clipboard']?.writeText(text);
+  async clipboardWriteText(text: string): Promise<void> {
+    if (window['clipboard']?.writeText) {
+      window['clipboard'].writeText(text);
+      return;
+    }
+
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    this.writeTextWithTextarea(text);
   }
 
   // 读取系统剪贴板
-  clipboardReadText(): string {
-    return window['clipboard']?.readText() || '';
+  async clipboardReadText(): Promise<string> {
+    if (window['clipboard']?.readText) {
+      return window['clipboard'].readText() || '';
+    }
+
+    if (navigator.clipboard?.readText && window.isSecureContext) {
+      return await navigator.clipboard.readText();
+    }
+
+    return '';
+  }
+
+  private writeTextWithTextarea(text: string) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+      document.execCommand('copy');
+    } finally {
+      document.body.removeChild(textarea);
+    }
   }
 
   // 调用浏览器打开url

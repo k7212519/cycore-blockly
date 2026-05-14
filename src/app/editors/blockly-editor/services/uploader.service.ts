@@ -1,4 +1,5 @@
-import { Injectable } from "@angular/core";
+import { Injectable, inject } from "@angular/core";
+import { TranslateService } from '@ngx-translate/core';
 import { ProjectService } from "../../../services/project.service";
 import { SerialService } from "../../../services/serial.service";
 import { NzMessageService } from "ng-zorro-antd/message";
@@ -19,6 +20,7 @@ import { AppDataResourceLockService } from '../../../services/appdata-resource-l
 
 @Injectable()
 export class _UploaderService {
+  private translate = inject(TranslateService);
 
   constructor(
     private projectService: ProjectService,
@@ -120,7 +122,8 @@ export class _UploaderService {
   private safeUpdateNotice(config: any) {
     // 如果已取消，只允许更新为取消状态
     if (this.cancelled) {
-      if (config.state === 'warn' && config.title && config.title.includes('取消')) {
+      const cancelledText = this.t('CANCELLED');
+      if (config.state === 'warn' && config.title && (config.title.includes('取消') || config.title === cancelledText || config.text === cancelledText)) {
         this.noticeService.update(config);
       }
       // 其他所有更新都被忽略
@@ -185,6 +188,29 @@ export class _UploaderService {
           return;
         }
 
+        if (capturedPortInfo?.type === 'ble') {
+          try {
+            await this.uploaderBleService.authorizeDevice(capturedSerialPort, progress => {
+              if (this.cancelled) return;
+              this.noticeService.update({
+                title: this.t('UPLOADING_TITLE'),
+                text: progress.text || this.t('CONFIRMING_DEVICE'),
+                state: 'doing',
+                progress: Math.max(0, Math.min(100, Math.floor(progress.progress || 0))),
+                setTimeout: 0,
+                stop: () => { this.cancel(); }
+              });
+            });
+          } catch (error) {
+            this.uploadInProgress = false;
+            this._builderService.isUploading = false;
+            const message = error?.message || error?.text || this.t('UPLOAD_FAILED_FALLBACK');
+            this.handleUploadError(message, this.t('UPLOAD_FAILED_TITLE'), message);
+            reject({ state: 'error', text: message });
+            return;
+          }
+        }
+
         // 第一步：检查是否需要编译
         const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
         const buildPath = await this.projectService.getBuildPath();
@@ -233,13 +259,13 @@ export class _UploaderService {
         if (this.cancelled) {
           this.uploadInProgress = false;
           this.noticeService.update({
-            title: "上传已取消",
-            text: '上传已取消',
+            title: this.t('CANCELLED'),
+            text: this.t('CANCELLED'),
             state: 'warn',
             setTimeout: 55000
           });
           this.workflowService.finishUpload(false, 'Cancelled during build');
-          reject({ state: 'warn', text: '上传已取消' });
+          reject({ state: 'warn', text: this.t('CANCELLED') });
           return;
         }
 
@@ -703,15 +729,15 @@ export class _UploaderService {
               console.warn("上传中断 - 用户取消");
               // 安全更新UI
               this.safeUpdateNotice({
-                title: "上传已取消",
-                text: '上传已取消',
+                title: this.t('CANCELLED'),
+                text: this.t('CANCELLED'),
                 state: 'warn',
                 setTimeout: 55000
               });
               this._builderService.isUploading = false;
               this.workflowService.finishUpload(false, 'Cancelled');
               this.uploadPromiseReject = null;
-              reject({ state: 'warn', text: '上传已取消' });
+              reject({ state: 'warn', text: this.t('CANCELLED') });
             } else if (this.isErrored) {
               console.log("上传命令完成 - 发生错误");
               this._builderService.isUploading = false;
@@ -816,12 +842,12 @@ export class _UploaderService {
   private async uploadByBle(buildPath: string, portInfo: any, boardName = ''): Promise<ActionState> {
     const firmwarePath = this.uploaderBleService.findFirmwareFile(buildPath);
     if (!firmwarePath) {
-      const message = '未找到可用于 BLE OTA 的应用固件 .bin';
-      this.logBleUpload(`错误: ${message}`, 'error');
-      this.logBleUpload(`构建目录: ${buildPath}`, 'error');
+      const message = this.t('NO_FIRMWARE');
+      this.logBleUpload(this.t('LOG_ERROR', { message }), 'error');
+      this.logBleUpload(this.t('LOG_BUILD_PATH', { path: buildPath }), 'error');
       this.uploadInProgress = false;
       this._builderService.isUploading = false;
-      this.handleUploadError(message, 'BLE OTA 上传失败', `构建目录: ${buildPath}`);
+      this.handleUploadError(message, this.t('UPLOAD_FAILED_TITLE'), this.t('LOG_BUILD_PATH', { path: buildPath }));
       this.workflowService.finishUpload(false, 'BLE OTA firmware not found');
       throw { state: 'error', text: message };
     }
@@ -832,17 +858,17 @@ export class _UploaderService {
     let lastLoggedProgress = -1;
     let lastLoggedState = '';
     let lastLoggedText = '';
-    const targetName = boardName || portInfo?.text || portInfo?.name || 'BLE OTA 设备';
+    const targetName = boardName || portInfo?.text || portInfo?.name || this.t('DEFAULT_TARGET_NAME');
 
-    this.logBleUpload(`准备上传到 ${targetName}`);
-    this.logBleUpload(`固件文件: ${firmwarePath}`);
-    this.logBleUpload(`固件大小: ${this.formatBytes(firmware.byteLength)}`);
+    this.logBleUpload(this.t('LOG_PREPARE_UPLOAD', { target: targetName }));
+    this.logBleUpload(this.t('LOG_FIRMWARE_FILE', { path: firmwarePath }));
+    this.logBleUpload(this.t('LOG_FIRMWARE_SIZE', { size: this.formatBytes(firmware.byteLength) }));
 
     this.uploadInProgress = true;
     this.uploadCompleted = false;
     this.noticeService.update({
-      title: 'BLE OTA 上传中',
-      text: `正在准备 ${boardName || portInfo?.text || firmwareName}`,
+      title: this.t('UPLOADING_TITLE'),
+      text: this.t('PREPARING', { target: boardName || portInfo?.text || firmwareName }),
       state: 'doing',
       progress: 0,
       setTimeout: 0,
@@ -852,7 +878,7 @@ export class _UploaderService {
     const updateProgress = (progress: BleOtaProgress) => {
       if (this.cancelled) return;
       const progressValue = Math.max(0, Math.min(100, Math.floor(progress.progress || 0)));
-      const progressText = progress.text || 'BLE OTA 上传中...';
+      const progressText = progress.text || this.t('UPLOADING_FALLBACK');
       const shouldLogState = progress.state !== lastLoggedState;
       const shouldLogText = progress.state !== 'sending' && progressText !== lastLoggedText;
       const shouldLogProgress = progress.state === 'sending'
@@ -864,7 +890,7 @@ export class _UploaderService {
           ? ` (${this.formatBytes(progress.bytesSent)} / ${this.formatBytes(progress.totalBytes)})`
           : '';
         const sectorText = typeof progress.sectorIndex === 'number' && typeof progress.sectorCount === 'number'
-          ? ` sector ${progress.sectorIndex + 1}/${progress.sectorCount}`
+          ? ` ${this.t('SECTOR_PROGRESS', { current: progress.sectorIndex + 1, total: progress.sectorCount })}`
           : '';
         const speedText = progress.speed ? `, ${this.formatBytes(progress.speed)}/s` : '';
         this.logBleUpload(`${progressText} ${progressValue}%${bytesText}${sectorText}${speedText}`.trim());
@@ -878,8 +904,8 @@ export class _UploaderService {
       if (progressValue === lastProgress && progress.state === 'sending') return;
       lastProgress = progressValue;
       this.safeUpdateNotice({
-        title: 'BLE OTA上传中',
-        text: progress.text || 'BLE OTA上传中',
+        title: this.t('UPLOADING_TITLE'),
+        text: progress.text || this.t('UPLOADING_TITLE'),
         state: 'doing',
         progress: progressValue,
         setTimeout: 0,
@@ -894,40 +920,40 @@ export class _UploaderService {
       });
 
       if (this.cancelled) {
-        throw { state: 'warn', text: '上传已取消' };
+        throw { state: 'warn', text: this.t('CANCELLED') };
       }
 
       this.uploadCompleted = true;
       this.uploadInProgress = false;
       this._builderService.isUploading = false;
       this.workflowService.finishUpload(true);
-      this.logBleUpload(`上传完成: ${this.formatBytes(result.bytes)}, 耗时 ${(result.elapsedMs / 1000).toFixed(1)}s`, 'done');
+      this.logBleUpload(this.t('LOG_UPLOAD_DONE', { size: this.formatBytes(result.bytes), elapsed: (result.elapsedMs / 1000).toFixed(1) }), 'done');
       this.safeUpdateNotice({
-        title: 'BLE OTA 上传完成',
-        text: `上传完成 ${this.formatBytes(result.bytes)}`,
+        title: this.t('UPLOAD_DONE_TITLE'),
+        text: this.t('UPLOAD_DONE_TEXT', { size: this.formatBytes(result.bytes) }),
         state: 'done',
         setTimeout: 55000,
       });
-      return { state: 'done', text: '上传完成' };
+      return { state: 'done', text: this.t('UPLOAD_DONE_SHORT') };
     } catch (error) {
       this.uploadInProgress = false;
       this._builderService.isUploading = false;
 
       if (this.cancelled || error?.state === 'warn') {
-        this.logBleUpload('上传已取消', 'warn');
+        this.logBleUpload(this.t('LOG_UPLOAD_CANCELLED'), 'warn');
         this.safeUpdateNotice({
-          title: '上传已取消',
-          text: '上传已取消',
+          title: this.t('CANCELLED'),
+          text: this.t('CANCELLED'),
           state: 'warn',
           setTimeout: 55000,
         });
         this.workflowService.finishUpload(false, 'BLE OTA cancelled');
-        throw { state: 'warn', text: '上传已取消' };
+        throw { state: 'warn', text: this.t('CANCELLED') };
       }
 
-      const message = error?.message || error?.text || 'BLE OTA 上传失败';
-    this.logBleUpload(`上传失败: ${message}`, 'error');
-      this.handleUploadError(message, 'BLE OTA 上传失败', message);
+      const message = error?.message || error?.text || this.t('UPLOAD_FAILED_FALLBACK');
+      this.logBleUpload(this.t('LOG_UPLOAD_FAILED', { message }), 'error');
+      this.handleUploadError(message, this.t('UPLOAD_FAILED_TITLE'), message);
       this.workflowService.finishUpload(false, message);
       throw { state: 'error', text: message };
     } finally {
@@ -948,6 +974,10 @@ export class _UploaderService {
     });
   }
 
+  private t(key: string, params?: Record<string, any>): string {
+    return this.translate.instant(`BLE_OTA.${key}`, params);
+  }
+
   /**
 * 取消当前上传过程
 */
@@ -966,8 +996,8 @@ export class _UploaderService {
     
     // 立即更新通知状态为已取消
     this.noticeService.update({
-      title: "上传已取消",
-      text: '上传已取消',
+      title: this.t('CANCELLED'),
+      text: this.t('CANCELLED'),
       state: 'warn',
       setTimeout: 55000
     });
@@ -995,7 +1025,7 @@ export class _UploaderService {
     
     // 立即 reject Promise，使按钮状态快速更新
     if (this.uploadPromiseReject) {
-      this.uploadPromiseReject({ state: 'warn', text: '上传已取消' });
+      this.uploadPromiseReject({ state: 'warn', text: this.t('CANCELLED') });
       this.uploadPromiseReject = null;
     }
   }

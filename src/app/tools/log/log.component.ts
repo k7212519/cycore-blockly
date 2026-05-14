@@ -157,7 +157,7 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
   async copyLogItemToClipboard(item: any) {
     try {
       const logContent = this.cleanLogContent(item.detail);
-      await navigator.clipboard.writeText(logContent);
+      await this.electronService.clipboardWriteText(logContent);
       this.message.success(this.translate.instant('LOG.COPIED_TO_CLIPBOARD'));
     } catch (err) {
       console.error('复制到剪切板失败:', err);
