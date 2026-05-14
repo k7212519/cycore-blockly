@@ -10,6 +10,12 @@ const CODE_VIEWER_STATE_GET_CHANNEL = 'blockly-code-viewer-state-get';
 /** 后台预缓冲子窗口数量：1 个待用 + 1 个备用 */
 const SUB_WINDOW_POOL_SIZE = 2;
 
+/** 首次 before-quit 即置位；池窗口 closed 时 Electron 的 app.isQuitting 在实测中仍为 false */
+let applicationIsQuitting = false;
+app.once('before-quit', () => {
+    applicationIsQuitting = true;
+});
+
 function isDevServeSubWindow() {
     return process.env.DEV === 'true' || process.env.DEV === true;
 }
@@ -32,12 +38,18 @@ let subWindowPool = [];
 let subWindowReplenishScheduled = false;
 
 function scheduleReplenishSubWindowPool(loadBasePage) {
+    if (applicationIsQuitting) {
+        return;
+    }
     if (subWindowReplenishScheduled) {
         return;
     }
     subWindowReplenishScheduled = true;
     setImmediate(() => {
         subWindowReplenishScheduled = false;
+        if (applicationIsQuitting) {
+            return;
+        }
         replenishSubWindowPool(loadBasePage);
     });
 }
@@ -46,6 +58,9 @@ function scheduleReplenishSubWindowPool(loadBasePage) {
  * 创建透明不可见（opacity 0）、不出现在任务栏的预缓冲子窗口并完成首屏加载。
  */
 function pushPooledSubWindow(loadBasePage) {
+    if (applicationIsQuitting) {
+        return;
+    }
     try {
         const win = new BrowserWindow({
             frame: false,
@@ -69,7 +84,9 @@ function pushPooledSubWindow(loadBasePage) {
                 subWindowPool.splice(idx, 1);
             }
             delete win.__subWindowPoolClosedHandler;
-            scheduleReplenishSubWindowPool(loadBasePage);
+            if (!applicationIsQuitting) {
+                scheduleReplenishSubWindowPool(loadBasePage);
+            }
         };
         win.__subWindowPoolClosedHandler = onClosedWhilePooled;
         win.once('closed', onClosedWhilePooled);
@@ -81,6 +98,9 @@ function pushPooledSubWindow(loadBasePage) {
 }
 
 function replenishSubWindowPool(loadBasePage) {
+    if (applicationIsQuitting) {
+        return;
+    }
     while (subWindowPool.length < SUB_WINDOW_POOL_SIZE) {
         const prevLen = subWindowPool.length;
         pushPooledSubWindow(loadBasePage);
