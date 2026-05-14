@@ -123,6 +123,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "准备 BLE 设备选择失败",
         "CONFIRM_DEVICE_TIMEOUT": "确认 BLE 设备超时，请确认设备仍在附近并重新上传",
         "DEVICE_SELECTION_CANCELLED": "已取消 BLE 设备选择",
+        "USER_GESTURE_REQUIRED": "浏览器需要在点击等用户操作后立即弹出 BLE 设备选择框，请重新点击上传按钮重试",
         "DEVICE_SELECTED_CONNECTING": "已选择 BLE 设备，正在连接...",
         "CONNECT_RETRY": "BLE 连接失败，正在重试 ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "BLE 连接失败",

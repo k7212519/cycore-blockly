@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "BLEデバイス選択の準備に失敗しました",
         "CONFIRM_DEVICE_TIMEOUT": "BLEデバイスの確認がタイムアウトしました。デバイスが近くにあることを確認して再度アップロードしてください",
         "DEVICE_SELECTION_CANCELLED": "BLEデバイスの選択がキャンセルされました",
+        "USER_GESTURE_REQUIRED": "ブラウザは BLE デバイス選択ダイアログをユーザー操作の直後に表示させる必要があります。アップロードボタンをもう一度クリックして再試行してください",
         "DEVICE_SELECTED_CONNECTING": "BLEデバイスを選択しました。接続中...",
         "CONNECT_RETRY": "BLE接続に失敗しました。再試行中 ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "BLE接続に失敗しました",

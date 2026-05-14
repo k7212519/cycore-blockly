@@ -124,6 +124,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "Failed to prepare BLE device selection",
         "CONFIRM_DEVICE_TIMEOUT": "BLE device confirmation timed out. Make sure the device is nearby and upload again",
         "DEVICE_SELECTION_CANCELLED": "BLE device selection cancelled",
+        "USER_GESTURE_REQUIRED": "The browser requires the BLE device chooser to open immediately after a user gesture. Please click the upload button again to retry",
         "DEVICE_SELECTED_CONNECTING": "BLE device selected, connecting...",
         "CONNECT_RETRY": "BLE connection failed, retrying ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "BLE connection failed",

@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "BLE-Geräteauswahl konnte nicht vorbereitet werden",
         "CONFIRM_DEVICE_TIMEOUT": "Zeitüberschreitung bei der BLE-Gerätebestätigung. Stellen Sie sicher, dass das Gerät in der Nähe ist, und laden Sie erneut hoch",
         "DEVICE_SELECTION_CANCELLED": "BLE-Geräteauswahl abgebrochen",
+        "USER_GESTURE_REQUIRED": "Der Browser verlangt, dass die BLE-Geräteauswahl sofort nach einer Benutzerinteraktion geöffnet wird. Klicken Sie erneut auf die Upload-Schaltfläche, um es erneut zu versuchen",
         "DEVICE_SELECTED_CONNECTING": "BLE-Gerät ausgewählt, Verbindung wird hergestellt...",
         "CONNECT_RETRY": "BLE-Verbindung fehlgeschlagen, erneuter Versuch ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "BLE-Verbindung fehlgeschlagen",

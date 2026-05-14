@@ -188,6 +188,29 @@ export class _UploaderService {
           return;
         }
 
+        if (capturedPortInfo?.type === 'ble') {
+          try {
+            await this.uploaderBleService.authorizeDevice(capturedSerialPort, progress => {
+              if (this.cancelled) return;
+              this.noticeService.update({
+                title: this.t('UPLOADING_TITLE'),
+                text: progress.text || this.t('CONFIRMING_DEVICE'),
+                state: 'doing',
+                progress: Math.max(0, Math.min(100, Math.floor(progress.progress || 0))),
+                setTimeout: 0,
+                stop: () => { this.cancel(); }
+              });
+            });
+          } catch (error) {
+            this.uploadInProgress = false;
+            this._builderService.isUploading = false;
+            const message = error?.message || error?.text || this.t('UPLOAD_FAILED_FALLBACK');
+            this.handleUploadError(message, this.t('UPLOAD_FAILED_TITLE'), message);
+            reject({ state: 'error', text: message });
+            return;
+          }
+        }
+
         // 第一步：检查是否需要编译
         const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
         const buildPath = await this.projectService.getBuildPath();

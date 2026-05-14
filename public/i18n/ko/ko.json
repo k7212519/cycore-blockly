@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "BLE 장치 선택 준비에 실패했습니다",
         "CONFIRM_DEVICE_TIMEOUT": "BLE 장치 확인 시간이 초과되었습니다. 장치가 근처에 있는지 확인하고 다시 업로드하세요",
         "DEVICE_SELECTION_CANCELLED": "BLE 장치 선택이 취소되었습니다",
+        "USER_GESTURE_REQUIRED": "브라우저는 사용자 제스처 직후 BLE 장치 선택 대화상자를 열어야 합니다. 업로드 버튼을 다시 클릭하여 재시도하세요",
         "DEVICE_SELECTED_CONNECTING": "BLE 장치가 선택되었습니다. 연결 중...",
         "CONNECT_RETRY": "BLE 연결 실패, 다시 시도 중 ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "BLE 연결 실패",

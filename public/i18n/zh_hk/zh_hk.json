@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "準備 BLE 設備選擇失敗",
         "CONFIRM_DEVICE_TIMEOUT": "確認 BLE 設備超時，請確認設備仍在附近並重新上傳",
         "DEVICE_SELECTION_CANCELLED": "已取消 BLE 設備選擇",
+        "USER_GESTURE_REQUIRED": "瀏覽器需要在點擊等用戶操作後立即彈出 BLE 裝置選擇框，請重新點擊上傳按鈕重試",
         "DEVICE_SELECTED_CONNECTING": "已選擇 BLE 設備，正在連接...",
         "CONNECT_RETRY": "BLE 連接失敗，正在重試 ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "BLE 連接失敗",

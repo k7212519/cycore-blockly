@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "فشل تجهيز اختيار جهاز BLE",
         "CONFIRM_DEVICE_TIMEOUT": "انتهت مهلة تأكيد جهاز BLE. تأكد من أن الجهاز قريب ثم ارفع مرة أخرى",
         "DEVICE_SELECTION_CANCELLED": "تم إلغاء اختيار جهاز BLE",
+        "USER_GESTURE_REQUIRED": "يتطلب المتصفح فتح نافذة اختيار جهاز BLE فور إجراء المستخدم. الرجاء النقر على زر الرفع مرة أخرى للمحاولة من جديد",
         "DEVICE_SELECTED_CONNECTING": "تم اختيار جهاز BLE، جارٍ الاتصال...",
         "CONNECT_RETRY": "فشل اتصال BLE، جارٍ إعادة المحاولة ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "فشل اتصال BLE",

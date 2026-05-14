@@ -74,6 +74,7 @@ export interface BleOtaTransport {
   beginScan(timeoutMs?: number): Promise<BleOtaDeviceItem>;
   cancelScan(): Promise<void>;
   selectDevice(deviceId: string): Promise<BleOtaDeviceItem>;
+  authorizeDevice(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<BleOtaDeviceItem>;
   connect(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<void>;
   disconnect(): Promise<void>;
   uploadFirmware(firmware: Uint8Array | ArrayBuffer, options?: BleOtaUploadOptions): Promise<BleOtaUploadResult>;
@@ -364,6 +365,16 @@ export class UploaderBleService implements BleOtaTransport {
     }
 
     throw new Error(this.t('DEVICE_NOT_FOUND'));
+  }
+
+  async authorizeDevice(
+    deviceId?: string,
+    progress?: (progress: BleOtaProgress) => void,
+  ): Promise<BleOtaDeviceItem> {
+    const item = await this.ensureDevice(deviceId || this.selectedDeviceId || undefined, progress);
+    this.selectedDeviceId = item.id;
+    this.emitDevices(this.isScanning());
+    return item;
   }
 
   async connect(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<void> {
@@ -767,11 +778,19 @@ export class UploaderBleService implements BleOtaTransport {
 
     try {
       this.setupElectronBluetoothBridge();
+      // 注意: 必须保持 requestDevice 处于用户手势同步调用栈中。
+      // 任何 await 都可能消耗 Chromium 的 transient user activation，
+      // 触发 "Must be handling a user gesture to show a permission request"。
+      // 因此 setPreferredDevice 走 fire-and-forget; IPC 消息会在同一 tick 同步派发到主进程，
+      // 主进程在收到 select-bluetooth-device 事件时再读取 preferred 列表，时序上足够。
       if (this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
-        const result = await window['ble'].setPreferredDevice(discovered.id);
-        if (result?.success === false) {
-          throw new Error(result.error || this.t('PREPARE_DEVICE_SELECTION_FAILED'));
-        }
+        Promise.resolve(window['ble'].setPreferredDevice(discovered.id))
+          .then((result: any) => {
+            if (result?.success === false) {
+              this.debug('setPreferredDevice rejected by main', result?.error);
+            }
+          })
+          .catch((error: any) => this.debug('setPreferredDevice failed', error?.message || error));
       }
 
       const requestPromise = bluetooth.requestDevice(requestOptions);
@@ -793,6 +812,9 @@ export class UploaderBleService implements BleOtaTransport {
       if (timedOut) throw error;
 
       const message = error?.message || String(error || '');
+      if (/Must be handling a user gesture/i.test(message)) {
+        throw new Error(this.t('USER_GESTURE_REQUIRED'));
+      }
       if (/cancel|cancelled|no device selected|user cancelled/i.test(message)) {
         throw new Error(this.t('DEVICE_SELECTION_CANCELLED'));
       }

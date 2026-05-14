@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "Error al preparar la selección del dispositivo BLE",
         "CONFIRM_DEVICE_TIMEOUT": "Se agotó el tiempo de confirmación del dispositivo BLE. Asegúrese de que el dispositivo esté cerca y cargue de nuevo",
         "DEVICE_SELECTION_CANCELLED": "Selección del dispositivo BLE cancelada",
+        "USER_GESTURE_REQUIRED": "El navegador requiere que el selector de dispositivo BLE se abra inmediatamente tras un gesto del usuario. Haz clic de nuevo en el botón de carga para reintentar",
         "DEVICE_SELECTED_CONNECTING": "Dispositivo BLE seleccionado, conectando...",
         "CONNECT_RETRY": "Error de conexión BLE, reintentando ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "Error de conexión BLE",

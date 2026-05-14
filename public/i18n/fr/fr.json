@@ -88,6 +88,7 @@
         "PREPARE_DEVICE_SELECTION_FAILED": "Impossible de préparer la sélection de l'appareil BLE",
         "CONFIRM_DEVICE_TIMEOUT": "La confirmation de l'appareil BLE a expiré. Vérifiez que l'appareil est à proximité puis relancez l'upload",
         "DEVICE_SELECTION_CANCELLED": "Sélection de l'appareil BLE annulée",
+        "USER_GESTURE_REQUIRED": "Le navigateur exige que le sélecteur d'appareil BLE s'ouvre immédiatement après un geste utilisateur. Cliquez à nouveau sur le bouton d'envoi pour réessayer",
         "DEVICE_SELECTED_CONNECTING": "Appareil BLE sélectionné, connexion...",
         "CONNECT_RETRY": "Échec de la connexion BLE, nouvelle tentative ({{attempt}}/{{maxAttempts}})...",
         "CONNECT_FAILED": "Échec de la connexion BLE",
