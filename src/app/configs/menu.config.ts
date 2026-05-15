@@ -19,6 +19,8 @@ export interface IMenuItem {
   /** 行内操作按钮，如重命名/删除 */
   actions?: { icon: string; action: string; title?: string }[];
   current?: boolean;
+  /** 子菜单不使用单选勾选（如最近项目列表） */
+  submenuNoRadio?: boolean;
 }
 
 export let HEADER_BTNS: IMenuItem[] = [
@@ -68,6 +70,14 @@ export let HEADER_MENU: IMenuItem[] = [
     action: 'project-open',
     data: { type: 'project-open', data: 'project-open' },
     icon: 'fa-light fa-folder-open',
+  },
+  /** 子项由 header 打开菜单时动态填充 */
+  {
+    name: 'MENU.RECENT_PROJECTS',
+    action: 'recent-projects-root',
+    icon: 'fa-light fa-clock-rotate-left',
+    children: [],
+    submenuNoRadio: true,
   },
   {
     name: 'MENU.PROJECT_SAVE',

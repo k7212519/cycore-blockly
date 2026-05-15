@@ -3,6 +3,8 @@
         "MENU": "Menu",
         "PROJECT_NEW": "Nouveau Projet",
         "PROJECT_OPEN": "Ouvrir Projet",
+        "RECENT_PROJECTS": "Projets récents",
+        "RECENT_PROJECTS_EMPTY": "Aucun projet récent",
         "PROJECT_SAVE": "Sauvegarder Projet",
         "PROJECT_SAVE_AS": "Enregistrer Sous",
         "PROJECT_CLOSE": "Fermer Projet",

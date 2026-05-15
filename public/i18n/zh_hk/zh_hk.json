@@ -3,6 +3,8 @@
         "MENU": "選單",
         "PROJECT_NEW": "新建專案",
         "PROJECT_OPEN": "開啟專案",
+        "RECENT_PROJECTS": "最近的專案",
+        "RECENT_PROJECTS_EMPTY": "暫無最近開啟的專案",
         "PROJECT_SAVE": "儲存專案",
         "PROJECT_SAVE_AS": "另存為",
         "PROJECT_CLOSE": "關閉專案",

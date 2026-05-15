@@ -3,6 +3,8 @@
         "MENU": "Меню",
         "PROJECT_NEW": "Новый проект",
         "PROJECT_OPEN": "Открыть проект",
+        "RECENT_PROJECTS": "Недавние проекты",
+        "RECENT_PROJECTS_EMPTY": "Нет недавних проектов",
         "PROJECT_SAVE": "Сохранить проект",
         "PROJECT_SAVE_AS": "Сохранить как",
         "PROJECT_CLOSE": "Закрыть проект",

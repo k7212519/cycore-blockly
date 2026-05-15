@@ -3,6 +3,8 @@
         "MENU": "メニュー",
         "PROJECT_NEW": "新規プロジェクト",
         "PROJECT_OPEN": "プロジェクトを開く",
+        "RECENT_PROJECTS": "最近のプロジェクト",
+        "RECENT_PROJECTS_EMPTY": "最近開いたプロジェクトはありません",
         "PROJECT_SAVE": "プロジェクトを保存",
         "PROJECT_SAVE_AS": "名前を付けて保存",
         "PROJECT_CLOSE": "プロジェクトを閉じる",

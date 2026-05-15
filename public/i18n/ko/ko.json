@@ -3,6 +3,8 @@
         "MENU": "메뉴",
         "PROJECT_NEW": "새 프로젝트",
         "PROJECT_OPEN": "프로젝트 열기",
+        "RECENT_PROJECTS": "최근 프로젝트",
+        "RECENT_PROJECTS_EMPTY": "최근 연 프로젝트 없음",
         "PROJECT_SAVE": "프로젝트 저장",
         "PROJECT_SAVE_AS": "다른 이름으로 저장",
         "PROJECT_CLOSE": "프로젝트 닫기",

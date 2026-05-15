@@ -79,7 +79,9 @@ export class MenuComponent {
 
   itemClick(item) {
     if (item.disabled) return;
-    if (item.children) return;
+    // 有二级菜单时不触发主菜单项（最近项目入口在无子项时也不触发）
+    if (item.children?.length) return;
+    if (item.action === 'recent-projects-root') return;
     this.itemClickEvent.emit(item);
   }
 
@@ -150,8 +152,11 @@ export class MenuComponent {
       if (item.sep) {
         continue;
       }
-      // 检查是否应该渲染这个菜单项
-      const shouldRender = (item.children && item.children.length > 0) || (!item.children && this.showInRouter(item));
+      // 与模板一致：含子项 / 最近项目入口 / 按路由显示的叶子项
+      const shouldRender =
+        (item.children && item.children.length > 0) ||
+        item.action === 'recent-projects-root' ||
+        (!item.children && this.showInRouter(item));
       if (shouldRender) {
         if (i === index) {
           targetItemIndex = visibleItemCount;
@@ -224,10 +229,17 @@ export class MenuComponent {
   }
 
   subItemClick(event, subItem) {
-    this.menuList[this.activeSubmenuIndex].children.forEach(item => {
-      item['check'] = false
-    });
-    subItem['check'] = true
+    if (subItem.disabled) {
+      return;
+    }
+    const parent = this.menuList[this.activeSubmenuIndex];
+    // 串口/开发板子菜单保留单选勾选；最近项目等列表不切换勾选状态
+    if (parent?.children && !parent.submenuNoRadio) {
+      parent.children.forEach(item => {
+        item['check'] = false;
+      });
+      subItem['check'] = true;
+    }
     this.subItemClickEvent.emit(subItem);
   }
 }

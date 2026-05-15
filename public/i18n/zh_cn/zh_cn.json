@@ -3,6 +3,8 @@
         "MENU": "菜单",
         "PROJECT_NEW": "新建项目",
         "PROJECT_OPEN": "打开项目",
+        "RECENT_PROJECTS": "最近的项目",
+        "RECENT_PROJECTS_EMPTY": "暂无最近打开的项目",
         "PROJECT_SAVE": "保存项目",
         "PROJECT_SAVE_AS": "另存为",
         "PROJECT_CLOSE": "关闭项目",

@@ -70,7 +70,7 @@
 <!-- menu -->
 @if (showMenu) {
 <app-menu [menuList]="headerMenu" [width]="250" (closeEvent)="closeMenu()"
-  (itemClickEvent)="onMenuClick($event)"></app-menu>
+  (itemClickEvent)="onMenuClick($event)" (subItemClickEvent)="onHeaderMenuSubItemClick($event)"></app-menu>
 }
 <!-- device port list -->
 @if (showPortList) {
