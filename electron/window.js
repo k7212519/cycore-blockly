@@ -180,11 +180,8 @@ function registerWindowHandlers(mainWindow) {
     };
 
     const loadSubWindowBasePage = (webContents) => {
-        if (isDevServeSubWindow()) {
-            webContents.loadURL('http://localhost:4200/');
-        } else {
-            webContents.loadFile('renderer/index.html');
-        }
+        /** 池中仅占位，不加载 SPA 根页，避免出现 index / 首页再切目标页的闪屏；正式打开时再 load 路由 */
+        webContents.loadURL('about:blank');
     };
 
     /**
