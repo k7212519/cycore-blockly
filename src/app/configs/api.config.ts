@@ -122,4 +122,6 @@ export const API = {
   get downloadFirmware() { return `${getServerUrl()}/api/v1/firmware/download`; },
   // altcha
   get altchaChallenge() { return `${getServerUrl()}/api/v1/altcha`; },
+  /** 云端 pinmap 元件列表（库绑定查询） */
+  get pinmapComponents() { return `${getServerUrl()}/api/v1/pinmap/components`; },
 };
