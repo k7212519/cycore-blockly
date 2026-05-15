@@ -222,6 +222,26 @@ export class ElectronService {
   }
 
   /**
+   * 请求用户注意当前窗口：Windows 任务栏闪烁、macOS Dock 弹跳与角标等（需在后台时使用）。
+   * 与系统通知互补，避免仅依赖短时气泡。
+   */
+  async requestWindowAttention(): Promise<{ success: boolean; error?: string }> {
+    if (!this.isElectron) {
+      return { success: false, error: 'Not in Electron environment' };
+    }
+    try {
+      const w = window['iWindow'] as { requestAttention?: () => Promise<{ success: boolean; error?: string }> } | undefined;
+      if (w?.requestAttention) {
+        return await w.requestAttention();
+      }
+      return { success: false, error: 'requestAttention unavailable' };
+    } catch (error: any) {
+      console.warn('requestWindowAttention error:', error);
+      return { success: false, error: error?.message };
+    }
+  }
+
+  /**
    * 检查是否支持通知
    * @returns Promise<boolean>
    */

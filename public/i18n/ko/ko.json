@@ -396,6 +396,8 @@
         "MERMAID_COPY_FAILED": "복사 실패",
         "MERMAID_SAVE_FAILED": "저장 실패",
         "CLICK_TO_EDIT": "클릭하여 편집",
+        "USER_FEEDBACK_NOTIFY_TITLE": "AI 도우미에서 입력이 필요합니다",
+        "USER_FEEDBACK_NOTIFY_BODY": "AI 도우미에서 처리할 작업이 있습니다. 채팅을 열고 확인·답변 또는 화면 안내에 따라 다음 단계를 완료하세요.",
         "ONBOARDING": {
             "STEP1_TITLE": "입력 상자",
             "STEP1_DESC": "여기에 질문이나 AI가 도와줄 작업을 입력하세요. Enter로 전송, Ctrl+Enter로 줄바꿈",

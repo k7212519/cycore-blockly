@@ -239,6 +239,14 @@ function registerWindowHandlers(mainWindow) {
 
     mainWindow.on('focus', () => {
         try {
+            // 仅清除本功能设置的 Dock 角标，避免覆盖其它模块可能的徽章
+            if (process.platform === 'darwin' && app.dock && typeof app.dock.getBadge === 'function') {
+                try {
+                    if (app.dock.getBadge() === '!') {
+                        app.dock.setBadge('');
+                    }
+                } catch (_e) { /* dock API 不可用时忽略 */ }
+            }
             if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
                 mainWindow.webContents.send('window-focus');
             }
@@ -485,6 +493,34 @@ function registerWindowHandlers(mainWindow) {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
         const isFocused = senderWindow ? senderWindow.isFocused() : false;
         event.returnValue = isFocused;
+    });
+
+    /**
+     * 在应用处于后台时请求用户注意：任务栏闪烁（Windows）、Dock 弹跳与角标（macOS）。
+     * 与系统通知配合，解决「通知一闪而过不易察觉」的问题。
+     */
+    ipcMain.handle('window-request-attention', (event) => {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        if (!senderWindow || senderWindow.isDestroyed()) {
+            return { success: false, error: 'no-window' };
+        }
+        try {
+            if (process.platform === 'win32') {
+                // 获得焦点前会持续闪烁任务栏按钮
+                senderWindow.flashFrame(true);
+            } else if (process.platform === 'darwin' && app.dock) {
+                app.dock.bounce('informational');
+                app.dock.setBadge('!');
+            } else if (process.platform === 'linux') {
+                if (typeof senderWindow.flashFrame === 'function') {
+                    senderWindow.flashFrame(true);
+                }
+            }
+            return { success: true };
+        } catch (err) {
+            console.warn('[window-request-attention]', err.message);
+            return { success: false, error: err.message };
+        }
     });
 
     // 检查窗口是否最小化（同步）

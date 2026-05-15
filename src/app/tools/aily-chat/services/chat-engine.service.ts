@@ -51,6 +51,7 @@ import { AilyChatHookService } from './chat-hook.service';
 import { ChatViewAdapter } from './chat-view-adapter';
 import { ChatPerformanceTracer } from './chat-perf-tracer';
 import { getQuotaExceededMessage, getQuotaUsageText, isQuotaExceededError } from './http-error-handler.service';
+import { notifyAwaitingUserFeedbackIfBackground } from '../helpers/user-feedback-notify.helper';
 
 @Injectable()
 export class ChatEngineService {
@@ -1453,6 +1454,12 @@ Do not create non-existent boards and libraries.
         `\n\`\`\`aily-question\n${JSON.stringify(questionBlockData)}\n\`\`\`\n\n`
       );
 
+      // 应用在后台时用系统通知提醒用户回到助手内作答
+      notifyAwaitingUserFeedbackIfBackground(
+        this.translate.instant('AILY_CHAT.USER_FEEDBACK_NOTIFY_TITLE'),
+        this.translate.instant('AILY_CHAT.USER_FEEDBACK_NOTIFY_BODY'),
+      );
+
       this._resolveAskUser = resolve;
 
       const handler = (e: Event) => {
@@ -1571,6 +1578,12 @@ Do not create non-existent boards and libraries.
       };
       this.msg.appendMessage('aily',
         `\n\`\`\`aily-approval\n${JSON.stringify(approvalBlockData)}\n\`\`\`\n\n`
+      );
+
+      // 应用在后台时用系统通知提醒用户回到助手内审批
+      notifyAwaitingUserFeedbackIfBackground(
+        this.translate.instant('AILY_CHAT.USER_FEEDBACK_NOTIFY_TITLE'),
+        this.translate.instant('AILY_CHAT.USER_FEEDBACK_NOTIFY_BODY'),
       );
 
       // 监听审批结果事件

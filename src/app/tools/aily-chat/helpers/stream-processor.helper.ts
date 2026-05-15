@@ -8,6 +8,7 @@
 import type { ChatEngineService } from '../services/chat-engine.service';
 import { ToolCallState } from '../core/chat-types';
 import { AilyHost } from '../core/host';
+import { notifyAwaitingUserFeedbackIfBackground } from './user-feedback-notify.helper';
 import { ToolRegistry } from '../core/tool-registry';
 import { toolRequiresApproval, requestToolApproval, approveToolForSession, enableSessionSafeMode } from '../core/tool-approval';
 import { SubagentSessionService } from '../services/subagent-session.service';
@@ -196,6 +197,11 @@ export class StreamProcessorHelper {
                 const closingTags = this.engine.msg.getClosingTagsForOpenBlocks();
                 this.engine.msg.appendMessage('aily', `${closingTags}\n\`\`\`aily-state\n{\n  "status": "warning",\n  "text": "模型已经处理了一段时间，请问需要继续吗？",\n  "id": "repetition-check-${Date.now()}"\n}\n\`\`\`\n\n\`\`\`aily-button\n[{"text":"继续","action":"retry","type":"primary"}]\n\`\`\`\n\n`);
                 this.engine.stop();
+                // 需点击「继续」等按钮：后台窗口时用系统通知
+                notifyAwaitingUserFeedbackIfBackground(
+                  this.engine.translate.instant('AILY_CHAT.USER_FEEDBACK_NOTIFY_TITLE'),
+                  this.engine.translate.instant('AILY_CHAT.USER_FEEDBACK_NOTIFY_BODY'),
+                );
                 return;
               }
               // 大小软警告：不中断流，在流式内容中注入提示
