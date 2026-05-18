@@ -3,6 +3,7 @@ import { BehaviorSubject, Subject, debounceTime, filter, firstValueFrom, map, sw
 import * as Blockly from 'blockly';
 import { processI18n, processJsonVar, processStaticFilePath, processToolboxI18n } from '../components/blockly/abf';
 import { TranslateService } from '@ngx-translate/core';
+import { parse as parseJavaScript } from 'acorn';
 import { ElectronService } from '../../../services/electron.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
@@ -49,6 +50,11 @@ export interface BlocklyToolboxFacadeItem {
   expanded: boolean;
   isCollapsible: boolean;
   children: BlocklyToolboxFacadeItem[];
+}
+
+interface BlocklyLibraryIntegrityCheckResult {
+  valid: boolean;
+  errors: string[];
 }
 
 export const BLOCKLY_TOOLBOX_SEARCH_KEY = '__toolbox_search__';
@@ -618,6 +624,11 @@ export class BlocklyService {
       return;
     }
 
+    const integrityCheck = this.checkLibraryIntegrity(libPackagePath);
+    if (!integrityCheck.valid) {
+      return;
+    }
+
     let generatorLoadSuccess = true;
     try {
       // 加载block
@@ -693,6 +704,78 @@ export class BlocklyService {
     } catch (error) {
       console.error('加载库失败:', libPackageName, error);
     }
+  }
+
+  private checkLibraryIntegrity(libPackagePath: string): BlocklyLibraryIntegrityCheckResult {
+    const errors: string[] = [];
+    const packageJsonPath = this.electronService.pathJoin(libPackagePath, 'package.json');
+    const toolboxJsonPath = this.electronService.pathJoin(libPackagePath, 'toolbox.json');
+    const blockJsonPath = this.electronService.pathJoin(libPackagePath, 'block.json');
+    const generatorFilePath = this.electronService.pathJoin(libPackagePath, 'generator.js');
+
+    this.checkRequiredJsonLibraryFile(packageJsonPath, 'package.json', errors);
+    this.checkRequiredJsonLibraryFile(toolboxJsonPath, 'toolbox.json', errors);
+    this.checkRequiredJsonLibraryFile(blockJsonPath, 'block.json', errors);
+    this.checkRequiredGeneratorFile(generatorFilePath, errors);
+
+    if (errors.length > 0) {
+      console.error([
+        `[checkLibraryIntegrity] 库完整性检查失败`,
+        ...errors.map((error) => `- ${error}`),
+      ].join('\n'));
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+
+  private checkRequiredJsonLibraryFile(filePath: string, fileName: string, errors: string[]) {
+    if (!this.electronService.exists(filePath)) {
+      errors.push(`${fileName} 不合规: 文件不存在 (${filePath})`);
+      return;
+    }
+
+    try {
+      JSON.parse(this.electronService.readFile(filePath));
+    } catch (error) {
+      errors.push(`${fileName} 不合规: JSON 格式错误 (${filePath})，${this.formatLibraryIntegrityError(error)}`);
+    }
+  }
+
+  private checkRequiredGeneratorFile(filePath: string, errors: string[]) {
+    if (!this.electronService.exists(filePath)) {
+      errors.push(`generator.js 不合规: 文件不存在 (${filePath})`);
+      return;
+    }
+
+    try {
+      const generatorSource = this.electronService.readFile(filePath);
+      const syntaxError = this.getJavaScriptSyntaxError(generatorSource);
+      if (syntaxError) {
+        errors.push(`generator.js 不合规: JS 语法错误 (${filePath})，${syntaxError}`);
+      }
+    } catch (error) {
+      errors.push(`generator.js 不合规: 读取失败 (${filePath})，${this.formatLibraryIntegrityError(error)}`);
+    }
+  }
+
+  private getJavaScriptSyntaxError(source: string): string | null {
+    try {
+      parseJavaScript(source, {
+        ecmaVersion: 'latest',
+        sourceType: 'script',
+        allowHashBang: true,
+      });
+      return null;
+    } catch (error) {
+      return this.formatLibraryIntegrityError(error);
+    }
+  }
+
+  private formatLibraryIntegrityError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   // 卸载库（通过包名和项目路径）

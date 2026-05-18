@@ -999,11 +999,9 @@ export async function scanSinglePackage(packagePath: string, packageName: string
     }
 
     // 读取 package.json
-    const packageJsonContent = window['fs'].readFileSync(packageJsonPath, 'utf8');
-    const packageJson = JSON.parse(packageJsonContent);
+    const packageJson = readJsonFileForPackageScan(packageJsonPath, 'package.json');
     // 读取 toolbox.json
-    const toolboxJsonContent = window['fs'].readFileSync(toolboxJsonPath, 'utf8');
-    const toolboxJson = JSON.parse(toolboxJsonContent);
+    const toolboxJson = readJsonFileForPackageScan(toolboxJsonPath, 'toolbox.json');
     // 构建包信息
     const packageInfo: any = {
       version: packageJson.version || '1.0.0',
@@ -1025,5 +1023,24 @@ export async function scanSinglePackage(packagePath: string, packageName: string
   } catch (error) {
     console.error(`扫描包 ${packageName} 失败:`, error);
   }
+}
+
+function readJsonFileForPackageScan(filePath: string, fileName: string): any {
+  let content: string;
+  try {
+    content = window['fs'].readFileSync(filePath, 'utf8');
+  } catch (error) {
+    throw new Error(`${fileName} 读取失败 (${filePath}): ${formatPackageScanError(error)}`);
+  }
+
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    throw new Error(`${fileName} 格式错误 (${filePath}): ${formatPackageScanError(error)}`);
+  }
+}
+
+function formatPackageScanError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
