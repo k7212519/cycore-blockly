@@ -245,6 +245,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
     linkSync: (existingPath, newPath) => require("fs").linkSync(existingPath, newPath),
     chmodSync: (path, mode) => require("fs").chmodSync(path, mode),
     appendFileSync: (path, data) => require("fs").appendFileSync(path, data),
+    watch: (path, callback, options = {}) => {
+      const watcher = require("fs").watch(
+        path,
+        { persistent: false, ...options },
+        (eventType, filename) => callback({
+          eventType,
+          filename: filename ? filename.toString() : '',
+        })
+      );
+      watcher.on('error', (error) => callback({
+        eventType: 'error',
+        error: error?.message || String(error),
+      }));
+      return () => watcher.close();
+    },
     // ---- 异步方法（通过 IPC 在主进程执行，不阻塞渲染进程） ----
     readFile: (path, encoding) => ipcRenderer.invoke("fs-readFile", path, encoding),
     writeFile: (path, data, encoding) => ipcRenderer.invoke("fs-writeFile", path, data, encoding),

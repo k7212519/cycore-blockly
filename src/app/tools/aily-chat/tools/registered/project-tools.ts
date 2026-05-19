@@ -135,7 +135,9 @@ class ExecuteCommandTool implements IAilyTool {
       toolResult.content = (toolResult.content || '') + `\n\n库卸载结果:\n${unloadResults.join('\n')}`;
     }
 
+    /*
     // Post-execution: npm install → load libraries
+    // 暂时注释：验证 package.json 监听能否独立触发 Blockly 库加载。
     if (!toolResult.is_error && isNpmInstall && host.blockly && host.platform) {
       const installSeparator = host.platform.pathSeparator;
       const libsToLoad: string[] = [];
@@ -185,6 +187,7 @@ class ExecuteCommandTool implements IAilyTool {
       //   toolResult.content = (toolResult.content || '') + `\n\n库加载结果:\n${loadResults.join('\n')}`;
       // }
     }
+    */
 
     // Handle npm install failure: mark as non-retryable (via warning = false, is_error = true stays)
     if (toolResult.is_error && isNpmInstall) {

@@ -624,6 +624,7 @@ export class BlocklyService {
       return;
     }
 
+    // 检查库的完整性
     const integrityCheck = this.checkLibraryIntegrity(libPackagePath);
     if (!integrityCheck.valid) {
       return;

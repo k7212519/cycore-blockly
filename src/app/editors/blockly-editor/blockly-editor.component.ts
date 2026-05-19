@@ -42,8 +42,20 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   showLibraryManager = false;
   showFloatSider = false;
 
+  private readonly packageJsonWatchDebounceMs = 300;
+  private readonly pendingLibraryLoadRetryMs = 1000;
+  private readonly maxPendingLibraryLoadAttempts = 120;
   private _onMouseMoveBound = this._onMouseMove.bind(this);
   private _onMouseLeaveBound = this._onMouseLeave.bind(this);
+  private packageJsonWatcherDispose: (() => void) | null = null;
+  private packageJsonWatchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingLibraryLoadTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchedPackageJsonProjectPath: string | null = null;
+  private watchedPackageJsonSignature = '';
+  private watchedLibraryDependencies = new Map<string, string>();
+  private pendingLibraryDependencies = new Set<string>();
+  private pendingLibraryLoadAttempts = new Map<string, number>();
+  private pendingLibraryLoadInProgress = false;
 
   devmode;
 
@@ -129,6 +141,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   ngOnDestroy(): void {
     this.uiService.closeTool('code-viewer');
     this.localLibrarySyncService.stop();
+    this.stopPackageJsonDependencyWatch();
     this._projectService.destroy();
     this._builderService.cancel();
     this._builderService.destroy();
@@ -142,6 +155,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   async loadProject(projectPath) {
+    this.stopPackageJsonDependencyWatch();
     // 处理 temp 下的 package.json：有则覆盖主项目，无则从主项目复制到 temp
     await this.projectService.syncPackageJsonWithTemp(projectPath);
     // 加载项目package.json
@@ -250,6 +264,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     });
     this.projectService.stateSubject.next('loaded');
 
+    this.startPackageJsonDependencyWatch(projectPath);
     this.localLibrarySyncService.start(projectPath);
 
     // 检查是否需要显示新手引导
@@ -264,6 +279,281 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       .catch((err) => {
         console.error('install board dependencies error', err);
       });
+  }
+
+  private startPackageJsonDependencyWatch(projectPath: string): void {
+    this.stopPackageJsonDependencyWatch();
+
+    const fsApi = window['fs'];
+    const watch = fsApi?.watch;
+    if (typeof watch !== 'function') {
+      console.warn('[PackageJsonWatch] fs.watch is unavailable');
+      return;
+    }
+
+    if (!this.refreshPackageJsonDependencySnapshot(projectPath)) {
+      return;
+    }
+
+    this.watchedPackageJsonProjectPath = projectPath;
+    this.ngZone.runOutsideAngular(() => {
+      try {
+        this.packageJsonWatcherDispose = watch(projectPath, (event) => {
+          if (event?.eventType === 'error') {
+            console.warn('[PackageJsonWatch] watch error:', event.error);
+            return;
+          }
+
+          if (event?.filename && window['path']?.basename(event.filename) !== 'package.json') {
+            return;
+          }
+
+          this.schedulePackageJsonDependencyCheck(projectPath);
+        });
+      } catch (error) {
+        console.warn('[PackageJsonWatch] failed to start:', error);
+        this.stopPackageJsonDependencyWatch();
+      }
+    });
+  }
+
+  private stopPackageJsonDependencyWatch(): void {
+    if (this.packageJsonWatcherDispose) {
+      try {
+        this.packageJsonWatcherDispose();
+      } catch (error) {
+        console.warn('[PackageJsonWatch] failed to stop:', error);
+      }
+      this.packageJsonWatcherDispose = null;
+    }
+
+    if (this.packageJsonWatchDebounceTimer) {
+      clearTimeout(this.packageJsonWatchDebounceTimer);
+      this.packageJsonWatchDebounceTimer = null;
+    }
+
+    if (this.pendingLibraryLoadTimer) {
+      clearTimeout(this.pendingLibraryLoadTimer);
+      this.pendingLibraryLoadTimer = null;
+    }
+
+    this.watchedPackageJsonProjectPath = null;
+    this.watchedPackageJsonSignature = '';
+    this.watchedLibraryDependencies.clear();
+    this.pendingLibraryDependencies.clear();
+    this.pendingLibraryLoadAttempts.clear();
+    this.pendingLibraryLoadInProgress = false;
+  }
+
+  private schedulePackageJsonDependencyCheck(projectPath: string): void {
+    if (this.packageJsonWatchDebounceTimer) {
+      clearTimeout(this.packageJsonWatchDebounceTimer);
+    }
+
+    this.packageJsonWatchDebounceTimer = setTimeout(() => {
+      this.packageJsonWatchDebounceTimer = null;
+      void this.handlePackageJsonDependencyChange(projectPath);
+    }, this.packageJsonWatchDebounceMs);
+  }
+
+  private async handlePackageJsonDependencyChange(projectPath: string): Promise<void> {
+    if (this.watchedPackageJsonProjectPath !== projectPath) {
+      return;
+    }
+
+    let nextPackageJson: any;
+    try {
+      const packageJsonPath = this.electronService.pathJoin(projectPath, 'package.json');
+      const nextContent = this.electronService.readFile(packageJsonPath);
+      if (nextContent === this.watchedPackageJsonSignature) {
+        return;
+      }
+
+      nextPackageJson = JSON.parse(nextContent);
+      this.watchedPackageJsonSignature = nextContent;
+    } catch (error) {
+      console.warn('[PackageJsonWatch] package.json read failed:', error);
+      return;
+    }
+
+    this._projectService.currentPackageData = nextPackageJson;
+    this.projectService.currentPackageData = nextPackageJson;
+    window['packageJson'] = nextPackageJson;
+
+    const nextLibraryDependencies = this.getDeclaredBlocklyLibraryDependencies(nextPackageJson);
+    const addedLibraryNames = Array.from(nextLibraryDependencies.keys()).filter(
+      (name) => !this.watchedLibraryDependencies.has(name),
+    ).sort((a, b) => this.compareBlocklyLibraryNames(a, b));
+    this.watchedLibraryDependencies = nextLibraryDependencies;
+
+    if (addedLibraryNames.length === 0) {
+      return;
+    }
+
+    for (const libPackageName of addedLibraryNames) {
+      if (this.isBlocklyLibraryLoaded(projectPath, libPackageName)) {
+        continue;
+      }
+      this.pendingLibraryDependencies.add(libPackageName);
+      if (!this.pendingLibraryLoadAttempts.has(libPackageName)) {
+        this.pendingLibraryLoadAttempts.set(libPackageName, 0);
+      }
+    }
+
+    this.schedulePendingLibraryLoad(projectPath, 0);
+  }
+
+  private refreshPackageJsonDependencySnapshot(projectPath: string): boolean {
+    try {
+      const packageJsonPath = this.electronService.pathJoin(projectPath, 'package.json');
+      const content = this.electronService.readFile(packageJsonPath);
+      const packageJson = JSON.parse(content);
+      this.watchedPackageJsonSignature = content;
+      this.watchedLibraryDependencies = this.getDeclaredBlocklyLibraryDependencies(packageJson);
+      return true;
+    } catch (error) {
+      console.warn('[PackageJsonWatch] failed to snapshot package.json:', error);
+      return false;
+    }
+  }
+
+  private getDeclaredBlocklyLibraryDependencies(packageJson: any): Map<string, string> {
+    const dependencies = {
+      ...(packageJson?.dependencies || {}),
+      ...(packageJson?.devDependencies || {}),
+    };
+
+    const libraryDependencies = new Map<string, string>();
+    for (const [name, version] of Object.entries(dependencies)) {
+      if (typeof name === 'string' && name.startsWith('@aily-project/lib-')) {
+        libraryDependencies.set(name, String(version ?? ''));
+      }
+    }
+
+    return libraryDependencies;
+  }
+
+  private schedulePendingLibraryLoad(projectPath: string, delayMs: number): void {
+    if (this.pendingLibraryLoadTimer) {
+      clearTimeout(this.pendingLibraryLoadTimer);
+    }
+
+    this.pendingLibraryLoadTimer = setTimeout(() => {
+      this.pendingLibraryLoadTimer = null;
+      void this.loadPendingLibraries(projectPath);
+    }, delayMs);
+  }
+
+  private async loadPendingLibraries(projectPath: string): Promise<void> {
+    if (this.pendingLibraryLoadInProgress || this.pendingLibraryDependencies.size === 0) {
+      return;
+    }
+
+    if (this.watchedPackageJsonProjectPath !== projectPath) {
+      return;
+    }
+
+    this.pendingLibraryLoadInProgress = true;
+    let shouldLoadInstalledLibraries = false;
+    try {
+      const pendingLibraryNames = Array.from(this.pendingLibraryDependencies).sort((a, b) =>
+        this.compareBlocklyLibraryNames(a, b),
+      );
+      for (const libPackageName of pendingLibraryNames) {
+        if (this.watchedPackageJsonProjectPath !== projectPath) {
+          return;
+        }
+
+        if (this.isBlocklyLibraryLoaded(projectPath, libPackageName)) {
+          shouldLoadInstalledLibraries = true;
+          this.clearPendingLibrary(libPackageName);
+          continue;
+        }
+
+        if (this.isBlocklyLibraryPackageReady(projectPath, libPackageName)) {
+          await this.blocklyService.loadLibrary(libPackageName, projectPath);
+          if (this.isBlocklyLibraryLoaded(projectPath, libPackageName)) {
+            shouldLoadInstalledLibraries = true;
+            this.clearPendingLibrary(libPackageName);
+            continue;
+          }
+        }
+
+        const attempts = (this.pendingLibraryLoadAttempts.get(libPackageName) || 0) + 1;
+        if (attempts >= this.maxPendingLibraryLoadAttempts) {
+          console.warn('[PackageJsonWatch] library dependency was not ready:', libPackageName);
+          this.clearPendingLibrary(libPackageName);
+        } else {
+          this.pendingLibraryLoadAttempts.set(libPackageName, attempts);
+        }
+      }
+    } finally {
+      this.pendingLibraryLoadInProgress = false;
+    }
+
+    if (shouldLoadInstalledLibraries && this.watchedPackageJsonProjectPath === projectPath) {
+      await this.loadInstalledBlocklyLibraries(projectPath);
+    }
+
+    if (this.pendingLibraryDependencies.size > 0 && this.watchedPackageJsonProjectPath === projectPath) {
+      this.schedulePendingLibraryLoad(projectPath, this.pendingLibraryLoadRetryMs);
+    }
+  }
+
+  private async loadInstalledBlocklyLibraries(projectPath: string): Promise<void> {
+    try {
+      const installedLibraries = await this.npmService.getAllInstalledLibraries(projectPath);
+      for (const lib of installedLibraries) {
+        const libPackageName = lib?.name;
+        if (typeof libPackageName !== 'string') {
+          continue;
+        }
+        if (this.isBlocklyLibraryLoaded(projectPath, libPackageName)) {
+          continue;
+        }
+        if (!this.isBlocklyLibraryPackageReady(projectPath, libPackageName)) {
+          continue;
+        }
+
+        await this.blocklyService.loadLibrary(libPackageName, projectPath);
+      }
+    } catch (error) {
+      console.warn('[PackageJsonWatch] failed to load installed Blockly libraries:', error);
+    }
+  }
+
+  private clearPendingLibrary(libPackageName: string): void {
+    this.pendingLibraryDependencies.delete(libPackageName);
+    this.pendingLibraryLoadAttempts.delete(libPackageName);
+  }
+
+  private compareBlocklyLibraryNames(a: string, b: string): number {
+    const aIsCore = a.startsWith('@aily-project/lib-core-');
+    const bIsCore = b.startsWith('@aily-project/lib-core-');
+    if (aIsCore && !bIsCore) {
+      return -1;
+    }
+    if (!aIsCore && bIsCore) {
+      return 1;
+    }
+    return a.localeCompare(b);
+  }
+
+  private isBlocklyLibraryLoaded(projectPath: string, libPackageName: string): boolean {
+    return this.blocklyService.loadedLibraries.has(
+      this.getBlocklyLibraryPackagePath(projectPath, libPackageName),
+    );
+  }
+
+  private isBlocklyLibraryPackageReady(projectPath: string, libPackageName: string): boolean {
+    const libPackagePath = this.getBlocklyLibraryPackagePath(projectPath, libPackageName);
+    return ['package.json', 'block.json', 'toolbox.json', 'generator.js'].every((fileName) =>
+      this.electronService.exists(this.electronService.pathJoin(libPackagePath, fileName)),
+    );
+  }
+
+  private getBlocklyLibraryPackagePath(projectPath: string, libPackageName: string): string {
+    return this.electronService.pathJoin(projectPath, 'node_modules', ...libPackageName.split('/'));
   }
 
   openProjectManager(event?: MouseEvent) {
