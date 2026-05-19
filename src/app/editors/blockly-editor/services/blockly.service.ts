@@ -63,6 +63,17 @@ interface LoadedBlocklyLibraryInfo {
   generatorPath: string;
 }
 
+export const AILY_BLOCKLY_USED_LIBRARIES_FIELD = 'ailyBlocklyUsedLibraries';
+
+export interface BlocklyUsedLibraryManifestEntry {
+  version: string;
+  localPath?: string;
+  blockTypes: string[];
+  updatedAt: number;
+}
+
+export type BlocklyUsedLibraryManifest = Record<string, BlocklyUsedLibraryManifestEntry>;
+
 export const BLOCKLY_TOOLBOX_SEARCH_KEY = '__toolbox_search__';
 
 @Injectable({
@@ -595,6 +606,62 @@ export class BlocklyService {
     }
 
     return document;
+  }
+
+  getProjectUsedLibraryManifest(packageJson?: any): BlocklyUsedLibraryManifest {
+    const usedBlockTypes = this.collectBlockTypesFromProjectDocument(this.getProjectDocument());
+    const previousManifest = packageJson?.[AILY_BLOCKLY_USED_LIBRARIES_FIELD] || {};
+    const manifest: BlocklyUsedLibraryManifest = {};
+    const updatedAt = Date.now();
+
+    for (const blockType of usedBlockTypes) {
+      const libInfo = this.blockTypeToLibMap.get(blockType);
+      if (!libInfo?.name) {
+        continue;
+      }
+
+      const dependencySpec = this.getPackageDependencySpec(packageJson, libInfo.name);
+      const entry = manifest[libInfo.name] || {
+        version: dependencySpec || libInfo.version || '',
+        localPath: libInfo.localPath,
+        blockTypes: [],
+        updatedAt,
+      };
+
+      if (!entry.version && (dependencySpec || libInfo.version)) {
+        entry.version = dependencySpec || libInfo.version || '';
+      }
+      if (!entry.localPath && libInfo.localPath) {
+        entry.localPath = libInfo.localPath;
+      }
+
+      entry.blockTypes.push(blockType);
+      entry.updatedAt = updatedAt;
+      manifest[libInfo.name] = entry;
+    }
+
+    return Object.keys(manifest)
+      .sort((a, b) => a.localeCompare(b))
+      .reduce<BlocklyUsedLibraryManifest>((result, packageName) => {
+        const entry = manifest[packageName];
+        const nextEntry = {
+          ...entry,
+          blockTypes: Array.from(new Set(entry.blockTypes)).sort(),
+        };
+        const previousEntry = previousManifest?.[packageName];
+        if (this.isSameUsedLibraryManifestEntry(previousEntry, nextEntry)) {
+          nextEntry.updatedAt = typeof previousEntry.updatedAt === 'number' ? previousEntry.updatedAt : updatedAt;
+        }
+        result[packageName] = {
+          ...nextEntry,
+        };
+        return result;
+      }, {});
+  }
+
+  collectBlockTypesFromProjectAbi(jsonData: any): string[] {
+    const document = this.normalizeProjectDocument(jsonData);
+    return this.collectBlockTypesFromProjectDocument(document);
   }
 
   // 加载 blockly 当前工作区的 JSON 数据
@@ -1246,6 +1313,67 @@ export class BlocklyService {
 
     const activePage = this.getActivePage();
     return this.composeWorkspacePayload(activePage?.content, this.sharedModelSubject.value);
+  }
+
+  private collectBlockTypesFromProjectDocument(document: BlocklyProjectDocument): string[] {
+    const blockTypes = new Set<string>();
+
+    for (const page of document.pages || []) {
+      this.collectBlockTypesFromWorkspaceContent(page?.content, blockTypes);
+    }
+
+    for (const block of document.sharedModel?.procedureBlocks || []) {
+      this.collectBlockTypesFromBlock(block, blockTypes);
+    }
+
+    return Array.from(blockTypes).sort();
+  }
+
+  private collectBlockTypesFromWorkspaceContent(content: any, blockTypes: Set<string>) {
+    const workspaceJson = this.normalizeWorkspaceJson(content);
+    const blocks = Array.isArray(workspaceJson.blocks?.blocks) ? workspaceJson.blocks.blocks : [];
+    for (const block of blocks) {
+      this.collectBlockTypesFromBlock(block, blockTypes);
+    }
+  }
+
+  private collectBlockTypesFromBlock(block: any, blockTypes: Set<string>) {
+    if (!block || typeof block !== 'object') {
+      return;
+    }
+
+    if (typeof block.type === 'string' && block.type.length > 0) {
+      blockTypes.add(block.type);
+    }
+
+    const inputs = block.inputs && typeof block.inputs === 'object' ? block.inputs : {};
+    for (const input of Object.values(inputs) as any[]) {
+      this.collectBlockTypesFromBlock(input?.block, blockTypes);
+      this.collectBlockTypesFromBlock(input?.shadow, blockTypes);
+    }
+
+    this.collectBlockTypesFromBlock(block.next?.block, blockTypes);
+  }
+
+  private getPackageDependencySpec(packageJson: any, packageName: string): string {
+    const dependencySpec = packageJson?.dependencies?.[packageName]
+      ?? packageJson?.devDependencies?.[packageName]
+      ?? '';
+    return typeof dependencySpec === 'string' ? dependencySpec : String(dependencySpec || '');
+  }
+
+  private isSameUsedLibraryManifestEntry(previousEntry: any, nextEntry: BlocklyUsedLibraryManifestEntry): boolean {
+    if (!previousEntry || typeof previousEntry !== 'object') {
+      return false;
+    }
+
+    const previousBlockTypes = Array.isArray(previousEntry.blockTypes)
+      ? previousEntry.blockTypes.filter((blockType: any): blockType is string => typeof blockType === 'string').sort()
+      : [];
+
+    return String(previousEntry.version || '') === nextEntry.version
+      && String(previousEntry.localPath || '') === String(nextEntry.localPath || '')
+      && JSON.stringify(previousBlockTypes) === JSON.stringify(nextEntry.blockTypes);
   }
 
   private mountExternalToolbox() {
