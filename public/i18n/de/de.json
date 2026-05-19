@@ -3,6 +3,8 @@
         "MENU": "Menü",
         "PROJECT_NEW": "Neues Projekt",
         "PROJECT_OPEN": "Projekt öffnen",
+        "RECENT_PROJECTS": "Zuletzt verwendet",
+        "RECENT_PROJECTS_EMPTY": "Keine zuletzt geöffneten Projekte",
         "PROJECT_SAVE": "Projekt speichern",
         "PROJECT_SAVE_AS": "Speichern unter",
         "PROJECT_CLOSE": "Projekt schließen",
@@ -412,6 +414,8 @@
         "MERMAID_COPY_FAILED": "Kopieren fehlgeschlagen",
         "MERMAID_SAVE_FAILED": "Speichern fehlgeschlagen",
         "CLICK_TO_EDIT": "Zum Bearbeiten klicken",
+        "USER_FEEDBACK_NOTIFY_TITLE": "KI-Assistent benötigt Ihre Eingabe",
+        "USER_FEEDBACK_NOTIFY_BODY": "Der KI-Assistent wartet auf Ihre Eingabe. Öffnen Sie den Chat und schließen Sie die ausstehende Bestätigung, Antwort oder den angezeigten Schritt ab.",
         "ONBOARDING": {
             "STEP1_TITLE": "Eingabefeld",
             "STEP1_DESC": "Geben Sie hier Ihre Fragen oder Aufgaben ein, bei denen die KI helfen soll. Enter zum Senden, Ctrl+Enter für neue Zeile",

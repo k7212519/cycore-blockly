@@ -59,6 +59,7 @@ class GetPinmapSummaryTool implements IAilyTool {
   async invoke(args: any, ctx: ToolContext): Promise<ToolUseResult> {
     if (!ctx.host?.connectionGraph) return { is_error: true, content: '连线图服务不可用' };
     if (!ctx.host?.project) return { is_error: true, content: '项目服务不可用' };
+    ctx.host.connectionGraph.emitNotice?.({ title: 'AI生成中', text: '正在同步云端引脚库并获取摘要...', state: 'doing', showProgress: false });
     return getPinmapSummaryHandler(ctx.host.connectionGraph as any, ctx.host.project as any, args);
   }
 

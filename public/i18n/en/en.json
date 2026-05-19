@@ -3,6 +3,8 @@
         "MENU": "Menu",
         "PROJECT_NEW": "New Project",
         "PROJECT_OPEN": "Open Project",
+        "RECENT_PROJECTS": "Recent Projects",
+        "RECENT_PROJECTS_EMPTY": "No recent projects",
         "PROJECT_SAVE": "Save Project",
         "PROJECT_SAVE_AS": "Save As",
         "PROJECT_CLOSE": "Close Project",
@@ -475,6 +477,8 @@
         "MERMAID_COPY_FAILED": "Copy failed",
         "MERMAID_SAVE_FAILED": "Save failed",
         "CLICK_TO_EDIT": "Click to edit",
+        "USER_FEEDBACK_NOTIFY_TITLE": "AI assistant needs your input",
+        "USER_FEEDBACK_NOTIFY_BODY": "The AI assistant awaits your action. Open the chat and complete the pending confirmation, response, or on-screen step.",
         "ONBOARDING": {
             "STEP1_TITLE": "Input Box",
             "STEP1_DESC": "Type your questions or tasks here for AI assistance. Press Enter to send, Ctrl+Enter for new line",

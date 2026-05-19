@@ -3,6 +3,8 @@
         "MENU": "菜单",
         "PROJECT_NEW": "新建项目",
         "PROJECT_OPEN": "打开项目",
+        "RECENT_PROJECTS": "最近的项目",
+        "RECENT_PROJECTS_EMPTY": "暂无最近打开的项目",
         "PROJECT_SAVE": "保存项目",
         "PROJECT_SAVE_AS": "另存为",
         "PROJECT_CLOSE": "关闭项目",
@@ -475,6 +477,8 @@
         "MERMAID_COPY_FAILED": "复制失败",
         "MERMAID_SAVE_FAILED": "保存失败",
         "CLICK_TO_EDIT": "点击编辑",
+        "USER_FEEDBACK_NOTIFY_TITLE": "AI 助手需要你的操作",
+        "USER_FEEDBACK_NOTIFY_BODY": "AI 助手有待您处理的操作，请打开对话并完成确认、作答或界面指示的后续步骤。",
         "ONBOARDING": {
             "STEP1_TITLE": "输入框",
             "STEP1_DESC": "在这里输入你想问的问题或需要AI帮助完成的任务，按 Enter 发送，Ctrl+Enter 换行",

@@ -235,6 +235,55 @@ export class HeaderComponent implements OnDestroy {
   showMenu = false;
   openMenu() {
     this.showMenu = !this.showMenu;
+    // 展开主菜单时刷新「最近的项目」二级列表（来自配置中的 recentlyProjects）
+    if (this.showMenu) {
+      this.refreshHeaderRecentProjectsMenu();
+    }
+  }
+
+  /** 同步左上角菜单中「最近的项目」子项 */
+  private refreshHeaderRecentProjectsMenu(): void {
+    const entry = this.headerMenu.find((m) => m.action === 'recent-projects-root');
+    if (!entry) {
+      return;
+    }
+    const recent = this.projectService.recentlyProjects || [];
+    entry.children =
+      recent.length > 0
+        ? recent.map((p: { name?: string; nickname?: string; path: string }) => ({
+            name: p.nickname || p.name || p.path,
+            text: p.path,
+            action: 'recent-project-open',
+            data: { path: p.path },
+          }))
+        : [
+            {
+              name: this.translate.instant('MENU.RECENT_PROJECTS_EMPTY'),
+              disabled: true,
+              action: 'noop',
+            },
+          ];
+  }
+
+  /** 主菜单二级项：打开最近项目 */
+  async onHeaderMenuSubItemClick(subItem: IMenuItem) {
+    if (subItem.disabled || subItem.action === 'noop') {
+      return;
+    }
+    if (subItem.action === 'recent-project-open') {
+      const path = subItem.data?.path as string | undefined;
+      if (!path) {
+        return;
+      }
+      if (this.isLoaded()) {
+        const canContinue = await this.checkUnsavedChanges('open');
+        if (!canContinue) {
+          return;
+        }
+      }
+      await this.projectService.projectOpen(path);
+      this.closeMenu();
+    }
   }
 
   closeMenu() {
