@@ -714,6 +714,7 @@
         "EXPORT_TITLE": "Exportar datos de registro",
         "TEXT_FILE": "Archivos de texto",
         "ALL_FILES": "Todos los archivos",
-        "EXPORT_SUCCESS": "Datos de registro exportados exitosamente a "
+        "EXPORT_SUCCESS": "Datos de registro exportados exitosamente a ",
+        "SHOW_ERRORS_ONLY": "Mostrar solo errores"
     }
 }

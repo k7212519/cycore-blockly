@@ -698,6 +698,7 @@
         "EXPORT_TITLE": "로그 데이터 내보내기",
         "TEXT_FILE": "텍스트 파일",
         "ALL_FILES": "모든 파일",
-        "EXPORT_SUCCESS": "로그 데이터가 성공적으로 내보내졌습니다: "
+        "EXPORT_SUCCESS": "로그 데이터가 성공적으로 내보내졌습니다: ",
+        "SHOW_ERRORS_ONLY": "오류만 표시"
     }
 }

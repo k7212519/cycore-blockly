@@ -807,6 +807,7 @@
         "EXPORT_TITLE": "Export Log Data",
         "TEXT_FILE": "Text Files",
         "ALL_FILES": "All Files",
-        "EXPORT_SUCCESS": "Log data exported to "
+        "EXPORT_SUCCESS": "Log data exported to ",
+        "SHOW_ERRORS_ONLY": "Errors only"
     }
 }

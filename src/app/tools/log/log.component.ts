@@ -1,9 +1,11 @@
 import { Component, OnDestroy, OnInit, AfterViewInit, ElementRef, ChangeDetectorRef, viewChild, viewChildren, effect, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { injectVirtualizer } from '@tanstack/angular-virtual';
 import { LogService, LogOptions } from '../../services/log.service';
 import { AnsiPipe } from './ansi.pipe';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { UiService } from '../../services/ui.service';
 import { ProjectService } from '../../services/project.service';
 import { ElectronService } from '../../services/electron.service';
@@ -13,7 +15,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-log',
-  imports: [CommonModule, AnsiPipe, TranslateModule],
+  imports: [CommonModule, FormsModule, AnsiPipe, NzSwitchModule, TranslateModule],
   templateUrl: './log.component.html',
   styleUrl: './log.component.scss',
 })
@@ -30,6 +32,9 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // 日志列表
   logList: LogOptions[] = [];
+
+  // 只显示 error 类型日志
+  showOnlyErrors = false;
 
   // 日志数量 signal，用于驱动 virtualizer 响应式更新
   logCount = signal(0);
@@ -64,8 +69,7 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit() {
     // 初始化日志列表
-    this.logList = [...this.logService.list];
-    this.logCount.set(this.logList.length);
+    this.refreshLogList();
   }
 
   ngAfterViewInit() {
@@ -96,12 +100,26 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private scrollTimeoutId: any;
 
+  private refreshLogList() {
+    const sourceList = this.logService.list;
+    this.logList = this.showOnlyErrors
+      ? sourceList.filter(item => item.state === 'error')
+      : [...sourceList];
+    this.logCount.set(this.logList.length);
+  }
+
   // 处理日志更新
   private handleLogUpdate() {
-    this.logList = [...this.logService.list];
-    this.logCount.set(this.logList.length);
+    this.refreshLogList();
     this.cdr.detectChanges();
     // 滚动到底部
+    this.scrollToBottom();
+  }
+
+  onErrorFilterChange(showOnlyErrors: boolean) {
+    this.showOnlyErrors = showOnlyErrors;
+    this.refreshLogList();
+    this.cdr.detectChanges();
     this.scrollToBottom();
   }
 

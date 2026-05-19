@@ -714,6 +714,7 @@
         "EXPORT_TITLE": "Exportar dados de log",
         "TEXT_FILE": "Arquivos de texto",
         "ALL_FILES": "Todos os arquivos",
-        "EXPORT_SUCCESS": "Dados de log exportados com sucesso para "
+        "EXPORT_SUCCESS": "Dados de log exportados com sucesso para ",
+        "SHOW_ERRORS_ONLY": "Mostrar apenas erros"
     }
 }
