@@ -380,11 +380,20 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this.projectService.currentPackageData = nextPackageJson;
     window['packageJson'] = nextPackageJson;
 
+    // 对比新旧 package.json 中的 blockly library 依赖变化，找出新增和移除的库
+    const previousLibraryDependencies = this.watchedLibraryDependencies;
     const nextLibraryDependencies = this.getDeclaredBlocklyLibraryDependencies(nextPackageJson);
     const addedLibraryNames = Array.from(nextLibraryDependencies.keys()).filter(
-      (name) => !this.watchedLibraryDependencies.has(name),
+      (name) => !previousLibraryDependencies.has(name),
+    ).sort((a, b) => this.compareBlocklyLibraryNames(a, b));
+    const removedLibraryNames = Array.from(previousLibraryDependencies.keys()).filter(
+      (name) => !nextLibraryDependencies.has(name),
     ).sort((a, b) => this.compareBlocklyLibraryNames(a, b));
     this.watchedLibraryDependencies = nextLibraryDependencies;
+
+    if (removedLibraryNames.length > 0) {
+      await this.handleRemovedLibraryDependencies(projectPath, removedLibraryNames);
+    }
 
     if (addedLibraryNames.length === 0) {
       return;
@@ -401,6 +410,24 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     this.schedulePendingLibraryLoad(projectPath, 0);
+  }
+
+  private async handleRemovedLibraryDependencies(projectPath: string, removedLibraryNames: string[]): Promise<void> {
+    for (const libPackageName of removedLibraryNames) {
+      this.clearPendingLibrary(libPackageName);
+
+      if (!this.isBlocklyLibraryLoaded(projectPath, libPackageName)) {
+        continue;
+      }
+
+      if (this.blocklyService.isLibraryPackageNameUsedByCurrentProject(libPackageName)) {
+        console.warn('[PackageJsonWatch] library dependency removed but still used:', libPackageName);
+        this.message.warning(`${libPackageName} 已从 package.json 移除，但项目中仍有相关积木`, { nzDuration: 5000 });
+        continue;
+      }
+
+      await this.blocklyService.unloadLibrary(libPackageName, projectPath);
+    }
   }
 
   private refreshPackageJsonDependencySnapshot(projectPath: string): boolean {

@@ -79,18 +79,19 @@ class ExecuteCommandTool implements IAilyTool {
     const isNpmInstall = command.includes('npm i') || command.includes('npm install');
     const isNpmUninstall = command.includes('npm uninstall');
     let unloadResults: string[] = [];
+    const unloadedLibs: string[] = [];
 
     // Pre-execution: npm uninstall → check blocks in use → unload libraries
     if (isNpmUninstall && host.blockly && host.platform) {
-      const npmRegex = /@aily-project\/[a-zA-Z0-9-_]+/g;
+      const npmRegex = /@aily-project\/lib-[a-zA-Z0-9-_]+/g;
       const matches = command.match(npmRegex);
 
       if (matches && matches.length > 0) {
-        const uniqueLibs = [...new Set(matches)];
+        const uniqueLibs: string[] = Array.from(new Set<string>(matches));
         const separator = host.platform.pathSeparator;
         const libsInUse: string[] = [];
 
-        for (const libPackageName of uniqueLibs as string[]) {
+        for (const libPackageName of uniqueLibs) {
           try {
             const libBlockPath = projectPath + `${separator}node_modules${separator}` + libPackageName + `${separator}block.json`;
             if (host.fs.existsSync(libBlockPath)) {
@@ -118,6 +119,7 @@ class ExecuteCommandTool implements IAilyTool {
         for (const libPackageName of uniqueLibs) {
           try {
             await host.blockly.unloadLibrary(libPackageName, projectPath);
+            unloadedLibs.push(libPackageName);
             unloadResults.push(`${libPackageName} 卸载成功`);
           } catch (e: any) {
             console.warn('卸载库失败:', libPackageName, e);
@@ -129,6 +131,18 @@ class ExecuteCommandTool implements IAilyTool {
 
     // Execute the command
     const toolResult: ToolUseResult = await executeCommandHandler(host.cmd, args, ctx.securityContext);
+
+    if (isNpmUninstall && toolResult.is_error && unloadedLibs.length > 0 && host.blockly) {
+      for (const libPackageName of unloadedLibs) {
+        try {
+          await host.blockly.loadLibrary(libPackageName, projectPath);
+          unloadResults.push(`${libPackageName} 已回滚加载`);
+        } catch (e: any) {
+          console.warn('回滚加载库失败:', libPackageName, e);
+          unloadResults.push(`${libPackageName} 回滚加载失败: ${e.message || e}`);
+        }
+      }
+    }
 
     // Post-execution: append uninstall results
     if (isNpmUninstall && unloadResults.length > 0) {

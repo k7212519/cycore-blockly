@@ -18,7 +18,6 @@ import { CompatibleDialogComponent } from '../compatible-dialog/compatible-dialo
 import { CmdOutput, CmdService } from '../../../../services/cmd.service';
 import { ElectronService } from '../../../../services/electron.service';
 import { BlocklyService } from '../../services/blockly.service';
-import { PlatformService } from '../../../../services/platform.service';
 import { WorkflowService } from '../../../../services/workflow.service';
 import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd.service';
 import {
@@ -72,7 +71,6 @@ export class LibManagerComponent implements OnDestroy {
     private cmdService: CmdService,
     private crossPlatformCmdService: CrossPlatformCmdService,
     private electronService: ElectronService,
-    private platformService: PlatformService,
     private workflowService: WorkflowService,
     private localLibrarySyncService: LocalLibrarySyncService,
   ) {
@@ -439,19 +437,17 @@ export class LibManagerComponent implements OnDestroy {
 
 
   checkLibUsage(lib) {
-    // 检查项目代码是否使用了该库
-    const separator = this.platformService.getPlatformSeparator();
-    const libPackagePath = this.projectService.currentProjectPath + `${separator}node_modules${separator}` + lib.name;
-    const libBlockPath = libPackagePath + `${separator}block.json`;
-    const blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
-    const abiJson = JSON.stringify(this.blocklyService.getProjectDocument());
-    for (let index = 0; index < blocksData.length; index++) {
-      const element = blocksData[index];
-      if (abiJson.includes(element.type)) {
-        return true;
-      }
+    if (!lib?.name) {
+      return false;
     }
-    return false;
+
+    const libPackagePath = this.electronService.pathJoin(
+      this.projectService.currentProjectPath,
+      'node_modules',
+      ...lib.name.split('/'),
+    );
+    return this.blocklyService.isLibraryUsedByCurrentProject(libPackagePath)
+      || this.blocklyService.isLibraryPackageNameUsedByCurrentProject(lib.name);
   }
 
   async checkCompatibility(libCompatibility, boardCore): Promise<boolean> {

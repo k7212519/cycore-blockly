@@ -57,6 +57,12 @@ interface BlocklyLibraryIntegrityCheckResult {
   errors: string[];
 }
 
+interface LoadedBlocklyLibraryInfo {
+  packageName: string;
+  blockTypes: string[];
+  generatorPath: string;
+}
+
 export const BLOCKLY_TOOLBOX_SEARCH_KEY = '__toolbox_search__';
 
 @Injectable({
@@ -96,6 +102,7 @@ export class BlocklyService {
   loadedGenerators = new Map<string, Set<string>>(); // filePath -> Set of block types
   // 追踪已加载的库,避免重复加载
   loadedLibraries = new Set<string>(); // libPackagePath
+  loadedLibraryInfos = new Map<string, LoadedBlocklyLibraryInfo>(); // libPackagePath -> loaded metadata
   // blockType → 库信息映射（用于跨实例复制粘贴时携带库元信息）
   blockTypeToLibMap = new Map<string, { name: string; version: string; localPath?: string }>();
 
@@ -631,6 +638,8 @@ export class BlocklyService {
     }
 
     let generatorLoadSuccess = true;
+    let loadedBlockTypes: string[] = [];
+    const generatorFilePath = this.electronService.pathJoin(libPackagePath, 'generator.js');
     try {
       // 加载block
       // const blockFileIsExist = this.electronService.exists(libPackagePath + '\\block.json');
@@ -639,6 +648,9 @@ export class BlocklyService {
       if (blockFileIsExist) {
         // 加载blocks
         let blocks = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'block.json')));
+        loadedBlockTypes = blocks
+          .map((block: any) => block?.type)
+          .filter((type: any): type is string => typeof type === 'string' && type.length > 0);
         // 读取库版本号（用于跨实例复制粘贴时携带库元信息）
         let libVersion = '';
         const libPkgJsonPath = this.electronService.pathJoin(libPackagePath, 'package.json');
@@ -656,7 +668,6 @@ export class BlocklyService {
           blocks = processI18n(blocks, i18nData);
         }
         // 加载generator（必须在 i18n 数据存储后，这样动态定义的块才能读取到正确的多语言）
-        const generatorFilePath = this.electronService.pathJoin(libPackagePath, 'generator.js');
         const generatorFileIsExist = this.electronService.exists(generatorFilePath);
         if (generatorFileIsExist) {
           generatorLoadSuccess = await this.loadLibGenerator(generatorFilePath);
@@ -699,6 +710,11 @@ export class BlocklyService {
       // 仅在 generator 加载成功时才标记为已加载（失败时允许后续重试）
       if (generatorLoadSuccess) {
         this.loadedLibraries.add(libPackagePath);
+        this.loadedLibraryInfos.set(libPackagePath, {
+          packageName: libPackageName,
+          blockTypes: loadedBlockTypes,
+          generatorPath: generatorFilePath,
+        });
       }
       // 补发Blockly.Events.FINISHED_LOADING
       this.loadLibraryFinishedLoadingSubject.next();
@@ -859,6 +875,7 @@ export class BlocklyService {
     }
   }
 
+  // 通过库路径检查库是否被当前项目使用（适用于常规加载库的场景）
   isLibraryUsedByCurrentProject(libPackagePath: string): boolean {
     if (!libPackagePath) {
       return false;
@@ -877,6 +894,24 @@ export class BlocklyService {
       console.error('检查库使用情况失败:', libPackagePath, error);
       return false;
     }
+  }
+
+  // 通过包名检查库是否被当前项目使用（适用于跨实例复制粘贴时携带库元信息的场景）
+  isLibraryPackageNameUsedByCurrentProject(packageName: string): boolean {
+    if (!packageName) {
+      return false;
+    }
+
+    const blockTypes = Array.from(this.blockTypeToLibMap.entries())
+      .filter(([, lib]) => lib?.name === packageName)
+      .map(([blockType]) => blockType);
+
+    if (blockTypes.length === 0) {
+      return false;
+    }
+
+    const abiJson = JSON.stringify(this.getProjectDocument());
+    return blockTypes.some((blockType) => abiJson.includes(blockType));
   }
 
   loadLibGenerator(filePath): Promise<boolean> {
@@ -944,6 +979,7 @@ export class BlocklyService {
     }
 
     console.log(`开始移除库: ${libPackagePath}`);
+    const loadedLibraryInfo = this.loadedLibraryInfos.get(libPackagePath);
 
     // 读取要移除的库的信息
     // 移除block定义
@@ -951,6 +987,8 @@ export class BlocklyService {
     if (blockFileIsExist) {
       let blocks = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'block.json')));
       this.removeLibBlocks(blocks);
+    } else if (loadedLibraryInfo?.blockTypes?.length) {
+      this.removeLibBlockTypes(loadedLibraryInfo.blockTypes);
     } else {
       // 对于JS形式加载的block，需要使用block文件名作为标识
       const blockJsPath = this.electronService.pathJoin(libPackagePath, 'block.js');
@@ -958,8 +996,9 @@ export class BlocklyService {
     }
 
     // 移除toolbox项
+    const removedToolboxByMetadata = this.removeLibToolboxByLibraryPath(libPackagePath);
     const toolboxFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'toolbox.json'));
-    if (toolboxFileIsExist) {
+    if (!removedToolboxByMetadata && toolboxFileIsExist) {
       let toolbox = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'toolbox.json')));
       // 检查多语言文件是否存在，（2025.5.29 修复因为多语言造成的移除不了toolbox的问题）
       let i18nData = null;
@@ -972,30 +1011,46 @@ export class BlocklyService {
     }
 
     // 移除generator相关引用
-    const generatorFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'generator.js'));
-    if (generatorFileIsExist) {
-      this.removeLibGenerator(this.electronService.pathJoin(libPackagePath, 'generator.js'));
+    const generatorFilePath = loadedLibraryInfo?.generatorPath || this.electronService.pathJoin(libPackagePath, 'generator.js');
+    const generatorFileIsExist = this.electronService.exists(generatorFilePath);
+    if (generatorFileIsExist || loadedLibraryInfo?.generatorPath) {
+      this.removeLibGenerator(generatorFilePath);
     }
 
     // 从已加载库列表中移除
     this.loadedLibraries.delete(libPackagePath);
+    this.loadedLibraryInfos.delete(libPackagePath);
     console.log(`库 ${libPackagePath} 移除完成`);
   }
 
   // 移除已加载的block定义
   removeLibBlocks(blocks) {
-    for (let index = 0; index < blocks.length; index++) {
-      const block = blocks[index];
+    const blockTypes = blocks
+      .map((block: any) => block?.type)
+      .filter((type: any): type is string => typeof type === 'string' && type.length > 0);
+    this.removeLibBlockTypes(blockTypes);
+  }
+
+  private removeLibBlockTypes(blockTypes: string[]) {
+    for (const blockType of blockTypes) {
       // 从Blockly中删除block定义
-      if (block.type && Blockly.Blocks[block.type]) {
-        console.log(`- delete ${block.type}`);
-        delete Blockly.Blocks[block.type];
-        if ((window as any).Arduino.forBlock[block.type]) {
-          delete (window as any).Arduino.forBlock[block.type];
+      if (Blockly.Blocks[blockType]) {
+        console.log(`- delete ${blockType}`);
+        delete Blockly.Blocks[blockType];
+        const arduinoGen = (window as any).Arduino;
+        if (arduinoGen?.forBlock?.[blockType]) {
+          delete arduinoGen.forBlock[blockType];
         }
-        // 移除 blockType → 库信息映射
-        this.blockTypeToLibMap.delete(block.type);
+        const mpyGen = (window as any).MPY || (window as any).MicropPython;
+        if (mpyGen?.forBlock?.[blockType]) {
+          delete mpyGen.forBlock[blockType];
+        }
+        if ((Blockly as any).JavaScript?.forBlock?.[blockType]) {
+          delete (Blockly as any).JavaScript.forBlock[blockType];
+        }
       }
+      this.blockDefinitionsMap.delete(blockType);
+      this.blockTypeToLibMap.delete(blockType);
     }
   }
 
@@ -1025,6 +1080,34 @@ export class BlocklyService {
       this.rebuildToolboxFacade();
       this.syncToolboxFacadeWithWorkspace();
     }
+  }
+
+  private removeLibToolboxByLibraryPath(libraryPath: string): boolean {
+    const removeFromContents = (contents: any[]): boolean => {
+      let removed = false;
+      for (let index = contents.length - 1; index >= 0; index--) {
+        const item = contents[index];
+        if (item?.ailyLibraryPath === libraryPath) {
+          contents.splice(index, 1);
+          removed = true;
+          continue;
+        }
+        if (Array.isArray(item?.contents) && removeFromContents(item.contents)) {
+          removed = true;
+        }
+      }
+      return removed;
+    };
+
+    const removed = removeFromContents(this.toolbox.contents);
+    if (removed) {
+      if (this.workspace) {
+        this.workspace.updateToolbox(this.toolbox);
+      }
+      this.rebuildToolboxFacade();
+      this.syncToolboxFacadeWithWorkspace();
+    }
+    return removed;
   }
 
   // 查找toolbox项在contents数组中的索引
@@ -1083,6 +1166,7 @@ export class BlocklyService {
     this.blockDefinitionsMap.clear();
     this.loadedGenerators.clear();
     this.loadedLibraries.clear();
+    this.loadedLibraryInfos.clear();
     this.blockTypeToLibMap.clear();
     this.nativeToolboxElement = null;
     this.externalToolboxHost = null;
