@@ -3,6 +3,8 @@
         "MENU": "قائمة الطعام",
         "PROJECT_NEW": "مشروع جديد",
         "PROJECT_OPEN": "فتح مشروع",
+        "RECENT_PROJECTS": "المشاريع الأخيرة",
+        "RECENT_PROJECTS_EMPTY": "لا توجد مشاريع مفتوحة مؤخرًا",
         "PROJECT_SAVE": "حفظ المشروع",
         "PROJECT_SAVE_AS": "حفظ باسم",
         "PROJECT_CLOSE": "إغلاق المشروع",
@@ -412,6 +414,8 @@
         "MERMAID_COPY_FAILED": "فشل النسخ",
         "MERMAID_SAVE_FAILED": "فشل الحفظ",
         "CLICK_TO_EDIT": "انقر للتعديل",
+        "USER_FEEDBACK_NOTIFY_TITLE": "مساعد الذكاء الاصطناعي يحتاج إلى تعاملك",
+        "USER_FEEDBACK_NOTIFY_BODY": "مساعد الذكاء الاصطناعي ينتظر إجراءً منك. افتح المحادثة وأكمل التأكيد أو الإجابة أو الخطوة الموضحة على الشاشة.",
         "ONBOARDING": {
             "STEP1_TITLE": "مربع الإدخال",
             "STEP1_DESC": "اكتب هنا أسئلتك أو المهام التي تحتاج مساعدة الذكاء الاصطناعي فيها. اضغط Enter للإرسال، Ctrl+Enter لسطر جديد",

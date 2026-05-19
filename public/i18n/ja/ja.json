@@ -3,6 +3,8 @@
         "MENU": "メニュー",
         "PROJECT_NEW": "新規プロジェクト",
         "PROJECT_OPEN": "プロジェクトを開く",
+        "RECENT_PROJECTS": "最近のプロジェクト",
+        "RECENT_PROJECTS_EMPTY": "最近開いたプロジェクトはありません",
         "PROJECT_SAVE": "プロジェクトを保存",
         "PROJECT_SAVE_AS": "名前を付けて保存",
         "PROJECT_CLOSE": "プロジェクトを閉じる",
@@ -412,6 +414,8 @@
         "MERMAID_COPY_FAILED": "コピーに失敗しました",
         "MERMAID_SAVE_FAILED": "保存に失敗しました",
         "CLICK_TO_EDIT": "クリックして編集",
+        "USER_FEEDBACK_NOTIFY_TITLE": "AIアシスタントの操作が必要です",
+        "USER_FEEDBACK_NOTIFY_BODY": "AIアシスタントで対応待ちの操作があります。チャットを開き、確認・回答・画面の指示に従って次の手順を完了してください。",
         "ONBOARDING": {
             "STEP1_TITLE": "入力ボックス",
             "STEP1_DESC": "ここに質問やAIに手伝ってもらいたいタスクを入力してください。Enterで送信、Ctrl+Enterで改行",

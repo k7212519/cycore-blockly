@@ -3,6 +3,8 @@
         "MENU": "Меню",
         "PROJECT_NEW": "Новый проект",
         "PROJECT_OPEN": "Открыть проект",
+        "RECENT_PROJECTS": "Недавние проекты",
+        "RECENT_PROJECTS_EMPTY": "Нет недавних проектов",
         "PROJECT_SAVE": "Сохранить проект",
         "PROJECT_SAVE_AS": "Сохранить как",
         "PROJECT_CLOSE": "Закрыть проект",
@@ -412,6 +414,8 @@
         "MERMAID_COPY_FAILED": "Ошибка копирования",
         "MERMAID_SAVE_FAILED": "Ошибка сохранения",
         "CLICK_TO_EDIT": "Нажмите для редактирования",
+        "USER_FEEDBACK_NOTIFY_TITLE": "Ассистенту ИИ нужен ваш ответ",
+        "USER_FEEDBACK_NOTIFY_BODY": "ИИ-ассистент ждёт вашего действия. Откройте чат и завершите подтверждение, ответ или шаг, указанный на экране.",
         "ONBOARDING": {
             "STEP1_TITLE": "Поле ввода",
             "STEP1_DESC": "Введите здесь ваши вопросы или задачи для помощи ИИ. Нажмите Enter для отправки, Ctrl+Enter для новой строки",
