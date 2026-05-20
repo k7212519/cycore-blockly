@@ -126,6 +126,8 @@ export async function newProjectTool(prjRootPath: string, toolArgs: any, prjServ
             name: prjName,
             path: prjRootPath,
             board: boardInfo
+        }, {
+            activationReason: 'chat-tool-create'
         });
 
         const projectPath = window["path"].join(prjRootPath, prjName);
