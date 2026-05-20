@@ -18,7 +18,6 @@ import { CompatibleDialogComponent } from '../compatible-dialog/compatible-dialo
 import { CmdOutput, CmdService } from '../../../../services/cmd.service';
 import { ElectronService } from '../../../../services/electron.service';
 import { BlocklyService } from '../../services/blockly.service';
-import { PlatformService } from '../../../../services/platform.service';
 import { WorkflowService } from '../../../../services/workflow.service';
 import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd.service';
 import {
@@ -72,7 +71,6 @@ export class LibManagerComponent implements OnDestroy {
     private cmdService: CmdService,
     private crossPlatformCmdService: CrossPlatformCmdService,
     private electronService: ElectronService,
-    private platformService: PlatformService,
     private workflowService: WorkflowService,
     private localLibrarySyncService: LocalLibrarySyncService,
   ) {
@@ -311,13 +309,11 @@ export class LibManagerComponent implements OnDestroy {
 
   private async runInstallOperation(lib: PackageInfo): Promise<LibraryOperationResult> {
     // console.log('当前项目路径：', this.projectService.currentProjectPath);
-    // console.log('当前已安装的库列表：', packageList_old);
 
     this.setLibraryOperationState(lib.name, 'installing');
     this.message.loading(`${this.getLibraryDisplayName(lib)} ${this.translate.instant('LIB_MANAGER.INSTALLING')}...`);
     this.output = '';
     try {
-      const packageList_old = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
       const packageSpec = lib.version ? `${lib.name}@${lib.version}` : lib.name;
       const { code, stderr } = await this.cmdService.runAsync(`npm install ${packageSpec}`, this.projectService.currentProjectPath);
 
@@ -329,15 +325,6 @@ export class LibManagerComponent implements OnDestroy {
       await this.refreshCurrentLibraryList();
       // lib.state = 'default';
       this.message.success(`${this.getLibraryDisplayName(lib)} ${this.translate.instant('LIB_MANAGER.INSTALLED')}`);
-
-      let packageList_new = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-      // console.log('新的已安装的库列表：', packageList_new);
-      // 比对相较于旧的已安装库列表，找出新增的库
-      const newPackages = packageList_new.filter(pkg => !packageList_old.some(oldPkg => oldPkg.name === pkg.name && oldPkg.version === pkg.version));
-      // console.log('新增的库：', newPackages);
-      for (const pkg of newPackages) {
-        this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
-      }
 
       return { type: 'install', lib, success: true };
     } catch (error) {
@@ -450,19 +437,17 @@ export class LibManagerComponent implements OnDestroy {
 
 
   checkLibUsage(lib) {
-    // 检查项目代码是否使用了该库
-    const separator = this.platformService.getPlatformSeparator();
-    const libPackagePath = this.projectService.currentProjectPath + `${separator}node_modules${separator}` + lib.name;
-    const libBlockPath = libPackagePath + `${separator}block.json`;
-    const blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
-    const abiJson = JSON.stringify(this.blocklyService.getProjectDocument());
-    for (let index = 0; index < blocksData.length; index++) {
-      const element = blocksData[index];
-      if (abiJson.includes(element.type)) {
-        return true;
-      }
+    if (!lib?.name) {
+      return false;
     }
-    return false;
+
+    const libPackagePath = this.electronService.pathJoin(
+      this.projectService.currentProjectPath,
+      'node_modules',
+      ...lib.name.split('/'),
+    );
+    return this.blocklyService.isLibraryUsedByCurrentProject(libPackagePath)
+      || this.blocklyService.isLibraryPackageNameUsedByCurrentProject(lib.name);
   }
 
   async checkCompatibility(libCompatibility, boardCore): Promise<boolean> {
@@ -609,10 +594,6 @@ export class LibManagerComponent implements OnDestroy {
 
       this.message.loading(`${this.translate.instant('LIB_MANAGER.IMPORTING')}...`);
 
-      // 获取安装前的库列表
-      let packageList_old = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-      // console.log('导入前已安装的库列表：', packageList_old);
-
       // 先复制库到当前项目目录下，再从项目内的副本执行安装（file: 相对路径，便于整项目拷贝/压缩）
       const { importedLibraryPath, packageName } = await this.copyLibraryToProject(folderPath);
       this.mergeAilyLocalLibrarySource(packageName, folderPath);
@@ -635,19 +616,6 @@ export class LibManagerComponent implements OnDestroy {
       this.libraryList = this.applyLocalization(await this.checkInstalled());
 
       this.message.success(`${this.translate.instant('LIB_MANAGER.IMPORTED')}`);
-
-      // 获取安装后的库列表并加载新增的库
-      let packageList_new = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-      // console.log('导入后已安装的库列表：', packageList_new);
-
-      // 比对相较于旧的已安装库列表，找出新增的库
-      const newPackages = packageList_new.filter(pkg => !packageList_old.some(oldPkg => oldPkg.name === pkg.name && oldPkg.version === pkg.version));
-      // console.log('新导入的库：', newPackages);
-
-      // 加载新增的库到 Blockly
-      for (const pkg of newPackages) {
-        this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
-      }
     } catch (error) {
       console.error('导入库失败：', error);
       this.message.error(`${this.translate.instant('LIB_MANAGER.IMPORT_FAILED')}: ${error.message || error}`);

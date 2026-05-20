@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BlocklyService } from './blockly.service';
+import { AILY_BLOCKLY_USED_LIBRARIES_FIELD, BlocklyService } from './blockly.service';
 import { ActionService } from '../../../services/action.service';
 import { HistoryService } from './history.service';
 import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
@@ -82,6 +82,7 @@ export class _ProjectService {
   async save(path: string, createHistory: boolean = true) {
     const jsonData = this.blocklyService.getProjectAbiForSave();
     window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData, null, 2));
+    this.syncUsedLibraryManifest(path);
     
     if (createHistory && this.currentProjectPath) {
       // 创建手动保存的历史版本
@@ -93,6 +94,29 @@ export class _ProjectService {
     await this.updateCodeHash(path);
     
     // this.stateSubject.next('saved');
+  }
+
+  syncUsedLibraryManifest(path: string): boolean {
+    const packageJsonPath = `${path}/package.json`;
+    try {
+      if (!window['fs'].existsSync(packageJsonPath)) {
+        return false;
+      }
+
+      const originalContent = window['fs'].readFileSync(packageJsonPath, 'utf8');
+      const packageJson = JSON.parse(originalContent);
+      packageJson[AILY_BLOCKLY_USED_LIBRARIES_FIELD] = this.blocklyService.getProjectUsedLibraryManifest(packageJson);
+      const nextContent = JSON.stringify(packageJson, null, 2);
+      if (nextContent !== originalContent) {
+        window['fs'].writeFileSync(packageJsonPath, nextContent);
+      }
+      this.currentPackageData = packageJson;
+      window['packageJson'] = packageJson;
+      return nextContent !== originalContent;
+    } catch (error) {
+      console.error('更新项目使用库清单失败:', error);
+      return false;
+    }
   }
 
   /**

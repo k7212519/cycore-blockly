@@ -1,3 +1,14 @@
+<div class="log-toolbar">
+  <label class="error-filter">
+    <nz-switch
+      nzSize="small"
+      [ngModel]="showOnlyErrors"
+      (ngModelChange)="onErrorFilterChange($event)"
+    ></nz-switch>
+    <span>{{ 'LOG.SHOW_ERRORS_ONLY' | translate }}</span>
+  </label>
+</div>
+
 <div #scrollElement class="log-box">
   <div class="log-inner" [style.height.px]="virtualizer.getTotalSize()">
     @for (row of virtualizer.getVirtualItems(); track row.index) {

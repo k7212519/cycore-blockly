@@ -28,6 +28,7 @@ import {
   getTerminalOutputTool as getTermOutputHandler,
 } from '../terminalSessionTool';
 import { TOOLS as LEGACY_TOOLS } from '../tools';
+import { parseAilyScopedNpmCommand } from '../../helpers/npm-command-display.helper';
 
 function findLegacySchema(name: string): any {
   return (LEGACY_TOOLS as any[]).find(t => t.name === name);
@@ -76,21 +77,22 @@ class ExecuteCommandTool implements IAilyTool {
 
     const projectPath = args.cwd || host.project?.currentProjectPath;
     const command = args.command || '';
-    const isNpmInstall = command.includes('npm i') || command.includes('npm install');
-    const isNpmUninstall = command.includes('npm uninstall');
+  const isNpmInstall = /\bnpm\s+(?:install|i)\b/i.test(command);
+  const isNpmUninstall = /\bnpm\s+(?:uninstall|remove)\b/i.test(command);
     let unloadResults: string[] = [];
+    const unloadedLibs: string[] = [];
 
     // Pre-execution: npm uninstall → check blocks in use → unload libraries
     if (isNpmUninstall && host.blockly && host.platform) {
-      const npmRegex = /@aily-project\/[a-zA-Z0-9-_]+/g;
+      const npmRegex = /@aily-project\/lib-[a-zA-Z0-9-_]+/g;
       const matches = command.match(npmRegex);
 
       if (matches && matches.length > 0) {
-        const uniqueLibs = [...new Set(matches)];
+        const uniqueLibs: string[] = Array.from(new Set<string>(matches));
         const separator = host.platform.pathSeparator;
         const libsInUse: string[] = [];
 
-        for (const libPackageName of uniqueLibs as string[]) {
+        for (const libPackageName of uniqueLibs) {
           try {
             const libBlockPath = projectPath + `${separator}node_modules${separator}` + libPackageName + `${separator}block.json`;
             if (host.fs.existsSync(libBlockPath)) {
@@ -118,6 +120,7 @@ class ExecuteCommandTool implements IAilyTool {
         for (const libPackageName of uniqueLibs) {
           try {
             await host.blockly.unloadLibrary(libPackageName, projectPath);
+            unloadedLibs.push(libPackageName);
             unloadResults.push(`${libPackageName} 卸载成功`);
           } catch (e: any) {
             console.warn('卸载库失败:', libPackageName, e);
@@ -130,12 +133,26 @@ class ExecuteCommandTool implements IAilyTool {
     // Execute the command
     const toolResult: ToolUseResult = await executeCommandHandler(host.cmd, args, ctx.securityContext);
 
+    if (isNpmUninstall && toolResult.is_error && unloadedLibs.length > 0 && host.blockly) {
+      for (const libPackageName of unloadedLibs) {
+        try {
+          await host.blockly.loadLibrary(libPackageName, projectPath);
+          unloadResults.push(`${libPackageName} 已回滚加载`);
+        } catch (e: any) {
+          console.warn('回滚加载库失败:', libPackageName, e);
+          unloadResults.push(`${libPackageName} 回滚加载失败: ${e.message || e}`);
+        }
+      }
+    }
+
     // Post-execution: append uninstall results
     if (isNpmUninstall && unloadResults.length > 0) {
       toolResult.content = (toolResult.content || '') + `\n\n库卸载结果:\n${unloadResults.join('\n')}`;
     }
 
+    /*
     // Post-execution: npm install → load libraries
+    // 暂时注释：验证 package.json 监听能否独立触发 Blockly 库加载。
     if (!toolResult.is_error && isNpmInstall && host.blockly && host.platform) {
       const installSeparator = host.platform.pathSeparator;
       const libsToLoad: string[] = [];
@@ -185,6 +202,7 @@ class ExecuteCommandTool implements IAilyTool {
       //   toolResult.content = (toolResult.content || '') + `\n\n库加载结果:\n${loadResults.join('\n')}`;
       // }
     }
+    */
 
     // Handle npm install failure: mark as non-retryable (via warning = false, is_error = true stays)
     if (toolResult.is_error && isNpmInstall) {
@@ -200,6 +218,11 @@ class ExecuteCommandTool implements IAilyTool {
   }
 
   getStartText(args: any): string {
+    const npmDisplay = parseAilyScopedNpmCommand(args?.command);
+    if (npmDisplay) {
+      return npmDisplay.startText;
+    }
+
     const parts = (args?.command || '').trim().split(/\s+/);
     const cmd = parts[0] || 'unknown';
     const cmdArg = parts[1] || '';
@@ -209,15 +232,25 @@ class ExecuteCommandTool implements IAilyTool {
   }
 
   getResultText(args: any, result?: ToolUseResult): string {
+    const npmDisplay = parseAilyScopedNpmCommand(args?.command);
     const parts = (args?.command || '').trim().split(/\s+/);
     const cmd = parts[0] || 'unknown';
     const cmdDisplay = cmd.toLowerCase() === 'npm' && parts[1] ? `${cmd} ${parts[1]}` : cmd;
 
     if (result?.metadata?.npmInstallFailure) {
+      if (npmDisplay) {
+        return `${npmDisplay.failureText}，请检查网络或依赖配置`;
+      }
       return 'npm install命令执行失败，请检查网络或依赖配置';
     }
     if (result?.is_error || result?.warning) {
+      if (npmDisplay) {
+        return npmDisplay.retryText;
+      }
       return `命令 ${cmdDisplay} 执行异常, 即将重试`;
+    }
+    if (npmDisplay) {
+      return npmDisplay.successText;
     }
     return `命令 ${cmdDisplay} 执行成功`;
   }
@@ -749,6 +782,11 @@ class StartBackgroundCommandTool implements IAilyTool {
   }
 
   getStartText(args: any): string {
+    const npmDisplay = parseAilyScopedNpmCommand(args?.command);
+    if (npmDisplay) {
+      return npmDisplay.startText;
+    }
+
     const cmd = (args?.command || '').split(/\s+/).slice(0, 3).join(' ');
     return `后台启动: ${cmd}`;
   }

@@ -718,6 +718,7 @@
         "EXPORT_TITLE": "ログデータをエクスポート",
         "TEXT_FILE": "テキストファイル",
         "ALL_FILES": "すべてのファイル",
-        "EXPORT_SUCCESS": "ログデータが正常にエクスポートされました: "
+        "EXPORT_SUCCESS": "ログデータが正常にエクスポートされました: ",
+        "SHOW_ERRORS_ONLY": "エラーのみ表示"
     }
 }

@@ -27,6 +27,7 @@ import { ChatPerformanceTracer } from '../../services/chat-perf-tracer';
 import { storeThinkContent, deleteThinkContent } from '../../core/think-content-store';
 import { ResourceItem } from '../../core/chat-types';
 import { AilyMarkdownExternalLinksDirective } from '../../directives/aily-markdown-external-links.directive';
+import { parseAilyScopedNpmCommand } from '../../helpers/npm-command-display.helper';
 
 
 @Component({
@@ -821,6 +822,11 @@ function buildToolText(toolName: string, argsStr: string): string {
       return `${name}  ${file}`;
     }
     if (args.command) {
+      const npmDisplay = parseAilyScopedNpmCommand(args.command as string);
+      if (npmDisplay) {
+        return npmDisplay.startText;
+      }
+
       const cmd = (args.command as string).split(' ').slice(0, 3).join(' ');
       return `${name}  ${cmd}`;
     }

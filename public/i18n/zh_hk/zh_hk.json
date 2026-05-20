@@ -730,6 +730,7 @@
         "EXPORT_TITLE": "匯出日誌資料",
         "TEXT_FILE": "文字檔案",
         "ALL_FILES": "所有檔案",
-        "EXPORT_SUCCESS": "日誌資料已成功匯出到"
+        "EXPORT_SUCCESS": "日誌資料已成功匯出到",
+        "SHOW_ERRORS_ONLY": "只顯示錯誤"
     }
 }
