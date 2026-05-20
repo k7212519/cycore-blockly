@@ -17,7 +17,7 @@ export class SessionLifecycleHelper {
 
   // ==================== 会话持久化 ====================
 
-  saveCurrentSession(): void {
+  saveCurrentSession(projectPathOverride?: string | null): void {
     if (!this.engine.sessionId || this.engine.list.length === 0) return;
     try {
       const currentPath = AilyHost.get().project.currentProjectPath;
@@ -28,9 +28,14 @@ export class SessionLifecycleHelper {
         return norm(p) === norm(rootPath);
       };
       const cached = this.engine.chatService.currentSessionPath;
-      // 优先使用 cached 但不能是 rootPath，否则回退到实时 currentProjectPath
-      let prjPath = (cached && !isSameAsRoot(cached)) ? cached
-        : (currentPath && !isSameAsRoot(currentPath) ? currentPath : null);
+      let prjPath: string | null;
+      if (arguments.length > 0) {
+        prjPath = projectPathOverride && !isSameAsRoot(projectPathOverride) ? projectPathOverride : null;
+      } else {
+        // 优先使用 cached 但不能是 rootPath，否则回退到实时 currentProjectPath
+        prjPath = (cached && !isSameAsRoot(cached)) ? cached
+          : (currentPath && !isSameAsRoot(currentPath) ? currentPath : null);
+      }
       const budgetSnapshot = this.engine.contextBudgetService?.getSnapshot();
 
       // 导出 subagent 会话数据（Plan C 压缩：保留最近 3 轮对话）
@@ -84,6 +89,168 @@ export class SessionLifecycleHelper {
       actions: historyActions,
       current: e.sessionId === this.engine.sessionId,
     }));
+  }
+
+  private isSamePath(leftPath: string | null | undefined, rightPath: string | null | undefined): boolean {
+    const normalize = (value: string | null | undefined) => String(value || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    return normalize(leftPath) === normalize(rightPath);
+  }
+
+  private getPersistableProjectPath(projectPath: string | null | undefined): string | null {
+    const rootPath = AilyHost.get().project.projectRootPath;
+    return projectPath && !this.isSamePath(projectPath, rootPath) ? projectPath : null;
+  }
+
+  private getCurrentSessionPersistPath(previousProjectPath?: string | null): string | null {
+    const cachedPath = this.engine.chatService.currentSessionPath;
+    return this.getPersistableProjectPath(cachedPath) || this.getPersistableProjectPath(previousProjectPath);
+  }
+
+  private getLatestProjectSessionEntry(projectPath: string): any | null {
+    const rootPath = AilyHost.get().project.projectRootPath;
+    const entries = this.engine.chatHistoryService.getHistoryList('current-project', projectPath, rootPath);
+    return entries[0] || null;
+  }
+
+  private clearClientSessionState(previousSessionId?: string): void {
+    this.engine.list = [];
+    this.engine.scrollManager.autoScrollEnabled = true;
+    this.engine.isWaiting = false;
+    this.engine.isCompleted = false;
+    this.engine.isCancelled = true;
+    this.engine.editCheckpointService.clear();
+    this.engine.editCheckpointService.dismissSummary();
+    this.engine.turnManager.clear();
+    this.engine.toolCallingIteration = 0;
+    this.engine.contextBudgetService?.reset();
+    this.engine.subagentSessionService.cleanupAll();
+    this.engine.pendingToolResults = [];
+    this.engine.currentTurnAssistantContent = '';
+    this.engine.currentTurnToolCalls = [];
+    if (this.engine.messageSubscription) {
+      this.engine.messageSubscription.unsubscribe();
+      this.engine.messageSubscription = null;
+    }
+    this.engine.activeToolExecutions = 0;
+    this.engine.sseStreamCompleted = false;
+    this.engine.streamCompleted = false;
+    this.engine.pendingUserInput = false;
+    clearSessionApprovals();
+    if (previousSessionId) {
+      clearTodosCache(previousSessionId);
+      const todoUpdateService = (window as any)['todoUpdateService'];
+      if (todoUpdateService) { todoUpdateService.updateTodoData(previousSessionId, []); }
+    }
+  }
+
+  private closeServerSessionInBackground(sessionId: string): void {
+    if (!sessionId) return;
+
+    this.engine.chatService.cancelTask(sessionId).subscribe({
+      error: (error) => console.warn('[SessionLifecycle] 后台取消旧任务失败:', error),
+    });
+    this.engine.chatService.stopSession(sessionId).subscribe({
+      next: () => {
+        this.engine.chatService.closeSession(sessionId).subscribe({
+          error: (error) => console.warn('[SessionLifecycle] 后台关闭旧会话失败:', error),
+        });
+      },
+      error: (error) => {
+        console.warn('[SessionLifecycle] 后台停止旧会话失败:', error);
+        this.engine.chatService.closeSession(sessionId).subscribe({
+          error: (closeError) => console.warn('[SessionLifecycle] 后台关闭旧会话失败:', closeError),
+        });
+      },
+    });
+  }
+
+  async startNewProjectSession(projectPath: string, previousProjectPath?: string | null, currentAlreadySaved = false): Promise<void> {
+    if (!projectPath || this.engine.isSessionStarting) return;
+
+    const previousSessionId = this.engine.sessionId;
+    if (!currentAlreadySaved) {
+      this.saveCurrentSession(this.getCurrentSessionPersistPath(previousProjectPath));
+    }
+
+    if (this.engine.messageSubscription) {
+      this.engine.messageSubscription.unsubscribe();
+      this.engine.messageSubscription = null;
+    }
+    this.closeServerSessionInBackground(previousSessionId);
+
+    this.clearClientSessionState(previousSessionId);
+    this.engine.chatService.currentSessionId = '';
+    this.engine.chatService.currentSessionTitle = '';
+    this.engine.chatService.currentSessionPath = this.getPersistableProjectPath(projectPath) || '';
+    this.engine.isSessionStarting = false;
+    this.engine.serverSessionActive = false;
+    this.engine.requestViewUpdate(true);
+
+    if (this.engine.isLoggedIn) {
+      await this.startSession();
+    }
+
+    this.refreshHistoryList();
+    this.engine.requestViewUpdate(true);
+  }
+
+  async loadLatestProjectSession(projectPath: string, previousProjectPath?: string | null): Promise<boolean> {
+    if (!projectPath || this.engine.isSessionStarting) return false;
+
+    this.saveCurrentSession(this.getCurrentSessionPersistPath(previousProjectPath));
+    this.engine.chatHistoryService.reloadProjectIndex(projectPath);
+
+    const latestEntry = this.getLatestProjectSessionEntry(projectPath);
+    if (!latestEntry) {
+      await this.startNewProjectSession(projectPath, previousProjectPath, true);
+      return false;
+    }
+
+    const previousSessionId = this.engine.sessionId;
+    if (previousSessionId && previousSessionId !== latestEntry.sessionId) {
+      try {
+        await this.stopAndCloseSession(true);
+      } catch (error) {
+        console.warn('[SessionLifecycle] 加载项目历史前关闭旧会话失败:', error);
+      }
+    }
+
+    this.clearClientSessionState(previousSessionId);
+    this.engine.chatService.currentSessionId = latestEntry.sessionId;
+    this.engine.chatService.currentSessionTitle = latestEntry.title || '';
+    this.engine.chatService.currentSessionPath = this.getPersistableProjectPath(projectPath) || '';
+    this.getHistory();
+    this.engine.isCompleted = true;
+    this.engine.setServerSessionInactive();
+    this.refreshHistoryList();
+    this.engine.requestViewUpdate(true);
+    return true;
+  }
+
+  async initializeSessionForCurrentProject(): Promise<void> {
+    const currentProjectPath = AilyHost.get().project.currentProjectPath;
+    const persistableProjectPath = this.getPersistableProjectPath(currentProjectPath);
+
+    if (persistableProjectPath) {
+      this.engine.chatHistoryService.reloadProjectIndex(persistableProjectPath);
+      const latestEntry = this.getLatestProjectSessionEntry(persistableProjectPath);
+      if (latestEntry) {
+        this.clearClientSessionState(this.engine.sessionId);
+        this.engine.chatService.currentSessionId = latestEntry.sessionId;
+        this.engine.chatService.currentSessionTitle = latestEntry.title || '';
+        this.engine.chatService.currentSessionPath = persistableProjectPath;
+        this.getHistory();
+        this.engine.isCompleted = true;
+        this.engine.setServerSessionInactive();
+        this.refreshHistoryList();
+        this.engine.requestViewUpdate(true);
+        return;
+      }
+    }
+
+    await this.startSession();
+    this.getHistory();
+    this.engine.requestViewUpdate(true);
   }
 
   // ==================== 会话启动 ====================

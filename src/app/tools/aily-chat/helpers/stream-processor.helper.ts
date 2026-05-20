@@ -160,19 +160,21 @@ export class StreamProcessorHelper {
       }
     }
 
+    const streamSessionId = this.engine.sessionId;
     const source$ = statelessMode
       ? this.engine.chatService.chatRequest(
-          this.engine.sessionId, apiMessages!, this.engine.turnLoop.getCurrentTools(),
+          streamSessionId, apiMessages!, this.engine.turnLoop.getCurrentTools(),
           this.engine.currentMode, this.engine.turnLoop.getCurrentLLMConfig(),
           this.engine.currentModel?.model || undefined, this.engine.ailyChatConfigService.maxCount
         )
-      : (this.engine.debug ? this.engine.chatService.debugStream(this.engine.sessionId) : this.engine.chatService.streamConnect(this.engine.sessionId));
+      : (this.engine.debug ? this.engine.chatService.debugStream(streamSessionId) : this.engine.chatService.streamConnect(streamSessionId));
 
     // SSE 回调在 Angular Zone 外执行 — 避免每个 SSE token 触发 CD
     // list 变更通过 viewAdapter._runInZone() 重新进入 Zone
     this.engine.ngZone.runOutsideAngular(() => {
     this.engine.messageSubscription = source$.subscribe({
       next: async (data: any) => {
+        if (this.engine.sessionId !== streamSessionId) return;
         if (!this.engine.isWaiting) return;
         if (this.engine.isCancelled) return;
 
@@ -539,6 +541,11 @@ export class StreamProcessorHelper {
               toolResult = { is_error: true, content: resultText };
             }
 
+            if (this.engine.sessionId !== streamSessionId || this.engine.isCancelled) {
+              ChatPerformanceTracer.end(_tcSpan, 'tool_call_request', `${data.tool_name}: stale`);
+              return;
+            }
+
             const isSubagent = messageSource !== 'mainAgent';
 
             // Hook: PostToolUse — 参考 Copilot IChatHookService.executePostToolUseHook()
@@ -649,6 +656,7 @@ export class StreamProcessorHelper {
         }
       },
       complete: () => {
+        if (this.engine.sessionId !== streamSessionId) return;
         this.engine.msg.cleanupLastAiMessage();
         this.engine.pendingUserInput = false;
         this.engine.streamCompleted = false;
@@ -674,6 +682,7 @@ export class StreamProcessorHelper {
         this.engine.applyPendingSwitch();
       },
       error: (err) => {
+        if (this.engine.sessionId !== streamSessionId) return;
         console.warn('流连接出错:', err);
 
         // 会话丢失检测（如服务重启后 500 "An unexpected error occurred"）
@@ -686,7 +695,7 @@ export class StreamProcessorHelper {
           this.sessionRebuildAttempted = true;
           console.warn('[streamConnect] 检测到会话可能丢失，尝试重建会话...');
           this.engine.session.ensureServerSession().then(() => {
-            if (!this.engine.isCancelled && this.engine.isWaiting) {
+            if (this.engine.sessionId === streamSessionId && !this.engine.isCancelled && this.engine.isWaiting) {
               console.log('[streamConnect] 会话重建成功，重新连接...');
               this.streamConnect(statelessMode, true);
             }
@@ -709,7 +718,7 @@ export class StreamProcessorHelper {
             : StreamProcessorHelper.STREAM_RETRY_BASE_DELAY * Math.pow(2, this.streamNetworkRetryCount - 2);
           console.warn(`[streamConnect] 网络错误，${delay}ms 后第 ${this.streamNetworkRetryCount} 次自动重连...`);
           setTimeout(() => {
-            if (!this.engine.isCancelled && this.engine.isWaiting) {
+            if (this.engine.sessionId === streamSessionId && !this.engine.isCancelled && this.engine.isWaiting) {
               this.streamConnect(statelessMode, true);
             }
           }, delay);

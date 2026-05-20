@@ -263,6 +263,8 @@ export interface IProjectProvider {
   getBoardPackageJson?(): Promise<any>;
   /** 当前项目路径变化通知（Observable，宿主环境提供） */
   readonly currentProjectPath$?: any;
+  /** 项目激活来源通知（Observable，宿主环境提供） */
+  readonly projectActivation$?: any;
 }
 
 // ============================================================
