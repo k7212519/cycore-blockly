@@ -28,6 +28,7 @@ import {
   getTerminalOutputTool as getTermOutputHandler,
 } from '../terminalSessionTool';
 import { TOOLS as LEGACY_TOOLS } from '../tools';
+import { parseAilyScopedNpmCommand } from '../../helpers/npm-command-display.helper';
 
 function findLegacySchema(name: string): any {
   return (LEGACY_TOOLS as any[]).find(t => t.name === name);
@@ -76,8 +77,8 @@ class ExecuteCommandTool implements IAilyTool {
 
     const projectPath = args.cwd || host.project?.currentProjectPath;
     const command = args.command || '';
-    const isNpmInstall = command.includes('npm i') || command.includes('npm install');
-    const isNpmUninstall = command.includes('npm uninstall');
+  const isNpmInstall = /\bnpm\s+(?:install|i)\b/i.test(command);
+  const isNpmUninstall = /\bnpm\s+(?:uninstall|remove)\b/i.test(command);
     let unloadResults: string[] = [];
     const unloadedLibs: string[] = [];
 
@@ -217,6 +218,11 @@ class ExecuteCommandTool implements IAilyTool {
   }
 
   getStartText(args: any): string {
+    const npmDisplay = parseAilyScopedNpmCommand(args?.command);
+    if (npmDisplay) {
+      return npmDisplay.startText;
+    }
+
     const parts = (args?.command || '').trim().split(/\s+/);
     const cmd = parts[0] || 'unknown';
     const cmdArg = parts[1] || '';
@@ -226,15 +232,25 @@ class ExecuteCommandTool implements IAilyTool {
   }
 
   getResultText(args: any, result?: ToolUseResult): string {
+    const npmDisplay = parseAilyScopedNpmCommand(args?.command);
     const parts = (args?.command || '').trim().split(/\s+/);
     const cmd = parts[0] || 'unknown';
     const cmdDisplay = cmd.toLowerCase() === 'npm' && parts[1] ? `${cmd} ${parts[1]}` : cmd;
 
     if (result?.metadata?.npmInstallFailure) {
+      if (npmDisplay) {
+        return `${npmDisplay.failureText}，请检查网络或依赖配置`;
+      }
       return 'npm install命令执行失败，请检查网络或依赖配置';
     }
     if (result?.is_error || result?.warning) {
+      if (npmDisplay) {
+        return npmDisplay.retryText;
+      }
       return `命令 ${cmdDisplay} 执行异常, 即将重试`;
+    }
+    if (npmDisplay) {
+      return npmDisplay.successText;
     }
     return `命令 ${cmdDisplay} 执行成功`;
   }
@@ -766,6 +782,11 @@ class StartBackgroundCommandTool implements IAilyTool {
   }
 
   getStartText(args: any): string {
+    const npmDisplay = parseAilyScopedNpmCommand(args?.command);
+    if (npmDisplay) {
+      return npmDisplay.startText;
+    }
+
     const cmd = (args?.command || '').split(/\s+/).slice(0, 3).join(' ');
     return `后台启动: ${cmd}`;
   }
