@@ -811,6 +811,7 @@
         "EXPORT_TITLE": "导出日志数据",
         "TEXT_FILE": "文本文件",
         "ALL_FILES": "所有文件",
-        "EXPORT_SUCCESS": "日志数据已成功导出到"
+        "EXPORT_SUCCESS": "日志数据已成功导出到",
+        "SHOW_ERRORS_ONLY": "只显示错误"
     }
 }

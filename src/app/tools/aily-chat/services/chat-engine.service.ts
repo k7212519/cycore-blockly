@@ -127,6 +127,7 @@ export class ChatEngineService {
   /** 延迟切换：活跃请求期间暂存待切换的模型/模式，完成后自动应用 */
   _pendingModelSwitch: ModelConfig | null = null;
   _pendingModeSwitch: string | null = null;
+  private pendingProjectActivation: { path: string; previousPath?: string; reason?: string } | null = null;
 
   /** autoSend 消息在 sessionId 未就绪时的暂存区，startSession 完成后自动冲刷 */
   private _pendingAutoSendText: string | null = null;
@@ -138,6 +139,7 @@ export class ChatEngineService {
 
   /** OnPush 组件变更检测回调，由 component 注入 */
   private detectChangesCallback?: () => void;
+  private forceDetectChangesCallback?: () => void;
 
   /** 工具审批 Promise resolve 回调（等待用户在聊天界面确认） */
   _resolveToolApproval: ((result: ToolApprovalResult) => void) | null = null;
@@ -149,6 +151,7 @@ export class ChatEngineService {
   private aiWritingSubscription: Subscription;
   private aiWaitingSubscription: Subscription;
   private projectPathSubscription: Subscription;
+  private projectActivationSubscription: Subscription;
   private configChangedSubscription: Subscription;
   private blockSelectionSubscription: Subscription;
   private subagentProgressSubscription: Subscription;
@@ -227,9 +230,23 @@ export class ChatEngineService {
   }
 
   /** 注册 OnPush CD 回调（由 component 调用 cdr.markForCheck） */
-  setCdCallback(cb: () => void): void {
+  setCdCallback(cb: () => void, forceCb?: () => void): void {
     this.detectChangesCallback = cb;
+    this.forceDetectChangesCallback = forceCb || cb;
     (this.viewAdapter as any).cdCallback = cb;
+  }
+
+  requestViewUpdate(force = false): void {
+    const callback = force ? (this.forceDetectChangesCallback || this.detectChangesCallback) : this.detectChangesCallback;
+    if (!callback) return;
+
+    this.ngZone.run(() => {
+      try {
+        callback();
+      } catch (error) {
+        console.warn('[ChatEngine] 触发视图刷新失败:', error);
+      }
+    });
   }
 
   // ==================== 初始化 / 销毁 ====================
@@ -246,12 +263,9 @@ export class ChatEngineService {
       ? '' : AilyHost.get().project.currentProjectPath;
     this.prjRootPath = AilyHost.get().project.projectRootPath;
 
-    // 初始化时：如果项目已打开，立即执行孤儿领养（订阅的 skip(1) 会跳过初始值）
+    // 初始化时：如果项目已打开，先合并项目本地历史索引（订阅的 skip(1) 会跳过初始值）
     if (this.prjPath) {
-      const adopted = this.chatHistoryService.adoptOrphanSessions(this.prjPath, this.prjRootPath);
-      if (adopted > 0) {
-        console.log(`[ChatEngine] 初始化时领养 ${adopted} 个孤儿会话到: ${this.prjPath}`);
-      }
+      this.chatHistoryService.reloadProjectIndex(this.prjPath);
     }
 
     // 注册 ask_user 回调：在聊天界面显示全部问题并等待用户回答
@@ -371,26 +385,22 @@ export class ChatEngineService {
       this.prjPath = newPath === rootPath ? '' : newPath;
       this.prjRootPath = rootPath;
 
-      // 同步更新 currentSessionPath，防止保存到旧路径/rootPath
       if (newPath && newPath !== rootPath) {
-        this.chatService.currentSessionPath = newPath;
-      }
-
-      // 新建项目时自动领养根目录下的孤儿会话
-      if (newPath && newPath !== rootPath) {
-        // 先加载新项目的本地索引（项目级优先）
         this.chatHistoryService.reloadProjectIndex(newPath);
-        const adopted = this.chatHistoryService.adoptOrphanSessions(newPath, rootPath);
-        if (adopted > 0) {
-          console.log(`[ChatEngine] 项目切换，自动领养 ${adopted} 个孤儿会话到: ${newPath}`);
-        }
+        this.absAutoSyncService.initialize(newPath);
       }
 
       this.session.refreshHistoryList();
-      if (newPath && newPath !== rootPath) {
-        this.absAutoSyncService.initialize(newPath);
-      }
     });
+
+    const projectActivation$ = (AilyHost.get().project as any).projectActivation$;
+    if (projectActivation$?.subscribe) {
+      this.projectActivationSubscription = projectActivation$.subscribe((event: any) => {
+        this.handleProjectActivation(event).catch(error => {
+          console.warn('[ChatEngine] 项目会话切换失败:', error);
+        });
+      });
+    }
 
     // 订阅登录状态变化
     this.loginStatusSubscription = AilyHost.get().authFull?.isLoggedIn$.subscribe(
@@ -399,8 +409,7 @@ export class ChatEngineService {
           this.isLoggedIn = isLoggedIn;
           this.hasInitializedForThisLogin = true;
           this.list = [];
-          this.session.startSession().then(() => {
-            this.session.getHistory();
+          this.session.initializeSessionForCurrentProject().then(() => {
             this.checkFirstUsage();
             // 冲刷因 sessionId 未就绪而暂存的 autoSend 消息
             if (this._pendingAutoSendText) {
@@ -458,6 +467,7 @@ export class ChatEngineService {
     if (this.aiWritingSubscription) { this.aiWritingSubscription.unsubscribe(); this.aiWritingSubscription = null; }
     if (this.aiWaitingSubscription) { this.aiWaitingSubscription.unsubscribe(); this.aiWaitingSubscription = null; }
     if (this.projectPathSubscription) { this.projectPathSubscription.unsubscribe(); this.projectPathSubscription = null; }
+    if (this.projectActivationSubscription) { this.projectActivationSubscription.unsubscribe(); this.projectActivationSubscription = null; }
     if (this.configChangedSubscription) { this.configChangedSubscription.unsubscribe(); this.configChangedSubscription = null; }
     if (this.blockSelectionSubscription) { this.blockSelectionSubscription.unsubscribe(); this.blockSelectionSubscription = null; }
     if (this.subagentProgressSubscription) { this.subagentProgressSubscription.unsubscribe(); this.subagentProgressSubscription = null; }
@@ -466,6 +476,41 @@ export class ChatEngineService {
     this.isSessionStarting = false;
     this.mcpInitialized = false;
     this.hasInitializedForThisLogin = false;
+  }
+
+  private async handleProjectActivation(event: { path: string; previousPath?: string; reason?: string }): Promise<void> {
+    const projectPath = event?.path || '';
+    const rootPath = AilyHost.get().project.projectRootPath;
+    if (!projectPath || projectPath === rootPath) return;
+
+    if (event.reason === 'chat-tool-create') {
+      this.pendingProjectActivation = null;
+      this.chatService.currentSessionPath = projectPath;
+      this.chatHistoryService.reloadProjectIndex(projectPath);
+      this.session.refreshHistoryList();
+      this.requestViewUpdate(true);
+      return;
+    }
+
+    if (this.isWaiting && event?.reason !== 'new') {
+      this.pendingProjectActivation = event;
+      return;
+    }
+
+    if (event.reason === 'new') {
+      this.pendingProjectActivation = null;
+      await this.session.startNewProjectSession(projectPath, event.previousPath);
+      return;
+    }
+
+    if (event.reason === 'open') {
+      await this.session.loadLatestProjectSession(projectPath, event.previousPath);
+      return;
+    }
+
+    this.chatHistoryService.reloadProjectIndex(projectPath);
+    this.session.refreshHistoryList();
+    this.requestViewUpdate(true);
   }
 
   // ==================== 辅助方法 ====================
@@ -914,6 +959,7 @@ Do not create non-existent boards and libraries.
       this.isWaiting = false;
       this.isCompleted = true;
       this.session.saveCurrentSession();
+      this.applyPendingSwitch();
     }
   }
 
@@ -1128,6 +1174,15 @@ Do not create non-existent boards and libraries.
    * 在 turn 完成（finalizeStatelessTurn / stream complete / stop）后调用。
    */
   async applyPendingSwitch(): Promise<void> {
+    const pendingProjectActivation = this.pendingProjectActivation;
+    if (pendingProjectActivation) {
+      this.pendingProjectActivation = null;
+      this._pendingModelSwitch = null;
+      this._pendingModeSwitch = null;
+      await this.handleProjectActivation(pendingProjectActivation);
+      return;
+    }
+
     const pendingModel = this._pendingModelSwitch;
     const pendingMode = this._pendingModeSwitch;
     this._pendingModelSwitch = null;

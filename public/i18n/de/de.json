@@ -718,6 +718,7 @@
         "EXPORT_TITLE": "Protokolldaten exportieren",
         "TEXT_FILE": "Textdateien",
         "ALL_FILES": "Alle Dateien",
-        "EXPORT_SUCCESS": "Protokolldaten erfolgreich exportiert nach "
+        "EXPORT_SUCCESS": "Protokolldaten erfolgreich exportiert nach ",
+        "SHOW_ERRORS_ONLY": "Nur Fehler anzeigen"
     }
 }

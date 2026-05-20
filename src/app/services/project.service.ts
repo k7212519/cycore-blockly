@@ -35,6 +35,22 @@ interface ProjectPackageData {
   blocklyToolboxOrder?: string[];
 }
 
+export type ProjectActivationReason = 'new' | 'open' | 'reload' | 'chat-tool-create';
+
+export interface ProjectActivationEvent {
+  path: string;
+  previousPath: string;
+  reason: ProjectActivationReason;
+}
+
+interface ProjectOpenOptions {
+  reason?: ProjectActivationReason;
+}
+
+interface ProjectCreationOptions {
+  activationReason?: ProjectActivationReason;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -48,6 +64,9 @@ export class ProjectService {
   // 当前项目路径的订阅源
   private currentProjectPathSubject = new BehaviorSubject<string>('');
   currentProjectPath$ = this.currentProjectPathSubject.asObservable();
+
+  private projectActivationSubject = new Subject<ProjectActivationEvent>();
+  projectActivation$ = this.projectActivationSubject.asObservable();
 
   currentPackageData: ProjectPackageData = {
     name: 'aily blockly',
@@ -91,7 +110,7 @@ export class ProjectService {
       window['ipcRenderer'].on('window-receive', async (event, message) => {
         console.log('window-receive', message);
         if (message.data.action == 'open-project') {
-          this.projectOpen(message.data.path);
+          this.projectOpen(message.data.path, { reason: this.parseProjectActivationReason(message.data.reason) });
         } else {
           return;
         }
@@ -135,6 +154,20 @@ export class ProjectService {
     return projectPath;
   }
 
+  private normalizeProjectPath(projectPath: string | null | undefined): string {
+    return String(projectPath || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  }
+
+  private isSameProjectPath(leftPath: string | null | undefined, rightPath: string | null | undefined): boolean {
+    return this.normalizeProjectPath(leftPath) === this.normalizeProjectPath(rightPath);
+  }
+
+  private parseProjectActivationReason(reason: unknown): ProjectActivationReason | undefined {
+    return reason === 'new' || reason === 'open' || reason === 'reload' || reason === 'chat-tool-create'
+      ? reason
+      : undefined;
+  }
+
   private updateNewProjectPackageJson(
     projectPath: string,
     newProjectData: NewProjectData,
@@ -158,14 +191,17 @@ export class ProjectService {
       window['fs'].writeFileSync(`${projectPath}/package.json`, JSON.stringify(packageJson, null, 2));
   }
 
-  private async finishProjectCreation(projectPath: string): Promise<boolean> {
+  private async finishProjectCreation(projectPath: string, options: ProjectCreationOptions = {}): Promise<boolean> {
     this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
-    await window['iWindow'].send({ to: 'main', data: { action: 'open-project', path: projectPath } });
+    await window['iWindow'].send({
+      to: 'main',
+      data: { action: 'open-project', path: projectPath, reason: options.activationReason || 'new' }
+    });
     return true;
   }
 
   // 新建项目
-  async projectNew(newProjectData: NewProjectData): Promise<boolean> {
+  async projectNew(newProjectData: NewProjectData, options: ProjectCreationOptions = {}): Promise<boolean> {
     try {
       const separator = this.platformService.getPlatformSeparator();
       // console.log('newProjectData: ', newProjectData);
@@ -191,7 +227,7 @@ export class ProjectService {
       await this.crossPlatformCmdService.copyItem(`${templatePath}${separator}*`, projectPath, true, true);
 
       this.updateNewProjectPackageJson(projectPath, newProjectData);
-      return await this.finishProjectCreation(projectPath);
+      return await this.finishProjectCreation(projectPath, options);
 
       // if (closeWindow) {
       //   this.uiService.closeWindow();
@@ -203,7 +239,7 @@ export class ProjectService {
     }
   }
 
-  async projectNewFromTemplate(newProjectData: NewProjectData, templatePath: string): Promise<boolean> {
+  async projectNewFromTemplate(newProjectData: NewProjectData, templatePath: string, options: ProjectCreationOptions = {}): Promise<boolean> {
     try {
       const separator = this.platformService.getPlatformSeparator();
       const projectPath = this.buildProjectPath(newProjectData);
@@ -213,7 +249,7 @@ export class ProjectService {
       await this.crossPlatformCmdService.copyItem(`${templatePath}${separator}*`, projectPath, true, true);
 
       this.updateNewProjectPackageJson(projectPath, newProjectData, { removeCloudId: true });
-      return await this.finishProjectCreation(projectPath);
+      return await this.finishProjectCreation(projectPath, options);
     } catch (error) {
       this.message.error(this.translate.instant('PROJECT.CREATE_FAILED') + ": " + error.message);
       this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('PROJECT.CREATE_FAILED') });
@@ -222,7 +258,9 @@ export class ProjectService {
   }
 
   // 打开项目
-  async projectOpen(projectPath = this.currentProjectPath) {
+  async projectOpen(projectPath = this.currentProjectPath, options: ProjectOpenOptions = {}) {
+    const previousProjectPath = this.currentProjectPath;
+    const activationReason = options.reason || (this.isSameProjectPath(previousProjectPath, projectPath) ? 'reload' : 'open');
     await this.close();
     await new Promise(resolve => setTimeout(resolve, 100));
     // 判断路径是否存在
@@ -261,6 +299,11 @@ export class ProjectService {
 
     // 更新当前项目路径和包数据
     this.currentProjectPath = projectPath;
+    this.projectActivationSubject.next({
+      path: projectPath,
+      previousPath: previousProjectPath,
+      reason: activationReason,
+    });
 
     const abiIsExist = window['path'].isExists(projectPath + '/project.abi');
     if (abiIsExist) {

@@ -199,7 +199,10 @@ export class AilyChatComponent implements OnDestroy {
     private themeService: ThemeService,
   ) {
     // 注册 OnPush CD 回调 — viewAdapter 每次 flush/appendImmediate 后调用 markForCheck
-    this.engine.setCdCallback(() => this.cdr.markForCheck());
+    this.engine.setCdCallback(
+      () => this.cdr.markForCheck(),
+      () => this.cdr.detectChanges(),
+    );
   }
 
   ngOnInit() {
