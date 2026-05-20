@@ -117,9 +117,9 @@ export class NpmService {
   async init() {
     if (this.electronService.isElectron) {
       window['ipcRenderer'].on('window-receive', async (event, message) => {
-        console.log("npm-exec: ", message);
+        // console.log("npm-exec: ", message);
         const action = message.data.action;
-        console.log("action: ", action);
+        // console.log("action: ", action);
         if (action !== "npm-exec") {
           return;
         }
