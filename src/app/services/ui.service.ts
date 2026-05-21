@@ -70,7 +70,7 @@ export class UiService {
       });
 
       window['ipcRenderer'].on('window-receive', async (event, message) => {
-        console.log('window-receive', message);
+        // console.log('window-receive', message);
         let data;
         if (message.data?.action === 'logout') {
           // 处理登出请求

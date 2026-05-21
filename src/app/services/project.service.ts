@@ -108,7 +108,7 @@ export class ProjectService {
   async init() {
     if (this.electronService.isElectron) {
       window['ipcRenderer'].on('window-receive', async (event, message) => {
-        console.log('window-receive', message);
+        // console.log('window-receive', message);
         if (message.data.action == 'open-project') {
           this.projectOpen(message.data.path, { reason: this.parseProjectActivationReason(message.data.reason) });
         } else {
