@@ -27,6 +27,7 @@ const STOP_COMMAND_RETRY_TIMEOUT_MS = 15000;
 const DEFAULT_SCAN_TIMEOUT_MS = 3000;
 const GATT_CONNECT_MAX_ATTEMPTS = 3;
 const GATT_CONNECT_RETRY_DELAY_MS = 800;
+const GATT_DISCONNECT_CLEANUP_TIMEOUT_MS = 3000;
 const DEVICE_AUTHORIZATION_TIMEOUT_MS = 10000;
 
 export type BleOtaUpdateType = 'flash' | 'filesystem';
@@ -74,7 +75,7 @@ export interface BleOtaTransport {
   beginScan(timeoutMs?: number): Promise<BleOtaDeviceItem>;
   cancelScan(): Promise<void>;
   selectDevice(deviceId: string): Promise<BleOtaDeviceItem>;
-  authorizeDevice(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<BleOtaDeviceItem>;
+  authorizeDevice(deviceId?: string, progress?: (progress: BleOtaProgress) => void, deviceName?: string): Promise<BleOtaDeviceItem>;
   connect(deviceId?: string, progress?: (progress: BleOtaProgress) => void): Promise<void>;
   disconnect(): Promise<void>;
   uploadFirmware(firmware: Uint8Array | ArrayBuffer, options?: BleOtaUploadOptions): Promise<BleOtaUploadResult>;
@@ -370,8 +371,9 @@ export class UploaderBleService implements BleOtaTransport {
   async authorizeDevice(
     deviceId?: string,
     progress?: (progress: BleOtaProgress) => void,
+    deviceName?: string,
   ): Promise<BleOtaDeviceItem> {
-    const item = await this.ensureDevice(deviceId || this.selectedDeviceId || undefined, progress);
+    const item = await this.ensureDevice(deviceId || this.selectedDeviceId || undefined, progress, deviceName);
     this.selectedDeviceId = item.id;
     this.emitDevices(this.isScanning());
     return item;
@@ -408,15 +410,11 @@ export class UploaderBleService implements BleOtaTransport {
     try {
       if (this.commandCharacteristic) {
         this.commandCharacteristic.removeEventListener('characteristicvaluechanged', this.handleCommandNotification);
-        if (this.commandCharacteristic.service?.device?.gatt?.connected) {
-          await this.commandCharacteristic.stopNotifications().catch(() => undefined);
-        }
+        await this.stopNotificationsSafely(this.commandCharacteristic, 'command');
       }
       if (this.recvFwCharacteristic) {
         this.recvFwCharacteristic.removeEventListener('characteristicvaluechanged', this.handleFirmwareNotification);
-        if (this.recvFwCharacteristic.service?.device?.gatt?.connected) {
-          await this.recvFwCharacteristic.stopNotifications().catch(() => undefined);
-        }
+        await this.stopNotificationsSafely(this.recvFwCharacteristic, 'firmware');
       }
     } finally {
       const selected = this.getSelectedDevice();
@@ -427,6 +425,23 @@ export class UploaderBleService implements BleOtaTransport {
       this.recvFwCharacteristic = null;
       this.commandCharacteristic = null;
       this.rejectPendingAcks(new Error(this.t('CONNECTION_CLOSED')));
+    }
+  }
+
+  private async stopNotificationsSafely(characteristic: any, label: string): Promise<void> {
+    if (!characteristic?.service?.device?.gatt?.connected || !characteristic.stopNotifications) return;
+
+    try {
+      await this.withTimeout(
+        characteristic.stopNotifications(),
+        GATT_DISCONNECT_CLEANUP_TIMEOUT_MS,
+        `stop ${label} notifications timeout`,
+      );
+    } catch (error) {
+      this.debug('stop BLE notifications failed', {
+        characteristic: label,
+        error: error?.message || error,
+      });
     }
   }
 
@@ -637,6 +652,10 @@ export class UploaderBleService implements BleOtaTransport {
       await this.sendCommand(CMD_STOP, undefined, STOP_COMMAND_RETRY_TIMEOUT_MS);
     } catch (error) {
       if (this.isDisconnectedError(error)) return;
+      if (this.isCommandAckTimeout(error, CMD_STOP)) {
+        this.debug('STOP ACK timeout after retry, treating command as completed');
+        return;
+      }
       throw error;
     }
   }
@@ -737,6 +756,7 @@ export class UploaderBleService implements BleOtaTransport {
   private async ensureDevice(
     deviceId?: string,
     progress?: (progress: BleOtaProgress) => void,
+    deviceName?: string,
   ): Promise<BleOtaDeviceItem> {
     const id = deviceId || this.selectedDeviceId;
     const device = id ? this.knownDevices.get(id) : this.getSelectedDevice();
@@ -744,6 +764,10 @@ export class UploaderBleService implements BleOtaTransport {
       const discovered = id ? this.discoveredDevices.get(id) : null;
       if (discovered) {
         return this.authorizeDiscoveredDevice(discovered, progress);
+      }
+
+      if (id && this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
+        return this.authorizeRememberedDevice(id, deviceName || device?.name, progress);
       }
 
       await this.refreshGrantedDevices();
@@ -761,12 +785,31 @@ export class UploaderBleService implements BleOtaTransport {
     discovered: BleOtaDeviceItem,
     progress?: (progress: BleOtaProgress) => void,
   ): Promise<BleOtaDeviceItem> {
+    progress?.({ state: 'connecting', progress: 0, text: this.t('CONFIRMING_DEVICE') });
+    return this.requestPreferredDevice(discovered, progress);
+  }
+
+  private async authorizeRememberedDevice(
+    deviceId: string,
+    deviceName?: string,
+    progress?: (progress: BleOtaProgress) => void,
+  ): Promise<BleOtaDeviceItem> {
+    progress?.({ state: 'connecting', progress: 0, text: this.t('SEARCHING_DEVICE') });
+    return this.requestPreferredDevice({
+      id: deviceId,
+      name: deviceName || this.t('DEFAULT_DEVICE_NAME'),
+      source: 'electron-scan',
+    }, progress);
+  }
+
+  private async requestPreferredDevice(
+    preferredDevice: BleOtaDeviceItem,
+    progress?: (progress: BleOtaProgress) => void,
+  ): Promise<BleOtaDeviceItem> {
     const bluetooth = this.getBluetooth();
     if (!bluetooth?.requestDevice) {
       throw new Error(this.t('WEB_BLUETOOTH_UNSUPPORTED'));
     }
-
-    progress?.({ state: 'connecting', progress: 0, text: this.t('CONFIRMING_DEVICE') });
 
     const requestOptions = {
       filters: [{ services: [BLE_OTA_SERVICE_UUID] }],
@@ -775,16 +818,22 @@ export class UploaderBleService implements BleOtaTransport {
 
     let timeoutTimer: any = null;
     let timedOut = false;
+    const startedSearchWindow = !this.searching;
 
     try {
       this.setupElectronBluetoothBridge();
+      if (startedSearchWindow) {
+        this.discoveredDevices.clear();
+        this.searching = true;
+        this.emitDevices(true);
+      }
       // 注意: 必须保持 requestDevice 处于用户手势同步调用栈中。
       // 任何 await 都可能消耗 Chromium 的 transient user activation，
       // 触发 "Must be handling a user gesture to show a permission request"。
       // 因此 setPreferredDevice 走 fire-and-forget; IPC 消息会在同一 tick 同步派发到主进程，
       // 主进程在收到 select-bluetooth-device 事件时再读取 preferred 列表，时序上足够。
       if (this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
-        Promise.resolve(window['ble'].setPreferredDevice(discovered.id))
+        Promise.resolve(window['ble'].setPreferredDevice(preferredDevice.id))
           .then((result: any) => {
             if (result?.success === false) {
               this.debug('setPreferredDevice rejected by main', result?.error);
@@ -805,7 +854,7 @@ export class UploaderBleService implements BleOtaTransport {
       const device = await Promise.race([requestPromise, timeoutPromise]);
       const item = this.cacheBluetoothDevice(device);
       this.selectedDeviceId = item.id;
-      this.removeDiscoveredDuplicates(item, discovered.id, discovered.name);
+      this.removeDiscoveredDuplicates(item, preferredDevice.id, preferredDevice.name);
       progress?.({ state: 'connecting', progress: 0, text: this.t('DEVICE_SELECTED_CONNECTING') });
       return item;
     } catch (error) {
@@ -822,6 +871,11 @@ export class UploaderBleService implements BleOtaTransport {
     } finally {
       if (timeoutTimer) {
         clearTimeout(timeoutTimer);
+      }
+      if (startedSearchWindow) {
+        this.searching = false;
+        window['ble']?.stopDeviceListUpdates?.().catch?.(() => undefined);
+        this.emitDevices(false);
       }
     }
   }
@@ -1099,6 +1153,20 @@ export class UploaderBleService implements BleOtaTransport {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timer: any = null;
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+
+    return Promise.race([
+      promise.finally(() => {
+        if (timer) clearTimeout(timer);
+      }),
+      timeoutPromise,
+    ]);
   }
 
   private getEventBytes(event: any): Uint8Array {

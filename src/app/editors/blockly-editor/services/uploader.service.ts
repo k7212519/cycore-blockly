@@ -200,7 +200,7 @@ export class _UploaderService {
                 setTimeout: 0,
                 stop: () => { this.cancel(); }
               });
-            });
+            }, capturedPortInfo?.text || capturedPortInfo?.name);
           } catch (error) {
             this.uploadInProgress = false;
             this._builderService.isUploading = false;

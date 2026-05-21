@@ -671,13 +671,13 @@ export class HeaderComponent implements OnDestroy {
 
   private resolveActionErrorState(err: any, nestedKeys: string[] = []): RunState['state'] {
     const directState = err?.state;
-    if (this.isValidRunState(directState)) {
+    if (this.isFailureRunState(directState)) {
       return directState;
     }
 
     for (const key of nestedKeys) {
       const nestedState = err?.[key]?.state;
-      if (this.isValidRunState(nestedState)) {
+      if (this.isFailureRunState(nestedState)) {
         return nestedState;
       }
     }
@@ -685,8 +685,8 @@ export class HeaderComponent implements OnDestroy {
     return 'error';
   }
 
-  private isValidRunState(state: any): state is RunState['state'] {
-    return ['default', 'doing', 'done', 'error', 'warn'].includes(state);
+  private isFailureRunState(state: any): state is Extract<RunState['state'], 'error' | 'warn'> {
+    return state === 'error' || state === 'warn';
   }
 
   minimize() {
