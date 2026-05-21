@@ -53,17 +53,28 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly packageJsonWatchDebounceMs = 300;
   private readonly pendingLibraryLoadRetryMs = 1000;
   private readonly maxPendingLibraryLoadAttempts = 120;
+  private readonly pendingBoardReloadRetryMs = 1000;
+  private readonly maxPendingBoardReloadAttempts = 120;
   private _onMouseMoveBound = this._onMouseMove.bind(this);
   private _onMouseLeaveBound = this._onMouseLeave.bind(this);
   private packageJsonWatcherDispose: (() => void) | null = null;
   private packageJsonWatchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingLibraryLoadTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingBoardReloadTimer: ReturnType<typeof setTimeout> | null = null;
   private watchedPackageJsonProjectPath: string | null = null;
   private watchedPackageJsonSignature = '';
   private watchedLibraryDependencies = new Map<string, string>();
+  private watchedBoardDependencies = new Map<string, string>();
   private pendingLibraryDependencies = new Set<string>();
   private pendingLibraryLoadAttempts = new Map<string, number>();
   private pendingLibraryLoadInProgress = false;
+  private pendingBoardDependencyReload: {
+    projectPath: string;
+    addedBoardNames: string[];
+    previousBoardNames: string[];
+    attempts: number;
+  } | null = null;
+  private boardDependencyReloadInProgress = false;
 
   devmode;
 
@@ -321,6 +332,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     this.watchedPackageJsonProjectPath = projectPath;
+    this.projectService.isPackageJsonBoardWatcherActive = true;
     this.ngZone.runOutsideAngular(() => {
       try {
         this.packageJsonWatcherDispose = watch(projectPath, (event) => {
@@ -362,12 +374,21 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       this.pendingLibraryLoadTimer = null;
     }
 
+    if (this.pendingBoardReloadTimer) {
+      clearTimeout(this.pendingBoardReloadTimer);
+      this.pendingBoardReloadTimer = null;
+    }
+
     this.watchedPackageJsonProjectPath = null;
+    this.projectService.isPackageJsonBoardWatcherActive = false;
     this.watchedPackageJsonSignature = '';
     this.watchedLibraryDependencies.clear();
+    this.watchedBoardDependencies.clear();
     this.pendingLibraryDependencies.clear();
     this.pendingLibraryLoadAttempts.clear();
     this.pendingLibraryLoadInProgress = false;
+    this.pendingBoardDependencyReload = null;
+    this.boardDependencyReloadInProgress = false;
   }
 
   private schedulePackageJsonDependencyCheck(projectPath: string): void {
@@ -402,9 +423,29 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     this.applyProjectPackageJson(nextPackageJson);
+
+    const nextBoardDependencies = this.getDeclaredBoardDependencies(nextPackageJson);
+    const nextLibraryDependencies = this.getDeclaredBlocklyLibraryDependencies(nextPackageJson);
+
+    if (this.projectService.isBoardSwitchInProgress) {
+      this.watchedBoardDependencies = nextBoardDependencies;
+      this.watchedLibraryDependencies = nextLibraryDependencies;
+      return;
+    }
+
+    const previousBoardDependencies = this.watchedBoardDependencies;
+    const addedBoardNames = Array.from(nextBoardDependencies.keys()).filter(
+      (name) => !previousBoardDependencies.has(name),
+    ).sort((a, b) => a.localeCompare(b));
+    this.watchedBoardDependencies = nextBoardDependencies;
+
+    if (addedBoardNames.length > 0) {
+      this.handleAddedBoardDependencies(projectPath, addedBoardNames, previousBoardDependencies);
+      return;
+    }
+
     // 对比新旧 package.json 中的 blockly library 依赖变化，找出新增和移除的库
     const previousLibraryDependencies = this.watchedLibraryDependencies;
-    const nextLibraryDependencies = this.getDeclaredBlocklyLibraryDependencies(nextPackageJson);
     const addedLibraryNames = Array.from(nextLibraryDependencies.keys()).filter(
       (name) => !previousLibraryDependencies.has(name),
     ).sort((a, b) => this.compareBlocklyLibraryNames(a, b));
@@ -469,6 +510,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       const packageJson = JSON.parse(content);
       this.watchedPackageJsonSignature = content;
       this.watchedLibraryDependencies = this.getDeclaredBlocklyLibraryDependencies(packageJson);
+      this.watchedBoardDependencies = this.getDeclaredBoardDependencies(packageJson);
       return true;
     } catch (error) {
       console.warn('[PackageJsonWatch] failed to snapshot package.json:', error);
@@ -490,6 +532,122 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     return libraryDependencies;
+  }
+
+  /** 从项目 dependencies 中提取已声明的开发板包依赖。 */
+  private getDeclaredBoardDependencies(packageJson: any): Map<string, string> {
+    const dependencies = packageJson?.dependencies || {};
+
+    const boardDependencies = new Map<string, string>();
+    for (const [name, version] of Object.entries(dependencies)) {
+      if (typeof name === 'string' && this.isBoardPackageName(name)) {
+        boardDependencies.set(name, String(version ?? ''));
+      }
+    }
+
+    return boardDependencies;
+  }
+
+  /** 记录新增开发板依赖，并进入等待安装完成后的重载流程。 */
+  private handleAddedBoardDependencies(
+    projectPath: string,
+    addedBoardNames: string[],
+    previousBoardDependencies: Map<string, string>,
+  ): void {
+    const addedBoardNameSet = new Set(addedBoardNames);
+    const previousBoardNames = Array.from(previousBoardDependencies.keys())
+      .filter((name) => !addedBoardNameSet.has(name))
+      .sort((a, b) => a.localeCompare(b));
+
+    this.pendingBoardDependencyReload = {
+      projectPath,
+      addedBoardNames,
+      previousBoardNames,
+      attempts: 0,
+    };
+    this.schedulePendingBoardReload(projectPath, 0);
+  }
+
+  /** 安排一次开发板切换重载检查，用于等待 npm install 写完新开发板文件。 */
+  private schedulePendingBoardReload(projectPath: string, delayMs: number): void {
+    if (this.pendingBoardReloadTimer) {
+      clearTimeout(this.pendingBoardReloadTimer);
+    }
+
+    this.pendingBoardReloadTimer = setTimeout(() => {
+      this.pendingBoardReloadTimer = null;
+      void this.reloadProjectAfterBoardDependencyChange(projectPath);
+    }, delayMs);
+  }
+
+  /** 在新开发板包就绪后，移除旧开发板、同步 temp/package.json，并重新打开项目。 */
+  private async reloadProjectAfterBoardDependencyChange(projectPath: string): Promise<void> {
+    const pending = this.pendingBoardDependencyReload;
+    if (!pending || pending.projectPath !== projectPath || this.boardDependencyReloadInProgress) {
+      return;
+    }
+
+    if (this.watchedPackageJsonProjectPath !== projectPath) {
+      return;
+    }
+
+    const notReadyBoardNames = pending.addedBoardNames.filter(
+      (boardName) => !this.isBoardPackageReady(projectPath, boardName),
+    );
+    if (notReadyBoardNames.length > 0 && pending.attempts < this.maxPendingBoardReloadAttempts) {
+      pending.attempts += 1;
+      this.schedulePendingBoardReload(projectPath, this.pendingBoardReloadRetryMs);
+      return;
+    }
+
+    if (notReadyBoardNames.length > 0) {
+      console.warn('[PackageJsonWatch] board dependency was not ready before reload:', notReadyBoardNames);
+    }
+
+    const previousBoardNames = [...pending.previousBoardNames];
+    const addedBoardNames = [...pending.addedBoardNames];
+    this.stopPackageJsonDependencyWatch();
+    this.boardDependencyReloadInProgress = true;
+
+    try {
+      if (previousBoardNames.length > 0) {
+        this.uiService.updateFooterState({ state: 'doing', text: `正在移除旧开发板: ${previousBoardNames.join(', ')}` });
+        await this.cmdService.runAsyncChecked(`npm uninstall ${previousBoardNames.join(' ')}`, projectPath);
+      }
+
+      this.copyProjectPackageJsonToTemp(projectPath);
+      this.message.success(`开发板已切换为 ${addedBoardNames.join(', ')}，正在重新加载项目`, { nzDuration: 3000 });
+      await this.projectService.projectOpen(projectPath, { reason: 'reload' });
+      this.projectService.boardChangeSubject.next();
+      this.projectService.resolveBoardSwitchReload();
+    } catch (error) {
+      this.boardDependencyReloadInProgress = false;
+      this.projectService.rejectBoardSwitchReload(error);
+      console.error('[PackageJsonWatch] reload after board dependency change failed:', error);
+      this.message.error(`切换开发板后重新加载项目失败: ${(error as Error)?.message || String(error)}`);
+      this.startPackageJsonDependencyWatch(projectPath);
+    }
+  }
+
+  /** 将主项目 package.json 同步到 .temp，避免重载时被旧 temp 配置覆盖。 */
+  private copyProjectPackageJsonToTemp(projectPath: string): void {
+    const mainPackagePath = this.electronService.pathJoin(projectPath, 'package.json');
+    const tempDir = this.electronService.pathJoin(projectPath, '.temp');
+    const tempPackagePath = this.electronService.pathJoin(tempDir, 'package.json');
+
+    if (!this.electronService.exists(mainPackagePath)) {
+      return;
+    }
+
+    try {
+      if (!this.electronService.exists(tempDir)) {
+        window['fs'].mkdirSync(tempDir, { recursive: true });
+      }
+      const mainContent = this.electronService.readFile(mainPackagePath);
+      window['fs'].writeFileSync(tempPackagePath, mainContent);
+    } catch (error) {
+      console.warn('[PackageJsonWatch] failed to sync package.json to temp:', error);
+    }
   }
 
   private schedulePendingLibraryLoad(projectPath: string, delayMs: number): void {
@@ -611,8 +769,21 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     );
   }
 
+  /** 判断开发板包的核心文件是否已经安装完成。 */
+  private isBoardPackageReady(projectPath: string, boardPackageName: string): boolean {
+    const boardPackagePath = this.getNodeModulePackagePath(projectPath, boardPackageName);
+    return ['package.json', 'board.json'].every((fileName) =>
+      this.electronService.exists(this.electronService.pathJoin(boardPackagePath, fileName)),
+    );
+  }
+
   private getBlocklyLibraryPackagePath(projectPath: string, libPackageName: string): string {
-    return this.electronService.pathJoin(projectPath, 'node_modules', ...libPackageName.split('/'));
+    return this.getNodeModulePackagePath(projectPath, libPackageName);
+  }
+
+  /** 生成 node_modules 下包路径，兼容 @scope/name 包名。 */
+  private getNodeModulePackagePath(projectPath: string, packageName: string): string {
+    return this.electronService.pathJoin(projectPath, 'node_modules', ...packageName.split('/'));
   }
 
   private getMissingProjectLibraries(projectPath: string, packageJson: any, projectAbi: any): MissingLibInfo[] {
@@ -821,6 +992,11 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   private isBlocklyLibraryPackageName(packageName: string): boolean {
     return /^@aily-project\/lib-[a-zA-Z0-9._-]+$/.test(packageName);
+  }
+
+  /** 判断包名是否为 Aily 开发板包。 */
+  private isBoardPackageName(packageName: string): boolean {
+    return /^@aily-project\/board-[a-zA-Z0-9._-]+$/.test(packageName);
   }
 
   openProjectManager(event?: MouseEvent) {
