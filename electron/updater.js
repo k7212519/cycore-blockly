@@ -8,6 +8,7 @@ const { GenericProvider } = require('electron-updater/out/providers/GenericProvi
 let cancellationToken = null;
 let checkedUpdateInfoAndProvider = null;
 let downloadMirrorFallbackInProgress = false;
+let activeDownloadAttempt = null;
 
 function logUpdater(message, data) {
   const text = data === undefined
@@ -94,6 +95,23 @@ function shouldFallbackOnDownloadError() {
   const config = loadMergedConfig();
   const strategy = config.update_download_strategy || {};
   return strategy.fallback_on_error !== false;
+}
+
+function getDownloadGuardConfig() {
+  const config = loadMergedConfig();
+  const strategy = config.update_download_strategy || {};
+
+  const firstByteTimeoutMs = Number(strategy.first_byte_timeout_ms);
+  const stallTimeoutMs = Number(strategy.stall_timeout_ms);
+
+  return {
+    firstByteTimeoutMs: Number.isFinite(firstByteTimeoutMs) && firstByteTimeoutMs > 0
+      ? firstByteTimeoutMs
+      : 0,
+    stallTimeoutMs: Number.isFinite(stallTimeoutMs) && stallTimeoutMs > 0
+      ? stallTimeoutMs
+      : 0,
+  };
 }
 
 function createMirrorProvider(url) {
@@ -190,6 +208,32 @@ function isCancellationError(error) {
   );
 }
 
+function isStrategyCancellationError(error) {
+  return Boolean(error && error.name === 'DownloadStrategyCancellationError');
+}
+
+function createStrategyCancellationError(reason, mirror) {
+  const reasonType = reason && reason.type ? reason.type : 'strategy-cancelled';
+  const error = new Error(
+    `Download cancelled by strategy (${reasonType})${mirror && mirror.region ? ` for ${mirror.region}` : ''}`
+  );
+  error.name = 'DownloadStrategyCancellationError';
+  error.reason = reason;
+  error.mirror = mirror;
+  return error;
+}
+
+function getFallbackReason(error) {
+  if (isStrategyCancellationError(error)) {
+    return error.reason || null;
+  }
+
+  return {
+    type: 'download-error',
+    error: serializeError(error),
+  };
+}
+
 function serializeError(error) {
   if (!error) {
     return 'Unknown updater error';
@@ -197,14 +241,146 @@ function serializeError(error) {
   return error.stack || error.message || error.toString();
 }
 
-async function downloadWithCurrentProvider() {
+function createDownloadAttemptGuard(mainWindow, mirror, token) {
+  const { firstByteTimeoutMs, stallTimeoutMs } = getDownloadGuardConfig();
+  let firstByteReceived = false;
+  let lastTransferred = 0;
+  let firstByteTimer = null;
+  let stallTimer = null;
+  let cancelReason = null;
+
+  function clearFirstByteTimer() {
+    if (firstByteTimer) {
+      clearTimeout(firstByteTimer);
+      firstByteTimer = null;
+    }
+  }
+
+  function clearStallTimer() {
+    if (stallTimer) {
+      clearTimeout(stallTimer);
+      stallTimer = null;
+    }
+  }
+
+  function triggerStrategyCancel(reason) {
+    if (cancelReason || token.cancelled) {
+      return;
+    }
+
+    cancelReason = reason;
+    if (activeDownloadAttempt) {
+      activeDownloadAttempt.cancelReason = reason;
+    }
+
+    logUpdater('download guard triggered', {
+      region: mirror && mirror.region,
+      baseUrl: mirror && mirror.url,
+      reason,
+      transferred: lastTransferred,
+    });
+
+    mainWindow?.webContents.send('update-status', {
+      status: 'mirror-switching',
+      source: mirror,
+      reason,
+    });
+
+    token.cancel();
+  }
+
+  function scheduleFirstByteTimer() {
+    if (firstByteTimeoutMs <= 0) {
+      return;
+    }
+
+    firstByteTimer = setTimeout(() => {
+      triggerStrategyCancel({
+        type: 'first-byte-timeout',
+        timeoutMs: firstByteTimeoutMs,
+      });
+    }, firstByteTimeoutMs);
+  }
+
+  function scheduleStallTimer() {
+    clearStallTimer();
+    if (stallTimeoutMs <= 0 || !firstByteReceived) {
+      return;
+    }
+
+    stallTimer = setTimeout(() => {
+      triggerStrategyCancel({
+        type: 'stall-timeout',
+        timeoutMs: stallTimeoutMs,
+        transferred: lastTransferred,
+      });
+    }, stallTimeoutMs);
+  }
+
+  function onDownloadProgress(progressObj) {
+    const transferred = Number(progressObj && progressObj.transferred);
+    const safeTransferred = Number.isFinite(transferred) ? transferred : 0;
+
+    if (!firstByteReceived) {
+      firstByteReceived = true;
+      clearFirstByteTimer();
+      logUpdater('download received first byte', {
+        region: mirror && mirror.region,
+        baseUrl: mirror && mirror.url,
+        transferred: safeTransferred,
+      });
+    }
+
+    if (safeTransferred > lastTransferred) {
+      lastTransferred = safeTransferred;
+      scheduleStallTimer();
+    }
+  }
+
+  autoUpdater.on('download-progress', onDownloadProgress);
+  scheduleFirstByteTimer();
+
+  return {
+    getCancelReason() {
+      return cancelReason;
+    },
+    dispose() {
+      clearFirstByteTimer();
+      clearStallTimer();
+      autoUpdater.removeListener('download-progress', onDownloadProgress);
+    },
+  };
+}
+
+async function downloadWithCurrentProvider(mainWindow, mirror) {
   cancellationToken = new CancellationToken();
+  activeDownloadAttempt = {
+    mirror,
+    cancelReason: null,
+    initiatedByUserCancel: false,
+  };
+  const attemptGuard = createDownloadAttemptGuard(mainWindow, mirror, cancellationToken);
   logUpdater('downloading installer', {
+    region: mirror && mirror.region,
+    baseUrl: mirror && mirror.url,
     urls: getResolvedDownloadUrls(autoUpdater.updateInfoAndProvider),
   });
   try {
     return await autoUpdater.downloadUpdate(cancellationToken);
+  } catch (error) {
+    if (isCancellationError(error)) {
+      const reason = activeDownloadAttempt && activeDownloadAttempt.cancelReason
+        ? activeDownloadAttempt.cancelReason
+        : attemptGuard.getCancelReason();
+      if (reason && reason.type !== 'user-cancelled') {
+        throw createStrategyCancellationError(reason, mirror);
+      }
+    }
+
+    throw error;
   } finally {
+    attemptGuard.dispose();
+    activeDownloadAttempt = null;
     cancellationToken = null;
   }
 }
@@ -224,6 +400,7 @@ async function downloadWithMirrors(mainWindow) {
   const originalUpdateInfoAndProvider = autoUpdater.updateInfoAndProvider;
   const checkedInfo = baseUpdateInfoAndProvider.info;
   let lastError = null;
+  let nextMirrorReason = null;
 
   downloadMirrorFallbackInProgress = true;
   try {
@@ -246,22 +423,32 @@ async function downloadWithMirrors(mainWindow) {
         source: mirror,
         index,
         total: mirrors.length,
+        reason: nextMirrorReason,
       });
+      nextMirrorReason = null;
 
       try {
-        return await downloadWithCurrentProvider();
+        return await downloadWithCurrentProvider(mainWindow, mirror);
       } catch (error) {
         lastError = error;
         if (isCancellationError(error)) {
           throw error;
         }
 
+        const fallbackReason = getFallbackReason(error);
         console.error(`Download from updater mirror failed (${mirror.region}, ${mirror.url}):`, error);
+        logUpdater('download attempt failed', {
+          region: mirror.region,
+          baseUrl: mirror.url,
+          reason: fallbackReason,
+        });
 
         const hasNextMirror = index < mirrors.length - 1;
         if (!fallbackEnabled || !hasNextMirror) {
           throw error;
         }
+
+        nextMirrorReason = fallbackReason;
       }
     }
   } finally {
@@ -330,6 +517,12 @@ function registerUpdaterHandlers(mainWindow) {
   // 添加IPC处理程序，取消下载更新
   ipcMain.handle('cancel-download', () => {
     if (cancellationToken) {
+      if (activeDownloadAttempt) {
+        activeDownloadAttempt.initiatedByUserCancel = true;
+        activeDownloadAttempt.cancelReason = {
+          type: 'user-cancelled',
+        };
+      }
       cancellationToken.cancel();
     }
   });

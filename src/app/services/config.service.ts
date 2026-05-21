@@ -1053,6 +1053,8 @@ interface AppConfig {
     enabled?: boolean;
     mirror_region_order?: string[];
     fallback_on_error?: boolean;
+    first_byte_timeout_ms?: number;
+    stall_timeout_ms?: number;
   };
 
   /** 编译选项 */
