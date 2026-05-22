@@ -114,7 +114,6 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
         try {
           this._projectService.currentProjectPath = params['path'];
           this.projectService.currentProjectPath = params['path'];
-          // this._projectService.initHistory(); // 初始化历史服务
           this.loadProject(params['path']);
         } catch (error) {
           console.error('加载项目失败', error);

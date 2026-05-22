@@ -8,7 +8,6 @@ import { NavigationEnd, Router } from '@angular/router';
 import { FeedbackDialogComponent } from '../components/feedback-dialog/feedback-dialog.component';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ProjectSettingDialogComponent } from '../components/project-setting-dialog/project-setting-dialog.component';
-import { HistoryDialogComponent } from '../editors/blockly-editor/components/history-dialog/history-dialog.component';
 import { AuthService } from './auth.service';
 import { LogService } from './log.service';
 
@@ -275,26 +274,6 @@ export class UiService {
         console.log('反馈已提交:', result.data);
       }
     });
-  }
-
-  openHistory() {
-    const modalRef = this.modal.create({
-      nzTitle: null,
-      nzFooter: null,
-      nzClosable: false,
-      nzBodyStyle: {
-        padding: '0',
-      },
-      nzContent: HistoryDialogComponent,
-      nzWidth: '520px',
-    });
-
-    // 处理反馈结果
-    // modalRef.afterClose.subscribe(result => {
-    //   if (result?.result === 'success') {
-    //     console.log('反馈已提交:', result.data);
-    //   }
-    // });
   }
 
   openProjectSettings() {

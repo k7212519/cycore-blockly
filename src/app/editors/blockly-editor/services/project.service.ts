@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
-import { AILY_BLOCKLY_USED_LIBRARIES_FIELD, BlocklyService } from './blockly.service';
+import { AILY_BLOCKLY_USED_LIBRARIES_FIELD, BlocklyProjectDocument, BlocklyService } from './blockly.service';
 import { ActionService } from '../../../services/action.service';
-import { HistoryService } from './history.service';
 import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
 import { ElectronService } from '../../../services/electron.service';
 
@@ -18,7 +17,6 @@ export class _ProjectService {
   constructor(
     private blocklyService: BlocklyService,
     private actionService: ActionService,
-    private historyService: HistoryService,
     private electronService: ElectronService
   ) { }
 
@@ -39,17 +37,9 @@ export class _ProjectService {
     }, 'project-check-unsaved-handler');
   }
 
-  // 初始化历史服务（在设置 currentProjectPath 后调用）
-  initHistory() {
-    if (this.currentProjectPath) {
-      this.historyService.init(this.currentProjectPath, this.blocklyService);
-    }
-  }
-
   destroy() {
     this.actionService.unlisten('project-save-handler');
     this.actionService.unlisten('project-check-unsaved-handler');
-    this.historyService.destroy();
     this.initialized = false; // 重置初始化状态
   }
 
@@ -80,14 +70,10 @@ export class _ProjectService {
   }
 
   async save(path: string, createHistory: boolean = true) {
-    const jsonData = this.blocklyService.getProjectAbiForSave();
+    const projectDocument = this.blocklyService.getProjectDocument();
+    const jsonData = this.blocklyService.getProjectAbiForSave(projectDocument);
     window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData, null, 2));
-    this.syncUsedLibraryManifest(path);
-    
-    if (createHistory && this.currentProjectPath) {
-      // 创建手动保存的历史版本
-      this.historyService.createManualVersion();
-    }
+    this.syncUsedLibraryManifest(path, projectDocument);
     
     // 更新 codeHash 以反映当前代码状态
     // 这样当代码改变后同步时，服务器能够检测到代码已改变
@@ -96,7 +82,7 @@ export class _ProjectService {
     // this.stateSubject.next('saved');
   }
 
-  syncUsedLibraryManifest(path: string): boolean {
+  syncUsedLibraryManifest(path: string, projectDocument?: BlocklyProjectDocument): boolean {
     const packageJsonPath = `${path}/package.json`;
     try {
       if (!window['fs'].existsSync(packageJsonPath)) {
@@ -105,7 +91,7 @@ export class _ProjectService {
 
       const originalContent = window['fs'].readFileSync(packageJsonPath, 'utf8');
       const packageJson = JSON.parse(originalContent);
-      packageJson[AILY_BLOCKLY_USED_LIBRARIES_FIELD] = this.blocklyService.getProjectUsedLibraryManifest(packageJson);
+      packageJson[AILY_BLOCKLY_USED_LIBRARIES_FIELD] = this.blocklyService.getProjectUsedLibraryManifest(packageJson, projectDocument);
       const nextContent = JSON.stringify(packageJson, null, 2);
       if (nextContent !== originalContent) {
         window['fs'].writeFileSync(packageJsonPath, nextContent);
@@ -130,8 +116,10 @@ export class _ProjectService {
         return;
       }
 
-      // 生成当前代码
-      const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
+      // 复用最近一次成功生成的代码；如果工作区已变更但防抖生成尚未完成，再同步生成一次。
+      const code = this.blocklyService.getReusableGeneratedCode()
+        ?? arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
+      this.blocklyService.publishGeneratedCode(code);
       
       // 计算哈希
       if (this.electronService && this.electronService.calculateHash) {
@@ -152,10 +140,4 @@ export class _ProjectService {
     }
   }
 
-  restoreVersion(versionId: string) {
-    this.historyService.restoreVersion(versionId, (path: string) => {
-      // 保存到文件 (覆盖当前项目文件)
-      this.save(path, false);
-    });
-  }
 }
