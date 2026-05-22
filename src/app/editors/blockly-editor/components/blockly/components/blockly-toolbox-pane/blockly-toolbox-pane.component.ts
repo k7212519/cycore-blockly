@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, EventEmitter, HostBinding, NgZone, OnDestroy, OnInit, Output } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EventEmitter, HostBinding, NgZone, OnDestroy, OnInit, Output } from '@angular/core';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import {
@@ -30,6 +30,7 @@ interface ToolboxContextMenuAction {
   imports: [CommonModule, TranslateModule, MenuComponent],
   templateUrl: './blockly-toolbox-pane.component.html',
   styleUrl: './blockly-toolbox-pane.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BlocklyToolboxPaneComponent implements OnInit, AfterViewInit, OnDestroy {
   @Output() libraryManagerRequested = new EventEmitter<void>();

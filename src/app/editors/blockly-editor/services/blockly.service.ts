@@ -119,6 +119,9 @@ export class BlocklyService {
 
   codeSubject = new BehaviorSubject<string>('');
   dependencySubject = new BehaviorSubject<string>('');
+  private workspaceCodeRevision = 0;
+  private generatedCodeRevision = -1;
+  private latestGeneratedCode = '';
 
   // ==================== Block-to-Code 映射系统 ====================
   /** 当前选中的 block id */
@@ -158,6 +161,24 @@ export class BlocklyService {
 
   set aiWaitWriting(value: boolean) {
     this._aiWaiting.next(value);
+  }
+
+  markWorkspaceCodeDirty(): void {
+    this.workspaceCodeRevision++;
+  }
+
+  publishGeneratedCode(code: string): void {
+    this.latestGeneratedCode = code;
+    this.generatedCodeRevision = this.workspaceCodeRevision;
+    this.codeSubject.next(code);
+  }
+
+  getReusableGeneratedCode(): string | null {
+    if (this.generatedCodeRevision !== this.workspaceCodeRevision) {
+      return null;
+    }
+
+    return this.latestGeneratedCode;
   }
 
   get aiWriting(): boolean {
@@ -599,8 +620,7 @@ export class BlocklyService {
     };
   }
 
-  getProjectAbiForSave(): any {
-    const document = this.getProjectDocument();
+  getProjectAbiForSave(document = this.getProjectDocument()): any {
     if (document.pages.length === 1) {
       return this.composeWorkspacePayload(document.pages[0].content, document.sharedModel);
     }
@@ -608,8 +628,8 @@ export class BlocklyService {
     return document;
   }
 
-  getProjectUsedLibraryManifest(packageJson?: any): BlocklyUsedLibraryManifest {
-    const usedBlockTypes = this.collectBlockTypesFromProjectDocument(this.getProjectDocument());
+  getProjectUsedLibraryManifest(packageJson?: any, document = this.getProjectDocument()): BlocklyUsedLibraryManifest {
+    const usedBlockTypes = this.collectBlockTypesFromProjectDocument(document);
     const previousManifest = packageJson?.[AILY_BLOCKLY_USED_LIBRARIES_FIELD] || {};
     const manifest: BlocklyUsedLibraryManifest = {};
     const updatedAt = Date.now();

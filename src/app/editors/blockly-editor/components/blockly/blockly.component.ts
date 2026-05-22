@@ -44,7 +44,6 @@ import './plugins/block-plus-minus/src/index.js';
 import { arduinoGenerator, type BlockCodeMapping } from './generators/arduino/arduino';
 import { micropythonGenerator } from './generators/micropython/micropython';
 import { BlocklyService } from '../../services/blockly.service';
-import { convertAbiToAbsWithLineMap } from '../../../../tools/aily-chat/public-api';
 import { BitmapUploadResponse, GlobalServiceManager } from '../../services/bitmap-upload.service';
 
 import './renderer/aily-icon';
@@ -95,6 +94,8 @@ import { applyWindowsBlocklyScrollbarThickness } from '../../utils/apply-windows
 import { BlocklyToolboxPaneComponent } from './components/blockly-toolbox-pane/blockly-toolbox-pane.component';
 import { BlocklyWorkspacePagesComponent } from './components/blockly-workspace-pages/blockly-workspace-pages.component';
 import { CodeViewerIpcService } from '../../services/code-viewer-ipc.service';
+
+type BlocklyWorkspaceEvent = { type?: string } | null | undefined;
 
 // 全局关闭 Blockly 文本输入字段的拼写检查，避免 block 内 input 出现红色波浪线
 (Blockly.FieldTextInput.prototype as unknown as { spellcheck_: boolean }).spellcheck_ = false;
@@ -252,9 +253,33 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private resizeObserver: ResizeObserver | null = null;
   private minimap: Minimap | null = null;
+  private minimapDirtyVersion = 0;
+  private minimapSyncedVersion = 0;
+  private minimapSyncInProgress = false;
+  private minimapSyncQueued = false;
+  private readonly codeGenerationEventTypes = new Set([
+    'create',
+    'delete',
+    'change',
+    'move',
+    'var_create',
+    'var_delete',
+    'var_rename',
+  ]);
+  private readonly minimapSyncEventTypes = new Set([
+    'create',
+    'delete',
+    'change',
+    'move',
+    'comment_create',
+    'comment_delete',
+    'comment_change',
+    'comment_move',
+  ]);
   /** Flyout 右上角固钉控件（foreignObject 根节点，便于挂在嵌套 SVG 内） */
   private flyoutPinForeignObject: SVGForeignObjectElement | null = null;
   private flyoutPinResizeObserver: ResizeObserver | null = null;
+  private flyoutPinPositionAnimationFrame: number | null = null;
   private flyoutPinButton: HTMLButtonElement | null = null;
   private externalToolboxDeleteArea: ExternalToolboxDeleteArea | null = null;
   private readonly onWorkspacePointerDownBound = (event: PointerEvent) => this.onWorkspacePointerDown(event);
@@ -812,11 +837,9 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       // 设置全局工作区引用，供 editBlockTool 使用
       (window as any)['blocklyWorkspace'] = this.workspace;
       this.workspace.addChangeListener((event: any) => {
-        this.codeGenerationSubject.next();
-        if (event.type !== Blockly.Events.SELECTED) {
-          // 工作区变更时同步 Minimap（含 AI 批量修改 blocks 的场景）
-          this.minimapSyncSubject.next();
-        }
+        this.requestCodeGeneration(event);
+        // 工作区变更时同步 Minimap（含 AI 批量修改 blocks 的场景）
+        this.requestMinimapSync(event);
 
         if (event.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
           this.blocklyService.syncToolboxFacadeWithWorkspace();
@@ -842,8 +865,8 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       Blockly.svgResize(this.workspace);
       this.workspace.render();
       this.blocklyService.syncToolboxFacadeWithWorkspace();
-      this.minimapSyncSubject.next();
-      this.codeGenerationSubject.next();
+      this.requestMinimapSync();
+      this.requestCodeGeneration();
     }, 0);
   }
 
@@ -1029,7 +1052,16 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.flyoutPinForeignObject = fo;
     this.flyoutPinButton = btn;
 
-    this.flyoutPinResizeObserver = new ResizeObserver(() => positionPinFo());
+    this.flyoutPinResizeObserver = new ResizeObserver(() => {
+      if (this.flyoutPinPositionAnimationFrame !== null) {
+        cancelAnimationFrame(this.flyoutPinPositionAnimationFrame);
+      }
+
+      this.flyoutPinPositionAnimationFrame = requestAnimationFrame(() => {
+        this.flyoutPinPositionAnimationFrame = null;
+        positionPinFo();
+      });
+    });
     this.flyoutPinResizeObserver.observe(svg);
     if (flyInjectDiv) {
       this.flyoutPinResizeObserver.observe(flyInjectDiv);
@@ -1069,6 +1101,10 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   private removeFlyoutPinControl(): void {
     this.flyoutPinResizeObserver?.disconnect();
     this.flyoutPinResizeObserver = null;
+    if (this.flyoutPinPositionAnimationFrame !== null) {
+      cancelAnimationFrame(this.flyoutPinPositionAnimationFrame);
+      this.flyoutPinPositionAnimationFrame = null;
+    }
     if (this.flyoutPinForeignObject?.parentNode) {
       this.flyoutPinForeignObject.remove();
     }
@@ -1157,14 +1193,20 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
         // 刷新工具箱
         this.workspace.refreshToolboxSelection();
 
-        // 重新渲染所有块以更新显示文本
-        const blocks = this.workspace.getAllBlocks(false);
-        blocks.forEach((block: any) => {
-          if (block.rendered) {
-            block.initSvg();
-            block.render();
-          }
-        });
+        const wasEnabled = Blockly.Events.isEnabled();
+        try {
+          Blockly.Events.disable();
+          const blocks = this.workspace.getAllBlocks(false);
+          blocks.forEach((block: any) => {
+            if (block.rendered) {
+              block.initSvg();
+            }
+          });
+        } finally {
+          if (wasEnabled) Blockly.Events.enable();
+        }
+
+        this.workspace.render();
       } catch (e) {
         console.warn('刷新 Blockly 工作区语言时出错:', e);
       }
@@ -1197,9 +1239,41 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   private initMinimapSyncDebounce(): void {
     this.minimapSyncSubject.pipe(
-      debounceTime(300),
+      debounceTime(500),
       takeUntil(this.destroy$)
     ).subscribe(() => this.syncMinimap());
+  }
+
+  private requestCodeGeneration(event?: BlocklyWorkspaceEvent): void {
+    if (this.shouldGenerateCodeForEvent(event)) {
+      this.blocklyService.markWorkspaceCodeDirty();
+      this.codeGenerationSubject.next();
+    }
+  }
+
+  private shouldGenerateCodeForEvent(event?: BlocklyWorkspaceEvent): boolean {
+    if (!event?.type) {
+      return true;
+    }
+
+    return this.codeGenerationEventTypes.has(event.type);
+  }
+
+  private requestMinimapSync(event?: BlocklyWorkspaceEvent): void {
+    if (!this.shouldSyncMinimapForEvent(event)) {
+      return;
+    }
+
+    this.minimapDirtyVersion++;
+    this.minimapSyncSubject.next();
+  }
+
+  private shouldSyncMinimapForEvent(event?: BlocklyWorkspaceEvent): boolean {
+    if (!event?.type) {
+      return true;
+    }
+
+    return this.minimapSyncEventTypes.has(event.type);
   }
 
   /**
@@ -1210,13 +1284,26 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   private syncMinimap(): void {
     const m = this.minimap as any;
     if (!m?.minimapWorkspace || !this.workspace) return;
+
+    const syncVersion = this.minimapDirtyVersion;
+    if (syncVersion === this.minimapSyncedVersion) {
+      return;
+    }
+
+    if (this.minimapSyncInProgress) {
+      this.minimapSyncQueued = true;
+      return;
+    }
+
+    this.minimapSyncInProgress = true;
     const wasEnabled = Blockly.Events.isEnabled();
+    let renderPromise: Promise<unknown> | null = null;
     try {
       Blockly.Events.disable();
       const xml = Blockly.Xml.workspaceToDom(this.workspace, true);
       m.minimapWorkspace.clear();
       Blockly.Xml.domToWorkspace(xml, m.minimapWorkspace);
-      Blockly.renderManagement.finishQueuedRenders().then(() => {
+      renderPromise = Blockly.renderManagement.finishQueuedRenders().then(() => {
         try {
           if (m?.minimapWorkspace) m.minimapWorkspace.zoomToFit();
         } catch (e) {
@@ -1229,6 +1316,22 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       console.warn('[Blockly] Minimap sync failed:', e);
     } finally {
       if (wasEnabled) Blockly.Events.enable();
+    }
+
+    if (renderPromise) {
+      renderPromise.finally(() => this.completeMinimapSync(syncVersion));
+    } else {
+      this.completeMinimapSync(syncVersion);
+    }
+  }
+
+  private completeMinimapSync(syncVersion: number): void {
+    this.minimapSyncedVersion = syncVersion;
+    this.minimapSyncInProgress = false;
+
+    if (this.minimapSyncQueued || this.minimapDirtyVersion !== syncVersion) {
+      this.minimapSyncQueued = false;
+      this.minimapSyncSubject.next();
     }
   }
 
@@ -1243,15 +1346,14 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     ).subscribe(() => {
       try {
         const code = this.generator.workspaceToCode(this.workspace);
-        this.blocklyService.codeSubject.next(code);
+        this.blocklyService.publishGeneratedCode(code);
         let blockCodeMap = new Map<string, BlockCodeMapping>();
 
         // 发布 block-to-code 映射
         if (this.generator.blockCodeMap) {
           blockCodeMap = new Map(this.generator.blockCodeMap);
           this.blocklyService.blockCodeMapSubject.next(blockCodeMap);
-          // 工作区变更后更新 ABS 行号映射（与用户下次导出 ABS 时的行号一致）
-          this.updateAbsBlockLineMap();
+          this.blocklyService.absBlockLineMap.next(new Map());
         }
 
         this.codeViewerIpcService.publishCodeState(
@@ -1301,17 +1403,4 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     return dependencies.join('\n');
   }
 
-  /**
-   * 更新 ABS block 行号映射
-   * 工作区变更后调用，确保选中块时显示的 ABS 行号与实际导出一致
-   */
-  private updateAbsBlockLineMap(): void {
-    try {
-      const workspaceJson = Blockly.serialization.workspaces.save(this.workspace);
-      const { blockLineMap } = convertAbiToAbsWithLineMap(workspaceJson, { includeHeader: true });
-      this.blocklyService.absBlockLineMap.next(blockLineMap);
-    } catch (e) {
-      console.warn('[Blockly] Failed to update ABS block line map:', e);
-    }
-  }
 }

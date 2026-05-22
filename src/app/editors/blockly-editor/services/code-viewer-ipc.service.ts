@@ -12,6 +12,11 @@ export interface CodeViewerIpcState {
   providedIn: 'root',
 })
 export class CodeViewerIpcService {
+  private pendingCodeState: { code: string; blockCodeMap: Map<string, BlockCodeMapping> } | null = null;
+  private codeStatePublishTimer: ReturnType<typeof setTimeout> | null = null;
+  private latestSelectedBlockId: string | null = null;
+  private readonly codeStatePublishDelay = 200;
+
   private get api(): any {
     const currentWindow = window as any;
     return currentWindow['codeViewer'] || currentWindow.electronAPI?.codeViewer;
@@ -31,18 +36,34 @@ export class CodeViewerIpcService {
     blockCodeMap: Map<string, BlockCodeMapping>,
     selectedBlockId: string | null,
   ): void {
-    this.publishState({
-      code,
-      selectedBlockId,
-      blockCodeMap: Array.from(blockCodeMap.entries()),
-    });
+    if (!this.isAvailable) return;
+
+    this.latestSelectedBlockId = selectedBlockId;
+    this.pendingCodeState = { code, blockCodeMap };
+
+    if (this.codeStatePublishTimer) {
+      clearTimeout(this.codeStatePublishTimer);
+    }
+
+    this.codeStatePublishTimer = setTimeout(() => {
+      this.codeStatePublishTimer = null;
+      this.flushPendingCodeState();
+    }, this.codeStatePublishDelay);
   }
 
   publishSelection(selectedBlockId: string | null): void {
+    this.latestSelectedBlockId = selectedBlockId;
     this.publishState({ selectedBlockId });
   }
 
   clear(): void {
+    if (this.codeStatePublishTimer) {
+      clearTimeout(this.codeStatePublishTimer);
+      this.codeStatePublishTimer = null;
+    }
+    this.pendingCodeState = null;
+    this.latestSelectedBlockId = null;
+
     this.publishState({
       code: '',
       selectedBlockId: null,
@@ -68,5 +89,19 @@ export class CodeViewerIpcService {
 
   toMap(entries: Array<[string, BlockCodeMapping]> | undefined): Map<string, BlockCodeMapping> {
     return new Map(entries || []);
+  }
+
+  private flushPendingCodeState(): void {
+    if (!this.pendingCodeState) return;
+
+    const state = this.pendingCodeState;
+    this.pendingCodeState = null;
+
+    this.publishState({
+      code: state.code,
+      selectedBlockId: this.latestSelectedBlockId,
+      blockCodeMap: Array.from(state.blockCodeMap.entries()),
+      updatedAt: Date.now(),
+    });
   }
 }
