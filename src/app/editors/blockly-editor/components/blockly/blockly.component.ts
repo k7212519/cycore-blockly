@@ -267,6 +267,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     'var_rename',
   ]);
   private readonly minimapSyncEventTypes = new Set([
+    'finished_loading',
     'create',
     'delete',
     'change',
@@ -852,6 +853,9 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
           this.codeViewerIpcService.publishSelection(selectedBlockId);
         }
       });
+      if (this.configData.blockly.minimap && this.minimap) {
+        queueMicrotask(() => this.requestMinimapSync());
+      }
       this.initLanguage();
     }, 100);
   }
