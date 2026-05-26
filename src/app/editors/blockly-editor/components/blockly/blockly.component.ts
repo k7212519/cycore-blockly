@@ -43,7 +43,7 @@ import './plugins/toolbox-search/src/index';
 import './plugins/block-plus-minus/src/index.js';
 import { arduinoGenerator, type BlockCodeMapping } from './generators/arduino/arduino';
 import { micropythonGenerator } from './generators/micropython/micropython';
-import { BlocklyService } from '../../services/blockly.service';
+import { BlocklyService, WorkspaceBlockSearchState } from '../../services/blockly.service';
 import { BitmapUploadResponse, GlobalServiceManager } from '../../services/bitmap-upload.service';
 
 import './renderer/aily-icon';
@@ -232,6 +232,7 @@ class ExternalToolboxDeleteArea extends Blockly.DeleteArea {
 })
 export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(BlocklyWorkspacePagesComponent, { static: true }) workspacePaneComponent!: BlocklyWorkspacePagesComponent;
+  @ViewChild('workspaceSearchInput') private workspaceSearchInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('layoutElement', { static: true }) private layoutElementRef!: ElementRef<HTMLDivElement>;
   @ViewChild('toolboxPane', { static: true }) private toolboxPaneRef!: ElementRef<HTMLDivElement>;
   @Output() libraryManagerRequested = new EventEmitter<void>();
@@ -283,6 +284,8 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   private flyoutPinButton: HTMLButtonElement | null = null;
   private externalToolboxDeleteArea: ExternalToolboxDeleteArea | null = null;
   private readonly onWorkspacePointerDownBound = (event: PointerEvent) => this.onWorkspacePointerDown(event);
+  private readonly onDocumentKeyDownBound = (event: KeyboardEvent) => this.onDocumentKeyDown(event);
+  private workspaceSearchHighlightedPaths = new Set<SVGElement>();
   // Track previous #include and #define for dependency change detection
   private previousDependencies = '';
   // Control bitmap upload handler visibility
@@ -291,6 +294,12 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   aiWriting = false;
   showSpinOverlay = false;
   isFadingOut = false;
+  workspaceSearchState: WorkspaceBlockSearchState = {
+    isOpen: false,
+    query: '',
+    results: [],
+    currentIndex: -1,
+  };
   private fadeOutTimer: any = null;
 
   get workspace() {
@@ -335,6 +344,18 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get closedPages() {
     return this.blocklyService.getClosedPages();
+  }
+
+  get workspaceSearchHasResults(): boolean {
+    return this.workspaceSearchState.results.length > 0;
+  }
+
+  get workspaceSearchResultLabel(): string {
+    if (!this.workspaceSearchHasResults) {
+      return '0/0';
+    }
+
+    return `${this.workspaceSearchState.currentIndex + 1}/${this.workspaceSearchState.results.length}`;
   }
 
   options = {
@@ -435,6 +456,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.initPrompt();
     this.initCodeGenerationDebounce();
     this.initMinimapSyncDebounce();
+    this.initWorkspaceBlockSearchSubscription();
     this.bitmapUploadService.uploadRequestSubject.subscribe((request) => {
       const modalRef = this.modal.create({
         nzTitle: null,
@@ -468,6 +490,8 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    document.removeEventListener('keydown', this.onDocumentKeyDownBound, true);
+    this.closeWorkspaceBlockSearch();
     this.removeFlyoutPinControl();
     this.unregisterExternalToolboxDeleteArea();
     this.cancelToolboxResizeAnimationFrame();
@@ -647,6 +671,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     // this.blocklyService.init();
+    document.addEventListener('keydown', this.onDocumentKeyDownBound, true);
     setTimeout(async () => {
       // 禁用blockly的警告
       console.warn = (function (originalWarn) {
@@ -840,6 +865,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
         this.requestCodeGeneration(event);
         // 工作区变更时同步 Minimap（含 AI 批量修改 blocks 的场景）
         this.requestMinimapSync(event);
+        this.refreshWorkspaceBlockSearchForEvent(event);
 
         if (event.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
           this.blocklyService.syncToolboxFacadeWithWorkspace();
@@ -861,6 +887,8 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    this.closeWorkspaceBlockSearch();
+
     setTimeout(() => {
       Blockly.svgResize(this.workspace);
       this.workspace.render();
@@ -868,6 +896,196 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       this.requestMinimapSync();
       this.requestCodeGeneration();
     }, 0);
+  }
+
+  onWorkspaceSearchQueryChange(query: string): void {
+    this.blocklyService.setWorkspaceBlockSearchQuery(query);
+  }
+
+  onWorkspaceSearchNext(): void {
+    this.blocklyService.selectNextWorkspaceBlockSearchResult();
+  }
+
+  onWorkspaceSearchPrevious(): void {
+    this.blocklyService.selectPreviousWorkspaceBlockSearchResult();
+  }
+
+  closeWorkspaceBlockSearch(): void {
+    this.clearWorkspaceSearchHighlight();
+    this.blocklyService.closeWorkspaceBlockSearch();
+  }
+
+  private initWorkspaceBlockSearchSubscription(): void {
+    this.workspaceSearchState = this.blocklyService.workspaceBlockSearchSubject.value;
+
+    this.blocklyService.workspaceBlockSearchSubject
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((state) => {
+        const wasOpen = this.workspaceSearchState.isOpen;
+        this.workspaceSearchState = state;
+        if (!state.isOpen) {
+          this.clearWorkspaceSearchHighlight();
+        } else {
+          this.updateWorkspaceSearchHighlights(state);
+        }
+        this.cdr.markForCheck();
+        if (!wasOpen && state.isOpen) {
+          setTimeout(() => this.focusWorkspaceSearchInput(true), 0);
+        }
+      });
+
+    this.blocklyService.blockCodeMapSubject
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        const state = this.blocklyService.workspaceBlockSearchSubject.value;
+        if (state.isOpen && state.query.trim()) {
+          this.blocklyService.refreshWorkspaceBlockSearch();
+        }
+      });
+  }
+
+  private onDocumentKeyDown(event: KeyboardEvent): void {
+    if (!this.isWorkspaceSearchShortcut(event) || this.shouldIgnoreWorkspaceSearchShortcut(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.openWorkspaceBlockSearch();
+  }
+
+  private isWorkspaceSearchShortcut(event: KeyboardEvent): boolean {
+    return (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f';
+  }
+
+  private shouldIgnoreWorkspaceSearchShortcut(event: KeyboardEvent): boolean {
+    const target = event.target as Element | null;
+    if (!target) {
+      return false;
+    }
+
+    if (target.closest('.workspace-search')) {
+      return false;
+    }
+
+    if (target.closest('.ant-modal, .ant-modal-wrap, .cdk-overlay-pane, .monaco-editor, .blocklyWidgetDiv, .blocklyDropDownDiv')) {
+      return true;
+    }
+
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+      return true;
+    }
+
+    if (this.layoutElementRef.nativeElement.contains(target)) {
+      return false;
+    }
+
+    return target !== document.body && target !== document.documentElement;
+  }
+
+  private openWorkspaceBlockSearch(): void {
+    this.requestCodeGeneration();
+    this.blocklyService.openWorkspaceBlockSearch();
+    setTimeout(() => this.focusWorkspaceSearchInput(true), 0);
+  }
+
+  onWorkspaceSearchKeydown(event: KeyboardEvent): void {
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && key === 'f') {
+      event.preventDefault();
+      this.focusWorkspaceSearchInput(true);
+      return;
+    }
+
+    if (key === 'enter') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.onWorkspaceSearchPrevious();
+      } else {
+        this.onWorkspaceSearchNext();
+      }
+      return;
+    }
+
+    if (key === 'escape') {
+      event.preventDefault();
+      this.closeWorkspaceBlockSearch();
+    }
+  }
+
+  private focusWorkspaceSearchInput(selectText = false): void {
+    const input = this.workspaceSearchInputRef?.nativeElement;
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+    if (selectText) {
+      input.select();
+    }
+  }
+
+  private refreshWorkspaceBlockSearchForEvent(event: BlocklyWorkspaceEvent): void {
+    const state = this.blocklyService.workspaceBlockSearchSubject.value;
+    if (!state.isOpen || !event?.type || !this.codeGenerationEventTypes.has(event.type)) {
+      return;
+    }
+
+    this.blocklyService.refreshWorkspaceBlockSearch();
+  }
+
+  private updateWorkspaceSearchHighlights(state: WorkspaceBlockSearchState): void {
+    this.clearWorkspaceSearchHighlight();
+    if (!state.isOpen || !state.query.trim() || !this.workspace) {
+      return;
+    }
+
+    for (const result of state.results) {
+      const block = this.workspace.getBlockById(result.blockId);
+      const path = block ? this.getWorkspaceSearchHighlightPath(block) : null;
+      if (!path) {
+        continue;
+      }
+
+      path.classList.add('aily-workspace-search-match-path');
+      this.workspaceSearchHighlightedPaths.add(path);
+    }
+
+    const currentBlockId = state.results[state.currentIndex]?.blockId;
+    if (!currentBlockId) {
+      return;
+    }
+
+    const currentBlock = this.workspace.getBlockById(currentBlockId);
+    const currentPath = currentBlock ? this.getWorkspaceSearchHighlightPath(currentBlock) : null;
+    if (!currentPath) {
+      return;
+    }
+
+    currentPath.classList.add('aily-workspace-search-current-path');
+    this.workspaceSearchHighlightedPaths.add(currentPath);
+  }
+
+  private getWorkspaceSearchHighlightPath(block: Blockly.Block): SVGElement | null {
+    const pathObjectPath = (block as unknown as { pathObject?: { svgPath?: SVGElement } }).pathObject?.svgPath;
+    if (pathObjectPath) {
+      return pathObjectPath;
+    }
+
+    const root = (block as unknown as { getSvgRoot?: () => SVGElement }).getSvgRoot?.();
+    if (!root) {
+      return null;
+    }
+
+    return Array.from(root.children)
+      .find((child): child is SVGElement => child instanceof SVGElement && child.classList.contains('blocklyPath')) ?? null;
+  }
+
+  private clearWorkspaceSearchHighlight(): void {
+    for (const path of this.workspaceSearchHighlightedPaths) {
+      path.classList.remove('aily-workspace-search-match-path', 'aily-workspace-search-current-path');
+    }
+    this.workspaceSearchHighlightedPaths.clear();
   }
 
   private onWorkspacePointerDown(event: PointerEvent) {

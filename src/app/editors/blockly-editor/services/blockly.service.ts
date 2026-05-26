@@ -76,6 +76,23 @@ export type BlocklyUsedLibraryManifest = Record<string, BlocklyUsedLibraryManife
 
 export const BLOCKLY_TOOLBOX_SEARCH_KEY = '__toolbox_search__';
 
+export type WorkspaceBlockSearchMatchSource = 'field' | 'type' | 'code';
+
+export interface WorkspaceBlockSearchResult {
+  blockId: string;
+  blockType: string;
+  displayText: string;
+  matchedBy: WorkspaceBlockSearchMatchSource[];
+  codeSnippet: string;
+}
+
+export interface WorkspaceBlockSearchState {
+  isOpen: boolean;
+  query: string;
+  results: WorkspaceBlockSearchResult[];
+  currentIndex: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -137,6 +154,7 @@ export class BlocklyService {
   toolboxFacadeItemsSubject = new BehaviorSubject<BlocklyToolboxFacadeItem[]>([]);
   toolboxSelectedKeySubject = new BehaviorSubject<string | null>(null);
   toolboxSearchQuerySubject = new BehaviorSubject<string>('');
+  workspaceBlockSearchSubject = new BehaviorSubject<WorkspaceBlockSearchState>(this.createWorkspaceBlockSearchState());
 
   boardConfig;
 
@@ -332,6 +350,95 @@ export class BlocklyService {
     this.workspace?.getToolbox()?.clearSelection();
     this.workspace?.getFlyout()?.hide();
     this.toolboxSelectedKeySubject.next(null);
+  }
+
+  openWorkspaceBlockSearch(query = this.workspaceBlockSearchSubject.value.query) {
+    const nextQuery = query ?? '';
+    const currentState = this.workspaceBlockSearchSubject.value;
+    const results = this.searchWorkspaceBlocks(nextQuery);
+    const currentIndex = results.length && currentState.currentIndex >= 0
+      ? Math.min(currentState.currentIndex, results.length - 1)
+      : -1;
+    this.workspaceBlockSearchSubject.next({
+      isOpen: true,
+      query: nextQuery,
+      results,
+      currentIndex,
+    });
+  }
+
+  closeWorkspaceBlockSearch() {
+    this.workspaceBlockSearchSubject.next(this.createWorkspaceBlockSearchState());
+  }
+
+  setWorkspaceBlockSearchQuery(query: string) {
+    const nextQuery = query ?? '';
+    const results = this.searchWorkspaceBlocks(nextQuery);
+    this.workspaceBlockSearchSubject.next({
+      isOpen: true,
+      query: nextQuery,
+      results,
+      currentIndex: -1,
+    });
+  }
+
+  refreshWorkspaceBlockSearch() {
+    const state = this.workspaceBlockSearchSubject.value;
+    if (!state.isOpen) {
+      return;
+    }
+
+    const previousBlockId = state.results[state.currentIndex]?.blockId ?? null;
+    const results = this.searchWorkspaceBlocks(state.query);
+    let currentIndex = -1;
+    if (results.length) {
+      const preservedIndex = previousBlockId ? results.findIndex((item) => item.blockId === previousBlockId) : -1;
+      currentIndex = preservedIndex >= 0
+        ? preservedIndex
+        : state.currentIndex >= 0
+          ? Math.min(state.currentIndex, results.length - 1)
+          : -1;
+    }
+
+    this.workspaceBlockSearchSubject.next({
+      ...state,
+      results,
+      currentIndex,
+    });
+  }
+
+  selectWorkspaceBlockSearchResult(index: number): boolean {
+    const state = this.workspaceBlockSearchSubject.value;
+    if (!state.results.length) {
+      return false;
+    }
+
+    const nextIndex = ((index % state.results.length) + state.results.length) % state.results.length;
+    const result = state.results[nextIndex];
+    const block = this.workspace?.getBlockById(result.blockId);
+    if (!block) {
+      this.refreshWorkspaceBlockSearch();
+      return false;
+    }
+
+    block.select();
+    this.workspace.centerOnBlock(result.blockId, true);
+    this.workspaceBlockSearchSubject.next({
+      ...state,
+      currentIndex: nextIndex,
+    });
+    this.selectedBlockSubject.next(result.blockId);
+    return true;
+  }
+
+  selectNextWorkspaceBlockSearchResult(): boolean {
+    const state = this.workspaceBlockSearchSubject.value;
+    return this.selectWorkspaceBlockSearchResult(state.currentIndex + 1);
+  }
+
+  selectPreviousWorkspaceBlockSearchResult(): boolean {
+    const state = this.workspaceBlockSearchSubject.value;
+    return this.selectWorkspaceBlockSearchResult(state.currentIndex - 1);
   }
 
   closeToolboxSearchFlyout(): boolean {
@@ -1317,6 +1424,7 @@ export class BlocklyService {
     this.selectedBlockSubject.next(null);
     this.blockCodeMapSubject.next(new Map());
     this.absBlockLineMap.next(new Map());
+    this.closeWorkspaceBlockSearch();
     this.resetDocumentState();
     this.toolboxSearchQuerySubject.next('');
     this.toolboxSelectedKeySubject.next(null);
@@ -1926,6 +2034,7 @@ export class BlocklyService {
     }
 
     this.selectedBlockSubject.next(null);
+  this.closeWorkspaceBlockSearch();
     this.restoreWorkspaceViewState(activePage.viewState);
     this.mountExternalToolbox();
     this.loadLibraryFinishedLoadingSubject.next();
@@ -2062,6 +2171,95 @@ export class BlocklyService {
   getCodeLinesForBlock(blockId: string): CodeLineRange[] {
     const mapping = this.getCodeForBlock(blockId);
     return mapping?.lineRanges || [];
+  }
+
+  private createWorkspaceBlockSearchState(): WorkspaceBlockSearchState {
+    return {
+      isOpen: false,
+      query: '',
+      results: [],
+      currentIndex: -1,
+    };
+  }
+
+  private searchWorkspaceBlocks(query: string): WorkspaceBlockSearchResult[] {
+    const normalizedQuery = this.normalizeWorkspaceBlockSearchText(query);
+    if (!this.workspace || !normalizedQuery) {
+      return [];
+    }
+
+    return this.workspace.getAllBlocks(false)
+      .filter((block) => !block.isInsertionMarker())
+      .map((block) => this.buildWorkspaceBlockSearchResult(block, normalizedQuery))
+      .filter((result): result is WorkspaceBlockSearchResult => !!result)
+      .sort((left, right) => this.workspaceBlockSearchRank(left) - this.workspaceBlockSearchRank(right));
+  }
+
+  private buildWorkspaceBlockSearchResult(block: Blockly.Block, normalizedQuery: string): WorkspaceBlockSearchResult | null {
+    const codeMapping = this.blockCodeMapSubject.value.get(block.id);
+    const fieldsText = this.getWorkspaceBlockFieldsText(block);
+    const ownCodeText = this.getWorkspaceBlockOwnCodeSearchText(block, codeMapping);
+    const searchableParts: Array<[WorkspaceBlockSearchMatchSource, string]> = [
+      ['field', fieldsText],
+      ['type', block.type],
+      ['code', ownCodeText],
+    ];
+    const matchedBy = searchableParts
+      .filter(([, value]) => this.normalizeWorkspaceBlockSearchText(value).includes(normalizedQuery))
+      .map(([source]) => source);
+
+    if (!matchedBy.length) {
+      return null;
+    }
+
+    return {
+      blockId: block.id,
+      blockType: block.type,
+      displayText: fieldsText || block.type,
+      matchedBy,
+      codeSnippet: ownCodeText,
+    };
+  }
+
+  private getWorkspaceBlockOwnCodeSearchText(block: Blockly.Block, codeMapping?: BlockCodeMapping): string {
+    if (!codeMapping || this.hasConnectedWorkspaceBlockInput(block)) {
+      return '';
+    }
+
+    return (codeMapping.fragments || [])
+      .map((fragment) => fragment.code || '')
+      .map((code) => code.trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+
+  private hasConnectedWorkspaceBlockInput(block: Blockly.Block): boolean {
+    return (block.inputList || []).some((input) => !!input.connection?.targetBlock());
+  }
+
+  private getWorkspaceBlockFieldsText(block: Blockly.Block): string {
+    const values: string[] = [];
+    for (const input of block.inputList || []) {
+      for (const field of input.fieldRow || []) {
+        const getText = (field as { getText?: () => unknown }).getText;
+        const getValue = (field as { getValue?: () => unknown }).getValue;
+        const text = typeof getText === 'function' ? getText.call(field) : '';
+        const value = typeof getValue === 'function' ? getValue.call(field) : '';
+        if (text !== null && text !== undefined && text !== '') values.push(String(text));
+        if (value !== null && value !== undefined && value !== '' && value !== text) values.push(String(value));
+      }
+    }
+    return values.join(' ');
+  }
+
+  private normalizeWorkspaceBlockSearchText(value: unknown): string {
+    return String(value ?? '').toLowerCase().trim();
+  }
+
+  private workspaceBlockSearchRank(result: WorkspaceBlockSearchResult): number {
+    const order: WorkspaceBlockSearchMatchSource[] = ['field', 'type', 'code'];
+    return Math.min(...result.matchedBy.map((source) => order.indexOf(source)));
   }
 
   /**
