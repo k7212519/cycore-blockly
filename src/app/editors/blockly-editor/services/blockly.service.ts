@@ -139,6 +139,7 @@ export class BlocklyService {
   private workspaceCodeRevision = 0;
   private generatedCodeRevision = -1;
   private latestGeneratedCode = '';
+  private codeViewerRefreshRequestSubject = new Subject<boolean>();
 
   // ==================== Block-to-Code 映射系统 ====================
   /** 当前选中的 block id */
@@ -147,6 +148,7 @@ export class BlocklyService {
   blockCodeMapSubject = new BehaviorSubject<Map<string, BlockCodeMapping>>(new Map());
   /** block → ABS 行号映射（由 abs-auto-sync 生成 ABS 时同步更新，确保与用户看到的 .abs 文件一致） */
   absBlockLineMap = new BehaviorSubject<Map<string, { startLine: number; endLine: number }>>(new Map());
+  codeViewerRefreshRequested$ = this.codeViewerRefreshRequestSubject.asObservable();
   pagesSubject = new BehaviorSubject<BlocklyPageSnapshot[]>([]);
   activePageIdSubject = new BehaviorSubject<string>('');
   openedPageIdsSubject = new BehaviorSubject<string[]>([]);
@@ -197,6 +199,10 @@ export class BlocklyService {
     }
 
     return this.latestGeneratedCode;
+  }
+
+  requestCodeViewerRefresh(forceGenerate = false): void {
+    this.codeViewerRefreshRequestSubject.next(forceGenerate);
   }
 
   get aiWriting(): boolean {

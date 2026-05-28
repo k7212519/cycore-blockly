@@ -457,6 +457,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.initPrompt();
     this.initCodeGenerationDebounce();
     this.initMinimapSyncDebounce();
+    this.initCodeViewerRefreshRequests();
     this.initWorkspaceBlockSearchSubscription();
     this.bitmapUploadService.uploadRequestSubject.subscribe((request) => {
       const modalRef = this.modal.create({
@@ -1464,6 +1465,30 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       debounceTime(500),
       takeUntil(this.destroy$)
     ).subscribe(() => this.syncMinimap());
+  }
+
+  private initCodeViewerRefreshRequests(): void {
+    this.blocklyService.codeViewerRefreshRequested$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((forceGenerate) => this.refreshCodeViewerCode(forceGenerate));
+  }
+
+  private refreshCodeViewerCode(forceGenerate = false): void {
+    if (!this.workspace || !this.generator) {
+      return;
+    }
+
+    const reusableCode = forceGenerate ? null : this.blocklyService.getReusableGeneratedCode();
+    if (reusableCode !== null) {
+      this.codeViewerIpcService.publishCodeState(
+        reusableCode,
+        this.blocklyService.blockCodeMapSubject.value,
+        this.blocklyService.selectedBlockSubject.value,
+      );
+      return;
+    }
+
+    this.requestCodeGeneration();
   }
 
   private requestCodeGeneration(event?: BlocklyWorkspaceEvent): void {
