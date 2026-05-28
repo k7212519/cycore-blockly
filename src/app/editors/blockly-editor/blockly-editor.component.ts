@@ -55,12 +55,14 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   private readonly maxPendingLibraryLoadAttempts = 120;
   private readonly pendingBoardReloadRetryMs = 1000;
   private readonly maxPendingBoardReloadAttempts = 120;
+  private readonly projectLoadedCodeRefreshDelayMs = 1000;
   private _onMouseMoveBound = this._onMouseMove.bind(this);
   private _onMouseLeaveBound = this._onMouseLeave.bind(this);
   private packageJsonWatcherDispose: (() => void) | null = null;
   private packageJsonWatchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingLibraryLoadTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingBoardReloadTimer: ReturnType<typeof setTimeout> | null = null;
+  private projectLoadedCodeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private watchedPackageJsonProjectPath: string | null = null;
   private watchedPackageJsonSignature = '';
   private watchedLibraryDependencies = new Map<string, string>();
@@ -160,6 +162,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngOnDestroy(): void {
     this.uiService.closeTool('code-viewer');
+    this.clearProjectLoadedCodeRefreshTimer();
     this.localLibrarySyncService.stop();
     this.stopPackageJsonDependencyWatch();
     this._projectService.destroy();
@@ -176,6 +179,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   async loadProject(projectPath) {
     this.stopPackageJsonDependencyWatch();
+    this.clearProjectLoadedCodeRefreshTimer();
     // 处理 temp 下的 package.json：有则覆盖主项目，无则从主项目复制到 temp
     await this.projectService.syncPackageJsonWithTemp(projectPath);
     // 加载项目package.json
@@ -298,6 +302,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       text: this.translate.instant('BLOCKLY_EDITOR.PROJECT_LOAD_SUCCESS'),
     });
     this.projectService.stateSubject.next('loaded');
+    this.scheduleProjectLoadedCodeRefresh();
 
     this.startPackageJsonDependencyWatch(projectPath);
     this.localLibrarySyncService.start(projectPath);
@@ -314,6 +319,21 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       .catch((err) => {
         console.error('install board dependencies error', err);
       });
+  }
+
+  private scheduleProjectLoadedCodeRefresh(): void {
+    this.clearProjectLoadedCodeRefreshTimer();
+    this.projectLoadedCodeRefreshTimer = setTimeout(() => {
+      this.projectLoadedCodeRefreshTimer = null;
+      this.blocklyService.requestCodeViewerRefresh(true);
+    }, this.projectLoadedCodeRefreshDelayMs);
+  }
+
+  private clearProjectLoadedCodeRefreshTimer(): void {
+    if (this.projectLoadedCodeRefreshTimer) {
+      clearTimeout(this.projectLoadedCodeRefreshTimer);
+      this.projectLoadedCodeRefreshTimer = null;
+    }
   }
 
   private startPackageJsonDependencyWatch(projectPath: string): void {
