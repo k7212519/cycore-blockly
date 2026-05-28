@@ -128,6 +128,10 @@ export class SettingsComponent implements OnDestroy {
     return this.configService.getRegionList();
   }
 
+  get resourceSourceList() {
+    return this.configService.getResourceSourceList();
+  }
+
   // 区域对应的国旗映射
   regionFlags: { [key: string]: string } = {
     'cn': '🇨🇳',
@@ -155,6 +159,24 @@ export class SettingsComponent implements OnDestroy {
 
   set selectedRegion(value: string) {
     this.configData.region = value;
+  }
+
+  get selectedResourceSource() {
+    return this.configData.resource_source || 'auto';
+  }
+
+  set selectedResourceSource(value: string) {
+    this.configData.resource_source = value;
+  }
+
+  getResourceSourceLabel(source: { key: string; name?: string; url: string }): string {
+    if (source.name) {
+      return source.name;
+    }
+
+    const translationKey = `SETTINGS.FIELDS.RESOURCE_SOURCE_${String(source.key || '').toUpperCase()}`;
+    const translated = this.translateService.instant(translationKey);
+    return translated !== translationKey ? translated : source.url;
   }
 
   // 切换区域
@@ -317,9 +339,10 @@ export class SettingsComponent implements OnDestroy {
     this.uiService.closeWindow();
   }
 
-  apply() {
+  async apply() {
+    await this.configService.applyResourceSourceRuntimeSelection();
     // 保存到config.json，如有需要立即加载的，再加载
-    this.configService.save();
+    await this.configService.save();
     window['ipcRenderer'].send('setting-changed', { action: 'devmode-changed', data: this.configData.devmode });
     // 保存完毕后关闭窗口
     this.uiService.closeWindow();

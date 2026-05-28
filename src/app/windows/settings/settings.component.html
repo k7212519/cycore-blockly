@@ -111,6 +111,27 @@
                   }
                 </div>
               </div>
+              <div class="item">
+                <div>{{ 'SETTINGS.FIELDS.RESOURCE_SOURCE' | translate }}:</div>
+                <div class="region-buttons">
+                  <button
+                    nz-button
+                    nzSize="small"
+                    [nzType]="selectedResourceSource === 'auto' ? 'primary' : 'default'"
+                    (click)="selectedResourceSource = 'auto'">
+                    {{ 'SETTINGS.FIELDS.RESOURCE_SOURCE_AUTO' | translate }}
+                  </button>
+                  @for (source of resourceSourceList; track source.key) {
+                  <button
+                    nz-button
+                    nzSize="small"
+                    [nzType]="selectedResourceSource === source.key ? 'primary' : 'default'"
+                    (click)="selectedResourceSource = source.key">
+                    {{ getResourceSourceLabel(source) }}
+                  </button>
+                  }
+                </div>
+              </div>
             </div>
           </div>
 
