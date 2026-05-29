@@ -10,6 +10,19 @@
   "project_path": "%HOMEPATH%\\Documents\\aily-project",
   "build_flavor": "cn",
   "region": "cn",
+  "resource_source": "auto",
+  "resource_sources": [
+    {
+      "key": "primary",
+      "url": "https://rs1.aily.pro",
+      "enabled": true
+    },
+    {
+      "key": "mirror",
+      "url": "https://blockly.yiyu.pro",
+      "enabled": true
+    }
+  ],
   "update_download_strategy": {
     "enabled": true,
     "mirror_region_order": ["eu", "cn"],

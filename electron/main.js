@@ -696,17 +696,75 @@ function shouldFallbackToOfficialRegion(regionKey, officialRegion, regions = {})
   return isOfficialRegion(regionKey, regions) && regionKey !== officialRegion;
 }
 
-function buildZipUrls(regions = {}) {
-  const urls = [];
+function normalizeResourceUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '');
+}
 
-  for (const regionKey of ZIP_URL_REGION_KEYS) {
-    const resource = regions[regionKey] && regions[regionKey].resource;
-    if (typeof resource === 'string' && resource.trim()) {
-      urls.push(resource);
+function getConfiguredResourceSources(conf = {}) {
+  const seenUrls = new Set();
+  const configuredSources = Array.isArray(conf.resource_sources) ? conf.resource_sources : [];
+  const normalizedConfiguredSources = [];
+
+  for (const source of configuredSources) {
+    const url = normalizeResourceUrl(source && source.url);
+    if (!url || source?.enabled === false || seenUrls.has(url)) {
+      continue;
     }
+
+    seenUrls.add(url);
+    normalizedConfiguredSources.push({
+      key: typeof source.key === 'string' && source.key.trim() ? source.key.trim() : `resource_${normalizedConfiguredSources.length + 1}`,
+      url,
+    });
   }
 
-  return JSON.stringify(urls);
+  if (normalizedConfiguredSources.length > 0) {
+    return normalizedConfiguredSources;
+  }
+
+  const legacySources = [];
+  for (const regionKey of ZIP_URL_REGION_KEYS) {
+    const resource = normalizeResourceUrl(conf.regions?.[regionKey]?.resource);
+    if (!resource || seenUrls.has(resource)) {
+      continue;
+    }
+
+    seenUrls.add(resource);
+    legacySources.push({ key: regionKey, url: resource });
+  }
+
+  return legacySources;
+}
+
+function getSelectedResourceSourceKey(conf = {}) {
+  return typeof conf.resource_source === 'string' && conf.resource_source.trim()
+    ? conf.resource_source.trim()
+    : 'auto';
+}
+
+function getZipUrlState(conf = {}) {
+  const sources = getConfiguredResourceSources(conf);
+  if (sources.length === 0) {
+    return { currentUrl: '', urls: [] };
+  }
+
+  const selectedKey = getSelectedResourceSourceKey(conf);
+  if (selectedKey !== 'auto') {
+    const selectedSource = sources.find((source) => source.key === selectedKey) || sources[0];
+    return {
+      currentUrl: selectedSource.url,
+      urls: [selectedSource.url],
+    };
+  }
+
+  return {
+    currentUrl: sources[0].url,
+    urls: sources.map((source) => source.url),
+  };
+}
+
+function buildZipUrls(conf = {}) {
+  return JSON.stringify(getZipUrlState(conf).urls);
 }
 let isRendererReady = false;
 
@@ -1089,6 +1147,7 @@ function loadEnv() {
     ? officialRegion
     : (conf.region || officialRegion);
   const regionConfig = conf.regions && conf.regions[currentRegion] ? conf.regions[currentRegion] : conf.regions[officialRegion];
+  const zipUrlState = getZipUrlState(conf);
   
   // 当前区域
   process.env.AILY_REGION = currentRegion;
@@ -1142,10 +1201,10 @@ function loadEnv() {
   process.env.AILY_TOOLS_PATH = path.join(process.env.AILY_APPDATA_PATH, "tools");
   // 默认全局SDK路径
   process.env.AILY_SDK_PATH = path.join(process.env.AILY_APPDATA_PATH, "sdk");
-  // zip包下载镜像地址，eu优先，cn兜底
-  process.env.AILY_ZIP_URLS = buildZipUrls(conf.regions);
+  // zip包下载镜像地址：auto 模式输出完整列表，手动模式仅输出选中地址
+  process.env.AILY_ZIP_URLS = buildZipUrls(conf);
   // zip包下载地址
-  process.env.AILY_ZIP_URL = regionConfig.resource;
+  process.env.AILY_ZIP_URL = zipUrlState.currentUrl || regionConfig.resource;
   // API服务器地址
   process.env.AILY_API_SERVER = regionConfig.api_server;
   process.env.AILY_TOOL_WEB = regionConfig.tool_web || '';

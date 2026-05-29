@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { lastValueFrom, Subject } from 'rxjs';
+import { lastValueFrom, Subject, timeout } from 'rxjs';
 import { ElectronService } from './electron.service';
 import { API, setServerUrl, setRegistryUrl, setToolWebUrl } from '../configs/api.config';
 import { calculateSimilarity, extractKeywords } from '../utils/fuzzy-search.utils';
@@ -13,6 +13,7 @@ export class ConfigService {
   private static readonly ERROR_MESSAGE_DEDUP_MS = 10000;
   private static readonly DEFAULT_BUILD_FLAVOR = 'cn';
   private static readonly DEFAULT_OFFICIAL_REGION = 'cn';
+  private static readonly RESOURCE_REQUEST_TIMEOUT_MS = 8000;
 
   data: AppConfig | any = {};
 
@@ -21,6 +22,7 @@ export class ConfigService {
   
   // 数据加载状态标识
   private _isDataReady = false;
+  private activeResourceSourceKey: string | null = null;
   
   // 测试用：模拟慢速加载（毫秒），设为0禁用
   private readonly SIMULATE_SLOW_LOADING = 0; // 改为2000可以看到loading效果
@@ -172,6 +174,8 @@ export class ConfigService {
       this.applyRegionRuntimeConfig(this.data.region || this.resolveOfficialRegionKey());
     }
 
+    await this.applyResourceSourceRuntimeSelection();
+
     // 添加当前系统类型到data中
     this.data["platform"] = window['platform'].type;
     this.data["lang"] = this.get_lang_filename(window['platform'].lang);
@@ -263,6 +267,184 @@ export class ConfigService {
     return this.data.regions && this.data.regions[region] ? this.data.regions[region] : this.data.regions['cn'];
   }
 
+  private normalizeResourceSourceUrl(url: string): string {
+    return String(url || '').trim().replace(/\/+$/, '');
+  }
+
+  private buildLegacyResourceSourceList(): ResourceSourceConfig[] {
+    const fallbackSources = [
+      { key: 'primary', url: this.data?.regions?.eu?.resource },
+      { key: 'mirror', url: this.data?.regions?.cn?.resource },
+      { key: 'localhost', url: this.data?.regions?.localhost?.resource }
+    ];
+    const seenUrls = new Set<string>();
+    const normalizedSources: ResourceSourceConfig[] = [];
+
+    for (const source of fallbackSources) {
+      const url = this.normalizeResourceSourceUrl(source.url || '');
+      if (!url || seenUrls.has(url)) {
+        continue;
+      }
+
+      seenUrls.add(url);
+      normalizedSources.push({
+        key: source.key,
+        url,
+        enabled: true
+      });
+    }
+
+    return normalizedSources;
+  }
+
+  getResourceSourceList(): ResourceSourceConfig[] {
+    const configuredSources = Array.isArray(this.data?.resource_sources) ? this.data.resource_sources : [];
+    const seenUrls = new Set<string>();
+    const normalizedSources: ResourceSourceConfig[] = [];
+
+    for (const source of configuredSources) {
+      const url = this.normalizeResourceSourceUrl(source?.url || '');
+      if (!url || source?.enabled === false || seenUrls.has(url)) {
+        continue;
+      }
+
+      seenUrls.add(url);
+      normalizedSources.push({
+        key: typeof source.key === 'string' && source.key.trim() ? source.key.trim() : `resource_${normalizedSources.length + 1}`,
+        name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : undefined,
+        url,
+        enabled: source.enabled !== false
+      });
+    }
+
+    return normalizedSources.length > 0 ? normalizedSources : this.buildLegacyResourceSourceList();
+  }
+
+  getSelectedResourceSourceKey(): string {
+    return typeof this.data?.resource_source === 'string' && this.data.resource_source.trim()
+      ? this.data.resource_source.trim()
+      : 'auto';
+  }
+
+  private isAutoResourceSourceSelection(): boolean {
+    return this.getSelectedResourceSourceKey() === 'auto';
+  }
+
+  private getManualResourceSource(): ResourceSourceConfig | null {
+    const selectedKey = this.getSelectedResourceSourceKey();
+    if (selectedKey === 'auto') {
+      return null;
+    }
+
+    return this.getResourceSourceList().find((source) => source.key === selectedKey) || null;
+  }
+
+  private getCurrentResourceSource(): ResourceSourceConfig | null {
+    const sources = this.getResourceSourceList();
+    if (sources.length === 0) {
+      return null;
+    }
+
+    if (!this.isAutoResourceSourceSelection()) {
+      return this.getManualResourceSource() || sources[0];
+    }
+
+    return sources.find((source) => source.key === this.activeResourceSourceKey) || sources[0];
+  }
+
+  private getResourceSourceCandidates(): ResourceSourceConfig[] {
+    const sources = this.getResourceSourceList();
+    if (sources.length === 0) {
+      return [];
+    }
+
+    if (!this.isAutoResourceSourceSelection()) {
+      return [this.getManualResourceSource() || sources[0]];
+    }
+
+    const currentSource = this.getCurrentResourceSource();
+    if (!currentSource) {
+      return sources;
+    }
+
+    return [currentSource, ...sources.filter((source) => source.key !== currentSource.key)];
+  }
+
+  private buildZipUrlCandidates(): string[] {
+    const seenUrls = new Set<string>();
+    const urls: string[] = [];
+
+    for (const source of this.getResourceSourceCandidates()) {
+      if (!source.url || seenUrls.has(source.url)) {
+        continue;
+      }
+
+      seenUrls.add(source.url);
+      urls.push(source.url);
+    }
+
+    return urls;
+  }
+
+  async applyResourceSourceRuntimeSelection(): Promise<void> {
+    const currentSource = this.getCurrentResourceSource();
+    this.activeResourceSourceKey = currentSource?.key || null;
+    await this.syncResourceRuntimeEnv();
+    this.configReloaded$.next();
+  }
+
+  private async syncResourceRuntimeEnv(): Promise<void> {
+    const currentUrl = this.getCurrentResourceUrl();
+    const zipUrls = JSON.stringify(this.buildZipUrlCandidates());
+
+    if (window['process']?.env) {
+      window['process'].env['AILY_ZIP_URL'] = currentUrl;
+      window['process'].env['AILY_ZIP_URLS'] = zipUrls;
+    }
+
+    if (window['ipcRenderer']) {
+      await Promise.all([
+        window['ipcRenderer'].invoke('env-set', { key: 'AILY_ZIP_URL', value: currentUrl }),
+        window['ipcRenderer'].invoke('env-set', { key: 'AILY_ZIP_URLS', value: zipUrls })
+      ]);
+    }
+  }
+
+  private async fetchResourceJsonOrThrow<T>(pathname: string): Promise<T> {
+    const candidates = this.getResourceSourceCandidates();
+    if (candidates.length === 0) {
+      throw new Error('未配置可用的资源地址');
+    }
+
+    let lastError: unknown;
+    for (let index = 0; index < candidates.length; index++) {
+      const source = candidates[index];
+      try {
+        const response = await lastValueFrom(
+          this.http.get<T>(`${source.url}${pathname}`, {
+            responseType: 'json',
+          }).pipe(timeout(ConfigService.RESOURCE_REQUEST_TIMEOUT_MS)),
+        );
+
+        if (this.activeResourceSourceKey !== source.key) {
+          this.activeResourceSourceKey = source.key;
+          void this.syncResourceRuntimeEnv();
+          this.configReloaded$.next();
+        }
+
+        return response;
+      } catch (error) {
+        lastError = error;
+        console.warn(`[ConfigService] 资源请求失败 (${source.key}) ${pathname}:`, error);
+        if (!this.isAutoResourceSourceSelection() || index === candidates.length - 1) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('资源请求失败');
+  }
+
   /**
    * 当前服务区域是否为中国区
    */
@@ -274,7 +456,7 @@ export class ConfigService {
    * 获取当前区域的资源URL
    */
   getCurrentResourceUrl(): string {
-    return this.getCurrentRegionConfig()?.resource || '';
+    return this.getCurrentResourceSource()?.url || this.getCurrentRegionConfig()?.resource || '';
   }
 
   /**
@@ -351,7 +533,6 @@ export class ConfigService {
       if (window['process']?.env) {
         window['process'].env['AILY_REGION'] = regionKey;
         window['process'].env['AILY_NPM_REGISTRY'] = regionConfig.npm_registry;
-        window['process'].env['AILY_ZIP_URL'] = regionConfig.resource;
         window['process'].env['AILY_API_SERVER'] = regionConfig.api_server;
         window['process'].env['AILY_TOOL_WEB'] = regionConfig.tool_web;
       }
@@ -361,11 +542,12 @@ export class ConfigService {
         await Promise.all([
           window['ipcRenderer'].invoke('env-set', { key: 'AILY_REGION', value: regionKey }),
           window['ipcRenderer'].invoke('env-set', { key: 'AILY_NPM_REGISTRY', value: regionConfig.npm_registry }),
-          window['ipcRenderer'].invoke('env-set', { key: 'AILY_ZIP_URL', value: regionConfig.resource }),
           window['ipcRenderer'].invoke('env-set', { key: 'AILY_API_SERVER', value: regionConfig.api_server }),
           window['ipcRenderer'].invoke('env-set', { key: 'AILY_TOOL_WEB', value: regionConfig.tool_web })
         ]);
       }
+
+      await this.syncResourceRuntimeEnv();
       
       // 保存配置
       await this.save();
@@ -509,11 +691,7 @@ export class ConfigService {
 
   private async fetchTagList(): Promise<any> {
     try {
-      return await lastValueFrom(
-        this.http.get(this.getCurrentResourceUrl() + '/tags.json', {
-          responseType: 'json',
-        }),
-      );
+      return await this.fetchResourceJsonOrThrow('/tags.json');
     } catch (error) {
       console.error('Failed to load tag list:', error);
       return null;
@@ -724,11 +902,7 @@ export class ConfigService {
   }
 
   private async fetchRemoteArrayOrThrow(pathname: string, invalidMessage: string, wrapperKey?: string): Promise<any[]> {
-    const response: any = await lastValueFrom(
-      this.http.get(this.getCurrentResourceUrl() + pathname, {
-        responseType: 'json',
-      }),
-    );
+    const response: any = await this.fetchResourceJsonOrThrow(pathname);
 
     if (Array.isArray(response)) {
       return response;
@@ -1007,6 +1181,13 @@ export class ConfigService {
 
 }
 
+interface ResourceSourceConfig {
+  key: string;
+  name?: string;
+  url: string;
+  enabled?: boolean;
+}
+
 interface AppConfig {
   /** 语言设置，例如 "zh_CN" */
   lang: string;
@@ -1038,6 +1219,12 @@ interface AppConfig {
 
   /** 当前选中的区域 */
   region: string;
+
+  /** 当前选中的资源源，auto 表示自动模式 */
+  resource_source?: string;
+
+  /** 资源源列表 */
+  resource_sources?: ResourceSourceConfig[];
 
   /** 区域配置 */
   regions: {

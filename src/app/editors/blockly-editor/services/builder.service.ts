@@ -17,6 +17,7 @@ import { ElectronService } from '../../../services/electron.service';
 import { WorkflowService, ProcessState } from '../../../services/workflow.service';
 import { CompileValidationService } from '../../../services/compile-validation.service';
 import { AppDataResourceLockService } from '../../../services/appdata-resource-lock.service';
+import { NpmService } from '../../../services/npm.service';
 import { debounceTime } from 'rxjs/operators';
 
 @Injectable()
@@ -35,6 +36,7 @@ export class _BuilderService {
     private blocklyService: BlocklyService,
     private platformService: PlatformService,
     private electronService: ElectronService,
+    private npmService: NpmService,
     private compileValidationService: CompileValidationService,
     private appDataResourceLock: AppDataResourceLockService
   ) { }
@@ -56,6 +58,8 @@ export class _BuilderService {
   private preprocessFullError: string = ''; // 保存预编译完整错误日志
   private pendingPrecompile: boolean = false; // 标记是否有待处理的预编译
   private aiWaitingSubscription: any = null; // 保存 AI 等待状态订阅引用
+  private workflowStateSubscription: any = null; // 保存流程状态订阅引用
+  private lastWorkflowState: ProcessState | null = null;
 
   currentProjectPath = "";
   lastCode = "";
@@ -65,6 +69,33 @@ export class _BuilderService {
   isUploading = false;
 
   private initialized = false; // 防止重复初始化
+
+  private isInstallInProgress(): boolean {
+    return this.npmService.isInstalling || this.workflowService.currentState === ProcessState.INSTALLING;
+  }
+
+  private triggerPendingPrecompile(reason: string, logMessage: string): void {
+    if (!this.pendingPrecompile) {
+      return;
+    }
+
+    console.log(logMessage);
+    this.pendingPrecompile = false;
+    setTimeout(() => {
+      if (this.blocklyService.aiWaiting) {
+        this.pendingPrecompile = true;
+        return;
+      }
+
+      const currentState = this.workflowService.currentState;
+      if (currentState === ProcessState.BUILDING || currentState === ProcessState.UPLOADING || this.isInstallInProgress()) {
+        this.pendingPrecompile = true;
+        return;
+      }
+
+      this.blocklyService.dependencySubject.next(reason);
+    }, 100);
+  }
 
   init() {
     if (this.initialized) {
@@ -119,10 +150,17 @@ export class _BuilderService {
         return;
       }
 
-      // 互斥条件2：编译、上传或依赖安装进行中不触发自动预编译
+      // 互斥条件2：依赖安装进行中不触发自动预编译，但保留一次待补执行
+      if (this.isInstallInProgress()) {
+        console.log('依赖安装进行中，标记延迟预编译');
+        this.pendingPrecompile = true;
+        return;
+      }
+
+      // 互斥条件3：编译或上传进行中不触发自动预编译
       const currentState = this.workflowService.currentState;
-      if (currentState === ProcessState.BUILDING || currentState === ProcessState.UPLOADING || currentState === ProcessState.INSTALLING) {
-        console.log('编译/上传/依赖安装进行中，跳过自动预编译');
+      if (currentState === ProcessState.BUILDING || currentState === ProcessState.UPLOADING) {
+        console.log('编译/上传进行中，跳过自动预编译');
         return;
       }
 
@@ -321,6 +359,29 @@ export class _BuilderService {
       }
     });
 
+    this.lastWorkflowState = this.workflowService.currentState;
+    this.workflowStateSubscription = this.workflowService.state$.subscribe(async (state) => {
+      const previousState = this.lastWorkflowState;
+      this.lastWorkflowState = state;
+
+      if (state === previousState) {
+        return;
+      }
+
+      if (state === ProcessState.INSTALLING) {
+        if (this.preprocessProcess || this.preprocessStreamId) {
+          console.log('依赖安装开始，终止正在运行的预编译');
+          this.pendingPrecompile = true;
+          await this.stopPreprocess();
+        }
+        return;
+      }
+
+      if (previousState === ProcessState.INSTALLING && state === ProcessState.IDLE) {
+        this.triggerPendingPrecompile('install-complete', '依赖安装完成，触发延迟的预编译');
+      }
+    });
+
     // 监听 AI 操作状态变化
     this.aiWaitingSubscription = this.blocklyService.aiWaiting$.subscribe(async (waiting) => {
       if (waiting) {
@@ -343,17 +404,7 @@ export class _BuilderService {
         }
       } else {
         // AI 操作完成，触发延迟的预编译
-        if (this.pendingPrecompile) {
-          console.log('AI操作已完成，触发延迟的预编译');
-          this.pendingPrecompile = false;
-          setTimeout(() => {
-            if (!this.blocklyService.aiWaiting) {
-              this.blocklyService.dependencySubject.next('ai-complete');
-            } else {
-              this.pendingPrecompile = true;
-            }
-          }, 100);
-        }
+        this.triggerPendingPrecompile('ai-complete', 'AI操作已完成，触发延迟的预编译');
       }
     });
   }
@@ -397,6 +448,11 @@ export class _BuilderService {
       this.aiWaitingSubscription.unsubscribe();
       this.aiWaitingSubscription = null;
     }
+    if (this.workflowStateSubscription) {
+      this.workflowStateSubscription.unsubscribe();
+      this.workflowStateSubscription = null;
+    }
+    this.lastWorkflowState = null;
     this.pendingPrecompile = false;
     
     // 清理预编译错误状态

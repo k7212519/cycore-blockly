@@ -6,7 +6,7 @@ import { UiService } from './ui.service';
 import { API } from '../configs/api.config';
 import { ProjectService } from './project.service';
 import { CmdService } from './cmd.service';
-import { WorkflowService } from './workflow.service';
+import { WorkflowService, ProcessState } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
 import { LogOptions, LogService } from './log.service';
@@ -240,9 +240,26 @@ export class NpmService {
   }
 
   async installBoardDeps() {
-    const boardPackageJson = await this.prjService.getBoardPackageJson() || {};
-    // console.log("boardPackageJson: ", boardPackageJson);
-    await this.installBoardDependencies(boardPackageJson);
+    this.isInstalling = true;
+    const installStateStarted = this.workflowService.startInstall();
+
+    try {
+      const boardPackageJson = await this.prjService.getBoardPackageJson() || {};
+      // console.log("boardPackageJson: ", boardPackageJson);
+      await this.installBoardDependencies(boardPackageJson, false);
+      if (installStateStarted && this.workflowService.currentState === ProcessState.INSTALLING) {
+        this.workflowService.finishInstall(true);
+      }
+    } catch (error) {
+      const errorMessage = this.getNpmErrorMessage(error);
+      if (installStateStarted && this.workflowService.currentState === ProcessState.INSTALLING) {
+        this.workflowService.finishInstall(false, errorMessage);
+      }
+      throw error;
+    } finally {
+      this.isInstalling = false;
+      this.boardDependencyInstallProgress = undefined;
+    }
   }
 
   boardDependenciesChanged = false;
@@ -298,13 +315,14 @@ export class NpmService {
   }
 
   // 安装开发板依赖
-  async installBoardDependencies(packageJson: any) {
+  async installBoardDependencies(packageJson: any, manageInstallState: boolean = true) {
     try {
-      this.isInstalling = true;
+      if (manageInstallState) {
+        this.isInstalling = true;
+        this.workflowService.startInstall();
+      }
       this.boardDependenciesChanged = false;
       this.boardDependencyInstallProgress = undefined;
-
-      this.workflowService.startInstall();
       console.log('开始安装开发板依赖...');
       // const appDataPath = this.configService.data.appdata_path[this.configService.data.platform].replace('%HOMEPATH%', window['path'].getUserHome());
       const appDataPath = window['path'].getAppDataPath();
@@ -348,7 +366,9 @@ export class NpmService {
       }
 
       if (dependenciesToInstall.length === 0) {
-        this.workflowService.finishInstall(true);
+        if (manageInstallState && this.workflowService.currentState === ProcessState.INSTALLING) {
+          this.workflowService.finishInstall(true);
+        }
         return;
       }
 
@@ -399,7 +419,9 @@ export class NpmService {
         progress: 100,
         setTimeout: 3000
       });
-      this.workflowService.finishInstall(true);
+      if (manageInstallState && this.workflowService.currentState === ProcessState.INSTALLING) {
+        this.workflowService.finishInstall(true);
+      }
     } catch (error) {
       const errorMessage = this.getNpmErrorMessage(error);
       console.error('安装开发板依赖时出错:', error);
@@ -411,11 +433,15 @@ export class NpmService {
         detail: errorMessage,
         state: 'error'
       });
-      this.workflowService.finishInstall(false, errorMessage);
+      if (manageInstallState && this.workflowService.currentState === ProcessState.INSTALLING) {
+        this.workflowService.finishInstall(false, errorMessage);
+      }
       throw error;
     } finally {
       this.boardDependencyInstallProgress = undefined;
-      this.isInstalling = false;
+      if (manageInstallState) {
+        this.isInstalling = false;
+      }
     }
   }
 
