@@ -55,7 +55,8 @@ function scheduleReplenishSubWindowPool(loadBasePage) {
 }
 
 /**
- * 创建透明不可见（opacity 0）、不出现在任务栏的预缓冲子窗口并完成首屏加载。
+ * 创建不可见（opacity 0）、不出现在任务栏的预缓冲子窗口并完成首屏加载。
+ * Windows 上不可设 transparent: true，否则会禁用 thickFrame 带来的边缘吸附与标题栏双击最大化。
  */
 function pushPooledSubWindow(loadBasePage) {
     if (applicationIsQuitting) {
@@ -65,13 +66,11 @@ function pushPooledSubWindow(loadBasePage) {
         const win = new BrowserWindow({
             frame: false,
             show: false,
-            transparent: true,
             opacity: 0,
             skipTaskbar: true,
             autoHideMenuBar: true,
             thickFrame: true,
             titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-            backgroundColor: '#00000000',
             alwaysOnTop: false,
             width: 800,
             height: 600,
