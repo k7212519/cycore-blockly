@@ -2,7 +2,7 @@
   <div class="left-box">
     <div class="stitle">
       <img class="logo" [src]="logoSrc" alt="" draggable="false">
-      <div class="version">ver {{version}}</div>
+      <div class="version">ver {{version}}{{ isCnRegion ? '-cn' : '' }}</div>
     </div>
     <div class="title">{{'GUIDE.START' | translate}}</div>
     @if (showMenu) {
@@ -70,18 +70,21 @@
       <div>{{'GUIDE.USER_GROUP' | translate}}</div>
       <div>{{'GUIDE.USER_GROUP_DESC' | translate}}</div>
       <div class="group-btn">
-        <div (click)="showImg('https://dl.yiyu.pro/blockly/wechat.jpg')">
+        @if (isCnRegion) {
+        <div (click)="showImg(wechatQrcodeUrl)">
           <i class="fa-brands fa-weixin"></i>
         </div>
-        <div (click)="showImg('https://dl.yiyu.pro/blockly/qq.jpg')">
+        <div (click)="showImg(qqQrcodeUrl)">
           <i class="fa-brands fa-qq"></i>
         </div>
+        } @else {
         <div (click)="openUrl('https://github.com/orgs/ailyProject/discussions')">
           <i class="fa-brands fa-github"></i>
         </div>
         <div (click)="openUrl('https://discord.gg/ddMbGVmpQ8')">
           <i class="fa-brands fa-discord"></i>
         </div>
+        }
       </div>
     </div>
     <div class="item" style="height: 165px;">

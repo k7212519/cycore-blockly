@@ -264,6 +264,13 @@ export class ConfigService {
   }
 
   /**
+   * 当前服务区域是否为中国区
+   */
+  get isCnRegion(): boolean {
+    return (this.data?.region || 'cn').toLowerCase() === 'cn';
+  }
+
+  /**
    * 获取当前区域的资源URL
    */
   getCurrentResourceUrl(): string {
