@@ -166,6 +166,9 @@ nz-sider {
 }
 
 .blocklyWidgetDiv {
+  // Blockly 默认 z-index 为 99999，需低于 cdk-overlay-container(10000) 以免遮挡弹窗
+  z-index: 9999 !important;
+
   .blocklyHtmlInput {
     color: var(--aily-blockly-text-primary);
   }
@@ -173,6 +176,8 @@ nz-sider {
 
 // Blockly 下拉选择框 美化（对齐 menu 组件风格）
 .blocklyDropDownDiv {
+  // 与 blocklyWidgetDiv 一致，低于 cdk-overlay-container(10000)
+  z-index: 9999 !important;
   background: var(--aily-bg-primary) !important;
   border: 1px solid var(--aily-border-subtle) !important;
   border-radius: 5px !important;
