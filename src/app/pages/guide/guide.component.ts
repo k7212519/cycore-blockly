@@ -106,6 +106,10 @@ export class GuideComponent implements OnInit, AfterViewInit {
     return `${resourceUrl}/qq.jpg`
   }
 
+  get isCnRegion(): boolean {
+    return this.configService.isCnRegion;
+  }
+
   ngOnInit() {
     this.loadSponsors();
     this.checkFirstLaunch();

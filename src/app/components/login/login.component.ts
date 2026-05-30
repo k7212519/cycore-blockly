@@ -131,16 +131,12 @@ export class LoginComponent implements OnDestroy {
   }
 
   get showWeChatLogin(): boolean {
-    return this.getCurrentRegionKey() === 'cn';
+    return this.configService.isCnRegion;
   }
 
   get isZhLang(): boolean {
     const lang = this.translate.currentLang || this.translate.defaultLang || 'en';
     return lang === 'zh_cn' || lang === 'zh_hk' || lang === 'zh-CN' || lang === 'zh-HK';
-  }
-
-  private getCurrentRegionKey(): string {
-    return (this.configService.data?.region || 'cn').toLowerCase();
   }
 
   private getLoginErrorMessage(error: any, fallback?: string): string {
