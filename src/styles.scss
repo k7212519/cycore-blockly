@@ -1,5 +1,9 @@
 @use './styles/themes/index';
 
+html {
+  overflow: hidden;
+}
+
 body {
   width: 100vw;
   height: 100vh;

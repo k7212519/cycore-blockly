@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnDestroy, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -10,7 +10,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { SettingsService } from '../../services/settings.service';
 import { TranslationService } from '../../services/translation.service';
 import { ConfigService } from '../../services/config.service';
-import { SimplebarAngularModule } from 'simplebar-angular';
+import { SimplebarAngularComponent, SimplebarAngularModule } from 'simplebar-angular';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -38,9 +38,13 @@ import { CmdService } from '../../services/cmd.service';
   styleUrl: './settings.component.scss',
 })
 export class SettingsComponent implements OnDestroy {
-  @ViewChild('scrollContainer', { static: false }) scrollContainer: ElementRef;
+  @ViewChild('scrollContainer', { static: false }) scrollContainer: SimplebarAngularComponent;
 
   activeSection = 'SETTINGS.SECTIONS.BASIC'; // 当前活动的部分
+  private scrollElement: HTMLElement | null = null;
+  private readonly scrollHandler = () => this.onScroll();
+  private scrollTargetSection: string | null = null;
+  private scrollEndTimer: ReturnType<typeof setTimeout> | null = null;
 
   // simplebar 配置选项
   options = {
@@ -260,6 +264,8 @@ export class SettingsComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.scrollElement?.removeEventListener('scroll', this.scrollHandler);
+    this.clearScrollEndTimer();
     this._clearCacheSubscription?.unsubscribe();
     if (this._clearCacheLoadingRef) {
       this.message.remove(this._clearCacheLoadingRef);
@@ -272,6 +278,8 @@ export class SettingsComponent implements OnDestroy {
   }
 
   async ngAfterViewInit() {
+    this.scrollElement = this.scrollContainer?.SimpleBar?.getScrollElement() || null;
+    this.scrollElement?.addEventListener('scroll', this.scrollHandler);
     await this.updateBoardList();
     this.loadCacheStats();
   }
@@ -296,33 +304,39 @@ export class SettingsComponent implements OnDestroy {
   // 使用锚点滚动到指定部分
   scrollToSection(item) {
     this.activeSection = item.name;
+    this.scrollTargetSection = item.name;
+    this.clearScrollEndTimer();
+
     const element = document.getElementById(item.name);
-    if (element && this.scrollContainer) {
-      // 针对simplebar调整滚动方法
-      const simplebarInstance = this.scrollContainer['SimpleBar'];
-      if (simplebarInstance) {
-        simplebarInstance.getScrollElement().scrollTo({
-          top: element.offsetTop - 12,
-          behavior: 'smooth'
-        });
-      }
+    if (element && this.scrollElement) {
+      this.scrollElement.scrollTo({
+        top: element.offsetTop - 12,
+        behavior: 'smooth'
+      });
+      this.scheduleScrollEnd();
+    } else {
+      this.scrollTargetSection = null;
     }
   }
 
   // 监听滚动事件以更新活动菜单项
   onScroll() {
-    const sections = document.querySelectorAll('.section');
-    let scrollElement;
-
-    // 获取simplebar的滚动元素
-    const simplebarInstance = this.scrollContainer['SimpleBar'];
-    if (simplebarInstance) {
-      scrollElement = simplebarInstance.getScrollElement();
-    } else {
+    if (!this.scrollElement) {
       return;
     }
 
-    const scrollPosition = scrollElement.scrollTop;
+    if (this.scrollTargetSection) {
+      this.activeSection = this.scrollTargetSection;
+      this.scheduleScrollEnd();
+      return;
+    }
+
+    this.updateActiveSectionByScrollPosition();
+  }
+
+  private updateActiveSectionByScrollPosition() {
+    const sections = document.querySelectorAll('.section');
+    const scrollPosition = this.scrollElement.scrollTop;
 
     sections.forEach((section: HTMLElement) => {
       const sectionTop = section.offsetTop;
@@ -333,6 +347,21 @@ export class SettingsComponent implements OnDestroy {
         this.activeSection = section.id.replace('section-', '');
       }
     });
+  }
+
+  private scheduleScrollEnd() {
+    this.clearScrollEndTimer();
+    this.scrollEndTimer = setTimeout(() => {
+      this.scrollTargetSection = null;
+      this.scrollEndTimer = null;
+    }, 120);
+  }
+
+  private clearScrollEndTimer() {
+    if (this.scrollEndTimer) {
+      clearTimeout(this.scrollEndTimer);
+      this.scrollEndTimer = null;
+    }
   }
 
   cancel() {
