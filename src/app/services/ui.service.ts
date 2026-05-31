@@ -162,8 +162,8 @@ export class UiService {
   }
 
   // 发送工具信号，格式为 "toolname:action"，如 "serial-monitor:disconnect"
-  sendToolSignal(signal: string) {
-    this.actionSubject.next({ action: 'signal', type: 'tool', data: signal });
+  sendToolSignal(signal: string, payload?: unknown) {
+    this.actionSubject.next({ action: 'signal', type: 'tool', data: signal, payload });
   }
 
   /**

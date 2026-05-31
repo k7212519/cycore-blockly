@@ -22,11 +22,16 @@ export class UploaderService {
     return !type || type === 'serial';
   }
 
+  private sendSerialMonitorUploadSignal(signal: string, port: any) {
+    this.uiService.sendToolSignal(signal, { port });
+  }
+
   async upload() {
     const needSerialToggle = this.isSerialDevice;
+    const uploadPort = this.serialService.currentPort;
     try {
       if (needSerialToggle) {
-        this.uiService.sendToolSignal('serial-monitor:disconnect');
+        this.sendSerialMonitorUploadSignal('serial-monitor:disconnect', uploadPort);
       }
       const timeout = this.serialService.currentPortInfo?.type === 'ble' ? 900000 : 300000;
       const feedback = await this.actionService.dispatchWithFeedback('upload-begin', {}, timeout).toPromise();
@@ -56,7 +61,7 @@ export class UploaderService {
       throw error;
     } finally {
       if (needSerialToggle) {
-        this.uiService.sendToolSignal('serial-monitor:connect');
+        this.sendSerialMonitorUploadSignal('serial-monitor:connect', uploadPort);
       }
     }
   }
@@ -80,9 +85,10 @@ export class UploaderService {
    */
   async flashSoftdevice(softdeviceName: string, serialPort: string): Promise<{ success: boolean; message: string }> {
     const needSerialToggle = this.isSerialDevice;
+    const uploadPort = serialPort || this.serialService.currentPort;
     try {
       if (needSerialToggle) {
-        this.uiService.sendToolSignal('serial-monitor:disconnect');
+        this.sendSerialMonitorUploadSignal('serial-monitor:disconnect', uploadPort);
       }
       const result = await this.actionService.dispatchWithFeedback('flash-softdevice', {
         softdeviceName,
@@ -94,7 +100,7 @@ export class UploaderService {
         this.electronService.notify('烧录', message);
       }
       if (needSerialToggle) {
-        this.uiService.sendToolSignal('serial-monitor:connect');
+        this.sendSerialMonitorUploadSignal('serial-monitor:connect', uploadPort);
       }
       return result.data?.result || { success: false, message: '烧录失败' };
     } catch (error: any) {
@@ -102,7 +108,7 @@ export class UploaderService {
         this.electronService.notify('烧录', 'SoftDevice 烧录失败');
       }
       if (needSerialToggle) {
-        this.uiService.sendToolSignal('serial-monitor:connect');
+        this.sendSerialMonitorUploadSignal('serial-monitor:connect', uploadPort);
       }
       return { success: false, message: error.message || '烧录失败' };
     }
