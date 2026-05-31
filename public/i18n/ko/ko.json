@@ -213,6 +213,10 @@
             "BLOCKLY_MINIMAP": "Blockly 미니맵",
             "COMPILATION_OPTIONS": "컴파일 옵션",
             "REGION": "서비스 지역",
+            "RESOURCE_SOURCE": "리소스 소스",
+            "RESOURCE_SOURCE_AUTO": "자동",
+            "RESOURCE_SOURCE_PRIMARY": "기본 사이트",
+            "RESOURCE_SOURCE_MIRROR": "미러 사이트",
             "REGION_TITLE": "서비스 지역 전환",
             "REGION_DESC": "서비스 지역을 전환하면 다시 로그인해야 합니다. 계속하시겠습니까?",
             "REGION_CONFIRM": "확인",
@@ -222,6 +226,10 @@
             "LIBRARY_LIST": "라이브러리 목록",
             "INSTALL": "설치",
             "UNINSTALL": "제거"
+        },
+        "BUTTONS": {
+            "CANCEL": "취소",
+            "APPLY": "적용"
         }
     },
     "PROJECT_NEW": {
