@@ -157,6 +157,18 @@
     font-size: 12px;
   }
 
+  .desc-scroll {
+    container-type: inline-size;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+
+    span {
+      display: inline-block;
+      min-width: 100%;
+    }
+  }
+
   .arrow {
     position: absolute;
     top: 50%;
@@ -168,9 +180,19 @@
   }
 
   &:hover {
+    .desc-scroll span {
+      animation: guide-desc-scroll 6s linear infinite alternate;
+    }
+
     .arrow {
       color: var(--aily-color-success);
     }
+  }
+}
+
+@keyframes guide-desc-scroll {
+  to {
+    transform: translateX(min(0px, calc(100cqw - 100%)));
   }
 }
 
