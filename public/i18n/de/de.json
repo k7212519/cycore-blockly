@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "Standard",
         "CROSS_TAB_PASTE": "Einfügen",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1 Elemente einfügen",
-        "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen"
+        "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "Block-Werkzeugkasten",
+            "TOOLBOX_DESC": "Hier befinden sich die Blockkategorien. Klicken Sie auf eine Kategorie, um Funktionsblöcke zu finden, und ziehen Sie sie zur Verwendung in den Arbeitsbereich rechts.",
+            "WORKSPACE_TITLE": "Arbeitsbereich",
+            "WORKSPACE_DESC": "Dies ist Ihr Programmierbereich. Ziehen und verbinden Sie hier Blöcke, um Programme zu erstellen. Zoomen und Verschieben der Arbeitsfläche werden unterstützt.",
+            "BUILD_TITLE": "Programm kompilieren",
+            "BUILD_DESC": "Wenn die Blöcke fertig verbunden sind, klicken Sie hier, um das Programm zu kompilieren. Nach erfolgreicher Kompilierung können Sie den generierten Code sehen.",
+            "UPLOAD_TITLE": "Programm hochladen",
+            "UPLOAD_DESC": "Nachdem Sie das Entwicklungsboard verbunden haben, klicken Sie hier, um das Programm auf das Board hochzuladen und auszuführen.",
+            "LIB_MANAGER_TITLE": "Bibliotheksmanager",
+            "LIB_MANAGER_DESC": "Klicken Sie hier, um den Bibliotheksmanager zu öffnen. Dort können Sie Erweiterungsbibliotheken installieren und entfernen, um Ihrem Projekt weitere Blöcke hinzuzufügen."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "Die ersten {{count}} Apps werden in der Symbolleiste angezeigt",
@@ -674,7 +686,13 @@
         "REGISTER": "Registrieren"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "Funktion demnächst verfügbar"
+        "FEATURE_COMING_SOON": "Funktion demnächst verfügbar",
+        "ONBOARDING": {
+            "SKIP": "Überspringen",
+            "PREV": "Zurück",
+            "NEXT": "Weiter",
+            "DONE": "Fertig"
+        }
     },
     "NPM": {
         "INSTALLING": "{{name}} wird installiert...",

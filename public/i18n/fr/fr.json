@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "par défaut",
         "CROSS_TAB_PASTE": "Coller",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Coller %1 éléments",
-        "WORKSPACE_SELECT_ALL": "Sélectionner tous les blocs"
+        "WORKSPACE_SELECT_ALL": "Sélectionner tous les blocs",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "Boîte à outils des blocs",
+            "TOOLBOX_DESC": "Vous trouverez ici les catégories de blocs. Cliquez sur les différentes catégories pour trouver des blocs de fonction, puis faites-les glisser vers l'espace de travail à droite.",
+            "WORKSPACE_TITLE": "Espace de travail",
+            "WORKSPACE_DESC": "C'est votre espace de programmation. Vous pouvez y faire glisser et connecter des blocs pour créer des programmes. Le zoom et le déplacement du canevas sont pris en charge.",
+            "BUILD_TITLE": "Compiler le programme",
+            "BUILD_DESC": "Une fois les blocs assemblés, cliquez ici pour compiler le programme. Si la compilation réussit, vous pourrez voir le code généré.",
+            "UPLOAD_TITLE": "Téléverser le programme",
+            "UPLOAD_DESC": "Après avoir connecté la carte de développement, cliquez ici pour téléverser le programme sur la carte et l'exécuter.",
+            "LIB_MANAGER_TITLE": "Gestionnaire de bibliothèques",
+            "LIB_MANAGER_DESC": "Cliquez ici pour ouvrir le gestionnaire de bibliothèques. Vous pouvez installer et supprimer des bibliothèques d'extension afin d'ajouter plus de blocs à votre projet."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "Les {{count}} premières applications seront affichées dans la barre d'outils",
@@ -674,7 +686,13 @@
         "REGISTER": "S'inscrire"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "Fonctionnalité bientôt disponible"
+        "FEATURE_COMING_SOON": "Fonctionnalité bientôt disponible",
+        "ONBOARDING": {
+            "SKIP": "Ignorer",
+            "PREV": "Précédent",
+            "NEXT": "Suivant",
+            "DONE": "Terminé"
+        }
     },
     "NPM": {
         "INSTALLING": "Installation de {{name}}...",

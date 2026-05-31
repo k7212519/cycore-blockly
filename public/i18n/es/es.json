@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "predeterminado",
         "CROSS_TAB_PASTE": "Pegar",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Pegar %1 elementos",
-        "WORKSPACE_SELECT_ALL": "Seleccionar todos los bloques"
+        "WORKSPACE_SELECT_ALL": "Seleccionar todos los bloques",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "Caja de herramientas de bloques",
+            "TOOLBOX_DESC": "Aquí están las categorías de bloques. Haz clic en las distintas categorías para encontrar bloques de funciones y arrástralos al área de trabajo de la derecha para usarlos.",
+            "WORKSPACE_TITLE": "Área de trabajo",
+            "WORKSPACE_DESC": "Esta es tu área de programación. Puedes arrastrar y conectar bloques para crear programas. También puedes ampliar, reducir y mover el lienzo.",
+            "BUILD_TITLE": "Compilar programa",
+            "BUILD_DESC": "Cuando termines de unir los bloques, haz clic aquí para compilar el programa. Si la compilación se realiza correctamente, podrás ver el código generado.",
+            "UPLOAD_TITLE": "Cargar programa",
+            "UPLOAD_DESC": "Después de conectar la placa de desarrollo, haz clic aquí para cargar el programa en la placa y ejecutarlo.",
+            "LIB_MANAGER_TITLE": "Gestor de bibliotecas",
+            "LIB_MANAGER_DESC": "Haz clic aquí para abrir el gestor de bibliotecas. Puedes instalar y desinstalar bibliotecas de extensión para agregar más bloques a tu proyecto."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "Las primeras {{count}} aplicaciones se mostrarán en la barra de herramientas",
@@ -674,7 +686,13 @@
         "REGISTER": "Registrarse"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "Función próximamente"
+        "FEATURE_COMING_SOON": "Función próximamente",
+        "ONBOARDING": {
+            "SKIP": "Saltar",
+            "PREV": "Anterior",
+            "NEXT": "Siguiente",
+            "DONE": "Listo"
+        }
     },
     "NPM": {
         "INSTALLING": "Instalando {{name}}...",

@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "預設執行",
         "CROSS_TAB_PASTE": "貼上",
         "CROSS_TAB_PASTE_X_ELEMENTS": "貼上 %1 項",
-        "WORKSPACE_SELECT_ALL": "全選積木"
+        "WORKSPACE_SELECT_ALL": "全選積木",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "積木工具箱",
+            "TOOLBOX_DESC": "這裡是積木分類區域，點擊不同分類可以找到各種功能積木，拖曳到右側工作區使用。",
+            "WORKSPACE_TITLE": "工作區",
+            "WORKSPACE_DESC": "這是你的程式設計工作區，可以在這裡拖曳、連接積木來建立程式。支援縮放和拖動畫布。",
+            "BUILD_TITLE": "編譯程式",
+            "BUILD_DESC": "完成積木拼接後，點擊這裡編譯程式。編譯成功後可以查看生成的程式碼。",
+            "UPLOAD_TITLE": "燒錄程式",
+            "UPLOAD_DESC": "連接開發板後，點擊這裡將程式燒錄到開發板上運行。",
+            "LIB_MANAGER_TITLE": "庫管理器",
+            "LIB_MANAGER_DESC": "點擊這裡打開庫管理器，可以安裝、移除各種功能擴展庫，為你的項目添加更多積木。"
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "前 {{count}} 個應用會顯示在頂部工具欄",
@@ -686,7 +698,13 @@
         "AUTH_SELF_INVITATION_NOT_ALLOWED": "不能填寫自己的邀請碼"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "功能即將上線"
+        "FEATURE_COMING_SOON": "功能即將上線",
+        "ONBOARDING": {
+            "SKIP": "跳過",
+            "PREV": "上一步",
+            "NEXT": "下一步",
+            "DONE": "完成"
+        }
     },
     "NPM": {
         "INSTALLING": "正在安裝{{name}}...",

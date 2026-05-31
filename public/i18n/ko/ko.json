@@ -164,9 +164,21 @@
         "CONTROLS_SWITCH_CASE": "조건",
         "CONTROLS_SWITCH_DO": "실행",
         "CONTROLS_SWITCH_DEFAULT": "기본",
-        "CROSS_TAB_PASTE": "붙여넣기",
+        "CROSS_TAB_PASTE": "붙여넣 기",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1개 붙여넣기",
-        "WORKSPACE_SELECT_ALL": "모든 블록 선택"
+        "WORKSPACE_SELECT_ALL": "모든 블록 선택",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "블록 도구 상자",
+            "TOOLBOX_DESC": "여기는 블록 분류 영역입니다. 분류를 클릭해 기능 블록을 찾고 오른쪽 작업 영역으로 끌어다 놓아 사용하세요.",
+            "WORKSPACE_TITLE": "작업 영역",
+            "WORKSPACE_DESC": "여기는 프로그래밍 작업 영역입니다. 블록을 끌어다 연결해 프로그램을 만들 수 있으며, 확대/축소와 캔버스 이동을 지원합니다.",
+            "BUILD_TITLE": "프로그램 빌드",
+            "BUILD_DESC": "블록 조립을 마친 뒤 여기를 클릭해 프로그램을 빌드하세요. 빌드가 성공하면 생성된 코드를 확인할 수 있습니다.",
+            "UPLOAD_TITLE": "프로그램 업로드",
+            "UPLOAD_DESC": "개발 보드를 연결한 뒤 여기를 클릭해 프로그램을 보드에 업로드하고 실행하세요.",
+            "LIB_MANAGER_TITLE": "라이브러리 관리자",
+            "LIB_MANAGER_DESC": "여기를 클릭해 라이브러리 관리자를 엽니다. 확장 라이브러리를 설치하거나 제거해 프로젝트에 더 많은 블록을 추가할 수 있습니다."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "처음 {{count}}개의 앱이 도구 모음에 표시됩니다",
@@ -662,7 +674,13 @@
         "REGISTER": "가입"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "기능 출시 예정"
+        "FEATURE_COMING_SOON": "기능 출시 예정",
+        "ONBOARDING": {
+            "SKIP": "건너뛰기",
+            "PREV": "이전",
+            "NEXT": "다음",
+            "DONE": "완료"
+        }
     },
     "NPM": {
         "INSTALLING": "{{name}} 설치 중...",

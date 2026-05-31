@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "デフォルト",
         "CROSS_TAB_PASTE": "貼り付け",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1 個を貼り付け",
-        "WORKSPACE_SELECT_ALL": "すべてのブロックを選択"
+        "WORKSPACE_SELECT_ALL": "すべてのブロックを選択",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "ブロックツールボックス",
+            "TOOLBOX_DESC": "ここはブロックのカテゴリ領域です。カテゴリをクリックして機能ブロックを探し、右側のワークスペースへドラッグして使用します。",
+            "WORKSPACE_TITLE": "ワークスペース",
+            "WORKSPACE_DESC": "ここはプログラミング用の作業領域です。ブロックをドラッグしてつなげ、プログラムを作成できます。ズームやキャンバスの移動にも対応しています。",
+            "BUILD_TITLE": "プログラムをビルド",
+            "BUILD_DESC": "ブロックの組み立てが終わったら、ここをクリックしてプログラムをビルドします。ビルドに成功すると、生成されたコードを確認できます。",
+            "UPLOAD_TITLE": "プログラムを書き込む",
+            "UPLOAD_DESC": "開発ボードを接続したら、ここをクリックしてプログラムをボードへ書き込み、実行します。",
+            "LIB_MANAGER_TITLE": "ライブラリマネージャー",
+            "LIB_MANAGER_DESC": "ここをクリックしてライブラリマネージャーを開きます。拡張ライブラリのインストールや削除を行い、プロジェクトにさらに多くのブロックを追加できます。"
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "最初の {{count}} 個のアプリがツールバーに表示されます",
@@ -674,7 +686,13 @@
         "REGISTER": "登録"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "機能は近日公開予定"
+        "FEATURE_COMING_SOON": "機能は近日公開予定",
+        "ONBOARDING": {
+            "SKIP": "スキップ",
+            "PREV": "前へ",
+            "NEXT": "次へ",
+            "DONE": "完了"
+        }
     },
     "NPM": {
         "INSTALLING": "{{name}}をインストール中...",
