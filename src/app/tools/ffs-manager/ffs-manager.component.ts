@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -18,6 +19,10 @@ import { FilesystemManagerComponent } from './components/filesystem-manager/file
 import { PartitionMapComponent } from './components/partition-map/partition-map.component';
 import { FfsFileEntry, FfsFilesystemContentService, FfsFilesystemUsage, FfsMountedFilesystem } from './ffs-filesystem-content.service';
 import { FfsDeviceInfo, FfsFilesystemType, FfsManagerService, FfsPartitionInfo } from './ffs-manager.service';
+
+interface FfsUploadRestoreContext {
+  port: string;
+}
 
 @Component({
   selector: 'app-ffs-manager',
@@ -38,6 +43,9 @@ import { FfsDeviceInfo, FfsFilesystemType, FfsManagerService, FfsPartitionInfo }
   styleUrl: './ffs-manager.component.scss'
 })
 export class FfsManagerComponent {
+  private destroyRef = inject(DestroyRef);
+  private uploadRestoreContext: FfsUploadRestoreContext | null = null;
+
   private readonly defaultBaudRate = 921600;
 
   currentUrl = '';
@@ -82,6 +90,20 @@ export class FfsManagerComponent {
     }
     await this.checkEsptool();
     await this.checkAndSetDefaultPort();
+
+    // 监听工具信号，处理上传过程中的串口断开/重连
+    this.uiService.actionSubject
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((action: any) => {
+        if (action?.action === 'signal' && action?.type === 'tool') {
+          const signal = action.data as string;
+          if (signal === 'serial-monitor:disconnect') {
+            this.pauseForUpload(this.getUploadPortFromSignal(action));
+          } else if (signal === 'serial-monitor:connect') {
+            this.restoreAfterUpload(this.getUploadPortFromSignal(action));
+          }
+        }
+      });
   }
 
   async ngOnDestroy() {
@@ -90,6 +112,61 @@ export class FfsManagerComponent {
     } catch (error) {
       console.warn('[FfsManager] 释放 ESP 会话失败:', error);
     }
+  }
+
+  private getUploadPortFromSignal(action: any): string | null {
+    return action?.payload?.port || this.serialService.currentPort || null;
+  }
+
+  private async pauseForUpload(uploadPort: string | null) {
+    this.uploadRestoreContext = null;
+    if (!uploadPort || !this.switchValue || this.currentPort !== uploadPort) {
+      return;
+    }
+
+    this.uploadRestoreContext = { port: uploadPort };
+    this.switchValue = false;
+    this.statusText = '已暂停 ESP 会话以便固件烧录...';
+    this.cd.detectChanges();
+
+    try {
+      // 不做 hardReset，让上传工具自行驱动 boot 流程
+      await this.ffsManagerService.release(false);
+    } catch (error) {
+      console.warn('[FfsManager] 上传前释放 ESP 会话失败:', error);
+    }
+    this.deviceInfo = null;
+    this.partitions = [];
+    this.selectedPartition = null;
+    this.resetFilesystemState();
+    this.cd.detectChanges();
+  }
+
+  private async restoreAfterUpload(uploadPort: string | null) {
+    const context = this.uploadRestoreContext;
+    this.uploadRestoreContext = null;
+    if (!context || !uploadPort || context.port !== uploadPort || this.switchValue) {
+      return;
+    }
+
+    this.currentPort = context.port;
+    this.switchValue = true;
+    this.statusText = '固件烧录完成，正在重新连接 ESP...';
+    this.cd.detectChanges();
+
+    try {
+      await this.refreshAll();
+      if (this.errorText || !this.deviceInfo) {
+        this.switchValue = false;
+        try {
+          await this.ffsManagerService.release(true);
+        } catch { }
+      }
+    } catch (error) {
+      console.warn('[FfsManager] 上传后重新连接 ESP 失败:', error);
+      this.switchValue = false;
+    }
+    this.cd.detectChanges();
   }
 
   get filesystemPartitions() {

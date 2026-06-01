@@ -3,18 +3,25 @@
     <!-- 标题/分区信息 -->
     <div class="title-bar">
       <div class="title-left">
-        <i class="fa-light fa-hard-drive"></i>
         <span class="title-text">{{ fsLabel }} 资源管理器</span>
-        @if (selectedPartition) {
-        <span class="partition-chip">{{ selectedPartition.label || selectedPartition.offsetHex }}</span>
-        }
       </div>
-      @if (dirty) {
+      @if (hasSession && usage) {
+      <div class="usage-mini" [nz-tooltip]="usageTipTpl">
+        <div class="usage-mini-track">
+          <div class="usage-mini-bar" [style.width.%]="usage.usedPercent"></div>
+        </div>
+        <span>{{ usage.usedPercent }}%</span>
+      </div>
+      <ng-template #usageTipTpl>
+        已用 {{ usage.usedText }} / {{ usage.capacityText }}（可用 {{ usage.freeText }}）
+      </ng-template>
+      }
+      <!-- @if (dirty) {
       <span class="dirty-tag">
         <i class="fa-light fa-pen-circle"></i>
         未写回
       </span>
-      }
+      } -->
     </div>
 
     <!-- 工具栏：导航 + 操作 -->
@@ -83,17 +90,6 @@
         }
         }
       </div>
-      @if (hasSession && usage) {
-      <div class="usage-mini" [nz-tooltip]="usageTipTpl">
-        <div class="usage-mini-track">
-          <div class="usage-mini-bar" [style.width.%]="usage.usedPercent"></div>
-        </div>
-        <span>{{ usage.usedPercent }}%</span>
-      </div>
-      <ng-template #usageTipTpl>
-        已用 {{ usage.usedText }} / {{ usage.capacityText }}（可用 {{ usage.freeText }}）
-      </ng-template>
-      }
     </div>
 
     <!-- 文件列表（详细视图） -->
