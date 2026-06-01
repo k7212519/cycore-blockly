@@ -130,7 +130,8 @@
               </div>
             }
             <textarea #chatTextarea class="sscroll" [(ngModel)]="inputValue"
-              (keydown)="onKeyDown($event)" (input)="onInputChange()">
+              (keydown)="onKeyDown($event)" (input)="onInputChange()"
+              (compositionstart)="onCompositionStart()" (compositionend)="onCompositionEnd()">
             </textarea>
           </div>
           <div class="btns">
