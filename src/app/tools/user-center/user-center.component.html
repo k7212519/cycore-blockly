@@ -17,6 +17,9 @@
                 </div>
                 <div class="plan">
                     {{ 'USER_CENTER.PLAN_LABEL' | translate: { plan: displayPlanName } }}
+                    @if (displayPlanEndDate) {
+                    <span class="plan-expires">({{ displayPlanEndDate }})</span>
+                    }
                 </div>
             </div>
             <div class="action">

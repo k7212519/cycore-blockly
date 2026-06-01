@@ -316,6 +316,24 @@ export class UserCenterComponent {
     return subscriptionPlan?.display_name || subscriptionPlan?.name || 'Free';
   }
 
+  get displayPlanEndDate(): string {
+    const endDate = this.currentUser?.subscription_plan?.end_date;
+    if (!endDate) {
+      return '';
+    }
+    const parsed = new Date(endDate);
+    if (Number.isNaN(parsed.getTime())) {
+      return String(endDate);
+    }
+    const lang = this.translate.currentLang || this.translate.defaultLang || 'en';
+    const locale = lang.replace(/_/g, '-');
+    return parsed.toLocaleDateString(locale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  }
+
   get isProPlanSubscriber(): boolean {
     const subscriptionPlan = this.currentUser?.subscription_plan;
     const planName = `${subscriptionPlan?.name || ''} ${subscriptionPlan?.display_name || ''}`.trim().toLowerCase();
