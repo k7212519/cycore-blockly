@@ -127,7 +127,7 @@
         class="content"
         ailyMarkdownExternalLinks
         [class.thinking]="content==='[thinking...]'"
-        (click)="canEditUserMessage && !isEditing ? onUserMessageClick() : null"
+        (click)="canEditUserMessage && !isEditing ? onUserMessageClick($event) : null"
         nz-tooltip
         [nzTooltipTitle]="(canEditUserMessage && !isEditing) ? ('AILY_CHAT.CLICK_TO_EDIT' | translate) : ''"
         nzTooltipPlacement="bottom"
