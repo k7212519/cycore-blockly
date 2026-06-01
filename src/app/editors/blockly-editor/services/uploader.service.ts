@@ -740,6 +740,8 @@ export class _UploaderService {
               reject({ state: 'warn', text: this.t('CANCELLED') });
             } else if (this.isErrored) {
               console.log("上传命令完成 - 发生错误");
+              console.log("[Uploader][DIAG] errorText =", errorText);
+              console.log("[Uploader][DIAG] fullErrorText =", fullErrorText);
               this._builderService.isUploading = false;
               this.handleUploadError('上传过程中发生错误', '上传失败', fullErrorText || errorText || '上传过程中发生错误');
               this.workflowService.finishUpload(false, errorText);

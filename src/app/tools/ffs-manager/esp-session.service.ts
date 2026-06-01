@@ -121,11 +121,13 @@ export class EspSessionService {
     this.currentPortPath = null;
     this.currentBaud = 0;
 
-    if (loader && hardReset) {
+    // 注意：不走 loader.after('hard_reset')。在 stub 模式下它会写命令等待响应，
+    // 这里端口随后即将释放，容易死等。直接用 DTR/RTS 脉冲把 ESP 拉回 ROM 即可。
+    if (port && hardReset) {
       try {
-        await loader.after('hard_reset');
+        await this.pulseHardReset(port);
       } catch (error) {
-        console.warn('[EspSession] 复位失败:', error);
+        console.warn('[EspSession] DTR/RTS hard reset 失败:', error);
       }
     }
 
@@ -229,6 +231,21 @@ export class EspSessionService {
     await this.runExclusive(async loader => {
       await loader.after('hard_reset');
     });
+  }
+
+  /**
+   * 不依赖 esptool-js loader，直接通过 DTR/RTS 把 ESP 拉回 ROM。
+   * ESP32-S3 USB-JTAG-Serial 把 RTS 视作 EN/RESET，DTR 视作 GPIO0。
+   * 序列：拉低 reset → 释放 reset（GPIO0=高）→ chip 从 flash 重新运行。
+   */
+  private async pulseHardReset(port: NodeSerialPortAdapter): Promise<void> {
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    // 进入 reset
+    await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+    await sleep(100);
+    // 释放 reset，GPIO0 保持高 → 从 flash 启动
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    await sleep(50);
   }
 
   private runExclusive<T>(fn: (loader: ESPLoader) => Promise<T>): Promise<T> {

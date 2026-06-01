@@ -170,10 +170,10 @@ export class SerialMonitorComponent {
     return action?.payload?.port || this.serialService.currentPort || null;
   }
 
-  private pauseForUpload(uploadPort: string | null) {
+  private pauseForUpload(uploadPort: string | null): Promise<void> | null {
     this.uploadRestoreContext = null;
     if (!uploadPort || !this.switchValue || this.connectedPort !== uploadPort) {
-      return;
+      return null;
     }
 
     this.uploadRestoreContext = {
@@ -181,7 +181,7 @@ export class SerialMonitorComponent {
       connectOptions: this.getConnectOptions(uploadPort)
     };
     this.switchValue = false;
-    this.serialMonitorService.disconnect().then(result => {
+    const released = this.serialMonitorService.disconnect().then(result => {
       if (result) {
         this.connectedPort = null;
       } else {
@@ -195,6 +195,7 @@ export class SerialMonitorComponent {
       this.cd.detectChanges();
     });
     this.cd.detectChanges();
+    return released;
   }
 
   private restoreAfterUpload(uploadPort: string | null) {
@@ -301,7 +302,10 @@ export class SerialMonitorComponent {
         if (action.action === 'signal' && action.type === 'tool') {
           const signal = action.data as string;
           if (signal === 'serial-monitor:disconnect') {
-            this.pauseForUpload(this.getUploadPortFromSignal(action));
+            const releasePromise = this.pauseForUpload(this.getUploadPortFromSignal(action));
+            if (releasePromise && Array.isArray(action?.payload?.waitFor)) {
+              action.payload.waitFor.push(releasePromise);
+            }
           } else if (signal === 'serial-monitor:connect') {
             this.restoreAfterUpload(this.getUploadPortFromSignal(action));
           }

@@ -104,7 +104,14 @@ export class FfsManagerComponent {
             return;
           }
           if (signal === 'serial-monitor:disconnect') {
-            this.pauseForUpload(this.getUploadPortFromSignal(action));
+            console.log(`[FfsManager] 收到 disconnect 信号：switchValue=${this.switchValue}, currentPort=${this.currentPort}, uploadPort=${this.getUploadPortFromSignal(action)}`);
+            const releasePromise = this.pauseForUpload(this.getUploadPortFromSignal(action));
+            if (Array.isArray(action?.payload?.waitFor)) {
+              action.payload.waitFor.push(releasePromise);
+              console.log('[FfsManager] 已把 release Promise 推进 uploader waitFor');
+            } else {
+              console.warn('[FfsManager] disconnect 信号中未携带 waitFor 数组');
+            }
           } else if (signal === 'serial-monitor:connect') {
             this.restoreAfterUpload(this.getUploadPortFromSignal(action));
           }
@@ -124,9 +131,10 @@ export class FfsManagerComponent {
     return action?.payload?.port || this.serialService.currentPort || null;
   }
 
-  private async pauseForUpload(uploadPort: string | null) {
+  private async pauseForUpload(uploadPort: string | null): Promise<void> {
     this.uploadRestoreContext = null;
     if (!uploadPort || !this.switchValue || this.currentPort !== uploadPort) {
+      console.log(`[FfsManager] pauseForUpload 跳过：uploadPort=${uploadPort}, switchValue=${this.switchValue}, currentPort=${this.currentPort}`);
       return;
     }
 
@@ -136,8 +144,16 @@ export class FfsManagerComponent {
     this.cd.detectChanges();
 
     try {
-      // 不做 hardReset，让上传工具自行驱动 boot 流程
-      await this.ffsManagerService.release(false);
+      console.log('[FfsManager] 开始 release(true)…');
+      // 必须 hard_reset：否则 ESP32-S3 留在 stub 模式 + 任意波特率，
+      // 后续 esptool 烧录会撞到 "port is busy or doesn't exist"。
+      // 复位后 ROM 模式下 USB-CDC 端点正常，esptool 能干净接管。
+      await this.ffsManagerService.release(true);
+      console.log('[FfsManager] release(true) 完成，OS 句柄已释放，ESP 已 hard_reset 回 ROM');
+      // ESP32-S3 USB-CDC：hard_reset 会引起 USB 设备短暂断开重新枚举。
+      // 必须等端口在系统串口列表里重新稳定出现，再放行 uploader，
+      // 否则 esptool 启动时 CreateFile 会拿到 ERROR_FILE_NOT_FOUND/ACCESS_DENIED。
+      await this.waitForPortReady(uploadPort, 4000);
     } catch (error) {
       console.warn('[FfsManager] 上传前释放 ESP 会话失败:', error);
     }
@@ -147,6 +163,76 @@ export class FfsManagerComponent {
     this.resetFilesystemState();
     this.cd.detectChanges();
   }
+
+  /**
+   * 等待指定端口在系统串口列表中稳定出现。
+   * ESP32-S3 USB-CDC 在 hard_reset 后会断开重新枚举，必须先等设备回来再让 esptool 启动，
+   * 否则 CreateFile 会拿到 ERROR_FILE_NOT_FOUND/ACCESS_DENIED（即 "busy or doesn't exist"）。
+   * 端口连续两次出现在 list 中视为稳定。
+   */
+  private async waitForPortReady(portPath: string, timeoutMs: number): Promise<void> {
+    const w = window as any;
+    const list = w?.electronAPI?.SerialPort?.list;
+    const createRaw = w?.electronAPI?.SerialPort?.createRaw;
+    if (!list || !createRaw) {
+      console.warn('[FfsManager] 无法访问 SerialPort API，跳过端口就绪等待');
+      return;
+    }
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+    // 实测探测：自己 createRaw + open + close，能跑通说明 esptool 也能拿到句柄。
+    // 比单纯 list() 更可靠：list 只看驱动是否枚举，不验证句柄是否可独占。
+    const tryProbeOpen = async (): Promise<string | null> => {
+      let port: any = null;
+      try {
+        port = createRaw({ path: portPath, baudRate: 115200, autoOpen: false });
+        if (typeof port?.open !== 'function') {
+          return 'createRaw 返回对象缺少 open 方法';
+        }
+        await new Promise<void>((resolve, reject) => {
+          port.open((err: any) => err ? reject(err) : resolve());
+        });
+        // 立刻关掉，腾给 esptool。
+        await new Promise<void>((resolve) => {
+          try { port.close(() => resolve()); } catch { resolve(); }
+        });
+        return null;
+      } catch (err: any) {
+        // 在 close 失败时仍尝试关闭，避免泄漏。
+        try { if (port?.isOpen) port.close(() => { }); } catch { /* ignore */ }
+        return String(err?.message || err);
+      }
+    };
+
+    const start = Date.now();
+    let attempt = 0;
+    let lastErr: string | null = null;
+    while (Date.now() - start < timeoutMs) {
+      // 先看端口是否在系统列表里。
+      let visible = false;
+      try {
+        const ports: Array<{ path: string }> = await list();
+        visible = !!ports?.some(p => p?.path === portPath);
+      } catch (e) {
+        console.warn('[FfsManager] list 端口失败:', e);
+      }
+      if (visible) {
+        const err = await tryProbeOpen();
+        if (!err) {
+          console.log(`[FfsManager] 端口 ${portPath} 已就绪（探测开关成功），耗时 ${Date.now() - start}ms，attempt=${attempt}`);
+          // 额外缓冲一帧，让上一次关闭彻底释放（Windows 偶发延迟）。
+          await sleep(200);
+          return;
+        }
+        lastErr = err;
+        console.log(`[FfsManager] 探测开关 ${portPath} 仍失败 (attempt ${attempt}): ${err}`);
+      }
+      attempt++;
+      await sleep(200);
+    }
+    console.warn(`[FfsManager] 等待 ${portPath} 就绪超时（${timeoutMs}ms），最近错误: ${lastErr ?? '(端口始终不可见)'}`);
+  }
+
 
   private async restoreAfterUpload(uploadPort: string | null) {
     const context = this.uploadRestoreContext;

@@ -22,8 +22,25 @@ export class UploaderService {
     return !type || type === 'serial';
   }
 
-  private sendSerialMonitorUploadSignal(signal: string, port: any) {
-    this.uiService.sendToolSignal(signal, { port });
+  private async sendSerialMonitorUploadSignal(signal: string, port: any): Promise<void> {
+    // 让订阅方（serial-monitor / ffs-manager 等）把“释放串口”的
+    // Promise 推进 waitFor，这里等它们全部完成后再开始处理后续动作。
+    const waitFor: Promise<void>[] = [];
+    this.uiService.sendToolSignal(signal, { port, waitFor });
+    console.log(`[Uploader] ${signal} 发出，收到 ${waitFor.length} 个 waitFor Promise（port=${port}）`);
+    if (waitFor.length === 0) return;
+    try {
+      await Promise.all(waitFor);
+      console.log(`[Uploader] ${signal} 所有订阅方已完成释放`);
+    } catch (err) {
+      console.warn(`[Uploader] ${signal} 等待订阅方完成时报错:`, err);
+    }
+    // node-serialport 的 close 回调返回后，Windows 还要短暂窗口才会真正放开
+    // 独占句柄；这里给外部 esptool.exe 等 child_process 一点缓冲，避免
+    // "Could not open COMx, the port is busy" 报错。
+    if (signal === 'serial-monitor:disconnect') {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
   }
 
   async upload() {
@@ -31,7 +48,7 @@ export class UploaderService {
     const uploadPort = this.serialService.currentPort;
     try {
       if (needSerialToggle) {
-        this.sendSerialMonitorUploadSignal('serial-monitor:disconnect', uploadPort);
+        await this.sendSerialMonitorUploadSignal('serial-monitor:disconnect', uploadPort);
       }
       const timeout = this.serialService.currentPortInfo?.type === 'ble' ? 900000 : 300000;
       const feedback = await this.actionService.dispatchWithFeedback('upload-begin', {}, timeout).toPromise();
@@ -61,7 +78,7 @@ export class UploaderService {
       throw error;
     } finally {
       if (needSerialToggle) {
-        this.sendSerialMonitorUploadSignal('serial-monitor:connect', uploadPort);
+        await this.sendSerialMonitorUploadSignal('serial-monitor:connect', uploadPort);
       }
     }
   }
