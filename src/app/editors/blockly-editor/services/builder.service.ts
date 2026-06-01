@@ -342,7 +342,7 @@ export class _BuilderService {
               this.logService.update({ "detail": cleanFullError, "state": "error" });
             } else {
               console.log('后台预处理完成');
-              this.logService.update({ "detail": '后台预处理完成', "state": "done" });
+              // this.logService.update({ "detail": '后台预处理完成', "state": "done" });
             }
             // 清理引用
             if (this.preprocessProcess === subscription) {
