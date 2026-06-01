@@ -99,7 +99,7 @@
         <div class="input-box">
           @if( resourceManager.items.length > 0 ) {
           <div class="resource-list">
-            @for( item of resourceManager.items; track $index) {
+            @for( item of resourceManager.items; track item.type === 'block' ? item.blockId : $index) {
             <div class="resource-item" [class.block-item]="item.type === 'block'">
               @if(item.type == 'file') {
               <i class="fa-light fa-file"></i>
@@ -130,7 +130,8 @@
               </div>
             }
             <textarea #chatTextarea class="sscroll" [(ngModel)]="inputValue"
-              (keydown)="onKeyDown($event)" (input)="onInputChange()">
+              (keydown)="onKeyDown($event)" (input)="onInputChange()"
+              (compositionstart)="onCompositionStart()" (compositionend)="onCompositionEnd()">
             </textarea>
           </div>
           <div class="btns">

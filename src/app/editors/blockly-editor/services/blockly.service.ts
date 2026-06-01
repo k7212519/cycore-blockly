@@ -213,6 +213,13 @@ export class BlocklyService {
     this._aiWriting.next(value);
   }
 
+  private overlayChaffObserver: MutationObserver | null = null;
+  private documentPointerDownHandler: ((event: PointerEvent) => void) | null = null;
+
+  /** Blockly 内联编辑器浮层（文本框、下拉等）的 DOM 根节点，点击其内部时不 dismiss。 */
+  private static readonly BLOCKLY_POPUP_SELECTOR =
+    '.blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTextInputBubble';
+
   constructor(
     private translateService: TranslateService,
     private electronService: ElectronService
@@ -231,6 +238,80 @@ export class BlocklyService {
     });
     this.resetDocumentState();
     this.rebuildToolboxFacade();
+    this.initDocumentPopupDismiss();
+    this.initOverlayChaffHider();
+  }
+
+  /** 点击 Blockly 浮层外部时关闭文本框/下拉（capture 阶段，早于菜单/弹窗打开）。 */
+  private initDocumentPopupDismiss(): void {
+    if (typeof document === 'undefined' || this.documentPointerDownHandler) {
+      return;
+    }
+
+    this.documentPointerDownHandler = (event: PointerEvent) => {
+      if (!this._workspace) {
+        return;
+      }
+
+      const target = event.target as Element | null;
+      if (!target || target.closest(BlocklyService.BLOCKLY_POPUP_SELECTOR)) {
+        return;
+      }
+
+      if (!this.isBlocklyPopupVisible()) {
+        return;
+      }
+
+      this.hideChaff(true);
+    };
+
+    document.addEventListener('pointerdown', this.documentPointerDownHandler, true);
+  }
+
+  private isBlocklyPopupVisible(): boolean {
+    if (Blockly.WidgetDiv.isVisible()) {
+      return true;
+    }
+    return Blockly.DropDownDiv.getOwner() !== null;
+  }
+
+  /** 关闭 Blockly 内联文本输入、下拉等浮层；默认仅关 popup，不影响 flyout 折叠状态。 */
+  hideChaff(onlyClosePopups = true): void {
+    const workspace = this._workspace ?? Blockly.getMainWorkspace() as Blockly.WorkspaceSvg | null;
+    if (workspace) {
+      workspace.hideChaff(onlyClosePopups);
+    } else {
+      Blockly.WidgetDiv.hide();
+      Blockly.DropDownDiv.hide();
+    }
+  }
+
+  /** 弹窗打开时自动关闭 Blockly 浮层。 */
+  private initOverlayChaffHider(): void {
+    if (typeof document === 'undefined' || this.overlayChaffObserver) {
+      return;
+    }
+
+    const bindObserver = () => {
+      const container = document.querySelector('.cdk-overlay-container');
+      if (!container || this.overlayChaffObserver) {
+        return;
+      }
+
+      this.overlayChaffObserver = new MutationObserver(() => {
+        if (container.querySelector('.ant-modal-wrap, .cdk-overlay-backdrop')) {
+          this.hideChaff();
+        }
+      });
+      this.overlayChaffObserver.observe(container, { childList: true, subtree: true });
+    };
+
+    if (document.querySelector('.cdk-overlay-container')) {
+      bindObserver();
+      return;
+    }
+
+    setTimeout(bindObserver, 0);
   }
 
   waitForWorkspace(): Promise<Blockly.WorkspaceSvg> {

@@ -167,6 +167,7 @@
         "CROSS_TAB_PASTE": "Вставить",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Вставить %1 элементов",
         "WORKSPACE_SELECT_ALL": "Выбрать все блоки",
+        "EXPLAIN_BLOCK": "Объяснить с помощью ИИ",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "Панель блоков",
             "TOOLBOX_DESC": "Здесь находятся категории блоков. Нажимайте на разные категории, чтобы найти функциональные блоки, и перетаскивайте их в рабочую область справа.",
@@ -730,7 +731,8 @@
         "LOADING_BLOCKLY_LIB": "Загрузка библиотек Blockly",
         "LOADING_LIB": "Загрузка {{name}}",
         "LOADING_BLOCKLY_PROGRAM": "Загрузка программы Blockly",
-        "PROJECT_LOAD_SUCCESS": "Проект успешно загружен"
+        "PROJECT_LOAD_SUCCESS": "Проект успешно загружен",
+        "EXPLAIN_BLOCK_PROMPT": "Объясните, что делает этот блок, как он работает и какую роль играет в текущей программе."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "Загрузка примера...",

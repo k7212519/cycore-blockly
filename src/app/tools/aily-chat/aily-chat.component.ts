@@ -160,6 +160,7 @@ export class AilyChatComponent implements OnDestroy {
 
   bottomHeight = 180;
   showSettings = false;
+  private _imeComposing = false;
 
   constructor(
     private uiService: UiService,
@@ -356,10 +357,20 @@ export class AilyChatComponent implements OnDestroy {
     this.engine.inputValue = '';
   }
 
+  onCompositionStart(): void {
+    this._imeComposing = true;
+  }
+
+  onCompositionEnd(): void {
+    this._imeComposing = false;
+  }
+
   async onKeyDown(event: KeyboardEvent) {
+    const imeActive = event.isComposing || this._imeComposing;
+
     // @agent 补全交互：Enter 选中、Escape 关闭
     if (this.showAgentSuggestions) {
-      if (event.key === 'Enter') {
+      if (event.key === 'Enter' && !imeActive) {
         event.preventDefault();
         this.selectAgent(this.agentSuggestions[0]);
         return;
@@ -379,6 +390,8 @@ export class AilyChatComponent implements OnDestroy {
         this.inputValue = this.inputValue.substring(0, start) + '\n' + this.inputValue.substring(end);
         setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + 1; }, 0);
         event.preventDefault();
+      } else if (imeActive) {
+        return;
       } else {
         this.scrollManager.autoScrollEnabled = true;
         this.scrollManager.scrollToBottom();
