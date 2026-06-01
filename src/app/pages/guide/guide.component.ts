@@ -13,6 +13,7 @@ import { CommonModule } from '@angular/common';
 import { OnboardingService } from '../../services/onboarding.service';
 import { GUIDE_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 import { ThemeService } from '../../services/theme.service';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-guide',
@@ -24,6 +25,8 @@ export class GuideComponent implements OnInit, AfterViewInit {
   version = version;
   guideMenu = GUIDE_MENU;
   showMenu = true;
+  private readonly guidePageDefaultUrl: SafeResourceUrl;
+  private readonly guidePageCnUrl: SafeResourceUrl;
 
   get logoSrc(): string {
     return this.themeService.theme() === 'light' ? 'imgs/logo-light.webp' : 'imgs/logo.webp';
@@ -31,6 +34,10 @@ export class GuideComponent implements OnInit, AfterViewInit {
 
   get sensecraftImg(): string {
     return this.themeService.theme() === 'light' ? 'brands/sensecraft-light.webp' : 'brands/sensecraft.webp';
+  }
+
+  get guidePageIframeSrc(): SafeResourceUrl {
+    return this.isCnRegion ? this.guidePageCnUrl : this.guidePageDefaultUrl;
   }
 
   getSponsorImg(sponsor: any): string {
@@ -90,8 +97,12 @@ export class GuideComponent implements OnInit, AfterViewInit {
     private http: HttpClient,
     private configService: ConfigService,
     private onboardingService: OnboardingService,
-    private themeService: ThemeService
-  ) { }
+    private themeService: ThemeService,
+    private sanitizer: DomSanitizer
+  ) {
+    this.guidePageDefaultUrl = this.sanitizer.bypassSecurityTrustResourceUrl('https://guide-page.aily.pro');
+    this.guidePageCnUrl = this.sanitizer.bypassSecurityTrustResourceUrl('https://guide-page.yiyu.pro');
+  }
 
   /**
    * 获取微信二维码 URL（根据当前 region 动态生成）
