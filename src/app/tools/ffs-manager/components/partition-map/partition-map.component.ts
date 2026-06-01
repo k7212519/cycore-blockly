@@ -18,11 +18,13 @@ export class PartitionMapComponent {
   tooltipLeft = 0;
   tooltipTop = 0;
   tooltipPlacement: 'bottom' | 'top' = 'bottom';
+  tooltipHorizontal: 'center' | 'left' | 'right' = 'center';
 
   private readonly tooltipMaxWidth = 240;
   private readonly tooltipEstimatedHeight = 110;
   private readonly tooltipGap = 8;
   private readonly viewportPadding = 8;
+  private readonly viewportPaddingX = 10;
 
   trackById = (_: number, item: FfsPartitionInfo) => item.index;
 
@@ -71,8 +73,23 @@ export class PartitionMapComponent {
     const vh = window.innerHeight;
     const halfW = this.tooltipMaxWidth / 2;
 
-    let left = rect.left + rect.width / 2;
-    left = Math.min(Math.max(left, this.viewportPadding + halfW), vw - this.viewportPadding - halfW);
+    const container = anchor.closest('.summary-panel') as HTMLElement | null;
+    const containerRect = container?.getBoundingClientRect();
+    const leftBound = Math.max(this.viewportPaddingX, (containerRect?.left ?? 0) + this.viewportPaddingX);
+    const rightBound = Math.min(vw - this.viewportPaddingX, (containerRect?.right ?? vw) - this.viewportPaddingX);
+
+    const center = rect.left + rect.width / 2;
+    let left: number;
+    if (center + halfW > rightBound) {
+      this.tooltipHorizontal = 'right';
+      left = rightBound;
+    } else if (center - halfW < leftBound) {
+      this.tooltipHorizontal = 'left';
+      left = leftBound;
+    } else {
+      this.tooltipHorizontal = 'center';
+      left = center;
+    }
 
     const spaceBelow = vh - rect.bottom;
     if (spaceBelow >= this.tooltipEstimatedHeight + this.tooltipGap + this.viewportPadding) {

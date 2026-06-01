@@ -20,7 +20,9 @@
     }
 
     @if (hoveredPartition) {
-    <div class="seg-tooltip" [class.placement-top]="tooltipPlacement === 'top'" [style.left.px]="tooltipLeft"
+    <div class="seg-tooltip" [class.placement-top]="tooltipPlacement === 'top'"
+      [class.placement-x-right]="tooltipHorizontal === 'right'"
+      [class.placement-x-left]="tooltipHorizontal === 'left'" [style.left.px]="tooltipLeft"
       [style.top.px]="tooltipTop">
       <div class="tt-row tt-title">
         <span class="fs-dot" [ngClass]="getCategory(hoveredPartition)"></span>
