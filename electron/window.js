@@ -1,5 +1,6 @@
 // 窗口控制
 const { ipcMain, BrowserWindow, app, screen } = require("electron");
+const { requestWindowAttention } = require('./window-attention');
 const { exec, execSync } = require('child_process');
 const path = require('path');
 
@@ -497,26 +498,7 @@ function registerWindowHandlers(mainWindow) {
      */
     ipcMain.handle('window-request-attention', (event) => {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
-        if (!senderWindow || senderWindow.isDestroyed()) {
-            return { success: false, error: 'no-window' };
-        }
-        try {
-            if (process.platform === 'win32') {
-                // 获得焦点前会持续闪烁任务栏按钮
-                senderWindow.flashFrame(true);
-            } else if (process.platform === 'darwin' && app.dock) {
-                app.dock.bounce('informational');
-                app.dock.setBadge('!');
-            } else if (process.platform === 'linux') {
-                if (typeof senderWindow.flashFrame === 'function') {
-                    senderWindow.flashFrame(true);
-                }
-            }
-            return { success: true };
-        } catch (err) {
-            console.warn('[window-request-attention]', err.message);
-            return { success: false, error: err.message };
-        }
+        return requestWindowAttention(senderWindow);
     });
 
     // 检查窗口是否最小化（同步）
