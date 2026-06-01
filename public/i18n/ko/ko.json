@@ -164,9 +164,21 @@
         "CONTROLS_SWITCH_CASE": "조건",
         "CONTROLS_SWITCH_DO": "실행",
         "CONTROLS_SWITCH_DEFAULT": "기본",
-        "CROSS_TAB_PASTE": "붙여넣기",
+        "CROSS_TAB_PASTE": "붙여넣 기",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1개 붙여넣기",
-        "WORKSPACE_SELECT_ALL": "모든 블록 선택"
+        "WORKSPACE_SELECT_ALL": "모든 블록 선택",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "블록 도구 상자",
+            "TOOLBOX_DESC": "여기는 블록 분류 영역입니다. 분류를 클릭해 기능 블록을 찾고 오른쪽 작업 영역으로 끌어다 놓아 사용하세요.",
+            "WORKSPACE_TITLE": "작업 영역",
+            "WORKSPACE_DESC": "여기는 프로그래밍 작업 영역입니다. 블록을 끌어다 연결해 프로그램을 만들 수 있으며, 확대/축소와 캔버스 이동을 지원합니다.",
+            "BUILD_TITLE": "프로그램 빌드",
+            "BUILD_DESC": "블록 조립을 마친 뒤 여기를 클릭해 프로그램을 빌드하세요. 빌드가 성공하면 생성된 코드를 확인할 수 있습니다.",
+            "UPLOAD_TITLE": "프로그램 업로드",
+            "UPLOAD_DESC": "개발 보드를 연결한 뒤 여기를 클릭해 프로그램을 보드에 업로드하고 실행하세요.",
+            "LIB_MANAGER_TITLE": "라이브러리 관리자",
+            "LIB_MANAGER_DESC": "여기를 클릭해 라이브러리 관리자를 엽니다. 확장 라이브러리를 설치하거나 제거해 프로젝트에 더 많은 블록을 추가할 수 있습니다."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "처음 {{count}}개의 앱이 도구 모음에 표시됩니다",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "Blockly 미니맵",
             "COMPILATION_OPTIONS": "컴파일 옵션",
             "REGION": "서비스 지역",
+            "RESOURCE_SOURCE": "리소스 소스",
+            "RESOURCE_SOURCE_AUTO": "자동",
+            "RESOURCE_SOURCE_PRIMARY": "기본 사이트",
+            "RESOURCE_SOURCE_MIRROR": "미러 사이트",
             "REGION_TITLE": "서비스 지역 전환",
             "REGION_DESC": "서비스 지역을 전환하면 다시 로그인해야 합니다. 계속하시겠습니까?",
             "REGION_CONFIRM": "확인",
@@ -222,6 +238,10 @@
             "LIBRARY_LIST": "라이브러리 목록",
             "INSTALL": "설치",
             "UNINSTALL": "제거"
+        },
+        "BUTTONS": {
+            "CANCEL": "취소",
+            "APPLY": "적용"
         }
     },
     "PROJECT_NEW": {
@@ -448,6 +468,39 @@
         "ERROR_SAVE_FAILED": "저장에 실패했습니다. 나중에 다시 시도해 주세요",
         "ERROR_LOAD_FAILED": "프로젝트 설정 로드에 실패했습니다"
     },
+    "USER_CENTER": {
+        "TITLE": "사용자 센터",
+        "AVATAR_ALT": "사용자 아바타",
+        "SETTINGS": "설정",
+        "LOGOUT": "로그아웃",
+        "PLAN_LABEL": "{{plan}} 플랜",
+        "AI_CALLS": "AI 사용 가능 횟수",
+        "AUTO_MODE": "auto 모드",
+        "ADD_AI_CALLS": "사용 횟수 추가",
+        "CLOUD_STORAGE": "클라우드 저장소",
+        "ADD_STORAGE": "저장 공간 추가",
+        "IOT_DEVICES": "IoT 기기",
+        "ADD_DEVICES": "기기 수 추가",
+        "POINTS": "계정 포인트",
+        "REDEEM_POINTS": "포인트 교환",
+        "REGISTER_INCOMPLETE": "등록 정보를 모두 입력하세요",
+        "REGISTER_SUCCESS": "등록 성공",
+        "REGISTER_FAILED_NETWORK": "등록에 실패했습니다. 네트워크 연결을 확인하세요",
+        "REGISTER_FAILED": "등록 실패",
+        "LOGOUT_SUCCESS": "로그아웃되었습니다",
+        "LOGOUT_FAILED": "로그아웃 실패",
+        "SERVICE_UNAVAILABLE": "서비스를 일시적으로 사용할 수 없습니다",
+        "NICKNAME_REQUIRED": "닉네임은 비워 둘 수 없습니다",
+        "NICKNAME_SAVED": "닉네임 변경이 저장되었습니다",
+        "NICKNAME_UPDATE_FAILED": "닉네임 업데이트에 실패했습니다. 나중에 다시 시도하세요",
+        "NICKNAME_SERVER_ERROR": "닉네임 업데이트에 실패했습니다. 서버가 오류를 반환했습니다",
+        "GENERATING_LOGIN_LINK": "로그인 링크를 생성하는 중...",
+        "BROWSER_OPENED": "브라우저를 열었습니다. 이동 중...",
+        "LOGIN_EXPIRED": "로그인이 만료되었습니다. 다시 로그인하세요",
+        "SSO_SERVER_ERROR": "서버 오류로 로그인 링크를 생성할 수 없습니다",
+        "SSO_NETWORK_FAILED": "네트워크 연결 실패로 자동 이동할 수 없습니다",
+        "SSO_REDIRECT_FAILED": "이동에 실패했습니다. 나중에 다시 시도하세요"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "프로젝트 설정",
         "ARCH": "아키텍처 다이어그램",
@@ -621,7 +674,13 @@
         "REGISTER": "가입"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "기능 출시 예정"
+        "FEATURE_COMING_SOON": "기능 출시 예정",
+        "ONBOARDING": {
+            "SKIP": "건너뛰기",
+            "PREV": "이전",
+            "NEXT": "다음",
+            "DONE": "완료"
+        }
     },
     "NPM": {
         "INSTALLING": "{{name}} 설치 중...",

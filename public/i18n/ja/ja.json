@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "デフォルト",
         "CROSS_TAB_PASTE": "貼り付け",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1 個を貼り付け",
-        "WORKSPACE_SELECT_ALL": "すべてのブロックを選択"
+        "WORKSPACE_SELECT_ALL": "すべてのブロックを選択",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "ブロックツールボックス",
+            "TOOLBOX_DESC": "ここはブロックのカテゴリ領域です。カテゴリをクリックして機能ブロックを探し、右側のワークスペースへドラッグして使用します。",
+            "WORKSPACE_TITLE": "ワークスペース",
+            "WORKSPACE_DESC": "ここはプログラミング用の作業領域です。ブロックをドラッグしてつなげ、プログラムを作成できます。ズームやキャンバスの移動にも対応しています。",
+            "BUILD_TITLE": "プログラムをビルド",
+            "BUILD_DESC": "ブロックの組み立てが終わったら、ここをクリックしてプログラムをビルドします。ビルドに成功すると、生成されたコードを確認できます。",
+            "UPLOAD_TITLE": "プログラムを書き込む",
+            "UPLOAD_DESC": "開発ボードを接続したら、ここをクリックしてプログラムをボードへ書き込み、実行します。",
+            "LIB_MANAGER_TITLE": "ライブラリマネージャー",
+            "LIB_MANAGER_DESC": "ここをクリックしてライブラリマネージャーを開きます。拡張ライブラリのインストールや削除を行い、プロジェクトにさらに多くのブロックを追加できます。"
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "最初の {{count}} 個のアプリがツールバーに表示されます",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "Blocklyミニマップ",
             "COMPILATION_OPTIONS": "コンパイルオプション",
             "REGION": "サービスリージョン",
+            "RESOURCE_SOURCE": "リソースソース",
+            "RESOURCE_SOURCE_AUTO": "自動",
+            "RESOURCE_SOURCE_PRIMARY": "メインサイト",
+            "RESOURCE_SOURCE_MIRROR": "ミラーサイト",
             "REGION_TITLE": "サービスリージョンの切り替え",
             "REGION_DESC": "サービスリージョンを切り替えると再ログインが必要です。続行しますか？",
             "REGION_CONFIRM": "確認",
@@ -464,6 +480,39 @@
         "ERROR_SAVE_FAILED": "保存に失敗しました。後でもう一度お試しください",
         "ERROR_LOAD_FAILED": "プロジェクト設定の読み込みに失敗しました"
     },
+    "USER_CENTER": {
+        "TITLE": "ユーザーセンター",
+        "AVATAR_ALT": "ユーザーアバター",
+        "SETTINGS": "設定",
+        "LOGOUT": "ログアウト",
+        "PLAN_LABEL": "{{plan}} プラン",
+        "AI_CALLS": "AI利用回数",
+        "AUTO_MODE": "autoモード",
+        "ADD_AI_CALLS": "利用回数を追加",
+        "CLOUD_STORAGE": "クラウドストレージ",
+        "ADD_STORAGE": "ストレージを追加",
+        "IOT_DEVICES": "IoTデバイス",
+        "ADD_DEVICES": "デバイス数を追加",
+        "POINTS": "アカウントポイント",
+        "REDEEM_POINTS": "ポイント交換",
+        "REGISTER_INCOMPLETE": "登録情報をすべて入力してください",
+        "REGISTER_SUCCESS": "登録に成功しました",
+        "REGISTER_FAILED_NETWORK": "登録に失敗しました。ネットワーク接続を確認してください",
+        "REGISTER_FAILED": "登録に失敗しました",
+        "LOGOUT_SUCCESS": "ログアウトしました",
+        "LOGOUT_FAILED": "ログアウトに失敗しました",
+        "SERVICE_UNAVAILABLE": "サービスは一時的に利用できません",
+        "NICKNAME_REQUIRED": "ニックネームは空にできません",
+        "NICKNAME_SAVED": "ニックネームの変更を保存しました",
+        "NICKNAME_UPDATE_FAILED": "ニックネームの更新に失敗しました。しばらくしてから再試行してください",
+        "NICKNAME_SERVER_ERROR": "ニックネームの更新に失敗しました。サーバーがエラーを返しました",
+        "GENERATING_LOGIN_LINK": "ログインリンクを生成しています...",
+        "BROWSER_OPENED": "ブラウザーを開きました。リダイレクトしています...",
+        "LOGIN_EXPIRED": "ログインの有効期限が切れました。再度ログインしてください",
+        "SSO_SERVER_ERROR": "サーバーエラーによりログインリンクを生成できません",
+        "SSO_NETWORK_FAILED": "ネットワーク接続に失敗したため、自動リダイレクトできません",
+        "SSO_REDIRECT_FAILED": "リダイレクトに失敗しました。しばらくしてから再試行してください"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "プロジェクト設定",
         "ARCH": "アーキテクチャ図",
@@ -637,7 +686,13 @@
         "REGISTER": "登録"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "機能は近日公開予定"
+        "FEATURE_COMING_SOON": "機能は近日公開予定",
+        "ONBOARDING": {
+            "SKIP": "スキップ",
+            "PREV": "前へ",
+            "NEXT": "次へ",
+            "DONE": "完了"
+        }
     },
     "NPM": {
         "INSTALLING": "{{name}}をインストール中...",

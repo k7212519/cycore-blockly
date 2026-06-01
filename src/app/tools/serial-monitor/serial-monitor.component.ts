@@ -33,6 +33,11 @@ import { TranslateService, TranslateModule } from '@ngx-translate/core';
 import { ConfigService } from '../../services/config.service';
 import { ElectronService } from '../../services/electron.service';
 
+interface UploadRestoreContext {
+  port: string;
+  connectOptions: any;
+}
+
 @Component({
   selector: 'app-serial-monitor',
   imports: [
@@ -143,6 +148,79 @@ export class SerialMonitorComponent {
   currentPort;
   currentBaudRate = '9600';
   currentUrl;
+  private connectedPort: string | null = null;
+  private uploadRestoreContext: UploadRestoreContext | null = null;
+
+  private cancelUploadReconnect() {
+    this.uploadRestoreContext = null;
+  }
+
+  private getConnectOptions(port = this.currentPort) {
+    return {
+      path: port,
+      baudRate: parseInt(this.currentBaudRate),
+      dataBits: parseInt(this.dataBits),
+      stopBits: parseFloat(this.stopBits),
+      parity: this.parity,
+      flowControl: this.flowControl
+    };
+  }
+
+  private getUploadPortFromSignal(action: any) {
+    return action?.payload?.port || this.serialService.currentPort || null;
+  }
+
+  private pauseForUpload(uploadPort: string | null) {
+    this.uploadRestoreContext = null;
+    if (!uploadPort || !this.switchValue || this.connectedPort !== uploadPort) {
+      return;
+    }
+
+    this.uploadRestoreContext = {
+      port: uploadPort,
+      connectOptions: this.getConnectOptions(uploadPort)
+    };
+    this.switchValue = false;
+    this.serialMonitorService.disconnect().then(result => {
+      if (result) {
+        this.connectedPort = null;
+      } else {
+        this.uploadRestoreContext = null;
+        this.switchValue = true;
+      }
+      this.cd.detectChanges();
+    }).catch(() => {
+      this.uploadRestoreContext = null;
+      this.switchValue = true;
+      this.cd.detectChanges();
+    });
+    this.cd.detectChanges();
+  }
+
+  private restoreAfterUpload(uploadPort: string | null) {
+    const context = this.uploadRestoreContext;
+    this.uploadRestoreContext = null;
+    if (!context || !uploadPort || context.port !== uploadPort || this.switchValue) {
+      return;
+    }
+
+    this.currentPort = context.port;
+    this.switchValue = true;
+    this.serialMonitorService.connect(context.connectOptions).then(result => {
+      if (result) {
+        this.connectedPort = context.port;
+      } else {
+        this.connectedPort = null;
+        this.switchValue = false;
+      }
+      this.cd.detectChanges();
+    }).catch(() => {
+      this.connectedPort = null;
+      this.switchValue = false;
+      this.cd.detectChanges();
+    });
+    this.cd.detectChanges();
+  }
 
   // 添加高级串口设置相关属性
   dataBits = '8';
@@ -205,6 +283,14 @@ export class SerialMonitorComponent {
         this.handleDataUpdate(data);
       });
 
+    this.serialMonitorService.connectionStatus
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((isConnected) => {
+        if (!isConnected) {
+          this.connectedPort = null;
+        }
+      });
+
     // 检查并设置默认串口
     this.checkAndSetDefaultPort();
 
@@ -212,30 +298,15 @@ export class SerialMonitorComponent {
     this.uiService.actionSubject
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((action: any) => {
-      if (action.action === 'signal' && action.type === 'tool') {
-        const signal = action.data as string;
-        if (signal === 'serial-monitor:disconnect' && this.switchValue) {
-          this.switchValue = false;
-          this.serialMonitorService.disconnect();
-          this.cd.detectChanges();
-        } else if (signal === 'serial-monitor:connect' && !this.switchValue && this.currentPort) {
-          this.switchValue = true;
-          this.serialMonitorService.connect({
-            path: this.currentPort,
-            baudRate: parseInt(this.currentBaudRate),
-            dataBits: parseInt(this.dataBits),
-            stopBits: parseFloat(this.stopBits),
-            parity: this.parity,
-            flowControl: this.flowControl
-          }).then(result => {
-            if (!result) {
-              this.switchValue = false;
-            }
-            this.cd.detectChanges();
-          });
+        if (action.action === 'signal' && action.type === 'tool') {
+          const signal = action.data as string;
+          if (signal === 'serial-monitor:disconnect') {
+            this.pauseForUpload(this.getUploadPortFromSignal(action));
+          } else if (signal === 'serial-monitor:connect') {
+            this.restoreAfterUpload(this.getUploadPortFromSignal(action));
+          }
         }
-      }
-    });
+      });
 
     // 如果已有数据,滚动到底部
     if (this.dataList.length > 0) {
@@ -430,6 +501,7 @@ export class SerialMonitorComponent {
   }
 
   selectPort(portItem) {
+    this.cancelUploadReconnect();
     this.currentPort = portItem.name;
     this.closePortList();
     this.saveSerialConfig();
@@ -454,15 +526,18 @@ export class SerialMonitorComponent {
   }
 
   selectBaud(item) {
+    this.cancelUploadReconnect();
     this.currentBaudRate = item.name;
     this.closeBaudList();
     this.saveSerialConfig();
   }
 
   async switchPort() {
+    this.cancelUploadReconnect();
     if (!this.switchValue) {
       const result = await this.serialMonitorService.disconnect();
       if (result) {
+        this.connectedPort = null;
         this.message.success(this.translate.instant('SERIAL.PORT_CLOSED'));
       }
       return;
@@ -477,16 +552,10 @@ export class SerialMonitorComponent {
     }
 
     try {
-      const result = await this.serialMonitorService.connect({
-        path: this.currentPort,
-        baudRate: parseInt(this.currentBaudRate),
-        dataBits: parseInt(this.dataBits),
-        stopBits: parseFloat(this.stopBits),
-        parity: this.parity,
-        flowControl: this.flowControl
-      });
+      const result = await this.serialMonitorService.connect(this.getConnectOptions());
 
       if (result) {
+        this.connectedPort = this.currentPort;
         this.message.success(this.translate.instant('SERIAL.PORT_OPENED'));
         // 发送DTR信号
         setTimeout(() => {
@@ -494,11 +563,13 @@ export class SerialMonitorComponent {
         }, 50);
       } else {
         // 连接失败，关闭开关
+        this.connectedPort = null;
         this.switchValue = false;
         this.cd.detectChanges();
       }
     } catch (error) {
       // 连接失败，关闭开关
+      this.connectedPort = null;
       this.switchValue = false;
       this.cd.detectChanges();
     }
@@ -599,6 +670,7 @@ export class SerialMonitorComponent {
   }
 
   onSettingsChanged(settings) {
+    this.cancelUploadReconnect();
     // 更新组件中的高级设置
     this.dataBits = settings.dataBits.value;
     this.stopBits = settings.stopBits.value;

@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "預設執行",
         "CROSS_TAB_PASTE": "貼上",
         "CROSS_TAB_PASTE_X_ELEMENTS": "貼上 %1 項",
-        "WORKSPACE_SELECT_ALL": "全選積木"
+        "WORKSPACE_SELECT_ALL": "全選積木",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "積木工具箱",
+            "TOOLBOX_DESC": "這裡是積木分類區域，點擊不同分類可以找到各種功能積木，拖曳到右側工作區使用。",
+            "WORKSPACE_TITLE": "工作區",
+            "WORKSPACE_DESC": "這是你的程式設計工作區，可以在這裡拖曳、連接積木來建立程式。支援縮放和拖動畫布。",
+            "BUILD_TITLE": "編譯程式",
+            "BUILD_DESC": "完成積木拼接後，點擊這裡編譯程式。編譯成功後可以查看生成的程式碼。",
+            "UPLOAD_TITLE": "燒錄程式",
+            "UPLOAD_DESC": "連接開發板後，點擊這裡將程式燒錄到開發板上運行。",
+            "LIB_MANAGER_TITLE": "庫管理器",
+            "LIB_MANAGER_DESC": "點擊這裡打開庫管理器，可以安裝、移除各種功能擴展庫，為你的項目添加更多積木。"
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "前 {{count}} 個應用會顯示在頂部工具欄",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "Blockly縮略圖",
             "COMPILATION_OPTIONS": "編譯選項",
             "REGION": "服務區域",
+            "RESOURCE_SOURCE": "資源節點",
+            "RESOURCE_SOURCE_AUTO": "自動",
+            "RESOURCE_SOURCE_PRIMARY": "主站",
+            "RESOURCE_SOURCE_MIRROR": "鏡像站",
             "REGION_TITLE": "切換服務區域",
             "REGION_DESC": "切換服務區域後需要重新登入，是否繼續？",
             "REGION_CONFIRM": "確認",
@@ -464,6 +480,39 @@
         "ERROR_SAVE_FAILED": "保存失敗，請稍後重試",
         "ERROR_LOAD_FAILED": "加載項目設置失敗"
     },
+    "USER_CENTER": {
+        "TITLE": "用戶中心",
+        "AVATAR_ALT": "用戶頭像",
+        "SETTINGS": "設定",
+        "LOGOUT": "登出",
+        "PLAN_LABEL": "{{plan}} 計劃",
+        "AI_CALLS": "AI 可用次數",
+        "AUTO_MODE": "auto 模式",
+        "ADD_AI_CALLS": "增加使用次數",
+        "CLOUD_STORAGE": "雲端儲存",
+        "ADD_STORAGE": "增加儲存空間",
+        "IOT_DEVICES": "物聯網裝置",
+        "ADD_DEVICES": "增加裝置數量",
+        "POINTS": "帳戶積分",
+        "REDEEM_POINTS": "積分兌換",
+        "REGISTER_INCOMPLETE": "請填寫完整的註冊資訊",
+        "REGISTER_SUCCESS": "註冊成功",
+        "REGISTER_FAILED_NETWORK": "註冊失敗，請檢查網絡連線",
+        "REGISTER_FAILED": "註冊失敗",
+        "LOGOUT_SUCCESS": "已登出",
+        "LOGOUT_FAILED": "登出失敗",
+        "SERVICE_UNAVAILABLE": "服務暫不可用",
+        "NICKNAME_REQUIRED": "暱稱不能為空",
+        "NICKNAME_SAVED": "暱稱修改已儲存",
+        "NICKNAME_UPDATE_FAILED": "暱稱更新失敗，請稍後再試",
+        "NICKNAME_SERVER_ERROR": "暱稱修改失敗，伺服器返回錯誤",
+        "GENERATING_LOGIN_LINK": "正在產生登入連結...",
+        "BROWSER_OPENED": "已開啟瀏覽器，正在跳轉...",
+        "LOGIN_EXPIRED": "登入已過期，請重新登入",
+        "SSO_SERVER_ERROR": "伺服器錯誤，無法產生登入連結",
+        "SSO_NETWORK_FAILED": "網絡連線失敗，無法自動跳轉",
+        "SSO_REDIRECT_FAILED": "跳轉失敗，請稍後再試"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "項目設置",
         "ARCH": "框架圖",
@@ -649,7 +698,13 @@
         "AUTH_SELF_INVITATION_NOT_ALLOWED": "不能填寫自己的邀請碼"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "功能即將上線"
+        "FEATURE_COMING_SOON": "功能即將上線",
+        "ONBOARDING": {
+            "SKIP": "跳過",
+            "PREV": "上一步",
+            "NEXT": "下一步",
+            "DONE": "完成"
+        }
     },
     "NPM": {
         "INSTALLING": "正在安裝{{name}}...",

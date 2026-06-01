@@ -47,7 +47,7 @@
   <div class="right-box ccenter">
     <div class="item" style="height: 50px;" (click)="openUrl('https://sensecraft.seeed.cc/ai/application')">
       <div><img style="height: 16px;margin-top: -5px;" [src]="sensecraftImg" alt=""> {{'GUIDE.AI_APP_CENTER' | translate}}</div>
-      <div>{{'GUIDE.AI_APP_CENTER_DESC' | translate}}</div>
+      <div class="desc-scroll"><span>{{'GUIDE.AI_APP_CENTER_DESC' | translate}}</span></div>
       <div class="arrow"><i class=" fa-regular fa-angle-right"></i></div>
     </div>
     <div class="item" style="height: 120px;flex-grow: 1;padding: 0;overflow: hidden;">
@@ -68,7 +68,7 @@
     </div> -->
     <div class="item" style="height: 90px;">
       <div>{{'GUIDE.USER_GROUP' | translate}}</div>
-      <div>{{'GUIDE.USER_GROUP_DESC' | translate}}</div>
+      <div class="desc-scroll"><span>{{'GUIDE.USER_GROUP_DESC' | translate}}</span></div>
       <div class="group-btn">
         @if (isCnRegion) {
         <div (click)="showImg(wechatQrcodeUrl)">
@@ -89,7 +89,7 @@
     </div>
     <div class="item" style="height: 165px;">
       <div>{{'GUIDE.SPONSORS' | translate}}</div>
-      <div>{{'GUIDE.SPONSORS_DESC' | translate}}</div>
+      <div class="desc-scroll"><span>{{'GUIDE.SPONSORS_DESC' | translate}}</span></div>
       @if (sponsors.length > 0) {
       <div id="sponsor-splide" class="splide sponsor-carousel">
         <div class="splide__track">

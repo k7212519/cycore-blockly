@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "افتراضي",
         "CROSS_TAB_PASTE": "لصق",
         "CROSS_TAB_PASTE_X_ELEMENTS": "لصق %1 عناصر",
-        "WORKSPACE_SELECT_ALL": "تحديد كل الكتل"
+        "WORKSPACE_SELECT_ALL": "تحديد كل الكتل",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "صندوق أدوات الكتل",
+            "TOOLBOX_DESC": "هنا تجد تصنيفات الكتل. انقر على التصنيفات المختلفة للعثور على كتل الوظائف واسحبها إلى مساحة العمل على اليمين لاستخدامها.",
+            "WORKSPACE_TITLE": "مساحة العمل",
+            "WORKSPACE_DESC": "هذه هي مساحة البرمجة الخاصة بك، حيث يمكنك سحب الكتل وربطها لإنشاء البرنامج. تدعم التكبير والتصغير وسحب اللوحة.",
+            "BUILD_TITLE": "بناء البرنامج",
+            "BUILD_DESC": "بعد الانتهاء من تركيب الكتل، انقر هنا لبناء البرنامج. بعد نجاح البناء يمكنك عرض الكود المُولَّد.",
+            "UPLOAD_TITLE": "رفع البرنامج",
+            "UPLOAD_DESC": "بعد توصيل لوحة التطوير، انقر هنا لرفع البرنامج إلى اللوحة وتشغيله.",
+            "LIB_MANAGER_TITLE": "مدير المكتبات",
+            "LIB_MANAGER_DESC": "انقر هنا لفتح مدير المكتبات، حيث يمكنك تثبيت مكتبات التوسعة المختلفة وإزالتها لإضافة المزيد من الكتل إلى مشروعك."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "سيتم عرض أول {{count}} تطبيقات في شريط الأدوات",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "خريطة Blockly المصغرة",
             "COMPILATION_OPTIONS": "خيارات التجميع",
             "REGION": "منطقة الخدمة",
+            "RESOURCE_SOURCE": "مصدر الموارد",
+            "RESOURCE_SOURCE_AUTO": "تلقائي",
+            "RESOURCE_SOURCE_PRIMARY": "الموقع الرئيسي",
+            "RESOURCE_SOURCE_MIRROR": "موقع المرآة",
             "REGION_TITLE": "تبديل منطقة الخدمة",
             "REGION_DESC": "ستحتاج إلى تسجيل الدخول مرة أخرى بعد تبديل منطقة الخدمة. هل تريد المتابعة؟",
             "REGION_CONFIRM": "تأكيد",
@@ -464,6 +480,39 @@
         "ERROR_SAVE_FAILED": "فشل الحفظ، يرجى المحاولة لاحقًا",
         "ERROR_LOAD_FAILED": "فشل تحميل إعدادات المشروع"
     },
+    "USER_CENTER": {
+        "TITLE": "مركز المستخدم",
+        "AVATAR_ALT": "صورة المستخدم",
+        "SETTINGS": "الإعدادات",
+        "LOGOUT": "تسجيل الخروج",
+        "PLAN_LABEL": "خطة {{plan}}",
+        "AI_CALLS": "مرات استخدام الذكاء الاصطناعي",
+        "AUTO_MODE": "الوضع التلقائي",
+        "ADD_AI_CALLS": "زيادة مرات الاستخدام",
+        "CLOUD_STORAGE": "التخزين السحابي",
+        "ADD_STORAGE": "زيادة مساحة التخزين",
+        "IOT_DEVICES": "أجهزة إنترنت الأشياء",
+        "ADD_DEVICES": "زيادة عدد الأجهزة",
+        "POINTS": "نقاط الحساب",
+        "REDEEM_POINTS": "استبدال النقاط",
+        "REGISTER_INCOMPLETE": "يرجى ملء جميع معلومات التسجيل",
+        "REGISTER_SUCCESS": "تم التسجيل بنجاح",
+        "REGISTER_FAILED_NETWORK": "فشل التسجيل، يرجى التحقق من اتصال الشبكة",
+        "REGISTER_FAILED": "فشل التسجيل",
+        "LOGOUT_SUCCESS": "تم تسجيل الخروج",
+        "LOGOUT_FAILED": "فشل تسجيل الخروج",
+        "SERVICE_UNAVAILABLE": "الخدمة غير متاحة مؤقتًا",
+        "NICKNAME_REQUIRED": "لا يمكن أن يكون الاسم المستعار فارغًا",
+        "NICKNAME_SAVED": "تم حفظ تغيير الاسم المستعار",
+        "NICKNAME_UPDATE_FAILED": "فشل تحديث الاسم المستعار، يرجى المحاولة لاحقًا",
+        "NICKNAME_SERVER_ERROR": "فشل تحديث الاسم المستعار، أعاد الخادم خطأ",
+        "GENERATING_LOGIN_LINK": "جار إنشاء رابط تسجيل الدخول...",
+        "BROWSER_OPENED": "تم فتح المتصفح، جار إعادة التوجيه...",
+        "LOGIN_EXPIRED": "انتهت صلاحية تسجيل الدخول، يرجى تسجيل الدخول مرة أخرى",
+        "SSO_SERVER_ERROR": "خطأ في الخادم، تعذر إنشاء رابط تسجيل الدخول",
+        "SSO_NETWORK_FAILED": "فشل اتصال الشبكة، تعذرت إعادة التوجيه تلقائيًا",
+        "SSO_REDIRECT_FAILED": "فشلت إعادة التوجيه، يرجى المحاولة لاحقًا"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "إعدادات المشروع",
         "ARCH": "مخطط البنية",
@@ -637,7 +686,13 @@
         "REGISTER": "تسجيل"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "الميزة قادمة قريباً"
+        "FEATURE_COMING_SOON": "الميزة قادمة قريباً",
+        "ONBOARDING": {
+            "SKIP": "تخطي",
+            "PREV": "السابق",
+            "NEXT": "التالي",
+            "DONE": "تم"
+        }
     },
     "NPM": {
         "INSTALLING": "جاري تثبيت {{name}}...",

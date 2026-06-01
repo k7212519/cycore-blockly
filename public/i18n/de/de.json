@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "Standard",
         "CROSS_TAB_PASTE": "Einfügen",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1 Elemente einfügen",
-        "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen"
+        "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "Block-Werkzeugkasten",
+            "TOOLBOX_DESC": "Hier befinden sich die Blockkategorien. Klicken Sie auf eine Kategorie, um Funktionsblöcke zu finden, und ziehen Sie sie zur Verwendung in den Arbeitsbereich rechts.",
+            "WORKSPACE_TITLE": "Arbeitsbereich",
+            "WORKSPACE_DESC": "Dies ist Ihr Programmierbereich. Ziehen und verbinden Sie hier Blöcke, um Programme zu erstellen. Zoomen und Verschieben der Arbeitsfläche werden unterstützt.",
+            "BUILD_TITLE": "Programm kompilieren",
+            "BUILD_DESC": "Wenn die Blöcke fertig verbunden sind, klicken Sie hier, um das Programm zu kompilieren. Nach erfolgreicher Kompilierung können Sie den generierten Code sehen.",
+            "UPLOAD_TITLE": "Programm hochladen",
+            "UPLOAD_DESC": "Nachdem Sie das Entwicklungsboard verbunden haben, klicken Sie hier, um das Programm auf das Board hochzuladen und auszuführen.",
+            "LIB_MANAGER_TITLE": "Bibliotheksmanager",
+            "LIB_MANAGER_DESC": "Klicken Sie hier, um den Bibliotheksmanager zu öffnen. Dort können Sie Erweiterungsbibliotheken installieren und entfernen, um Ihrem Projekt weitere Blöcke hinzuzufügen."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "Die ersten {{count}} Apps werden in der Symbolleiste angezeigt",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "Blockly-Miniaturansicht",
             "COMPILATION_OPTIONS": "Kompilierungsoptionen",
             "REGION": "Service-Region",
+            "RESOURCE_SOURCE": "Ressourcenquelle",
+            "RESOURCE_SOURCE_AUTO": "Automatisch",
+            "RESOURCE_SOURCE_PRIMARY": "Primäre Site",
+            "RESOURCE_SOURCE_MIRROR": "Mirror-Site",
             "REGION_TITLE": "Service-Region wechseln",
             "REGION_DESC": "Nach dem Wechsel der Service-Region müssen Sie sich erneut anmelden. Fortfahren?",
             "REGION_CONFIRM": "Bestätigen",
@@ -464,6 +480,39 @@
         "ERROR_SAVE_FAILED": "Speichern fehlgeschlagen, bitte versuchen Sie es später erneut",
         "ERROR_LOAD_FAILED": "Laden der Projekteinstellungen fehlgeschlagen"
     },
+    "USER_CENTER": {
+        "TITLE": "Benutzerzentrum",
+        "AVATAR_ALT": "Benutzeravatar",
+        "SETTINGS": "Einstellungen",
+        "LOGOUT": "Abmelden",
+        "PLAN_LABEL": "{{plan}} Plan",
+        "AI_CALLS": "KI-Aufrufe",
+        "AUTO_MODE": "Automodus",
+        "ADD_AI_CALLS": "Nutzung hinzufügen",
+        "CLOUD_STORAGE": "Cloud-Speicher",
+        "ADD_STORAGE": "Speicher hinzufügen",
+        "IOT_DEVICES": "IoT-Geräte",
+        "ADD_DEVICES": "Geräte hinzufügen",
+        "POINTS": "Kontopunkte",
+        "REDEEM_POINTS": "Punkte einlösen",
+        "REGISTER_INCOMPLETE": "Bitte füllen Sie alle Registrierungsinformationen aus",
+        "REGISTER_SUCCESS": "Registrierung erfolgreich",
+        "REGISTER_FAILED_NETWORK": "Registrierung fehlgeschlagen, bitte prüfen Sie die Netzwerkverbindung",
+        "REGISTER_FAILED": "Registrierung fehlgeschlagen",
+        "LOGOUT_SUCCESS": "Abgemeldet",
+        "LOGOUT_FAILED": "Abmeldung fehlgeschlagen",
+        "SERVICE_UNAVAILABLE": "Dienst vorübergehend nicht verfügbar",
+        "NICKNAME_REQUIRED": "Spitzname darf nicht leer sein",
+        "NICKNAME_SAVED": "Spitzname gespeichert",
+        "NICKNAME_UPDATE_FAILED": "Spitzname konnte nicht aktualisiert werden, bitte versuchen Sie es später erneut",
+        "NICKNAME_SERVER_ERROR": "Aktualisierung des Spitznamens fehlgeschlagen, Server hat einen Fehler zurückgegeben",
+        "GENERATING_LOGIN_LINK": "Anmeldelink wird generiert...",
+        "BROWSER_OPENED": "Browser geöffnet, Weiterleitung läuft...",
+        "LOGIN_EXPIRED": "Anmeldung abgelaufen, bitte erneut anmelden",
+        "SSO_SERVER_ERROR": "Serverfehler, Anmeldelink kann nicht generiert werden",
+        "SSO_NETWORK_FAILED": "Netzwerkverbindung fehlgeschlagen, automatische Weiterleitung nicht möglich",
+        "SSO_REDIRECT_FAILED": "Weiterleitung fehlgeschlagen, bitte später erneut versuchen"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "Projekteinstellungen",
         "ARCH": "Architekturdiagramm",
@@ -637,7 +686,13 @@
         "REGISTER": "Registrieren"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "Funktion demnächst verfügbar"
+        "FEATURE_COMING_SOON": "Funktion demnächst verfügbar",
+        "ONBOARDING": {
+            "SKIP": "Überspringen",
+            "PREV": "Zurück",
+            "NEXT": "Weiter",
+            "DONE": "Fertig"
+        }
     },
     "NPM": {
         "INSTALLING": "{{name}} wird installiert...",

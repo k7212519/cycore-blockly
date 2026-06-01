@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "par défaut",
         "CROSS_TAB_PASTE": "Coller",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Coller %1 éléments",
-        "WORKSPACE_SELECT_ALL": "Sélectionner tous les blocs"
+        "WORKSPACE_SELECT_ALL": "Sélectionner tous les blocs",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "Boîte à outils des blocs",
+            "TOOLBOX_DESC": "Vous trouverez ici les catégories de blocs. Cliquez sur les différentes catégories pour trouver des blocs de fonction, puis faites-les glisser vers l'espace de travail à droite.",
+            "WORKSPACE_TITLE": "Espace de travail",
+            "WORKSPACE_DESC": "C'est votre espace de programmation. Vous pouvez y faire glisser et connecter des blocs pour créer des programmes. Le zoom et le déplacement du canevas sont pris en charge.",
+            "BUILD_TITLE": "Compiler le programme",
+            "BUILD_DESC": "Une fois les blocs assemblés, cliquez ici pour compiler le programme. Si la compilation réussit, vous pourrez voir le code généré.",
+            "UPLOAD_TITLE": "Téléverser le programme",
+            "UPLOAD_DESC": "Après avoir connecté la carte de développement, cliquez ici pour téléverser le programme sur la carte et l'exécuter.",
+            "LIB_MANAGER_TITLE": "Gestionnaire de bibliothèques",
+            "LIB_MANAGER_DESC": "Cliquez ici pour ouvrir le gestionnaire de bibliothèques. Vous pouvez installer et supprimer des bibliothèques d'extension afin d'ajouter plus de blocs à votre projet."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "Les {{count}} premières applications seront affichées dans la barre d'outils",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "Miniature Blockly",
             "COMPILATION_OPTIONS": "Options de Compilation",
             "REGION": "Région de service",
+            "RESOURCE_SOURCE": "Source des ressources",
+            "RESOURCE_SOURCE_AUTO": "Auto",
+            "RESOURCE_SOURCE_PRIMARY": "Site principal",
+            "RESOURCE_SOURCE_MIRROR": "Site miroir",
             "REGION_TITLE": "Changer la région de service",
             "REGION_DESC": "Vous devrez vous reconnecter après avoir changé la région de service. Continuer ?",
             "REGION_CONFIRM": "Confirmer",
@@ -464,6 +480,39 @@
         "ERROR_SAVE_FAILED": "Échec de l'enregistrement, veuillez réessayer plus tard",
         "ERROR_LOAD_FAILED": "Échec du chargement des paramètres du projet"
     },
+    "USER_CENTER": {
+        "TITLE": "Centre utilisateur",
+        "AVATAR_ALT": "Avatar utilisateur",
+        "SETTINGS": "Paramètres",
+        "LOGOUT": "Se déconnecter",
+        "PLAN_LABEL": "Forfait {{plan}}",
+        "AI_CALLS": "Utilisations IA",
+        "AUTO_MODE": "mode auto",
+        "ADD_AI_CALLS": "Ajouter des utilisations",
+        "CLOUD_STORAGE": "Stockage cloud",
+        "ADD_STORAGE": "Ajouter du stockage",
+        "IOT_DEVICES": "Appareils IoT",
+        "ADD_DEVICES": "Ajouter des appareils",
+        "POINTS": "Points du compte",
+        "REDEEM_POINTS": "Échanger des points",
+        "REGISTER_INCOMPLETE": "Veuillez remplir toutes les informations d'inscription",
+        "REGISTER_SUCCESS": "Inscription réussie",
+        "REGISTER_FAILED_NETWORK": "Échec de l'inscription, veuillez vérifier la connexion réseau",
+        "REGISTER_FAILED": "Échec de l'inscription",
+        "LOGOUT_SUCCESS": "Déconnecté",
+        "LOGOUT_FAILED": "Échec de la déconnexion",
+        "SERVICE_UNAVAILABLE": "Service temporairement indisponible",
+        "NICKNAME_REQUIRED": "Le surnom ne peut pas être vide",
+        "NICKNAME_SAVED": "Modification du surnom enregistrée",
+        "NICKNAME_UPDATE_FAILED": "Échec de la mise à jour du surnom, veuillez réessayer plus tard",
+        "NICKNAME_SERVER_ERROR": "Échec de la mise à jour du surnom, le serveur a renvoyé une erreur",
+        "GENERATING_LOGIN_LINK": "Génération du lien de connexion...",
+        "BROWSER_OPENED": "Navigateur ouvert, redirection en cours...",
+        "LOGIN_EXPIRED": "Connexion expirée, veuillez vous reconnecter",
+        "SSO_SERVER_ERROR": "Erreur serveur, impossible de générer le lien de connexion",
+        "SSO_NETWORK_FAILED": "Échec de la connexion réseau, redirection automatique impossible",
+        "SSO_REDIRECT_FAILED": "Échec de la redirection, veuillez réessayer plus tard"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "Paramètres du Projet",
         "ARCH": "Diagramme d'Architecture",
@@ -637,7 +686,13 @@
         "REGISTER": "S'inscrire"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "Fonctionnalité bientôt disponible"
+        "FEATURE_COMING_SOON": "Fonctionnalité bientôt disponible",
+        "ONBOARDING": {
+            "SKIP": "Ignorer",
+            "PREV": "Précédent",
+            "NEXT": "Suivant",
+            "DONE": "Terminé"
+        }
     },
     "NPM": {
         "INSTALLING": "Installation de {{name}}...",

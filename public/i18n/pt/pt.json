@@ -166,7 +166,19 @@
         "CONTROLS_SWITCH_DEFAULT": "padrão",
         "CROSS_TAB_PASTE": "Colar",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Colar %1 itens",
-        "WORKSPACE_SELECT_ALL": "Selecionar todos os blocos"
+        "WORKSPACE_SELECT_ALL": "Selecionar todos os blocos",
+        "ONBOARDING": {
+            "TOOLBOX_TITLE": "Caixa de ferramentas de blocos",
+            "TOOLBOX_DESC": "Aqui ficam as categorias de blocos. Clique nas categorias para encontrar blocos de função e arraste-os para a área de trabalho à direita.",
+            "WORKSPACE_TITLE": "Área de trabalho",
+            "WORKSPACE_DESC": "Esta é sua área de programação. Você pode arrastar e conectar blocos para criar programas. Zoom e movimentação da tela são suportados.",
+            "BUILD_TITLE": "Compilar programa",
+            "BUILD_DESC": "Depois de terminar de encaixar os blocos, clique aqui para compilar o programa. Se a compilação for concluída com sucesso, você poderá ver o código gerado.",
+            "UPLOAD_TITLE": "Enviar programa",
+            "UPLOAD_DESC": "Depois de conectar a placa de desenvolvimento, clique aqui para enviar o programa para a placa e executá-lo.",
+            "LIB_MANAGER_TITLE": "Gerenciador de bibliotecas",
+            "LIB_MANAGER_DESC": "Clique aqui para abrir o gerenciador de bibliotecas. Você pode instalar e remover bibliotecas de extensão para adicionar mais blocos ao projeto."
+        }
     },
     "APP_STORE": {
         "HEADER_INFO": "Os primeiros {{count}} aplicativos serão mostrados na barra de ferramentas",
@@ -213,6 +225,10 @@
             "BLOCKLY_MINIMAP": "Minimapa do Blockly",
             "COMPILATION_OPTIONS": "Opções de compilação",
             "REGION": "Região de serviço",
+            "RESOURCE_SOURCE": "Fonte de recursos",
+            "RESOURCE_SOURCE_AUTO": "Automático",
+            "RESOURCE_SOURCE_PRIMARY": "Site principal",
+            "RESOURCE_SOURCE_MIRROR": "Site espelho",
             "REGION_TITLE": "Alterar região de serviço",
             "REGION_DESC": "Será necessário iniciar sessão novamente após alterar a região de serviço. Continuar?",
             "REGION_CONFIRM": "Confirmar",
@@ -464,6 +480,39 @@
         "ERROR_SAVE_FAILED": "Falha ao salvar, por favor tente mais tarde",
         "ERROR_LOAD_FAILED": "Falha ao carregar as configurações do projeto"
     },
+    "USER_CENTER": {
+        "TITLE": "Centro do usuário",
+        "AVATAR_ALT": "Avatar do usuário",
+        "SETTINGS": "Configurações",
+        "LOGOUT": "Sair",
+        "PLAN_LABEL": "Plano {{plan}}",
+        "AI_CALLS": "Usos de IA",
+        "AUTO_MODE": "modo automático",
+        "ADD_AI_CALLS": "Adicionar usos",
+        "CLOUD_STORAGE": "Armazenamento em nuvem",
+        "ADD_STORAGE": "Adicionar armazenamento",
+        "IOT_DEVICES": "Dispositivos IoT",
+        "ADD_DEVICES": "Adicionar dispositivos",
+        "POINTS": "Pontos da conta",
+        "REDEEM_POINTS": "Resgatar pontos",
+        "REGISTER_INCOMPLETE": "Preencha todas as informações de registro",
+        "REGISTER_SUCCESS": "Registro bem-sucedido",
+        "REGISTER_FAILED_NETWORK": "Falha no registro, verifique a conexão de rede",
+        "REGISTER_FAILED": "Falha no registro",
+        "LOGOUT_SUCCESS": "Sessão encerrada",
+        "LOGOUT_FAILED": "Falha ao sair",
+        "SERVICE_UNAVAILABLE": "Serviço temporariamente indisponível",
+        "NICKNAME_REQUIRED": "O apelido não pode ficar vazio",
+        "NICKNAME_SAVED": "Alteração do apelido salva",
+        "NICKNAME_UPDATE_FAILED": "Falha ao atualizar o apelido, tente novamente mais tarde",
+        "NICKNAME_SERVER_ERROR": "Falha ao atualizar o apelido, o servidor retornou um erro",
+        "GENERATING_LOGIN_LINK": "Gerando link de login...",
+        "BROWSER_OPENED": "Navegador aberto, redirecionando...",
+        "LOGIN_EXPIRED": "Login expirado, entre novamente",
+        "SSO_SERVER_ERROR": "Erro do servidor, não foi possível gerar o link de login",
+        "SSO_NETWORK_FAILED": "Falha na conexão de rede, não é possível redirecionar automaticamente",
+        "SSO_REDIRECT_FAILED": "Falha no redirecionamento, tente novamente mais tarde"
+    },
     "FLOAT_SIDER": {
         "PROJECT_SETTINGS": "Configurações do Projeto",
         "ARCH": "Diagrama de Arquitetura",
@@ -637,7 +686,13 @@
         "REGISTER": "Registrar"
     },
     "COMMON": {
-        "FEATURE_COMING_SOON": "Recurso em breve"
+        "FEATURE_COMING_SOON": "Recurso em breve",
+        "ONBOARDING": {
+            "SKIP": "Pular",
+            "PREV": "Anterior",
+            "NEXT": "Próximo",
+            "DONE": "Concluir"
+        }
     },
     "NPM": {
         "INSTALLING": "Instalando {{name}}...",

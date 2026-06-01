@@ -94,6 +94,14 @@
                     font-size: 20px;
                     font-weight: 500;
                     color: rgba(255, 166, 0, 0.86);
+                    display: flex;
+                    align-items: center;
+
+                    .mode{
+                        font-size: 14px;
+                        color: var(--aily-text-secondary);
+                        margin-right: 5px;
+                    }
                 }
             }
         }
