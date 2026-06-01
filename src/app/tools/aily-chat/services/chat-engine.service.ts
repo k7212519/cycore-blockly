@@ -338,6 +338,7 @@ export class ChatEngineService {
       AilyHost.get().blockly.blockCodeMapSubject
     ]).subscribe((results: any[]) => {
       this.resourceManager.updateBlockContext(results[0], () => AilyHost.get().blockly.getSelectedBlockContextLabel());
+      this.requestViewUpdate();
     });
 
     // 绑定任务操作事件监听
