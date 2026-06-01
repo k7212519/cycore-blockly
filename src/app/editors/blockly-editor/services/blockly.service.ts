@@ -8,6 +8,13 @@ import { ElectronService } from '../../../services/electron.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
 import { BlockSearcher } from '../components/blockly/plugins/toolbox-search/src/block_searcher';
+import { dragSelectionWeakMap } from '../components/blockly/plugins/workspace-multiselect/index.js';
+
+export interface BlockContextLabel {
+  label: string;
+  formatted: string;
+  blockId: string;
+}
 
 export interface BlocklyWorkspaceViewState {
   scale: number;
@@ -142,8 +149,10 @@ export class BlocklyService {
   private codeViewerRefreshRequestSubject = new Subject<boolean>();
 
   // ==================== Block-to-Code 映射系统 ====================
-  /** 当前选中的 block id */
+  /** 当前选中的 block id（主选中块，供代码查看器等使用） */
   selectedBlockSubject = new BehaviorSubject<string | null>(null);
+  /** 当前选中的 block id 列表（支持多选） */
+  selectedBlockIdsSubject = new BehaviorSubject<string[]>([]);
   /** block → 代码行号映射（每次代码生成后更新） */
   blockCodeMapSubject = new BehaviorSubject<Map<string, BlockCodeMapping>>(new Map());
   /** block → ABS 行号映射（由 abs-auto-sync 生成 ABS 时同步更新，确保与用户看到的 .abs 文件一致） */
@@ -213,6 +222,13 @@ export class BlocklyService {
     this._aiWriting.next(value);
   }
 
+  private overlayChaffObserver: MutationObserver | null = null;
+  private documentPointerDownHandler: ((event: PointerEvent) => void) | null = null;
+
+  /** Blockly 内联编辑器浮层（文本框、下拉等）的 DOM 根节点，点击其内部时不 dismiss。 */
+  private static readonly BLOCKLY_POPUP_SELECTOR =
+    '.blocklyWidgetDiv, .blocklyDropDownDiv, .blocklyTextInputBubble';
+
   constructor(
     private translateService: TranslateService,
     private electronService: ElectronService
@@ -231,6 +247,80 @@ export class BlocklyService {
     });
     this.resetDocumentState();
     this.rebuildToolboxFacade();
+    this.initDocumentPopupDismiss();
+    this.initOverlayChaffHider();
+  }
+
+  /** 点击 Blockly 浮层外部时关闭文本框/下拉（capture 阶段，早于菜单/弹窗打开）。 */
+  private initDocumentPopupDismiss(): void {
+    if (typeof document === 'undefined' || this.documentPointerDownHandler) {
+      return;
+    }
+
+    this.documentPointerDownHandler = (event: PointerEvent) => {
+      if (!this._workspace) {
+        return;
+      }
+
+      const target = event.target as Element | null;
+      if (!target || target.closest(BlocklyService.BLOCKLY_POPUP_SELECTOR)) {
+        return;
+      }
+
+      if (!this.isBlocklyPopupVisible()) {
+        return;
+      }
+
+      this.hideChaff(true);
+    };
+
+    document.addEventListener('pointerdown', this.documentPointerDownHandler, true);
+  }
+
+  private isBlocklyPopupVisible(): boolean {
+    if (Blockly.WidgetDiv.isVisible()) {
+      return true;
+    }
+    return Blockly.DropDownDiv.getOwner() !== null;
+  }
+
+  /** 关闭 Blockly 内联文本输入、下拉等浮层；默认仅关 popup，不影响 flyout 折叠状态。 */
+  hideChaff(onlyClosePopups = true): void {
+    const workspace = this._workspace ?? Blockly.getMainWorkspace() as Blockly.WorkspaceSvg | null;
+    if (workspace) {
+      workspace.hideChaff(onlyClosePopups);
+    } else {
+      Blockly.WidgetDiv.hide();
+      Blockly.DropDownDiv.hide();
+    }
+  }
+
+  /** 弹窗打开时自动关闭 Blockly 浮层。 */
+  private initOverlayChaffHider(): void {
+    if (typeof document === 'undefined' || this.overlayChaffObserver) {
+      return;
+    }
+
+    const bindObserver = () => {
+      const container = document.querySelector('.cdk-overlay-container');
+      if (!container || this.overlayChaffObserver) {
+        return;
+      }
+
+      this.overlayChaffObserver = new MutationObserver(() => {
+        if (container.querySelector('.ant-modal-wrap, .cdk-overlay-backdrop')) {
+          this.hideChaff();
+        }
+      });
+      this.overlayChaffObserver.observe(container, { childList: true, subtree: true });
+    };
+
+    if (document.querySelector('.cdk-overlay-container')) {
+      bindObserver();
+      return;
+    }
+
+    setTimeout(bindObserver, 0);
   }
 
   waitForWorkspace(): Promise<Blockly.WorkspaceSvg> {
@@ -434,6 +524,7 @@ export class BlocklyService {
       currentIndex: nextIndex,
     });
     this.selectedBlockSubject.next(result.blockId);
+    this.selectedBlockIdsSubject.next([result.blockId]);
     return true;
   }
 
@@ -1428,6 +1519,7 @@ export class BlocklyService {
     // 重置其他可能的状态
     this.codeSubject.next('');
     this.selectedBlockSubject.next(null);
+    this.selectedBlockIdsSubject.next([]);
     this.blockCodeMapSubject.next(new Map());
     this.absBlockLineMap.next(new Map());
     this.closeWorkspaceBlockSearch();
@@ -2040,6 +2132,7 @@ export class BlocklyService {
     }
 
     this.selectedBlockSubject.next(null);
+    this.selectedBlockIdsSubject.next([]);
   this.closeWorkspaceBlockSearch();
     this.restoreWorkspaceViewState(activePage.viewState);
     this.mountExternalToolbox();
@@ -2269,6 +2362,87 @@ export class BlocklyService {
   }
 
   /**
+   * 从工作区同步当前选中的 block 列表（含多选模式）
+   */
+  syncSelectedBlocksFromWorkspace(): void {
+    if (!this.workspace) {
+      this.selectedBlockIdsSubject.next([]);
+      return;
+    }
+
+    const dragSelection = dragSelectionWeakMap.get(this.workspace);
+    if (dragSelection?.size) {
+      const blockIds = Array.from(dragSelection as Set<string>).filter((id) => {
+        const block = this.workspace!.getBlockById(id);
+        return block && !block.isInFlyout && !block.isInsertionMarker();
+      });
+      this.selectedBlockIdsSubject.next(blockIds);
+      this.selectedBlockSubject.next(blockIds[0] ?? null);
+      return;
+    }
+
+    const candidateId = this.selectedBlockSubject.value;
+    if (candidateId) {
+      const block = this.workspace.getBlockById(candidateId);
+      if (block && !block.isInFlyout && !block.isInsertionMarker()) {
+        this.selectedBlockIdsSubject.next([candidateId]);
+        return;
+      }
+    }
+
+    const selected = Blockly.common.getSelected();
+    if (
+      selected &&
+      selected instanceof Blockly.BlockSvg &&
+      !selected.isInFlyout &&
+      !selected.isInsertionMarker()
+    ) {
+      this.selectedBlockIdsSubject.next([selected.id]);
+      this.selectedBlockSubject.next(selected.id);
+      return;
+    }
+
+    this.selectedBlockIdsSubject.next([]);
+    this.selectedBlockSubject.next(null);
+  }
+
+  /**
+   * 获取指定 block 的上下文信息（供 agent/LLM 使用）
+   * 精简格式：块类型 + ABS 代码片段 + C++ 对应行号
+   */
+  getBlockContext(blockId: string): {
+    blockId: string;
+    blockType: string;
+    absSnippet: string;
+    cppLineRange: string;
+    absLineRange: string;
+    codeRanges: CodeLineRange[];
+    formatted: string;
+  } | null {
+    if (!blockId || !this.workspace) return null;
+
+    const block = this.workspace.getBlockById(blockId);
+    if (!block) return null;
+
+    const mapping = this.getCodeForBlock(blockId);
+    const ranges = mapping?.lineRanges || [];
+    const cppLineRange = this._formatCppLineRange(ranges);
+    const absSnippet = this._getBlockAbsSnippet(block);
+    const absLineRange = this._getBlockAbsLineRange(block, absSnippet);
+    const formatted = this._formatBlockContextForLLM(block.type, absSnippet, cppLineRange, absLineRange);
+
+    return {
+      blockId,
+      blockType: block.type,
+      absSnippet,
+      cppLineRange,
+      absLineRange,
+      codeRanges: ranges,
+      formatted,
+    };
+  }
+
+  /**
    * 获取当前选中 block 的上下文信息（供 agent/LLM 使用）
    * 精简格式：块类型 + ABS 代码片段 + C++ 对应行号
    */
@@ -2281,37 +2455,9 @@ export class BlocklyService {
     codeRanges: CodeLineRange[];
     formatted: string;
   } | null {
-    const blockId = this.selectedBlockSubject.value;
-    if (!blockId || !this.workspace) return null;
-
-    const block = this.workspace.getBlockById(blockId);
-    if (!block) return null;
-
-    // 获取该块的代码映射
-    const mapping = this.getCodeForBlock(blockId);
-    const ranges = mapping?.lineRanges || [];
-
-    // 生成 C++ 行号范围（简洁格式）
-    const cppLineRange = this._formatCppLineRange(ranges);
-
-    // 生成该块子树的 ABS 代码片段
-    const absSnippet = this._getBlockAbsSnippet(block);
-
-    // 生成 ABS 行号范围
-    const absLineRange = this._getBlockAbsLineRange(block, absSnippet);
-
-    // 格式化 LLM 友好文本
-    const formatted = this._formatBlockContextForLLM(block.type, absSnippet, cppLineRange, absLineRange);
-
-    return {
-      blockId,
-      blockType: block.type,
-      absSnippet,
-      cppLineRange,
-      absLineRange,
-      codeRanges: ranges,
-      formatted
-    };
+    const blockId = this.selectedBlockIdsSubject.value[0] ?? this.selectedBlockSubject.value;
+    if (!blockId) return null;
+    return this.getBlockContext(blockId);
   }
 
   /**
@@ -2360,9 +2506,16 @@ export class BlocklyService {
   /**
    * 格式化块上下文为 LLM 友好的精简文本
    */
-  private _formatBlockContextForLLM(blockType: string, absSnippet: string, cppLineRange: string, absLineRange: string): string {
+  private _formatBlockContextForLLM(
+    blockType: string,
+    absSnippet: string,
+    cppLineRange: string,
+    absLineRange: string,
+    index = 1,
+    total = 1,
+  ): string {
     const lines: string[] = [];
-    lines.push('[用户选中的积木块]');
+    lines.push(total > 1 ? `[用户选中的积木块 ${index}/${total}]` : '[用户选中的积木块]');
     lines.push(`块类型: ${blockType}`);
     lines.push(`ABS代码:`);
     lines.push(this._truncateAbsSnippet(absSnippet));
@@ -2430,29 +2583,55 @@ export class BlocklyService {
     }
   }
 
+  getBlockContextLabel(blockId: string, index = 1, total = 1): BlockContextLabel | null {
+    const ctx = this.getBlockContext(blockId);
+    if (!ctx) return null;
+
+    const parts: string[] = [];
+    if (ctx.absLineRange !== '无') parts.push(`A${ctx.absLineRange}`);
+    if (ctx.cppLineRange !== '无') parts.push(`C${ctx.cppLineRange}`);
+
+    const suffix = total > 1 ? ` (${index}/${total})` : '';
+    const label = parts.length > 0
+      ? `blockly:${parts.join('/')}${suffix}`
+      : `blockly:${ctx.blockType}${suffix}`;
+
+    const formatted = this._formatBlockContextForLLM(
+      ctx.blockType,
+      ctx.absSnippet,
+      ctx.cppLineRange,
+      ctx.absLineRange,
+      index,
+      total,
+    );
+
+    return {
+      label,
+      formatted,
+      blockId: ctx.blockId,
+    };
+  }
+
+  /**
+   * 获取当前所有选中 block 的上下文标签（用于 AI 助手上下文列表展示）
+   */
+  getSelectedBlockContextLabels(): BlockContextLabel[] {
+    const blockIds = this.selectedBlockIdsSubject.value;
+    if (!blockIds.length) return [];
+
+    const total = blockIds.length;
+    return blockIds
+      .map((blockId, index) => this.getBlockContextLabel(blockId, index + 1, total))
+      .filter((item): item is BlockContextLabel => !!item);
+  }
+
   /**
    * 获取当前选中block的简短上下文标签（用于AI助手上下文列表展示）
    * 格式：blockly:C10-20（C++行号）或 blockly:A5-12（ABS行号）
    * @returns { label, formatted, blockId } 或 null
    */
-  getSelectedBlockContextLabel(): { label: string; formatted: string; blockId: string } | null {
-    const ctx = this.getSelectedBlockContext();
-    if (!ctx) return null;
-
-    // 构建标签：优先显示 C++ 行号和 ABS 行号
-    const parts: string[] = [];
-    if (ctx.absLineRange !== '无') parts.push(`A${ctx.absLineRange}`);
-    if (ctx.cppLineRange !== '无') parts.push(`C${ctx.cppLineRange}`);
-
-    const label = parts.length > 0
-      ? `blockly:${parts.join('/')}`
-      : `blockly:${ctx.blockType}`;
-
-    return {
-      label,
-      formatted: ctx.formatted,
-      blockId: ctx.blockId
-    };
+  getSelectedBlockContextLabel(): BlockContextLabel | null {
+    return this.getSelectedBlockContextLabels()[0] ?? null;
   }
 }
 

@@ -168,6 +168,7 @@
         "CROSS_TAB_PASTE": "貼上",
         "CROSS_TAB_PASTE_X_ELEMENTS": "貼上 %1 項",
         "WORKSPACE_SELECT_ALL": "全選積木",
+        "EXPLAIN_BLOCK": "AI 解釋",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "積木工具箱",
             "TOOLBOX_DESC": "這裡是積木分類區域，點擊不同分類可以找到各種功能積木，拖曳到右側工作區使用。",
@@ -744,7 +745,8 @@
         "LOADING_BLOCKLY_LIB": "正在載入Blockly庫",
         "LOADING_LIB": "正在載入{{name}}",
         "LOADING_BLOCKLY_PROGRAM": "正在載入Blockly程式",
-        "PROJECT_LOAD_SUCCESS": "專案載入成功"
+        "PROJECT_LOAD_SUCCESS": "專案載入成功",
+        "EXPLAIN_BLOCK_PROMPT": "請解釋這個積木的作用、工作原理，以及它在目前程式中的用途。"
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "正在載入範例...",

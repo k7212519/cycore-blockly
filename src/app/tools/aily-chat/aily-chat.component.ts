@@ -160,6 +160,7 @@ export class AilyChatComponent implements OnDestroy {
 
   bottomHeight = 180;
   showSettings = false;
+  private _imeComposing = false;
 
   constructor(
     private uiService: UiService,
@@ -356,10 +357,20 @@ export class AilyChatComponent implements OnDestroy {
     this.engine.inputValue = '';
   }
 
+  onCompositionStart(): void {
+    this._imeComposing = true;
+  }
+
+  onCompositionEnd(): void {
+    this._imeComposing = false;
+  }
+
   async onKeyDown(event: KeyboardEvent) {
+    const imeActive = event.isComposing || this._imeComposing;
+
     // @agent 补全交互：Enter 选中、Escape 关闭
     if (this.showAgentSuggestions) {
-      if (event.key === 'Enter') {
+      if (event.key === 'Enter' && !imeActive) {
         event.preventDefault();
         this.selectAgent(this.agentSuggestions[0]);
         return;
@@ -379,6 +390,8 @@ export class AilyChatComponent implements OnDestroy {
         this.inputValue = this.inputValue.substring(0, start) + '\n' + this.inputValue.substring(end);
         setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + 1; }, 0);
         event.preventDefault();
+      } else if (imeActive) {
+        return;
       } else {
         this.scrollManager.autoScrollEnabled = true;
         this.scrollManager.scrollToBottom();
@@ -410,7 +423,13 @@ export class AilyChatComponent implements OnDestroy {
     this.doSwitchSession(e.sessionId);
   }
 
+  /** 切换会话/新建对话前关闭所有消息编辑框 */
+  private closeAllDialogEdits(): void {
+    this.xDialogComponents?.forEach(d => d.closeEditMode());
+  }
+
   private doSwitchSession(sessionId: string) {
+    this.closeAllDialogEdits();
     this.menuManager.switchToSession(sessionId, this.chatService.currentSessionId, {
       onSaveCurrentSession: () => this.engine.saveCurrentSession(),
       onGetHistory: () => this.engine.getHistory(),
@@ -426,8 +445,14 @@ export class AilyChatComponent implements OnDestroy {
 
   historyActionClick(e: { action: string; data: any }) {
     this.menuManager.historyActionClick(e, this.engine.sessionId, {
-      onGetHistory: () => this.engine.getHistory(),
-      onNewChat: () => this.engine.newChat(),
+      onGetHistory: () => {
+        this.closeAllDialogEdits();
+        this.engine.getHistory();
+      },
+      onNewChat: () => {
+        this.closeAllDialogEdits();
+        this.engine.newChat();
+      },
       onDetectChanges: () => this.cdr.markForCheck(),
       onUpdateTitle: (title: string) => { this.chatService.currentSessionTitle = title; },
       onRefreshHistory: () => this.engine.refreshHistoryList(),
@@ -459,10 +484,12 @@ export class AilyChatComponent implements OnDestroy {
   newChat() {
     if (this.engine.editCheckpointService.hasUnsavedEdits()) {
       this.confirmUnsavedEditsBeforeSwitch(() => {
+        this.closeAllDialogEdits();
         this.engine.newChat();
       });
       return;
     }
+    this.closeAllDialogEdits();
     this.engine.newChat();
   }
 

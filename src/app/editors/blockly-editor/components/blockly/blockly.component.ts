@@ -4,6 +4,9 @@ import { Subject, combineLatest } from 'rxjs';
 
 import { debounceTime, takeUntil, map, distinctUntilChanged, pairwise, startWith } from 'rxjs/operators';
 import { TranslateService } from '@ngx-translate/core';
+import { UiService } from '../../../../services/ui.service';
+import { AuthService } from '../../../../services/auth.service';
+import { NzMessageService } from 'ng-zorro-antd/message';
 
 // Blockly 多语言包
 import * as zhHans from 'blockly/msg/zh-hans';
@@ -422,6 +425,9 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     private themeService: ThemeService,
     private platformService: PlatformService,
     private codeViewerIpcService: CodeViewerIpcService,
+    private uiService: UiService,
+    private authService: AuthService,
+    private message: NzMessageService,
   ) {
     // Initialize GlobalServiceManager with BitmapUploadService
     const globalServiceManager = GlobalServiceManager.getInstance();
@@ -768,6 +774,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
 
       const multiselectPlugin = new Multiselect(this.workspace);
       multiselectPlugin.init(this.options);
+      this.registerBlockExplainContextMenu();
 
       // 初始化跨实例复制粘贴的全局桥接
       (window as any).__ailyClipboard = window['clipboard'] || null;
@@ -873,11 +880,14 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
           this.blocklyService.syncToolboxFacadeWithWorkspace();
         }
 
-        // 监听 block 选中事件，更新 selectedBlockSubject
+        // 监听 block 选中事件，更新 selectedBlockSubject / selectedBlockIdsSubject
         if (event.type === Blockly.Events.SELECTED) {
           const selectedBlockId = event.newElementId || null;
           this.blocklyService.selectedBlockSubject.next(selectedBlockId);
-          this.codeViewerIpcService.publishSelection(selectedBlockId);
+          queueMicrotask(() => {
+            this.blocklyService.syncSelectedBlocksFromWorkspace();
+            this.codeViewerIpcService.publishSelection(this.blocklyService.selectedBlockSubject.value);
+          });
         }
       });
       if (this.configData.blockly.minimap && this.minimap) {
@@ -1392,6 +1402,57 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
    * 更新 Blockly 的语言设置
    * @param lang 语言代码，如 'zh_cn', 'en' 等
    */
+  private registerBlockExplainContextMenu(): void {
+    const id = 'blockExplainWithAi';
+    if (Blockly.ContextMenuRegistry.registry.getItem(id)) {
+      Blockly.ContextMenuRegistry.registry.unregister(id);
+    }
+
+    Blockly.ContextMenuRegistry.registry.register({
+      displayText: () => Blockly.Msg['EXPLAIN_BLOCK'] || 'Explain with AI',
+      preconditionFn: (scope) => {
+        const block = scope.block;
+        if (!block || block.isInFlyout || block.isInsertionMarker()) {
+          return 'hidden';
+        }
+        return 'enabled';
+      },
+      callback: (scope) => {
+        this.explainBlockWithAi(scope.block);
+        return true;
+      },
+      scopeType: Blockly.ContextMenuRegistry.ScopeType.BLOCK,
+      id,
+      weight: -5,
+    });
+  }
+
+  private explainBlockWithAi(block: Blockly.Block): void {
+    if (!block) {
+      return;
+    }
+
+    if (!this.authService.isLoggedIn) {
+      this.message.warning(this.translateService.instant('FLOAT_SIDER.LOGIN_REQUIRED'));
+      this.uiService.openTool('aily-chat');
+      return;
+    }
+
+    this.blocklyService.syncSelectedBlocksFromWorkspace();
+    if (!this.blocklyService.selectedBlockIdsSubject.value.includes(block.id)) {
+      this.blocklyService.selectedBlockIdsSubject.next([block.id]);
+      this.blocklyService.selectedBlockSubject.next(block.id);
+    }
+    this.codeViewerIpcService.publishSelection(this.blocklyService.selectedBlockSubject.value);
+
+    const prompt = this.translateService.instant('BLOCKLY_EDITOR.EXPLAIN_BLOCK_PROMPT');
+    this.uiService.openAndSendToChat(prompt, {
+      sender: 'BlocklyComponent',
+      type: 'block-explain',
+      autoSend: true,
+    });
+  }
+
   updateBlocklyLocale(lang: string) {
     // 获取对应的 Blockly 语言包
     const locale = BLOCKLY_LOCALES[lang] || BLOCKLY_LOCALES['en'] || zhHans;
@@ -1404,6 +1465,7 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
     Blockly.Msg["CROSS_TAB_PASTE"] = this.translateService.instant('BLOCKLY.CROSS_TAB_PASTE') || "Paste";
     Blockly.Msg["CROSS_TAB_PASTE_X_ELEMENTS"] = this.translateService.instant('BLOCKLY.CROSS_TAB_PASTE_X_ELEMENTS') || "Paste %1 items";
     Blockly.Msg["WORKSPACE_SELECT_ALL"] = this.translateService.instant('BLOCKLY.WORKSPACE_SELECT_ALL') || "Select all blocks";
+    Blockly.Msg["EXPLAIN_BLOCK"] = this.translateService.instant('BLOCKLY.EXPLAIN_BLOCK') || "Explain with AI";
 
     // 自定义扩展的多语言消息（switch-case 等）
     Blockly.Msg["CONTROLS_SWITCH_CASE"] = this.translateService.instant('BLOCKLY.CONTROLS_SWITCH_CASE') || (lang.startsWith('zh') ? "情况" : "case");

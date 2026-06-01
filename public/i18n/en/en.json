@@ -204,6 +204,7 @@
         "CROSS_TAB_PASTE": "Paste",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Paste %1 items",
         "WORKSPACE_SELECT_ALL": "Select all blocks",
+        "EXPLAIN_BLOCK": "Explain with AI",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "Block Toolbox",
             "TOOLBOX_DESC": "Find all available blocks here. Drag and drop blocks to the workspace to build your program.",
@@ -807,7 +808,8 @@
         "LOADING_BLOCKLY_LIB": "Loading Blockly libraries",
         "LOADING_LIB": "Loading {{name}}",
         "LOADING_BLOCKLY_PROGRAM": "Loading Blockly program",
-        "PROJECT_LOAD_SUCCESS": "Project loaded successfully"
+        "PROJECT_LOAD_SUCCESS": "Project loaded successfully",
+        "EXPLAIN_BLOCK_PROMPT": "Please explain what this block does, how it works, and its role in the current program."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "Loading example...",

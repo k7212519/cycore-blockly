@@ -168,6 +168,7 @@
         "CROSS_TAB_PASTE": "لصق",
         "CROSS_TAB_PASTE_X_ELEMENTS": "لصق %1 عناصر",
         "WORKSPACE_SELECT_ALL": "تحديد كل الكتل",
+        "EXPLAIN_BLOCK": "شرح بالذكاء الاصطناعي",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "صندوق أدوات الكتل",
             "TOOLBOX_DESC": "هنا تجد تصنيفات الكتل. انقر على التصنيفات المختلفة للعثور على كتل الوظائف واسحبها إلى مساحة العمل على اليمين لاستخدامها.",
@@ -732,7 +733,8 @@
         "LOADING_BLOCKLY_LIB": "جاري تحميل مكتبات Blockly",
         "LOADING_LIB": "جاري تحميل {{name}}",
         "LOADING_BLOCKLY_PROGRAM": "جاري تحميل برنامج Blockly",
-        "PROJECT_LOAD_SUCCESS": "تم تحميل المشروع بنجاح"
+        "PROJECT_LOAD_SUCCESS": "تم تحميل المشروع بنجاح",
+        "EXPLAIN_BLOCK_PROMPT": "يرجى شرح وظيفة هذه الكتلة وكيفية عملها ودورها في البرنامج الحالي."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "جاري تحميل المثال...",

@@ -168,6 +168,7 @@
         "CROSS_TAB_PASTE": "Pegar",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Pegar %1 elementos",
         "WORKSPACE_SELECT_ALL": "Seleccionar todos los bloques",
+        "EXPLAIN_BLOCK": "Explicar con IA",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "Caja de herramientas de bloques",
             "TOOLBOX_DESC": "Aquí están las categorías de bloques. Haz clic en las distintas categorías para encontrar bloques de funciones y arrástralos al área de trabajo de la derecha para usarlos.",
@@ -732,7 +733,8 @@
         "LOADING_BLOCKLY_LIB": "Cargando bibliotecas Blockly",
         "LOADING_LIB": "Cargando {{name}}",
         "LOADING_BLOCKLY_PROGRAM": "Cargando programa Blockly",
-        "PROJECT_LOAD_SUCCESS": "Proyecto cargado correctamente"
+        "PROJECT_LOAD_SUCCESS": "Proyecto cargado correctamente",
+        "EXPLAIN_BLOCK_PROMPT": "Explica qué hace este bloque, cómo funciona y cuál es su papel en el programa actual."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "Cargando ejemplo...",

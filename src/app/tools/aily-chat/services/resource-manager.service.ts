@@ -84,18 +84,23 @@ export class ResourceManagerService {
     }
   }
 
-  /** 根据 Blockly 块选中状态更新 block 上下文资源项 */
-  updateBlockContext(blockId: string | null, getContextLabel: () => any): void {
+  /** 根据 Blockly 块选中状态更新 block 上下文资源项（支持多选） */
+  updateBlockContexts(
+    blockIds: string[],
+    getContextLabels: () => Array<{ label: string; formatted: string; blockId: string }>,
+  ): void {
     this.items = this.items.filter(item => item.type !== 'block');
-    if (!blockId) return;
-    const ctxLabel = getContextLabel();
-    if (!ctxLabel) return;
-    this.items.push({
-      type: 'block',
-      name: ctxLabel.label,
-      blockContext: ctxLabel.formatted,
-      blockId: ctxLabel.blockId
-    });
+    if (!blockIds.length) return;
+
+    const labels = getContextLabels();
+    for (const ctxLabel of labels) {
+      this.items.push({
+        type: 'block',
+        name: ctxLabel.label,
+        blockContext: ctxLabel.formatted,
+        blockId: ctxLabel.blockId,
+      });
+    }
   }
 
   clearAll(): void {
