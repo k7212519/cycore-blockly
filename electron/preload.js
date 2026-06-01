@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer, shell, safeStorage, webFrame, clipboard } = require("electron");
 const { SerialPort } = require("serialport");
-const { createThrottledSerialPort, listPorts } = require("./serial");
+const { createThrottledSerialPort, createRawSerialPort, listPorts } = require("./serial");
 const { exec } = require("child_process");
 const { existsSync, statSync } = require("fs");
 const { isAbsolute } = require("path");
@@ -43,7 +43,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   versions: () => process.versions,
   SerialPort: {
     list: async () => await listPorts(),
-    create: (options) => createThrottledSerialPort(options)
+    create: (options) => createThrottledSerialPort(options),
+    createRaw: (options) => createRawSerialPort(options)
   },
   os: {
     tmpdir: () => tmpdir(),

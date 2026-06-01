@@ -45,6 +45,8 @@ interface FfsUploadRestoreContext {
 export class FfsManagerComponent {
   private destroyRef = inject(DestroyRef);
   private uploadRestoreContext: FfsUploadRestoreContext | null = null;
+  // ffs-manager 主动发出的 serial-monitor:* 信号不需要被自己重启动 pause/restore。
+  private readonly selfSignalTag = 'ffs-manager';
 
   private readonly defaultBaudRate = 921600;
 
@@ -97,6 +99,10 @@ export class FfsManagerComponent {
       .subscribe((action: any) => {
         if (action?.action === 'signal' && action?.type === 'tool') {
           const signal = action.data as string;
+          // 忽略自己发的信号，避免 switchConnection 后立刻被 pauseForUpload 重置。
+          if (action?.payload?.source === this.selfSignalTag) {
+            return;
+          }
           if (signal === 'serial-monitor:disconnect') {
             this.pauseForUpload(this.getUploadPortFromSignal(action));
           } else if (signal === 'serial-monitor:connect') {
@@ -245,6 +251,11 @@ export class FfsManagerComponent {
         this.switchValue = false;
         return;
       }
+      // 让 serial-monitor 等其他工具先释放同一串口，避免 Windows 上 EACCES。
+      this.uiService.sendToolSignal('serial-monitor:disconnect', { port: this.currentPort, source: this.selfSignalTag });
+      // 给被通知方一点时间真正关闭句柄
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       await this.refreshAll();
       // 任何步骤失败则把开关复位为关
       if (this.errorText || !this.deviceInfo) {
@@ -252,9 +263,12 @@ export class FfsManagerComponent {
         try {
           await this.ffsManagerService.release(true);
         } catch { }
+        // 释放失败/连接失败后，把串口让回给 serial-monitor
+        this.uiService.sendToolSignal('serial-monitor:connect', { port: this.currentPort, source: this.selfSignalTag });
       }
       this.cd.detectChanges();
     } else {
+      const releasedPort = this.currentPort;
       try {
         await this.ffsManagerService.release(true);
       } catch (error) {
@@ -265,6 +279,9 @@ export class FfsManagerComponent {
       this.selectedPartition = null;
       this.resetFilesystemState();
       this.statusText = '已断开';
+      if (releasedPort) {
+        this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, source: this.selfSignalTag });
+      }
       this.cd.detectChanges();
     }
   }

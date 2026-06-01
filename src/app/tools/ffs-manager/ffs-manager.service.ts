@@ -61,12 +61,13 @@ export class FfsManagerService {
   constructor(private espSession: EspSessionService) { }
 
   /**
-   * 兼容旧 UI 的能力探测：只要渲染端支持 WebSerial 就视为可用。
+   * 兼容旧 UI 的能力探测：只要渲染端能拿到 Node SerialPort 就视为可用。
    * 返回一个伪 packageInfo 让 component 现有 `esptoolReady` 判断保持原样。
    */
   async detectEsptool(_clearCache = false): Promise<{ esptoolPath: string } | null> {
-    if (typeof navigator !== 'undefined' && 'serial' in navigator) {
-      return { esptoolPath: 'webserial://esptool-js' };
+    const w: any = typeof window !== 'undefined' ? window : undefined;
+    if (w?.electronAPI?.SerialPort?.createRaw) {
+      return { esptoolPath: 'node-serialport://esptool-js' };
     }
     return null;
   }

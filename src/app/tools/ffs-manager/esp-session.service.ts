@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { ESPLoader, Transport } from 'esptool-js';
+import { NodeSerialPortAdapter } from './node-serial-port';
 
 export interface EspSessionConnectOptions {
   portPath: string;
   baudRate: number;
-  romBaudrate?: number;
   onLog?: (msg: string) => void;
 }
 
@@ -20,7 +20,6 @@ export interface EspChipInfo {
 export type ReadFlashProgress = (received: number, total: number) => void;
 export type WriteFlashProgress = (written: number, total: number) => void;
 
-const DEFAULT_ROM_BAUD = 115200;
 const FLASH_READ_MAX_CHUNK = 0x10000;
 const FLASH_READ_MIN_CHUNK = 0x1000;
 
@@ -28,7 +27,7 @@ declare const window: any;
 
 @Injectable({ providedIn: 'root' })
 export class EspSessionService {
-  private port: any = null;
+  private port: NodeSerialPortAdapter | null = null;
   private transport: Transport | null = null;
   private loader: ESPLoader | null = null;
   private chipInfo: EspChipInfo | null = null;
@@ -53,8 +52,8 @@ export class EspSessionService {
   }
 
   /**
-   * 复刻 ESPConnect 的 connectAndHandshake：opens WebSerial port at 115200, runs ROM sync,
-   * uploads stub, then changes baud to desired rate. 之后所有读写都复用这条会话。
+   * 复刻 ESPConnect 的 connectAndHandshake：通过 Node serialport 适配层以 115200 打开端口，
+   * 跑 ROM sync 上传 stub，再切到目标波特率。后续读写都复用这条会话。
    */
   async connect(options: EspSessionConnectOptions): Promise<EspChipInfo> {
     if (this.isConnected && this.currentPortPath === options.portPath && this.currentBaud === options.baudRate) {
@@ -64,37 +63,16 @@ export class EspSessionService {
       await this.disconnect();
     }
 
-    if (!('serial' in navigator)) {
-      throw new Error('当前环境不支持 Web Serial API');
+    if (!window?.electronAPI?.SerialPort?.createRaw) {
+      throw new Error('当前环境不支持 Node SerialPort（请在 Electron 渲染端运行）');
     }
 
-    // 通过主进程预先记录串口路径，select-serial-port 事件会按路径匹配
-    try {
-      await window.electronAPI?.ipcRenderer?.invoke('webserial-set-preferred-port', options.portPath);
-    } catch (error) {
-      console.warn('[EspSession] 设置首选 WebSerial 端口失败:', error);
-    }
-
-    let port: any;
-    try {
-      port = await (navigator as any).serial.requestPort();
-    } catch (error) {
-      throw new Error(`无法获取串口 ${options.portPath}：${this.formatError(error)}`);
-    } finally {
-      try {
-        await window.electronAPI?.ipcRenderer?.invoke('webserial-clear-preferred-port');
-      } catch {
-        // ignore
-      }
-    }
-
-    const transport = new Transport(port, false);
+    const port = new NodeSerialPortAdapter({ path: options.portPath });
+    const transport = new Transport(port as any, false);
     const baudrate = options.baudRate;
-    const romBaudrate = options.romBaudrate ?? DEFAULT_ROM_BAUD;
     const loader = new ESPLoader({
       transport,
       baudrate,
-      romBaudrate,
       debugLogging: false,
       terminal: this.buildTerminal(options.onLog),
     });
@@ -123,9 +101,7 @@ export class EspSessionService {
         // ignore
       }
       try {
-        if (port?.readable || port?.writable) {
-          await (port as any).close?.();
-        }
+        await port.dispose();
       } catch {
         // ignore
       }
@@ -159,13 +135,13 @@ export class EspSessionService {
       } catch (error) {
         console.warn('[EspSession] 断开 transport 失败:', error);
       }
-    } else if (port) {
+    }
+    if (port) {
+      // 无论 transport 是否已调用过 close，这里 dispose 会充分释放底层 OS 句柄（避免被 park）。
       try {
-        if ((port as any).readable || (port as any).writable) {
-          await (port as any).close?.();
-        }
+        await port.dispose();
       } catch (error) {
-        console.warn('[EspSession] 关闭串口失败:', error);
+        console.warn('[EspSession] 释放串口失败:', error);
       }
     }
   }
@@ -235,9 +211,8 @@ export class EspSessionService {
     onProgress?: WriteFlashProgress,
   ): Promise<void> {
     await this.runExclusive(async loader => {
-      const dataStr = this.ui8ToBstr(data);
       await loader.writeFlash({
-        fileArray: [{ data: dataStr, address: offset }],
+        fileArray: [{ data, address: offset }],
         flashSize: 'keep',
         flashMode: 'keep',
         flashFreq: 'keep',
@@ -327,15 +302,6 @@ export class EspSessionService {
     } catch {
       return undefined;
     }
-  }
-
-  private ui8ToBstr(data: Uint8Array): string {
-    let s = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < data.length; i += chunk) {
-      s += String.fromCharCode(...data.subarray(i, Math.min(i + chunk, data.length)));
-    }
-    return s;
   }
 
   private formatError(error: unknown): string {
