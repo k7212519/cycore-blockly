@@ -167,6 +167,7 @@
         "CROSS_TAB_PASTE": "貼り付け",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1 個を貼り付け",
         "WORKSPACE_SELECT_ALL": "すべてのブロックを選択",
+        "EXPLAIN_BLOCK": "AIで解説",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "ブロックツールボックス",
             "TOOLBOX_DESC": "ここはブロックのカテゴリ領域です。カテゴリをクリックして機能ブロックを探し、右側のワークスペースへドラッグして使用します。",
@@ -730,7 +731,8 @@
         "LOADING_BLOCKLY_LIB": "Blocklyライブラリを読み込み中",
         "LOADING_LIB": "{{name}}を読み込み中",
         "LOADING_BLOCKLY_PROGRAM": "Blocklyプログラムを読み込み中",
-        "PROJECT_LOAD_SUCCESS": "プロジェクトの読み込みが完了しました"
+        "PROJECT_LOAD_SUCCESS": "プロジェクトの読み込みが完了しました",
+        "EXPLAIN_BLOCK_PROMPT": "このブロックの役割、動作原理、および現在のプログラムでの用途を説明してください。"
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "サンプルを読み込み中...",

@@ -1,5 +1,6 @@
 // 窗口控制
 const { ipcMain, BrowserWindow, app, screen } = require("electron");
+const { requestWindowAttention } = require('./window-attention');
 const { exec, execSync } = require('child_process');
 const path = require('path');
 
@@ -55,7 +56,8 @@ function scheduleReplenishSubWindowPool(loadBasePage) {
 }
 
 /**
- * 创建透明不可见（opacity 0）、不出现在任务栏的预缓冲子窗口并完成首屏加载。
+ * 创建不可见（opacity 0）、不出现在任务栏的预缓冲子窗口并完成首屏加载。
+ * Windows 上不可设 transparent: true，否则会禁用 thickFrame 带来的边缘吸附与标题栏双击最大化。
  */
 function pushPooledSubWindow(loadBasePage) {
     if (applicationIsQuitting) {
@@ -65,13 +67,11 @@ function pushPooledSubWindow(loadBasePage) {
         const win = new BrowserWindow({
             frame: false,
             show: false,
-            transparent: true,
             opacity: 0,
             skipTaskbar: true,
             autoHideMenuBar: true,
             thickFrame: true,
             titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-            backgroundColor: '#00000000',
             alwaysOnTop: false,
             width: 800,
             height: 600,
@@ -498,26 +498,7 @@ function registerWindowHandlers(mainWindow) {
      */
     ipcMain.handle('window-request-attention', (event) => {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
-        if (!senderWindow || senderWindow.isDestroyed()) {
-            return { success: false, error: 'no-window' };
-        }
-        try {
-            if (process.platform === 'win32') {
-                // 获得焦点前会持续闪烁任务栏按钮
-                senderWindow.flashFrame(true);
-            } else if (process.platform === 'darwin' && app.dock) {
-                app.dock.bounce('informational');
-                app.dock.setBadge('!');
-            } else if (process.platform === 'linux') {
-                if (typeof senderWindow.flashFrame === 'function') {
-                    senderWindow.flashFrame(true);
-                }
-            }
-            return { success: true };
-        } catch (err) {
-            console.warn('[window-request-attention]', err.message);
-            return { success: false, error: err.message };
-        }
+        return requestWindowAttention(senderWindow);
     });
 
     // 检查窗口是否最小化（同步）

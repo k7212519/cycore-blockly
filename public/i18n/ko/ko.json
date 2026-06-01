@@ -167,6 +167,7 @@
         "CROSS_TAB_PASTE": "붙여넣 기",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1개 붙여넣기",
         "WORKSPACE_SELECT_ALL": "모든 블록 선택",
+        "EXPLAIN_BLOCK": "AI 설명",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "블록 도구 상자",
             "TOOLBOX_DESC": "여기는 블록 분류 영역입니다. 분류를 클릭해 기능 블록을 찾고 오른쪽 작업 영역으로 끌어다 놓아 사용하세요.",
@@ -718,7 +719,8 @@
         "LOADING_BLOCKLY_LIB": "Blockly 라이브러리 로드 중",
         "LOADING_LIB": "{{name}} 로드 중",
         "LOADING_BLOCKLY_PROGRAM": "Blockly 프로그램 로드 중",
-        "PROJECT_LOAD_SUCCESS": "프로젝트 로드 완료"
+        "PROJECT_LOAD_SUCCESS": "프로젝트 로드 완료",
+        "EXPLAIN_BLOCK_PROMPT": "이 블록의 역할, 동작 원리, 현재 프로그램에서의 용도를 설명해 주세요."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "예제 로드 중...",
