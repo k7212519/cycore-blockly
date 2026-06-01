@@ -1816,47 +1816,73 @@ app.on("ready", async () => {
   createWindow();
 });
 
-// // 处理 Web Serial API 的串口选择请求
-// app.on('web-contents-created', (event, contents) => {
-//   contents.session.on('select-serial-port', (event, portList, webContents, callback) => {
-//     event.preventDefault();
-//     console.log('Web Serial API: 可用串口列表', portList);
+// === Web Serial API 支持 ===
+// 渲染端选择串口路径后，通过 IPC 设置首选端口；随后调用 navigator.serial.requestPort()
+// 时由主进程 select-serial-port 事件按路径匹配并自动选中，与 ESPConnect 在浏览器内
+// 直接用 WebSerial 的体验一致。
+const webSerialPreferredPortByContents = new WeakMap();
 
-//     // 如果有可用的串口，选择第一个（或者可以根据 VID/PID 筛选）
-//     if (portList && portList.length > 0) {
-//       // 查找 ESP32S3 设备 (VID: 0x303a, PID: 0x1001)
-//       const esp32Port = portList.find(port =>
-//         port.vendorId === '303a' && port.productId === '1001'
-//       );
+ipcMain.handle('webserial-set-preferred-port', (event, portPath) => {
+  if (event?.sender && typeof portPath === 'string' && portPath) {
+    webSerialPreferredPortByContents.set(event.sender, portPath);
+  }
+  return true;
+});
 
-//       if (esp32Port) {
-//         console.log('选择 ESP32S3 串口:', esp32Port.portId);
-//         callback(esp32Port.portId);
-//       } else {
-//         // 如果没找到 ESP32S3，选择第一个
-//         console.log('未找到 ESP32S3，选择第一个串口:', portList[0].portId);
-//         callback(portList[0].portId);
-//       }
-//     } else {
-//       console.log('没有可用的串口');
-//       callback('');
-//     }
-//   });
+ipcMain.handle('webserial-clear-preferred-port', (event) => {
+  if (event?.sender) {
+    webSerialPreferredPortByContents.delete(event.sender);
+  }
+  return true;
+});
 
-//   contents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-//     if (permission === 'serial') {
-//       return true;
-//     }
-//     return false;
-//   });
+function normalizePortPath(value) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[\\/]/g, '') : '';
+}
 
-//   contents.session.setDevicePermissionHandler((details) => {
-//     if (details.deviceType === 'serial') {
-//       return true;
-//     }
-//     return false;
-//   });
-// });
+app.on('web-contents-created', (event, contents) => {
+  contents.session.on('select-serial-port', (event, portList, webContents, callback) => {
+    event.preventDefault();
+    if (!Array.isArray(portList) || portList.length === 0) {
+      callback('');
+      return;
+    }
+
+    const preferred = webSerialPreferredPortByContents.get(contents);
+    if (preferred) {
+      const target = normalizePortPath(preferred);
+      const match = portList.find(p => normalizePortPath(p.portName) === target || normalizePortPath(p.path) === target);
+      if (match) {
+        callback(match.portId);
+        return;
+      }
+    }
+
+    // 兜底：优先匹配 ESP 系常见 VID/PID
+    const espVids = new Set(['303a', '10c4', '1a86', '0403', '067b']);
+    const espMatch = portList.find(p => espVids.has(String(p.vendorId || '').toLowerCase()));
+    if (espMatch) {
+      callback(espMatch.portId);
+      return;
+    }
+
+    callback(portList[0].portId);
+  });
+
+  contents.session.setPermissionCheckHandler((wc, permission) => {
+    if (permission === 'serial') {
+      return true;
+    }
+    return false;
+  });
+
+  contents.session.setDevicePermissionHandler((details) => {
+    if (details.deviceType === 'serial') {
+      return true;
+    }
+    return false;
+  });
+});
 
 // 当所有窗口都被关闭时退出应用（macOS 除外）
 app.on("window-all-closed", () => {

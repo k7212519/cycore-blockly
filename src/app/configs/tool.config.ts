@@ -38,6 +38,15 @@ export const APP_LIST: AppItem[] = [
     enabled: true
   },
   {
+    id: 'ffs-manager',
+    name: 'MENU.FFS_MANAGER',
+    description: 'APP_STORE.FFS_MANAGER_DESC',
+    action: 'tool-open',
+    data: { type: 'tool', data: 'ffs-manager' },
+    icon: 'fa-light fa-folder-gear',
+    enabled: true
+  },
+  {
     id: 'aily-chat',
     name: 'MENU.AI',
     description: 'APP_STORE.AI_DESC',
