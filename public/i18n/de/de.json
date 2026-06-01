@@ -167,6 +167,7 @@
         "CROSS_TAB_PASTE": "Einfügen",
         "CROSS_TAB_PASTE_X_ELEMENTS": "%1 Elemente einfügen",
         "WORKSPACE_SELECT_ALL": "Alle Blöcke auswählen",
+        "EXPLAIN_BLOCK": "Mit KI erklären",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "Block-Werkzeugkasten",
             "TOOLBOX_DESC": "Hier befinden sich die Blockkategorien. Klicken Sie auf eine Kategorie, um Funktionsblöcke zu finden, und ziehen Sie sie zur Verwendung in den Arbeitsbereich rechts.",
@@ -730,7 +731,8 @@
         "LOADING_BLOCKLY_LIB": "Blockly-Bibliotheken werden geladen",
         "LOADING_LIB": "{{name}} wird geladen",
         "LOADING_BLOCKLY_PROGRAM": "Blockly-Programm wird geladen",
-        "PROJECT_LOAD_SUCCESS": "Projekt erfolgreich geladen"
+        "PROJECT_LOAD_SUCCESS": "Projekt erfolgreich geladen",
+        "EXPLAIN_BLOCK_PROMPT": "Bitte erklären Sie, was dieser Block macht, wie er funktioniert und welche Rolle er im aktuellen Programm spielt."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "Beispiel wird geladen...",

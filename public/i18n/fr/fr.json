@@ -167,6 +167,7 @@
         "CROSS_TAB_PASTE": "Coller",
         "CROSS_TAB_PASTE_X_ELEMENTS": "Coller %1 éléments",
         "WORKSPACE_SELECT_ALL": "Sélectionner tous les blocs",
+        "EXPLAIN_BLOCK": "Expliquer avec l'IA",
         "ONBOARDING": {
             "TOOLBOX_TITLE": "Boîte à outils des blocs",
             "TOOLBOX_DESC": "Vous trouverez ici les catégories de blocs. Cliquez sur les différentes catégories pour trouver des blocs de fonction, puis faites-les glisser vers l'espace de travail à droite.",
@@ -730,7 +731,8 @@
         "LOADING_BLOCKLY_LIB": "Chargement des bibliothèques Blockly",
         "LOADING_LIB": "Chargement de {{name}}",
         "LOADING_BLOCKLY_PROGRAM": "Chargement du programme Blockly",
-        "PROJECT_LOAD_SUCCESS": "Projet chargé avec succès"
+        "PROJECT_LOAD_SUCCESS": "Projet chargé avec succès",
+        "EXPLAIN_BLOCK_PROMPT": "Veuillez expliquer le rôle de ce bloc, son principe de fonctionnement et son utilité dans le programme actuel."
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "Chargement de l'exemple...",
