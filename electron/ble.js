@@ -84,15 +84,16 @@ function setupWebBluetoothPermissions(targetWindow) {
 function registerWebBluetoothChooser(targetWindow) {
   logBle('register chooser for window');
   setupWebBluetoothPermissions(targetWindow);
+  const targetWebContents = targetWindow.webContents;
 
-  targetWindow.webContents.on('select-bluetooth-device', (event, deviceList, callback) => {
+  targetWebContents.on('select-bluetooth-device', (event, deviceList, callback) => {
     event.preventDefault();
     bluetoothChooserEventCount++;
     pendingBluetoothSelectionCallback = callback;
-    pendingBluetoothSelectionWebContents = targetWindow.webContents;
+    pendingBluetoothSelectionWebContents = targetWebContents;
 
-    if (cancelledBluetoothDeviceRequests.has(targetWindow.webContents)) {
-      cancelledBluetoothDeviceRequests.delete(targetWindow.webContents);
+    if (cancelledBluetoothDeviceRequests.has(targetWebContents)) {
+      cancelledBluetoothDeviceRequests.delete(targetWebContents);
       pendingBluetoothSelectionCallback('');
       pendingBluetoothSelectionCallback = null;
       pendingBluetoothSelectionWebContents = null;
@@ -100,14 +101,14 @@ function registerWebBluetoothChooser(targetWindow) {
     }
 
     const normalizedDevices = normalizeBluetoothDevices(deviceList);
-    const preferredDeviceId = preferredBluetoothDeviceSelections.get(targetWindow.webContents);
+    const preferredDeviceId = preferredBluetoothDeviceSelections.get(targetWebContents);
     if (preferredDeviceId) {
       const matchedDevice = normalizedDevices.find(device => device.deviceId === preferredDeviceId);
       if (matchedDevice) {
         logBle('auto selected preferred device:', matchedDevice.deviceName || matchedDevice.deviceId);
-        preferredBluetoothDeviceSelections.delete(targetWindow.webContents);
-        pausedBluetoothDeviceUpdates.delete(targetWindow.webContents);
-        cancelledBluetoothDeviceRequests.delete(targetWindow.webContents);
+        preferredBluetoothDeviceSelections.delete(targetWebContents);
+        pausedBluetoothDeviceUpdates.delete(targetWebContents);
+        cancelledBluetoothDeviceRequests.delete(targetWebContents);
         pendingBluetoothSelectionCallback(preferredDeviceId);
         pendingBluetoothSelectionCallback = null;
         pendingBluetoothSelectionWebContents = null;
@@ -115,7 +116,7 @@ function registerWebBluetoothChooser(targetWindow) {
       }
     }
 
-    if (pausedBluetoothDeviceUpdates.has(targetWindow.webContents)) return;
+    if (pausedBluetoothDeviceUpdates.has(targetWebContents)) return;
 
     if (bluetoothChooserEventCount <= 5 || bluetoothChooserEventCount % 20 === 0) {
       const sample = (deviceList || []).slice(0, 5).map(device => ({
@@ -125,11 +126,11 @@ function registerWebBluetoothChooser(targetWindow) {
       }));
       logBle('select-bluetooth-device event:', bluetoothChooserEventCount, 'raw count:', deviceList?.length || 0, 'sample:', JSON.stringify(sample));
     }
-    sendBluetoothDeviceList(targetWindow.webContents, normalizedDevices);
+    sendBluetoothDeviceList(targetWebContents, normalizedDevices);
   });
 
   targetWindow.on('closed', () => {
-    if (pendingBluetoothSelectionWebContents === targetWindow.webContents) {
+    if (pendingBluetoothSelectionWebContents === targetWebContents) {
       pendingBluetoothSelectionCallback = null;
       pendingBluetoothSelectionWebContents = null;
     }
