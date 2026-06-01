@@ -880,11 +880,14 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
           this.blocklyService.syncToolboxFacadeWithWorkspace();
         }
 
-        // 监听 block 选中事件，更新 selectedBlockSubject
+        // 监听 block 选中事件，更新 selectedBlockSubject / selectedBlockIdsSubject
         if (event.type === Blockly.Events.SELECTED) {
           const selectedBlockId = event.newElementId || null;
           this.blocklyService.selectedBlockSubject.next(selectedBlockId);
-          this.codeViewerIpcService.publishSelection(selectedBlockId);
+          queueMicrotask(() => {
+            this.blocklyService.syncSelectedBlocksFromWorkspace();
+            this.codeViewerIpcService.publishSelection(this.blocklyService.selectedBlockSubject.value);
+          });
         }
       });
       if (this.configData.blockly.minimap && this.minimap) {
@@ -1435,8 +1438,12 @@ export class BlocklyComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    this.blocklyService.selectedBlockSubject.next(block.id);
-    this.codeViewerIpcService.publishSelection(block.id);
+    this.blocklyService.syncSelectedBlocksFromWorkspace();
+    if (!this.blocklyService.selectedBlockIdsSubject.value.includes(block.id)) {
+      this.blocklyService.selectedBlockIdsSubject.next([block.id]);
+      this.blocklyService.selectedBlockSubject.next(block.id);
+    }
+    this.codeViewerIpcService.publishSelection(this.blocklyService.selectedBlockSubject.value);
 
     const prompt = this.translateService.instant('BLOCKLY_EDITOR.EXPLAIN_BLOCK_PROMPT');
     this.uiService.openAndSendToChat(prompt, {

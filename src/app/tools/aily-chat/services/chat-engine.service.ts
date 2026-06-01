@@ -334,10 +334,13 @@ export class ChatEngineService {
 
     // 订阅 Blockly 块选中变化 + 代码映射变化
     this.blockSelectionSubscription = combineLatest([
-      AilyHost.get().blockly.selectedBlockSubject,
+      AilyHost.get().blockly.selectedBlockIdsSubject,
       AilyHost.get().blockly.blockCodeMapSubject
     ]).subscribe((results: any[]) => {
-      this.resourceManager.updateBlockContext(results[0], () => AilyHost.get().blockly.getSelectedBlockContextLabel());
+      this.resourceManager.updateBlockContexts(
+        results[0] || [],
+        () => AilyHost.get().blockly.getSelectedBlockContextLabels(),
+      );
       this.requestViewUpdate();
     });
 

@@ -23,7 +23,7 @@ import { AilyMarkdownExternalLinksDirective } from '../../../directives/aily-mar
   imports: [CommonModule, XMarkdownComponent, AilyMarkdownExternalLinksDirective],
   template: `
     <div class="ac-think" [class.expanded]="thinkExpanded">
-      <div class="ac-think-header" (click)="thinkExpanded = !thinkExpanded">
+      <div class="ac-think-header" (click)="thinkExpanded = !thinkExpanded; $event.stopPropagation()">
         @if (data?.isComplete) {
           <i class="fa-light fa-circle-check ac-think-icon done"></i>
         } @else {

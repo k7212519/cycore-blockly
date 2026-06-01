@@ -195,9 +195,33 @@ export class XDialogComponent implements OnChanges, AfterViewChecked, OnDestroy 
 
   // ===== 编辑模式操作 =====
 
+  /** 消息内可交互子组件：点击时不应触发整段消息进入编辑 */
+  private static readonly EDIT_CLICK_IGNORE_SELECTOR = [
+    '.ac-context',
+    '.ac-think',
+    '.ac-blockly',
+    '.aily-mermaid-wrapper',
+    '.ac-question',
+    '.ac-approval',
+    '.ac-btn',
+    '.aq-nav-btn',
+    '.aq-nav-submit',
+    '.aq-close',
+    'button',
+    'a[href]',
+    'input',
+    'textarea',
+    'select',
+    '.msg-actions',
+  ].join(', ');
+
   /** 点击用户消息进入编辑模式 */
-  onUserMessageClick(): void {
+  onUserMessageClick(event: MouseEvent): void {
     if (!this.canEditUserMessage || this.isEditing) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest(XDialogComponent.EDIT_CLICK_IGNORE_SELECTOR)) {
+      return;
+    }
     const { text, resources } = this.parseUserContent(this.content || '');
     this.editText = text;
     this.editResources = resources;
@@ -207,11 +231,18 @@ export class XDialogComponent implements OnChanges, AfterViewChecked, OnDestroy 
     setTimeout(() => this.editTextareaRef?.nativeElement?.focus(), 0);
   }
 
-  onCancelEdit(): void {
+  /** 关闭编辑态（切换会话等场景由父组件或 sessionId 变化触发） */
+  closeEditMode(): void {
+    if (!this.isEditing) return;
     this.isEditing = false;
     this.editText = '';
     this.editResources = [];
     this.showEditAddList = false;
+    this.cdr.markForCheck();
+  }
+
+  onCancelEdit(): void {
+    this.closeEditMode();
   }
 
   onSubmitEdit(): void {
@@ -397,6 +428,14 @@ export class XDialogComponent implements OnChanges, AfterViewChecked, OnDestroy 
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    if (changes['sessionId'] && !changes['sessionId'].firstChange) {
+      const prev = changes['sessionId'].previousValue;
+      const curr = changes['sessionId'].currentValue;
+      if (prev !== curr) {
+        this.closeEditMode();
+      }
+    }
+
     // 子Agent折叠面板：doing时自动展开，完成时自动收起
     if (this.isSubagent && changes['doing']) {
       if (this.doing) {
