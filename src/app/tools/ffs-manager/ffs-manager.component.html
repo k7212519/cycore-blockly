@@ -40,7 +40,7 @@
           [files]="filesystemFiles" [usage]="filesystemUsage" [dirty]="filesystemDirty"
           [statusText]="filesystemStatusText" [busy]="busy" [currentPort]="currentPort"
           (loadContent)="loadFilesystemContent()" (uploadFile)="uploadFileToFilesystem($event)"
-          (createDirectory)="createFilesystemDirectory()" (saveContent)="saveFilesystemContent()"
+          (createDirectory)="createFilesystemDirectory($event)" (saveContent)="saveFilesystemContent()"
           (formatFilesystem)="formatFilesystemContent()" (downloadPartition)="downloadSelectedPartition()"
           (restorePartition)="restoreSelectedPartition($event)" (erasePartition)="eraseSelectedPartition()"
           (downloadFile)="downloadFilesystemFile($event)" (renameEntry)="renameFilesystemEntry($event)"

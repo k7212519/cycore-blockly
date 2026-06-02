@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -38,7 +38,7 @@ export class FilesystemManagerComponent implements OnChanges {
 
   @Output() loadContent = new EventEmitter<void>();
   @Output() uploadFile = new EventEmitter<File>();
-  @Output() createDirectory = new EventEmitter<void>();
+  @Output() createDirectory = new EventEmitter<string>();
   @Output() saveContent = new EventEmitter<void>();
   @Output() formatFilesystem = new EventEmitter<void>();
   @Output() downloadPartition = new EventEmitter<void>();
@@ -56,6 +56,8 @@ export class FilesystemManagerComponent implements OnChanges {
   history: string[] = ['/'];
   historyIndex = 0;
   selectedEntry: ExplorerEntry | null = null;
+  isDragOver = false;
+  private dragDepth = 0;
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['filesystemSession'] || changes['selectedPartition']) {
@@ -248,6 +250,70 @@ export class FilesystemManagerComponent implements OnChanges {
     if (file) this.uploadFile.emit(file);
     input.value = '';
   }
+
+  // ============ 拖拽上传 ============
+  // 注意：Electron 渲染进程默认会把拖入的文件作为页面导航处理，
+  // 因此必须在 host 上无条件 preventDefault 才能截获 drop 事件。
+
+  private hasFiles(event: DragEvent): boolean {
+    const types = event.dataTransfer?.types;
+    if (!types) return false;
+    for (let i = 0; i < types.length; i++) {
+      if (types[i] === 'Files') return true;
+    }
+    return false;
+  }
+
+  @HostListener('dragenter', ['$event'])
+  onHostDragEnter(event: DragEvent) {
+    if (!this.hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragDepth++;
+    if (this.hasSession && !this.busy) this.isDragOver = true;
+  }
+
+  @HostListener('dragover', ['$event'])
+  onHostDragOver(event: DragEvent) {
+    if (!this.hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = this.hasSession && !this.busy ? 'copy' : 'none';
+    }
+    if (this.hasSession && !this.busy) this.isDragOver = true;
+  }
+
+  @HostListener('dragleave', ['$event'])
+  onHostDragLeave(event: DragEvent) {
+    if (!this.hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragDepth = Math.max(0, this.dragDepth - 1);
+    if (this.dragDepth === 0) this.isDragOver = false;
+  }
+
+  @HostListener('drop', ['$event'])
+  onHostDrop(event: DragEvent) {
+    if (!this.hasFiles(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragDepth = 0;
+    this.isDragOver = false;
+    if (!this.hasSession || this.busy) return;
+    const files = event.dataTransfer?.files;
+    if (!files || !files.length) return;
+    for (let i = 0; i < files.length; i++) {
+      const f = files.item(i);
+      if (f) this.uploadFile.emit(f);
+    }
+  }
+
+  // 这些方法保留给模板内的 list-body 元素（仅用于显示拖拽高亮）
+  onDragEnter(event: DragEvent) { this.onHostDragEnter(event); }
+  onDragOver(event: DragEvent) { this.onHostDragOver(event); }
+  onDragLeave(event: DragEvent) { this.onHostDragLeave(event); }
+  onDrop(event: DragEvent) { this.onHostDrop(event); }
 
   triggerRestore() {
     if (!this.canManage) return;

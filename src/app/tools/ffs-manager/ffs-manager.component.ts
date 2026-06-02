@@ -622,11 +622,13 @@ export class FfsManagerComponent {
     }
   }
 
-  async createFilesystemDirectory() {
+  async createFilesystemDirectory(basePath: string = '/') {
     const session = this.filesystemSession;
     if (!session) return;
 
-    const path = await this.promptDialog('新建目录', '/new_folder', '/path/to/dir');
+    const base = basePath && basePath.startsWith('/') ? basePath : '/';
+    const defaultPath = (base === '/' ? '' : base.replace(/\/$/, '')) + '/new_folder';
+    const path = await this.promptDialog('新建文件夹', defaultPath, '/path/to/dir');
     if (path === null || !path.trim()) return;
 
     this.busy = true;
