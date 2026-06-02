@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import {
   FfsFileEntry,
@@ -21,7 +22,7 @@ interface ExplorerEntry {
 @Component({
   selector: 'app-filesystem-manager',
   standalone: true,
-  imports: [CommonModule, NzButtonModule, NzToolTipModule],
+  imports: [CommonModule, NzButtonModule, NzToolTipModule, NzPopconfirmModule],
   templateUrl: './filesystem-manager.component.html',
   styleUrl: './filesystem-manager.component.scss',
 })

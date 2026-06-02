@@ -23,7 +23,7 @@
             </div>
           </div>
           <div class="switch">
-            <nz-switch [(ngModel)]="switchValue" [nzLoading]="busy" [nzDisabled]="!currentPort"
+            <nz-switch [(ngModel)]="switchValue" [nzLoading]="busy && !switchValue" [nzDisabled]="!currentPort"
               (ngModelChange)="switchConnection()"></nz-switch>
           </div>
         </div>

@@ -120,6 +120,8 @@ export class EspSessionService {
     this.chipInfo = null;
     this.currentPortPath = null;
     this.currentBaud = 0;
+    // 中断已 chain 的操作，避免下一次 runExclusive 排在被遗弃的 readFlash 后面。
+    this.operationQueue = Promise.resolve();
 
     // 注意：不走 loader.after('hard_reset')。在 stub 模式下它会写命令等待响应，
     // 这里端口随后即将释放，容易死等。直接用 DTR/RTS 脉冲把 ESP 拉回 ROM 即可。

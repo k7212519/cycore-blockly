@@ -27,19 +27,10 @@
     <!-- 工具栏：导航 + 操作 -->
     <div class="toolbar">
       <div class="nav-group">
-        <button class="tb-btn" [disabled]="historyIndex <= 0 || !hasSession" (click)="goBack()" nz-tooltip="后退">
-          <i class="fa-light fa-arrow-left"></i>
-        </button>
-        <button class="tb-btn" [disabled]="historyIndex >= history.length - 1 || !hasSession" (click)="goForward()"
-          nz-tooltip="前进">
-          <i class="fa-light fa-arrow-right"></i>
-        </button>
-        <button class="tb-btn" [disabled]="currentPath === '/' || !hasSession" (click)="goUp()" nz-tooltip="向上">
-          <i class="fa-light fa-arrow-up"></i>
-        </button>
-        <button class="tb-btn" [disabled]="!canManage" (click)="refreshList()" nz-tooltip="刷新">
-          <i class="fa-light fa-arrows-rotate"></i>
-        </button>
+        <div class="path" [title]="currentPath">
+          <i class="fa-light fa-folder-tree"></i>
+          <span class="path-text">{{ currentPath }}</span>
+        </div>
       </div>
 
       <div class="action-group">
@@ -57,7 +48,13 @@
           <span>新建目录</span>
         </button>
         }
-        <button class="tb-btn primary" [disabled]="!canSave" (click)="saveContent.emit()" nz-tooltip="将镜像写回 Flash">
+        <button class="tb-btn primary" [disabled]="!canSave"
+          nz-popconfirm
+          nzPopconfirmTitle="确认将当前镜像写回分区？"
+          nzOkText="写回"
+          nzCancelText="取消"
+          (nzOnConfirm)="saveContent.emit()"
+          nz-tooltip="将镜像写回 Flash">
           <i class="fa-light fa-floppy-disk"></i>
           <span>写回</span>
         </button>
@@ -68,18 +65,19 @@
         <button class="tb-btn" [disabled]="!canManage" (click)="triggerRestore()" nz-tooltip="导入镜像写入分区">
           <i class="fa-light fa-file-arrow-up"></i>
         </button>
-        <button class="tb-btn danger" [disabled]="!hasSession || busy" (click)="formatFilesystem.emit()"
+        <button class="tb-btn danger dd ccenter" [disabled]="!hasSession || busy" (click)="formatFilesystem.emit()"
           nz-tooltip="格式化镜像">
           <i class="fa-light fa-broom-wide"></i>
         </button>
-        <button class="tb-btn danger" [disabled]="!canManage" (click)="erasePartition.emit()" nz-tooltip="擦除分区">
+        <button class="tb-btn danger dd ccenter" [disabled]="!canManage" (click)="erasePartition.emit()"
+          nz-tooltip="擦除分区">
           <i class="fa-light fa-eraser"></i>
         </button>
       </div>
     </div>
 
     <!-- 地址栏 -->
-    <div class="address-bar">
+    <!-- <div class="address-bar">
       <i class="fa-light fa-folder-tree"></i>
       <div class="breadcrumbs">
         @for (crumb of breadcrumbs; track crumb.path; let last = $last) {
@@ -90,7 +88,7 @@
         }
         }
       </div>
-    </div>
+    </div> -->
 
     <!-- 文件列表（详细视图） -->
     <div class="list">
@@ -101,21 +99,15 @@
         <div class="col-actions"></div>
       </div>
 
-      <div class="list-body sscroll">
+      <div class="list-body sscroll" [class.is-loading]="busy">
+        @if (busy) {
+        <div class="loading-overlay">
+          <i class="fa-duotone fa-solid fa-spinner fa-spin spinner"></i>
+        </div>
+        }
         @if (!hasSession) {
         <div class="empty">
-          <i class="fa-light fa-folder-magnifying-glass"></i>
-          @if (!selectedPartition) {
-          <p>请先连接设备并选择一个文件系统分区</p>
-          } @else if (!isFilesystemPartition) {
-          <p>当前分区不是 SPIFFS / LittleFS / FATFS 文件系统分区</p>
-          } @else {
-          <p>点击工具栏“读取”加载文件系统内容</p>
-          <button nz-button nzType="primary" [disabled]="!canManage" (click)="loadContent.emit()">
-            <i class="fa-light fa-folder-open"></i>
-            读取文件
-          </button>
-          }
+
         </div>
         } @else {
         @if (currentPath !== '/') {

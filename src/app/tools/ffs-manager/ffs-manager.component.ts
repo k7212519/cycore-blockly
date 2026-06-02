@@ -62,6 +62,7 @@ export class FfsManagerComponent {
   switchValue = false;
   esptoolReady = false;
   busy = false;
+  aborting = false;
   statusText = '选择 ESP32 串口后刷新设备信息';
   errorText = '';
   deviceInfo: FfsDeviceInfo | null = null;
@@ -323,12 +324,21 @@ export class FfsManagerComponent {
         ? `已读取 ${this.partitions.length} 个分区，其中 ${this.filesystemPartitions.length} 个文件系统分区`
         : '没有读取到分区表';
     } catch (error) {
-      this.errorText = this.formatError(error);
-      this.statusText = '读取失败';
-      this.message.error(this.errorText);
+      if (this.aborting) {
+        this.errorText = '';
+        this.statusText = '已取消';
+      } else {
+        this.errorText = this.formatError(error);
+        this.statusText = '读取失败';
+        this.message.error(this.errorText);
+      }
     } finally {
       this.busy = false;
       this.cd.detectChanges();
+    }
+
+    if (!this.errorText && !this.aborting && this.selectedPartition?.filesystemType) {
+      await this.loadFilesystemContent();
     }
   }
 
@@ -357,6 +367,13 @@ export class FfsManagerComponent {
       this.cd.detectChanges();
     } else {
       const releasedPort = this.currentPort;
+      const wasBusy = this.busy;
+      this.aborting = wasBusy;
+      if (wasBusy) {
+        this.statusText = '正在取消...';
+        this.filesystemStatusText = '正在取消...';
+        this.cd.detectChanges();
+      }
       try {
         await this.ffsManagerService.release(true);
       } catch (error) {
@@ -366,10 +383,12 @@ export class FfsManagerComponent {
       this.partitions = [];
       this.selectedPartition = null;
       this.resetFilesystemState();
-      this.statusText = '已断开';
+      this.statusText = wasBusy ? '已取消' : '已断开';
       if (releasedPort) {
         this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, source: this.selfSignalTag });
       }
+      this.aborting = false;
+      this.busy = false;
       this.cd.detectChanges();
     }
   }
@@ -407,9 +426,14 @@ export class FfsManagerComponent {
       this.filesystemStatusText = `已读取 ${this.filesystemFiles.length} 个文件系统条目`;
       this.message.success('文件系统内容已读取');
     } catch (error) {
-      this.errorText = this.formatError(error);
-      this.filesystemStatusText = '文件系统读取失败';
-      this.message.error(this.errorText);
+      if (this.aborting) {
+        this.errorText = '';
+        this.filesystemStatusText = '已取消';
+      } else {
+        this.errorText = this.formatError(error);
+        this.filesystemStatusText = '文件系统读取失败';
+        this.message.error(this.errorText);
+      }
     } finally {
       this.busy = false;
       this.cd.detectChanges();
@@ -420,9 +444,8 @@ export class FfsManagerComponent {
     const session = this.filesystemSession;
     if (!file || !session) return;
 
-    const defaultPath = this.ffsFilesystemContentService.getDefaultUploadPath(file.name, session.type);
-    const targetPath = await this.promptDialog('上传文件', defaultPath, '/path/to/file');
-    if (targetPath === null || !targetPath.trim()) return;
+    const targetPath = this.ffsFilesystemContentService.getDefaultUploadPath(file.name, session.type);
+    if (!targetPath || !targetPath.trim()) return;
 
     this.busy = true;
     this.errorText = '';
@@ -572,9 +595,6 @@ export class FfsManagerComponent {
     const session = this.filesystemSession;
     const partition = this.selectedPartition;
     if (!session || !partition || !this.currentPort) return;
-    if (!(await this.confirmDialog('写回设备', `确认将当前 ${this.getFsLabel(session.type)} 镜像写回 ${partition.label || partition.offsetHex} 分区？`))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
