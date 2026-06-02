@@ -136,6 +136,11 @@
           <div class="col-actions">
             @if (entry.source) {
             @if (entry.type === 'file') {
+            @if (isViewable(entry)) {
+            <button class="icon-btn" [disabled]="busy" [nz-tooltip]="getPreviewLabel(entry.name)" (click)="emitView(entry, $event)">
+              <i [class]="getPreviewIcon(entry.name)"></i>
+            </button>
+            }
             <button class="icon-btn" [disabled]="busy" nz-tooltip="下载" (click)="emitDownload(entry, $event)">
               <i class="fa-light fa-download"></i>
             </button>

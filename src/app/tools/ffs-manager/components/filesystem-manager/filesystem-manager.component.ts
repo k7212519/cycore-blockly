@@ -45,6 +45,7 @@ export class FilesystemManagerComponent implements OnChanges {
   @Output() restorePartition = new EventEmitter<File>();
   @Output() erasePartition = new EventEmitter<void>();
   @Output() downloadFile = new EventEmitter<FfsFileEntry>();
+  @Output() viewEntry = new EventEmitter<FfsFileEntry>();
   @Output() renameEntry = new EventEmitter<FfsFileEntry>();
   @Output() deleteEntry = new EventEmitter<FfsFileEntry>();
 
@@ -266,6 +267,11 @@ export class FilesystemManagerComponent implements OnChanges {
     if (entry.source) this.downloadFile.emit(entry.source);
   }
 
+  emitView(entry: ExplorerEntry, evt: MouseEvent) {
+    evt.stopPropagation();
+    if (entry.source) this.viewEntry.emit(entry.source);
+  }
+
   emitRename(entry: ExplorerEntry, evt: MouseEvent) {
     evt.stopPropagation();
     if (entry.source) this.renameEntry.emit(entry.source);
@@ -303,6 +309,32 @@ export class FilesystemManagerComponent implements OnChanges {
     if (entry.type === 'dir') return '文件夹';
     const ext = entry.name.split('.').pop()?.toUpperCase();
     return ext ? `${ext} 文件` : '文件';
+  }
+
+  getPreviewMode(name: string): 'text' | 'image' | 'audio' | null {
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) return 'image';
+    if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'audio';
+    if (['txt', 'log', 'md', 'cfg', 'ini', 'conf', 'json', 'yaml', 'yml', 'xml', 'toml',
+         'js', 'ts', 'py', 'c', 'cpp', 'h', 'hpp', 'sh', 'csv', 'html', 'htm', 'css'].includes(ext)) return 'text';
+    return null;
+  }
+
+  isViewable(entry: ExplorerEntry): boolean {
+    return entry.type === 'file' && this.getPreviewMode(entry.name) !== null;
+  }
+
+  getPreviewIcon(name: string): string {
+    const mode = this.getPreviewMode(name);
+    if (mode === 'image') return 'fa-light fa-image';
+    if (mode === 'audio') return 'fa-light fa-headphones';
+    return 'fa-light fa-eye';
+  }
+
+  getPreviewLabel(name: string): string {
+    const mode = this.getPreviewMode(name);
+    if (mode === 'audio') return '试听';
+    return '查看';
   }
 
   trackEntry = (_: number, entry: ExplorerEntry) => entry.fullPath;

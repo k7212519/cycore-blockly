@@ -15,6 +15,8 @@ import { PortItem, SerialService } from '../../services/serial.service';
 import { UiService } from '../../services/ui.service';
 import { BAUDRATE_LIST } from '../serial-monitor/config';
 import { DeviceInfoComponent } from './components/device-info/device-info.component';
+import { FileImageViewerComponent, FileImageViewerData } from './components/file-image-viewer/file-image-viewer.component';
+import { FileTextViewerComponent, FileTextViewerData } from './components/file-text-viewer/file-text-viewer.component';
 import { FilesystemManagerComponent } from './components/filesystem-manager/filesystem-manager.component';
 import { PartitionMapComponent } from './components/partition-map/partition-map.component';
 import { FfsFileEntry, FfsFilesystemContentService, FfsFilesystemUsage, FfsMountedFilesystem } from './ffs-filesystem-content.service';
@@ -488,6 +490,85 @@ export class FfsManagerComponent {
       this.busy = false;
       this.cd.detectChanges();
     }
+  }
+
+  async viewFilesystemFile(entry: FfsFileEntry) {
+    const session = this.filesystemSession;
+    if (!session || entry.type !== 'file') return;
+
+    const mode = this.getPreviewMode(entry.name);
+    if (!mode) {
+      this.message.warning('当前文件类型不支持预览');
+      return;
+    }
+
+    this.busy = true;
+    this.errorText = '';
+    this.filesystemStatusText = `正在读取 ${entry.path}...`;
+    let audioUrl: string | null = null;
+    try {
+      const data = await this.ffsFilesystemContentService.readFile(session, entry.path);
+      const sizeText = this.formatBytes(data.byteLength);
+      this.filesystemStatusText = `${entry.path} 已读取（${sizeText}）`;
+
+      if (mode === 'text') {
+        this.modal.create<FileTextViewerComponent, FileTextViewerData>({
+          nzTitle: null,
+          nzFooter: null,
+          nzClosable: false,
+          nzWidth: '760px',
+          nzBodyStyle: { padding: '0', background: 'var(--aily-bg-primary)' },
+          nzContent: FileTextViewerComponent,
+          nzData: { name: entry.name, data },
+        });
+      } else if (mode === 'image') {
+        this.modal.create<FileImageViewerComponent, FileImageViewerData>({
+          nzTitle: null,
+          nzFooter: null,
+          nzClosable: false,
+          nzWidth: '80vw',
+          nzBodyStyle: { padding: '0', background: '#1e1e1e' },
+          nzContent: FileImageViewerComponent,
+          nzData: { name: entry.name, data },
+        });
+      } else if (mode === 'audio') {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const mime = ext === 'mp3' ? 'audio/mpeg' : `audio/${ext}`;
+        audioUrl = URL.createObjectURL(new Blob([data], { type: mime }));
+        const bodyHtml = `<div style="display:flex;align-items:center;justify-content:center;padding:16px;"><audio controls autoplay src="${audioUrl}" style="width:100%;"></audio></div>`;
+        const ref = this.modal.create({
+          nzTitle: `${entry.name} · ${sizeText}`,
+          nzWidth: 560,
+          nzFooter: null,
+          nzBodyStyle: { background: 'var(--aily-bg-primary)' },
+          nzContent: bodyHtml,
+        });
+        ref.afterClose.subscribe(() => URL.revokeObjectURL(audioUrl!));
+      }
+    } catch (error) {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      this.errorText = this.formatError(error);
+      this.filesystemStatusText = '读取失败';
+      this.message.error(this.errorText);
+    } finally {
+      this.busy = false;
+      this.cd.detectChanges();
+    }
+  }
+
+  private getPreviewMode(name: string): 'text' | 'image' | 'audio' | null {
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) return 'image';
+    if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'audio';
+    if (['txt', 'log', 'md', 'cfg', 'ini', 'conf', 'json', 'yaml', 'yml', 'xml', 'toml',
+         'js', 'ts', 'py', 'c', 'cpp', 'h', 'hpp', 'sh', 'csv', 'html', 'htm', 'css'].includes(ext)) return 'text';
+    return null;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
   }
 
   async deleteFilesystemEntry(entry: FfsFileEntry) {

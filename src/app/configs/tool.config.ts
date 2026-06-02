@@ -43,7 +43,7 @@ export const APP_LIST: AppItem[] = [
     description: 'APP_STORE.FFS_MANAGER_DESC',
     action: 'tool-open',
     data: { type: 'tool', data: 'ffs-manager' },
-    icon: 'fa-light fa-folder-gear',
+    icon: 'fa-light fa-database',
     enabled: true
   },
   {
