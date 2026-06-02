@@ -73,6 +73,8 @@ export class FfsManagerComponent {
   filesystemUsage: FfsFilesystemUsage | null = null;
   filesystemDirty = false;
   filesystemStatusText = '读取文件列表后可管理分区内容';
+  private progressLastTs = 0;
+  private progressLastPercent = -1;
 
   constructor(
     private router: Router,
@@ -389,10 +391,13 @@ export class FfsManagerComponent {
     this.errorText = '';
     this.filesystemStatusText = `正在读取 ${partition.label || partition.offsetHex} 文件系统...`;
     try {
+      const readPrefix = `正在读取 ${partition.label || partition.offsetHex} 文件系统`;
+      this.resetProgressThrottle();
       const image = await this.ffsManagerService.readPartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
-        partition
+        partition,
+        (received, total) => this.reportProgress(readPrefix, received, total, 'filesystem')
       );
       this.filesystemSession = await this.ffsFilesystemContentService.mountPartition(partition, image);
       this.filesystemFiles = this.filesystemSession.files;
@@ -579,11 +584,13 @@ export class FfsManagerComponent {
       if (image.length !== partition.size) {
         throw new Error(`导出的镜像大小 ${this.ffsFilesystemContentService.formatBytes(image.length)} 与分区大小 ${partition.sizeText} 不一致`);
       }
+      this.resetProgressThrottle();
       await this.ffsManagerService.writePartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
         partition,
-        image
+        image,
+        (written, total) => this.reportProgress('正在写回文件系统镜像', written, total, 'filesystem')
       );
       session.image = image;
       this.filesystemDirty = false;
@@ -608,12 +615,15 @@ export class FfsManagerComponent {
     if (!partition || !partition.filesystemType || !this.currentPort) return;
 
     this.busy = true;
-    this.statusText = `正在导出 ${partition.label || partition.offsetHex}...`;
+    const exportPrefix = `正在导出 ${partition.label || partition.offsetHex}`;
+    this.statusText = `${exportPrefix}...`;
+    this.resetProgressThrottle();
     try {
       const data = await this.ffsManagerService.readPartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
-        partition
+        partition,
+        (received, total) => this.reportProgress(exportPrefix, received, total, 'status')
       );
       const saved = await this.saveBinaryFile(this.ffsManagerService.buildPartitionFileName(partition), data, '保存分区镜像', [{ name: 'Binary image', extensions: ['bin'] }]);
       this.statusText = saved ? '分区镜像已导出' : '已取消导出';
@@ -645,13 +655,16 @@ export class FfsManagerComponent {
     }
 
     this.busy = true;
-    this.statusText = `正在恢复 ${partition.label || partition.offsetHex}...`;
+    const restorePrefix = `正在恢复 ${partition.label || partition.offsetHex}`;
+    this.statusText = `${restorePrefix}...`;
+    this.resetProgressThrottle();
     try {
       await this.ffsManagerService.writePartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
         partition,
-        data
+        data,
+        (written, total) => this.reportProgress(restorePrefix, written, total, 'status')
       );
       this.statusText = '分区镜像已写入';
       this.message.success('分区镜像已写入');
@@ -832,6 +845,31 @@ export class FfsManagerComponent {
     link.click();
     URL.revokeObjectURL(url);
     return true;
+  }
+
+  private resetProgressThrottle() {
+    this.progressLastTs = 0;
+    this.progressLastPercent = -1;
+  }
+
+  private reportProgress(prefix: string, done: number, total: number, target: 'status' | 'filesystem') {
+    if (!total || total <= 0) return;
+    const clamped = Math.min(done, total);
+    const percent = Math.floor((clamped / total) * 100);
+    const now = Date.now();
+    const finished = clamped >= total;
+    if (!finished && percent === this.progressLastPercent && now - this.progressLastTs < 150) {
+      return;
+    }
+    this.progressLastPercent = percent;
+    this.progressLastTs = now;
+    const text = `${prefix} ${percent}%, ${this.ffsFilesystemContentService.formatBytes(clamped)} / ${this.ffsFilesystemContentService.formatBytes(total)}`;
+    if (target === 'status') {
+      this.statusText = text;
+    } else {
+      this.filesystemStatusText = text;
+    }
+    this.cd.detectChanges();
   }
 
   private formatError(error: unknown): string {
