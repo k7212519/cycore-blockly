@@ -377,7 +377,13 @@ export class FfsManagerComponent {
         this.cd.detectChanges();
       }
       try {
-        await this.ffsManagerService.release(true);
+        // 关键：手动关闭不做 hard_reset。
+        // ESP32-S3 USB-CDC 经 DTR/RTS 复位会触发 USB 重枚举，
+        // 旧 HANDLE 失效，随后 transport.disconnect/port.dispose 在
+        // 失效句柄上 CloseHandle 可能未真正释放，导致 Windows 仍把 COM
+        // 视为占用，后续 esptool 报 "port is busy"。
+        // 用户手动关闭只为释放串口；如需复位芯片，esptool 启动时会自行 DTR/RTS。
+        await this.ffsManagerService.release(false);
       } catch (error) {
         console.warn('[FfsManager] 断开 ESP 会话失败:', error);
       }
@@ -387,6 +393,8 @@ export class FfsManagerComponent {
       this.resetFilesystemState();
       this.statusText = wasBusy ? '已取消' : '已断开';
       if (releasedPort) {
+        // 进一步保险：等 OS 真正放掉独占句柄再放行后续工具。
+        await this.waitForPortReady(releasedPort, 3000).catch(() => { /* ignore */ });
         this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, source: this.selfSignalTag });
       }
       this.aborting = false;

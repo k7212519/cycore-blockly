@@ -147,6 +147,9 @@ export class EspSessionService {
       } catch (error) {
         console.warn('[EspSession] 释放串口失败:', error);
       }
+      // Windows 上 node-serialport 的 close 回调返回时驱动可能尚未释放独占句柄，
+      // 紧接着外部 esptool 启动会撞 PermissionError(13)/ACCESS_DENIED。等一拍。
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
   }
 

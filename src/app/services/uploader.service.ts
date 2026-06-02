@@ -23,21 +23,24 @@ export class UploaderService {
   }
 
   private async sendSerialMonitorUploadSignal(signal: string, port: any): Promise<void> {
-    // 让订阅方（serial-monitor / ffs-manager 等）把“释放串口”的
+    // 让订阅方（serial-monitor / ffs-manager 等）把"释放串口"的
     // Promise 推进 waitFor，这里等它们全部完成后再开始处理后续动作。
     const waitFor: Promise<void>[] = [];
     this.uiService.sendToolSignal(signal, { port, waitFor });
     console.log(`[Uploader] ${signal} 发出，收到 ${waitFor.length} 个 waitFor Promise（port=${port}）`);
-    if (waitFor.length === 0) return;
-    try {
-      await Promise.all(waitFor);
-      console.log(`[Uploader] ${signal} 所有订阅方已完成释放`);
-    } catch (err) {
-      console.warn(`[Uploader] ${signal} 等待订阅方完成时报错:`, err);
+    if (waitFor.length > 0) {
+      try {
+        await Promise.all(waitFor);
+        console.log(`[Uploader] ${signal} 所有订阅方已完成释放`);
+      } catch (err) {
+        console.warn(`[Uploader] ${signal} 等待订阅方完成时报错:`, err);
+      }
     }
     // node-serialport 的 close 回调返回后，Windows 还要短暂窗口才会真正放开
     // 独占句柄；这里给外部 esptool.exe 等 child_process 一点缓冲，避免
-    // "Could not open COMx, the port is busy" 报错。
+    // "Could not open COMx, the port is busy" 报错。即使本次没有订阅方释放
+    // 串口（waitFor=0），上一次 ffs-manager / serial-monitor 的关闭也可能
+    // 刚发生不久，仍然需要这个缓冲。
     if (signal === 'serial-monitor:disconnect') {
       await new Promise(resolve => setTimeout(resolve, 300));
     }
