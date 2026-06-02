@@ -98,6 +98,18 @@ export class FfsManagerComponent {
     await this.checkEsptool();
     await this.checkAndSetDefaultPort();
 
+    // 桥接芯片波特率自适应：当 service 把用户选择钳制到芯片上限时同步到 UI。
+    this.ffsManagerService.onBaudResolved = (result, port) => {
+      if (port !== this.currentPort) return;
+      this.currentBaudRate = String(result.baud);
+      const chipName = result.bridge?.productName || '当前 USB 桥接芯片';
+      this.message.warning(
+        `检测到 ${chipName}，已将波特率从 ${result.requested} 自动降至 ${result.baud}`,
+        { nzDuration: 4000 },
+      );
+      this.cd.detectChanges();
+    };
+
     // 监听工具信号，处理上传过程中的串口断开/重连
     this.uiService.actionSubject
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -125,6 +137,7 @@ export class FfsManagerComponent {
   }
 
   async ngOnDestroy() {
+    this.ffsManagerService.onBaudResolved = null;
     try {
       await this.ffsManagerService.release(true);
     } catch (error) {
