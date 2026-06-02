@@ -264,9 +264,9 @@
 .list-head,
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px 90px 110px;
+  grid-template-columns: minmax(0, 1fr) 76px 50px 110px;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
   padding: 0 10px;
 }
 

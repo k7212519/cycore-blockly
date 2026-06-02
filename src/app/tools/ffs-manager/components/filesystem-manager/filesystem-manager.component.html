@@ -34,14 +34,14 @@
       </div>
 
       <div class="action-group">
-        <button class="tb-btn" [disabled]="!canManage" (click)="loadContent.emit()" nz-tooltip="读取文件系统">
+        <button class="tb-btn" [disabled]="!canManage" (click)="loadContent.emit()" nz-tooltip="重载分区">
           <i class="fa-light fa-arrows-rotate"></i>
         </button>
-        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="triggerUploadFile()" nz-tooltip="上传文件到当前目录">
+        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="triggerUploadFile()" nz-tooltip="上传">
           <i class="fa-light fa-upload"></i>
         </button>
         @if (supportsDirectory) {
-        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="createDirectory.emit(currentPath)" nz-tooltip="在当前目录下新建文件夹">
+        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="createDirectory.emit(currentPath)" nz-tooltip="新建文件夹">
           <i class="fa-light fa-folder-plus"></i>
         </button>
         }
@@ -51,8 +51,9 @@
         <button class="tb-btn" [disabled]="!canManage" (click)="triggerRestore()" nz-tooltip="导入镜像写入分区">
           <i class="fa-light fa-file-arrow-up"></i>
         </button>
-        <button class="tb-btn danger dd ccenter" [disabled]="!hasSession || busy" (click)="formatFilesystem.emit()"
-          nz-tooltip="格式化镜像">
+        <button class="tb-btn danger dd ccenter" [disabled]="!hasSession || busy" nz-popconfirm
+          nzPopconfirmTitle="确认格式化当前文件系统镜像？写回设备后原文件将被清空。" nzOkText="格式化" nzCancelText="取消"
+          (nzOnConfirm)="formatFilesystem.emit()">
           <i class="fa-light fa-broom-wide"></i>
         </button>
         <span class="tb-divider"></span>
@@ -145,7 +146,10 @@
             <button class="icon-btn" [disabled]="busy" nz-tooltip="重命名" (click)="emitRename(entry, $event)">
               <i class="fa-light fa-pen"></i>
             </button>
-            <button class="icon-btn danger" [disabled]="busy" nz-tooltip="删除" (click)="emitDelete(entry, $event)">
+            <button class="icon-btn danger" [disabled]="busy" nz-popconfirm
+              [nzPopconfirmTitle]="'确认删除' + (entry.type === 'dir' ? '目录 ' : '文件 ') + entry.fullPath + '？'"
+              nzOkText="删除" nzCancelText="取消" nzPopconfirmPlacement="left" (click)="$event.stopPropagation()"
+              (nzOnConfirm)="emitDelete(entry)">
               <i class="fa-light fa-trash"></i>
             </button>
             }

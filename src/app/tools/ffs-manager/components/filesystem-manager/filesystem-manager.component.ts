@@ -343,8 +343,8 @@ export class FilesystemManagerComponent implements OnChanges {
     if (entry.source) this.renameEntry.emit(entry.source);
   }
 
-  emitDelete(entry: ExplorerEntry, evt: MouseEvent) {
-    evt.stopPropagation();
+  emitDelete(entry: ExplorerEntry, evt?: MouseEvent) {
+    evt?.stopPropagation();
     if (entry.source) this.deleteEntry.emit(entry.source);
   }
 

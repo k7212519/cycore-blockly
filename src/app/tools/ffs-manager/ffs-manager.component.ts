@@ -555,7 +555,7 @@ export class FfsManagerComponent {
       } else if (mode === 'audio') {
         const ext = entry.name.split('.').pop()?.toLowerCase() || '';
         const mime = ext === 'mp3' ? 'audio/mpeg' : `audio/${ext}`;
-        audioUrl = URL.createObjectURL(new Blob([data], { type: mime }));
+        audioUrl = URL.createObjectURL(new Blob([this.toBlobPart(data)], { type: mime }));
         const bodyHtml = `<div style="display:flex;align-items:center;justify-content:center;padding:16px;"><audio controls autoplay src="${audioUrl}" style="width:100%;"></audio></div>`;
         const ref = this.modal.create({
           nzTitle: `${entry.name} · ${sizeText}`,
@@ -595,10 +595,6 @@ export class FfsManagerComponent {
   async deleteFilesystemEntry(entry: FfsFileEntry) {
     const session = this.filesystemSession;
     if (!session) return;
-    const typeText = entry.type === 'dir' ? '目录' : '文件';
-    if (!(await this.confirmDialog('删除确认', `确认删除${typeText} ${entry.path}？`))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -673,9 +669,6 @@ export class FfsManagerComponent {
   async formatFilesystemContent() {
     const session = this.filesystemSession;
     if (!session) return;
-    if (!(await this.confirmDialog('格式化确认', '确认格式化当前文件系统镜像？写回设备后原文件将被清空。'))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -961,7 +954,7 @@ export class FfsManagerComponent {
       return true;
     }
 
-    const blob = new Blob([data], { type: 'application/octet-stream' });
+    const blob = new Blob([this.toBlobPart(data)], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1001,6 +994,12 @@ export class FfsManagerComponent {
       return error.message;
     }
     return String(error || '未知错误');
+  }
+
+  private toBlobPart(data: Uint8Array): ArrayBuffer {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    return copy.buffer;
   }
 
   private confirmDialog(title: string, content?: string): Promise<boolean> {
