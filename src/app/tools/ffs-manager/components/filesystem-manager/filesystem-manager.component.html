@@ -34,44 +34,33 @@
       </div>
 
       <div class="action-group">
-        <button class="tb-btn" [disabled]="!canManage" (click)="loadContent.emit()" nz-tooltip="读取文件系统">
-          <i class="fa-light fa-folder-open"></i>
-          <span>读取</span>
+        <button class="tb-btn" [disabled]="!canManage" (click)="loadContent.emit()" nz-tooltip="重载分区">
+          <i class="fa-light fa-arrows-rotate"></i>
         </button>
-        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="triggerUploadFile()" nz-tooltip="上传文件到当前目录">
+        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="triggerUploadFile()" nz-tooltip="上传">
           <i class="fa-light fa-upload"></i>
-          <span>上传</span>
         </button>
         @if (supportsDirectory) {
-        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="createDirectory.emit()" nz-tooltip="新建目录">
+        <button class="tb-btn" [disabled]="!hasSession || busy" (click)="createDirectory.emit(currentPath)" nz-tooltip="新建文件夹">
           <i class="fa-light fa-folder-plus"></i>
-          <span>新建目录</span>
         </button>
         }
-        <button class="tb-btn primary" [disabled]="!canSave"
-          nz-popconfirm
-          nzPopconfirmTitle="确认将当前镜像写回分区？"
-          nzOkText="写回"
-          nzCancelText="取消"
-          (nzOnConfirm)="saveContent.emit()"
-          nz-tooltip="将镜像写回 Flash">
-          <i class="fa-light fa-floppy-disk"></i>
-          <span>写回</span>
-        </button>
-        <span class="tb-divider"></span>
         <button class="tb-btn" [disabled]="!canManage" (click)="downloadPartition.emit()" nz-tooltip="导出当前分区镜像">
           <i class="fa-light fa-file-arrow-down"></i>
         </button>
         <button class="tb-btn" [disabled]="!canManage" (click)="triggerRestore()" nz-tooltip="导入镜像写入分区">
           <i class="fa-light fa-file-arrow-up"></i>
         </button>
-        <button class="tb-btn danger dd ccenter" [disabled]="!hasSession || busy" (click)="formatFilesystem.emit()"
-          nz-tooltip="格式化镜像">
+        <button class="tb-btn danger dd ccenter" [disabled]="!hasSession || busy" nz-popconfirm
+          nzPopconfirmTitle="确认格式化当前文件系统镜像？写回设备后原文件将被清空。" nzOkText="格式化" nzCancelText="取消"
+          (nzOnConfirm)="formatFilesystem.emit()">
           <i class="fa-light fa-broom-wide"></i>
         </button>
-        <button class="tb-btn danger dd ccenter" [disabled]="!canManage" (click)="erasePartition.emit()"
-          nz-tooltip="擦除分区">
-          <i class="fa-light fa-eraser"></i>
+        <span class="tb-divider"></span>
+        <button class="tb-btn primary" [disabled]="!canSave" nz-popconfirm nzPopconfirmTitle="确认将当前镜像写回分区？"
+          nzOkText="写回" nzCancelText="取消" (nzOnConfirm)="saveContent.emit()">
+          <i class="fa-light fa-floppy-disk"></i>
+          <span>写回</span>
         </button>
       </div>
     </div>
@@ -99,10 +88,18 @@
         <div class="col-actions"></div>
       </div>
 
-      <div class="list-body sscroll" [class.is-loading]="busy">
+      <div class="list-body sscroll" [class.is-loading]="busy" [class.is-drag-over]="isDragOver"
+        (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)">
         @if (busy) {
         <div class="loading-overlay">
           <i class="fa-duotone fa-solid fa-spinner fa-spin spinner"></i>
+        </div>
+        }
+        @if (isDragOver) {
+        <div class="drop-overlay">
+          <i class="fa-light fa-cloud-arrow-up"></i>
+          <p>释放以上传到 {{ currentPath }}</p>
         </div>
         }
         @if (!hasSession) {
@@ -136,6 +133,12 @@
           <div class="col-actions">
             @if (entry.source) {
             @if (entry.type === 'file') {
+            @if (isViewable(entry)) {
+            <button class="icon-btn" [disabled]="busy" [nz-tooltip]="getPreviewLabel(entry.name)"
+              (click)="emitView(entry, $event)">
+              <i [class]="getPreviewIcon(entry.name)"></i>
+            </button>
+            }
             <button class="icon-btn" [disabled]="busy" nz-tooltip="下载" (click)="emitDownload(entry, $event)">
               <i class="fa-light fa-download"></i>
             </button>
@@ -143,7 +146,10 @@
             <button class="icon-btn" [disabled]="busy" nz-tooltip="重命名" (click)="emitRename(entry, $event)">
               <i class="fa-light fa-pen"></i>
             </button>
-            <button class="icon-btn danger" [disabled]="busy" nz-tooltip="删除" (click)="emitDelete(entry, $event)">
+            <button class="icon-btn danger" [disabled]="busy" nz-popconfirm
+              [nzPopconfirmTitle]="'确认删除' + (entry.type === 'dir' ? '目录 ' : '文件 ') + entry.fullPath + '？'"
+              nzOkText="删除" nzCancelText="取消" nzPopconfirmPlacement="left" (click)="$event.stopPropagation()"
+              (nzOnConfirm)="emitDelete(entry)">
               <i class="fa-light fa-trash"></i>
             </button>
             }

@@ -15,6 +15,8 @@ import { PortItem, SerialService } from '../../services/serial.service';
 import { UiService } from '../../services/ui.service';
 import { BAUDRATE_LIST } from '../serial-monitor/config';
 import { DeviceInfoComponent } from './components/device-info/device-info.component';
+import { FileImageViewerComponent, FileImageViewerData } from './components/file-image-viewer/file-image-viewer.component';
+import { FileTextViewerComponent, FileTextViewerData } from './components/file-text-viewer/file-text-viewer.component';
 import { FilesystemManagerComponent } from './components/filesystem-manager/filesystem-manager.component';
 import { PartitionMapComponent } from './components/partition-map/partition-map.component';
 import { FfsFileEntry, FfsFilesystemContentService, FfsFilesystemUsage, FfsMountedFilesystem } from './ffs-filesystem-content.service';
@@ -96,6 +98,18 @@ export class FfsManagerComponent {
     await this.checkEsptool();
     await this.checkAndSetDefaultPort();
 
+    // 桥接芯片波特率自适应：当 service 把用户选择钳制到芯片上限时同步到 UI。
+    this.ffsManagerService.onBaudResolved = (result, port) => {
+      if (port !== this.currentPort) return;
+      this.currentBaudRate = String(result.baud);
+      const chipName = result.bridge?.productName || '当前 USB 桥接芯片';
+      this.message.warning(
+        `检测到 ${chipName}，已将波特率从 ${result.requested} 自动降至 ${result.baud}`,
+        { nzDuration: 4000 },
+      );
+      this.cd.detectChanges();
+    };
+
     // 监听工具信号，处理上传过程中的串口断开/重连
     this.uiService.actionSubject
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -123,6 +137,7 @@ export class FfsManagerComponent {
   }
 
   async ngOnDestroy() {
+    this.ffsManagerService.onBaudResolved = null;
     try {
       await this.ffsManagerService.release(true);
     } catch (error) {
@@ -375,7 +390,13 @@ export class FfsManagerComponent {
         this.cd.detectChanges();
       }
       try {
-        await this.ffsManagerService.release(true);
+        // 关键：手动关闭不做 hard_reset。
+        // ESP32-S3 USB-CDC 经 DTR/RTS 复位会触发 USB 重枚举，
+        // 旧 HANDLE 失效，随后 transport.disconnect/port.dispose 在
+        // 失效句柄上 CloseHandle 可能未真正释放，导致 Windows 仍把 COM
+        // 视为占用，后续 esptool 报 "port is busy"。
+        // 用户手动关闭只为释放串口；如需复位芯片，esptool 启动时会自行 DTR/RTS。
+        await this.ffsManagerService.release(false);
       } catch (error) {
         console.warn('[FfsManager] 断开 ESP 会话失败:', error);
       }
@@ -385,6 +406,8 @@ export class FfsManagerComponent {
       this.resetFilesystemState();
       this.statusText = wasBusy ? '已取消' : '已断开';
       if (releasedPort) {
+        // 进一步保险：等 OS 真正放掉独占句柄再放行后续工具。
+        await this.waitForPortReady(releasedPort, 3000).catch(() => { /* ignore */ });
         this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, source: this.selfSignalTag });
       }
       this.aborting = false;
@@ -490,13 +513,88 @@ export class FfsManagerComponent {
     }
   }
 
+  async viewFilesystemFile(entry: FfsFileEntry) {
+    const session = this.filesystemSession;
+    if (!session || entry.type !== 'file') return;
+
+    const mode = this.getPreviewMode(entry.name);
+    if (!mode) {
+      this.message.warning('当前文件类型不支持预览');
+      return;
+    }
+
+    this.busy = true;
+    this.errorText = '';
+    this.filesystemStatusText = `正在读取 ${entry.path}...`;
+    let audioUrl: string | null = null;
+    try {
+      const data = await this.ffsFilesystemContentService.readFile(session, entry.path);
+      const sizeText = this.formatBytes(data.byteLength);
+      this.filesystemStatusText = `${entry.path} 已读取（${sizeText}）`;
+
+      if (mode === 'text') {
+        this.modal.create<FileTextViewerComponent, FileTextViewerData>({
+          nzTitle: null,
+          nzFooter: null,
+          nzClosable: false,
+          nzWidth: '760px',
+          nzBodyStyle: { padding: '0', background: 'var(--aily-bg-primary)' },
+          nzContent: FileTextViewerComponent,
+          nzData: { name: entry.name, data },
+        });
+      } else if (mode === 'image') {
+        this.modal.create<FileImageViewerComponent, FileImageViewerData>({
+          nzTitle: null,
+          nzFooter: null,
+          nzClosable: false,
+          nzWidth: '80vw',
+          nzBodyStyle: { padding: '0', background: '#1e1e1e' },
+          nzContent: FileImageViewerComponent,
+          nzData: { name: entry.name, data },
+        });
+      } else if (mode === 'audio') {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const mime = ext === 'mp3' ? 'audio/mpeg' : `audio/${ext}`;
+        audioUrl = URL.createObjectURL(new Blob([this.toBlobPart(data)], { type: mime }));
+        const bodyHtml = `<div style="display:flex;align-items:center;justify-content:center;padding:16px;"><audio controls autoplay src="${audioUrl}" style="width:100%;"></audio></div>`;
+        const ref = this.modal.create({
+          nzTitle: `${entry.name} · ${sizeText}`,
+          nzWidth: 560,
+          nzFooter: null,
+          nzBodyStyle: { background: 'var(--aily-bg-primary)' },
+          nzContent: bodyHtml,
+        });
+        ref.afterClose.subscribe(() => URL.revokeObjectURL(audioUrl!));
+      }
+    } catch (error) {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      this.errorText = this.formatError(error);
+      this.filesystemStatusText = '读取失败';
+      this.message.error(this.errorText);
+    } finally {
+      this.busy = false;
+      this.cd.detectChanges();
+    }
+  }
+
+  private getPreviewMode(name: string): 'text' | 'image' | 'audio' | null {
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) return 'image';
+    if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'audio';
+    if (['txt', 'log', 'md', 'cfg', 'ini', 'conf', 'json', 'yaml', 'yml', 'xml', 'toml',
+         'js', 'ts', 'py', 'c', 'cpp', 'h', 'hpp', 'sh', 'csv', 'html', 'htm', 'css'].includes(ext)) return 'text';
+    return null;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
   async deleteFilesystemEntry(entry: FfsFileEntry) {
     const session = this.filesystemSession;
     if (!session) return;
-    const typeText = entry.type === 'dir' ? '目录' : '文件';
-    if (!(await this.confirmDialog('删除确认', `确认删除${typeText} ${entry.path}？`))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -541,11 +639,13 @@ export class FfsManagerComponent {
     }
   }
 
-  async createFilesystemDirectory() {
+  async createFilesystemDirectory(basePath: string = '/') {
     const session = this.filesystemSession;
     if (!session) return;
 
-    const path = await this.promptDialog('新建目录', '/new_folder', '/path/to/dir');
+    const base = basePath && basePath.startsWith('/') ? basePath : '/';
+    const defaultPath = (base === '/' ? '' : base.replace(/\/$/, '')) + '/new_folder';
+    const path = await this.promptDialog('新建文件夹', defaultPath, '/path/to/dir');
     if (path === null || !path.trim()) return;
 
     this.busy = true;
@@ -569,9 +669,6 @@ export class FfsManagerComponent {
   async formatFilesystemContent() {
     const session = this.filesystemSession;
     if (!session) return;
-    if (!(await this.confirmDialog('格式化确认', '确认格式化当前文件系统镜像？写回设备后原文件将被清空。'))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -857,7 +954,7 @@ export class FfsManagerComponent {
       return true;
     }
 
-    const blob = new Blob([data], { type: 'application/octet-stream' });
+    const blob = new Blob([this.toBlobPart(data)], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -897,6 +994,12 @@ export class FfsManagerComponent {
       return error.message;
     }
     return String(error || '未知错误');
+  }
+
+  private toBlobPart(data: Uint8Array): ArrayBuffer {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    return copy.buffer;
   }
 
   private confirmDialog(title: string, content?: string): Promise<boolean> {

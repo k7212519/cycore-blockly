@@ -71,6 +71,7 @@ Other content can be found in [package.json](./package.json)
 ## The AI features of this project reference the following projects
 [Kode](https://github.com/shareAI-lab/Kode-cli)  
 [copilot](https://github.com/microsoft/vscode-copilot-chat)  
+[ESPConnect](https://github.com/thelastoutpostworkshop/ESPConnect)  
 
 ## Additional Rights Statement  
 1. This software is free software under the GPL license. Without authorization, the sale of this software or derivative software based on this software is prohibited.
