@@ -15,6 +15,8 @@ import { PortItem, SerialService } from '../../services/serial.service';
 import { UiService } from '../../services/ui.service';
 import { BAUDRATE_LIST } from '../serial-monitor/config';
 import { DeviceInfoComponent } from './components/device-info/device-info.component';
+import { FileImageViewerComponent, FileImageViewerData } from './components/file-image-viewer/file-image-viewer.component';
+import { FileTextViewerComponent, FileTextViewerData } from './components/file-text-viewer/file-text-viewer.component';
 import { FilesystemManagerComponent } from './components/filesystem-manager/filesystem-manager.component';
 import { PartitionMapComponent } from './components/partition-map/partition-map.component';
 import { FfsFileEntry, FfsFilesystemContentService, FfsFilesystemUsage, FfsMountedFilesystem } from './ffs-filesystem-content.service';
@@ -62,6 +64,7 @@ export class FfsManagerComponent {
   switchValue = false;
   esptoolReady = false;
   busy = false;
+  aborting = false;
   statusText = '选择 ESP32 串口后刷新设备信息';
   errorText = '';
   deviceInfo: FfsDeviceInfo | null = null;
@@ -73,6 +76,8 @@ export class FfsManagerComponent {
   filesystemUsage: FfsFilesystemUsage | null = null;
   filesystemDirty = false;
   filesystemStatusText = '读取文件列表后可管理分区内容';
+  private progressLastTs = 0;
+  private progressLastPercent = -1;
 
   constructor(
     private router: Router,
@@ -87,11 +92,23 @@ export class FfsManagerComponent {
 
   async ngOnInit() {
     this.currentUrl = this.router.url;
-    if (this.serialService.currentPort && this.serialService.currentPortInfo?.type !== 'debugger') {
+    if (this.serialService.currentPort && this.isSerialPortInfo(this.serialService.currentPortInfo)) {
       this.currentPort = this.serialService.currentPort;
     }
     await this.checkEsptool();
     await this.checkAndSetDefaultPort();
+
+    // 桥接芯片波特率自适应：当 service 把用户选择钳制到芯片上限时同步到 UI。
+    this.ffsManagerService.onBaudResolved = (result, port) => {
+      if (port !== this.currentPort) return;
+      this.currentBaudRate = String(result.baud);
+      const chipName = result.bridge?.productName || '当前 USB 桥接芯片';
+      this.message.warning(
+        `检测到 ${chipName}，已将波特率从 ${result.requested} 自动降至 ${result.baud}`,
+        { nzDuration: 4000 },
+      );
+      this.cd.detectChanges();
+    };
 
     // 监听工具信号，处理上传过程中的串口断开/重连
     this.uiService.actionSubject
@@ -120,6 +137,7 @@ export class FfsManagerComponent {
   }
 
   async ngOnDestroy() {
+    this.ffsManagerService.onBaudResolved = null;
     try {
       await this.ffsManagerService.release(true);
     } catch (error) {
@@ -129,6 +147,11 @@ export class FfsManagerComponent {
 
   private getUploadPortFromSignal(action: any): string | null {
     return action?.payload?.port || this.serialService.currentPort || null;
+  }
+
+  private isSerialPortInfo(portInfo: PortItem | null | undefined): boolean {
+    const type = portInfo?.type;
+    return !type || type === 'serial';
   }
 
   private async pauseForUpload(uploadPort: string | null): Promise<void> {
@@ -321,12 +344,21 @@ export class FfsManagerComponent {
         ? `已读取 ${this.partitions.length} 个分区，其中 ${this.filesystemPartitions.length} 个文件系统分区`
         : '没有读取到分区表';
     } catch (error) {
-      this.errorText = this.formatError(error);
-      this.statusText = '读取失败';
-      this.message.error(this.errorText);
+      if (this.aborting) {
+        this.errorText = '';
+        this.statusText = '已取消';
+      } else {
+        this.errorText = this.formatError(error);
+        this.statusText = '读取失败';
+        this.message.error(this.errorText);
+      }
     } finally {
       this.busy = false;
       this.cd.detectChanges();
+    }
+
+    if (!this.errorText && !this.aborting && this.selectedPartition?.filesystemType) {
+      await this.loadFilesystemContent();
     }
   }
 
@@ -338,7 +370,7 @@ export class FfsManagerComponent {
         return;
       }
       // 让 serial-monitor 等其他工具先释放同一串口，避免 Windows 上 EACCES。
-      this.uiService.sendToolSignal('serial-monitor:disconnect', { port: this.currentPort, source: this.selfSignalTag });
+      this.uiService.sendToolSignal('serial-monitor:disconnect', { port: this.currentPort, portType: 'serial', source: this.selfSignalTag });
       // 给被通知方一点时间真正关闭句柄
       await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -350,13 +382,26 @@ export class FfsManagerComponent {
           await this.ffsManagerService.release(true);
         } catch { }
         // 释放失败/连接失败后，把串口让回给 serial-monitor
-        this.uiService.sendToolSignal('serial-monitor:connect', { port: this.currentPort, source: this.selfSignalTag });
+        this.uiService.sendToolSignal('serial-monitor:connect', { port: this.currentPort, portType: 'serial', source: this.selfSignalTag });
       }
       this.cd.detectChanges();
     } else {
       const releasedPort = this.currentPort;
+      const wasBusy = this.busy;
+      this.aborting = wasBusy;
+      if (wasBusy) {
+        this.statusText = '正在取消...';
+        this.filesystemStatusText = '正在取消...';
+        this.cd.detectChanges();
+      }
       try {
-        await this.ffsManagerService.release(true);
+        // 关键：手动关闭不做 hard_reset。
+        // ESP32-S3 USB-CDC 经 DTR/RTS 复位会触发 USB 重枚举，
+        // 旧 HANDLE 失效，随后 transport.disconnect/port.dispose 在
+        // 失效句柄上 CloseHandle 可能未真正释放，导致 Windows 仍把 COM
+        // 视为占用，后续 esptool 报 "port is busy"。
+        // 用户手动关闭只为释放串口；如需复位芯片，esptool 启动时会自行 DTR/RTS。
+        await this.ffsManagerService.release(false);
       } catch (error) {
         console.warn('[FfsManager] 断开 ESP 会话失败:', error);
       }
@@ -364,10 +409,14 @@ export class FfsManagerComponent {
       this.partitions = [];
       this.selectedPartition = null;
       this.resetFilesystemState();
-      this.statusText = '已断开';
+      this.statusText = wasBusy ? '已取消' : '已断开';
       if (releasedPort) {
-        this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, source: this.selfSignalTag });
+        // 进一步保险：等 OS 真正放掉独占句柄再放行后续工具。
+        await this.waitForPortReady(releasedPort, 3000).catch(() => { /* ignore */ });
+        this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, portType: 'serial', source: this.selfSignalTag });
       }
+      this.aborting = false;
+      this.busy = false;
       this.cd.detectChanges();
     }
   }
@@ -389,10 +438,13 @@ export class FfsManagerComponent {
     this.errorText = '';
     this.filesystemStatusText = `正在读取 ${partition.label || partition.offsetHex} 文件系统...`;
     try {
+      const readPrefix = `正在读取 ${partition.label || partition.offsetHex} 文件系统`;
+      this.resetProgressThrottle();
       const image = await this.ffsManagerService.readPartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
-        partition
+        partition,
+        (received, total) => this.reportProgress(readPrefix, received, total, 'filesystem')
       );
       this.filesystemSession = await this.ffsFilesystemContentService.mountPartition(partition, image);
       this.filesystemFiles = this.filesystemSession.files;
@@ -402,9 +454,14 @@ export class FfsManagerComponent {
       this.filesystemStatusText = `已读取 ${this.filesystemFiles.length} 个文件系统条目`;
       this.message.success('文件系统内容已读取');
     } catch (error) {
-      this.errorText = this.formatError(error);
-      this.filesystemStatusText = '文件系统读取失败';
-      this.message.error(this.errorText);
+      if (this.aborting) {
+        this.errorText = '';
+        this.filesystemStatusText = '已取消';
+      } else {
+        this.errorText = this.formatError(error);
+        this.filesystemStatusText = '文件系统读取失败';
+        this.message.error(this.errorText);
+      }
     } finally {
       this.busy = false;
       this.cd.detectChanges();
@@ -415,9 +472,15 @@ export class FfsManagerComponent {
     const session = this.filesystemSession;
     if (!file || !session) return;
 
-    const defaultPath = this.ffsFilesystemContentService.getDefaultUploadPath(file.name, session.type);
-    const targetPath = await this.promptDialog('上传文件', defaultPath, '/path/to/file');
-    if (targetPath === null || !targetPath.trim()) return;
+    const targetPath = this.ffsFilesystemContentService.getDefaultUploadPath(file.name, session.type);
+    if (!targetPath || !targetPath.trim()) return;
+    const fileNameError = this.ffsFilesystemContentService.validateUploadFileName(file.name, session.type);
+    if (fileNameError) {
+      this.errorText = fileNameError;
+      this.filesystemStatusText = '上传失败：文件名过长';
+      this.message.warning(fileNameError);
+      return;
+    }
 
     this.busy = true;
     this.errorText = '';
@@ -462,13 +525,88 @@ export class FfsManagerComponent {
     }
   }
 
+  async viewFilesystemFile(entry: FfsFileEntry) {
+    const session = this.filesystemSession;
+    if (!session || entry.type !== 'file') return;
+
+    const mode = this.getPreviewMode(entry.name);
+    if (!mode) {
+      this.message.warning('当前文件类型不支持预览');
+      return;
+    }
+
+    this.busy = true;
+    this.errorText = '';
+    this.filesystemStatusText = `正在读取 ${entry.path}...`;
+    let audioUrl: string | null = null;
+    try {
+      const data = await this.ffsFilesystemContentService.readFile(session, entry.path);
+      const sizeText = this.formatBytes(data.byteLength);
+      this.filesystemStatusText = `${entry.path} 已读取（${sizeText}）`;
+
+      if (mode === 'text') {
+        this.modal.create<FileTextViewerComponent, FileTextViewerData>({
+          nzTitle: null,
+          nzFooter: null,
+          nzClosable: false,
+          nzWidth: '760px',
+          nzBodyStyle: { padding: '0', background: 'var(--aily-bg-primary)' },
+          nzContent: FileTextViewerComponent,
+          nzData: { name: entry.name, data },
+        });
+      } else if (mode === 'image') {
+        this.modal.create<FileImageViewerComponent, FileImageViewerData>({
+          nzTitle: null,
+          nzFooter: null,
+          nzClosable: false,
+          nzWidth: '80vw',
+          nzBodyStyle: { padding: '0', background: '#1e1e1e' },
+          nzContent: FileImageViewerComponent,
+          nzData: { name: entry.name, data },
+        });
+      } else if (mode === 'audio') {
+        const ext = entry.name.split('.').pop()?.toLowerCase() || '';
+        const mime = ext === 'mp3' ? 'audio/mpeg' : `audio/${ext}`;
+        audioUrl = URL.createObjectURL(new Blob([this.toBlobPart(data)], { type: mime }));
+        const bodyHtml = `<div style="display:flex;align-items:center;justify-content:center;padding:16px;"><audio controls autoplay src="${audioUrl}" style="width:100%;"></audio></div>`;
+        const ref = this.modal.create({
+          nzTitle: `${entry.name} · ${sizeText}`,
+          nzWidth: 560,
+          nzFooter: null,
+          nzBodyStyle: { background: 'var(--aily-bg-primary)' },
+          nzContent: bodyHtml,
+        });
+        ref.afterClose.subscribe(() => URL.revokeObjectURL(audioUrl!));
+      }
+    } catch (error) {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      this.errorText = this.formatError(error);
+      this.filesystemStatusText = '读取失败';
+      this.message.error(this.errorText);
+    } finally {
+      this.busy = false;
+      this.cd.detectChanges();
+    }
+  }
+
+  private getPreviewMode(name: string): 'text' | 'image' | 'audio' | null {
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) return 'image';
+    if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) return 'audio';
+    if (['txt', 'log', 'md', 'cfg', 'ini', 'conf', 'json', 'yaml', 'yml', 'xml', 'toml',
+         'js', 'ts', 'py', 'c', 'cpp', 'h', 'hpp', 'sh', 'csv', 'html', 'htm', 'css'].includes(ext)) return 'text';
+    return null;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
   async deleteFilesystemEntry(entry: FfsFileEntry) {
     const session = this.filesystemSession;
     if (!session) return;
-    const typeText = entry.type === 'dir' ? '目录' : '文件';
-    if (!(await this.confirmDialog('删除确认', `确认删除${typeText} ${entry.path}？`))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -513,11 +651,13 @@ export class FfsManagerComponent {
     }
   }
 
-  async createFilesystemDirectory() {
+  async createFilesystemDirectory(basePath: string = '/') {
     const session = this.filesystemSession;
     if (!session) return;
 
-    const path = await this.promptDialog('新建目录', '/new_folder', '/path/to/dir');
+    const base = basePath && basePath.startsWith('/') ? basePath : '/';
+    const defaultPath = (base === '/' ? '' : base.replace(/\/$/, '')) + '/new_folder';
+    const path = await this.promptDialog('新建文件夹', defaultPath, '/path/to/dir');
     if (path === null || !path.trim()) return;
 
     this.busy = true;
@@ -541,9 +681,6 @@ export class FfsManagerComponent {
   async formatFilesystemContent() {
     const session = this.filesystemSession;
     if (!session) return;
-    if (!(await this.confirmDialog('格式化确认', '确认格式化当前文件系统镜像？写回设备后原文件将被清空。'))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -567,9 +704,6 @@ export class FfsManagerComponent {
     const session = this.filesystemSession;
     const partition = this.selectedPartition;
     if (!session || !partition || !this.currentPort) return;
-    if (!(await this.confirmDialog('写回设备', `确认将当前 ${this.getFsLabel(session.type)} 镜像写回 ${partition.label || partition.offsetHex} 分区？`))) {
-      return;
-    }
 
     this.busy = true;
     this.errorText = '';
@@ -579,11 +713,13 @@ export class FfsManagerComponent {
       if (image.length !== partition.size) {
         throw new Error(`导出的镜像大小 ${this.ffsFilesystemContentService.formatBytes(image.length)} 与分区大小 ${partition.sizeText} 不一致`);
       }
+      this.resetProgressThrottle();
       await this.ffsManagerService.writePartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
         partition,
-        image
+        image,
+        (written, total) => this.reportProgress('正在写回文件系统镜像', written, total, 'filesystem')
       );
       session.image = image;
       this.filesystemDirty = false;
@@ -608,12 +744,15 @@ export class FfsManagerComponent {
     if (!partition || !partition.filesystemType || !this.currentPort) return;
 
     this.busy = true;
-    this.statusText = `正在导出 ${partition.label || partition.offsetHex}...`;
+    const exportPrefix = `正在导出 ${partition.label || partition.offsetHex}`;
+    this.statusText = `${exportPrefix}...`;
+    this.resetProgressThrottle();
     try {
       const data = await this.ffsManagerService.readPartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
-        partition
+        partition,
+        (received, total) => this.reportProgress(exportPrefix, received, total, 'status')
       );
       const saved = await this.saveBinaryFile(this.ffsManagerService.buildPartitionFileName(partition), data, '保存分区镜像', [{ name: 'Binary image', extensions: ['bin'] }]);
       this.statusText = saved ? '分区镜像已导出' : '已取消导出';
@@ -645,13 +784,16 @@ export class FfsManagerComponent {
     }
 
     this.busy = true;
-    this.statusText = `正在恢复 ${partition.label || partition.offsetHex}...`;
+    const restorePrefix = `正在恢复 ${partition.label || partition.offsetHex}`;
+    this.statusText = `${restorePrefix}...`;
+    this.resetProgressThrottle();
     try {
       await this.ffsManagerService.writePartitionImage(
         this.currentPort,
         this.getSelectedBaudRate(),
         partition,
-        data
+        data,
+        (written, total) => this.reportProgress(restorePrefix, written, total, 'status')
       );
       this.statusText = '分区镜像已写入';
       this.message.success('分区镜像已写入');
@@ -824,7 +966,7 @@ export class FfsManagerComponent {
       return true;
     }
 
-    const blob = new Blob([data], { type: 'application/octet-stream' });
+    const blob = new Blob([this.toBlobPart(data)], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -834,11 +976,42 @@ export class FfsManagerComponent {
     return true;
   }
 
+  private resetProgressThrottle() {
+    this.progressLastTs = 0;
+    this.progressLastPercent = -1;
+  }
+
+  private reportProgress(prefix: string, done: number, total: number, target: 'status' | 'filesystem') {
+    if (!total || total <= 0) return;
+    const clamped = Math.min(done, total);
+    const percent = Math.floor((clamped / total) * 100);
+    const now = Date.now();
+    const finished = clamped >= total;
+    if (!finished && percent === this.progressLastPercent && now - this.progressLastTs < 150) {
+      return;
+    }
+    this.progressLastPercent = percent;
+    this.progressLastTs = now;
+    const text = `${prefix} ${percent}%, ${this.ffsFilesystemContentService.formatBytes(clamped)} / ${this.ffsFilesystemContentService.formatBytes(total)}`;
+    if (target === 'status') {
+      this.statusText = text;
+    } else {
+      this.filesystemStatusText = text;
+    }
+    this.cd.detectChanges();
+  }
+
   private formatError(error: unknown): string {
     if (error instanceof Error) {
       return error.message;
     }
     return String(error || '未知错误');
+  }
+
+  private toBlobPart(data: Uint8Array): ArrayBuffer {
+    const copy = new Uint8Array(data.byteLength);
+    copy.set(data);
+    return copy.buffer;
   }
 
   private confirmDialog(title: string, content?: string): Promise<boolean> {
