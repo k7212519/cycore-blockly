@@ -49,8 +49,10 @@ interface FfsUploadRestoreContext {
 export class FfsManagerComponent {
   private destroyRef = inject(DestroyRef);
   private uploadRestoreContext: FfsUploadRestoreContext | null = null;
+  private restoreAfterUploadTimer: ReturnType<typeof setTimeout> | null = null;
   // ffs-manager 主动发出的 serial-monitor:* 信号不需要被自己重启动 pause/restore。
   private readonly selfSignalTag = 'ffs-manager';
+  private readonly restoreAfterUploadDelayMs = 200;
 
   private readonly defaultBaudRate = 921600;
 
@@ -132,6 +134,7 @@ export class FfsManagerComponent {
           }
           if (signal === 'serial-monitor:disconnect') {
             console.log(`[FfsManager] 收到 disconnect 信号：switchValue=${this.switchValue}, currentPort=${this.currentPort}, uploadPort=${this.getUploadPortFromSignal(action)}`);
+            this.clearRestoreAfterUploadTimer();
             const releasePromise = this.pauseForUpload(this.getUploadPortFromSignal(action));
             if (Array.isArray(action?.payload?.waitFor)) {
               action.payload.waitFor.push(releasePromise);
@@ -140,7 +143,7 @@ export class FfsManagerComponent {
               console.warn('[FfsManager] disconnect 信号中未携带 waitFor 数组');
             }
           } else if (signal === 'serial-monitor:connect') {
-            this.restoreAfterUpload(this.getUploadPortFromSignal(action));
+            this.scheduleRestoreAfterUpload(this.getUploadPortFromSignal(action));
           }
         }
       });
@@ -148,6 +151,7 @@ export class FfsManagerComponent {
 
   async ngOnDestroy() {
     this.ffsManagerService.onBaudResolved = null;
+    this.clearRestoreAfterUploadTimer();
     try {
       await this.ffsManagerService.release(true);
     } catch (error) {
@@ -162,6 +166,21 @@ export class FfsManagerComponent {
   private isSerialPortInfo(portInfo: PortItem | null | undefined): boolean {
     const type = portInfo?.type;
     return !type || type === 'serial';
+  }
+
+  private clearRestoreAfterUploadTimer(): void {
+    if (this.restoreAfterUploadTimer) {
+      clearTimeout(this.restoreAfterUploadTimer);
+      this.restoreAfterUploadTimer = null;
+    }
+  }
+
+  private scheduleRestoreAfterUpload(uploadPort: string | null): void {
+    this.clearRestoreAfterUploadTimer();
+    this.restoreAfterUploadTimer = setTimeout(() => {
+      this.restoreAfterUploadTimer = null;
+      this.restoreAfterUpload(uploadPort);
+    }, this.restoreAfterUploadDelayMs);
   }
 
   private async pauseForUpload(uploadPort: string | null): Promise<void> {

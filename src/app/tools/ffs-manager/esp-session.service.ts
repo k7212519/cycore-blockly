@@ -60,9 +60,8 @@ export class EspSessionService {
   }
 
   /**
-   * 复刻 ESPConnect 的 connectAndHandshake：优先通过 Electron Web Serial 自动选择目标端口，
-   * 以 115200 跑 ROM sync 上传 stub，再按 VID/PID 策略切到目标波特率。
-   * Node serialport 适配层仅作为不支持 Web Serial 时的兜底。
+   * 复刻 ESPConnect 的 connectAndHandshake：以 115200 跑 ROM sync 上传 stub，
+   * 再按 VID/PID 策略切到目标波特率。
    */
   async connect(options: EspSessionConnectOptions): Promise<EspChipInfo> {
     if (
@@ -254,6 +253,14 @@ export class EspSessionService {
   }
 
   private async createSerialPort(portPath: string): Promise<EspSerialPort> {
+    const electronSerialPort = window?.electronAPI?.SerialPort;
+    if (typeof electronSerialPort?.createRaw === 'function') {
+      return new NodeSerialPortAdapter({ path: portPath });
+    }
+    if (window?.electronAPI) {
+      throw new Error('当前 Electron 环境未暴露 Node SerialPort（electronAPI.SerialPort.createRaw 不可用）');
+    }
+
     const serial = typeof navigator !== 'undefined' ? (navigator as any).serial : undefined;
     if (serial && typeof serial.requestPort === 'function') {
       const ipc = window?.electronAPI?.ipcRenderer;
@@ -267,10 +274,6 @@ export class EspSessionService {
           await ipc.invoke('webserial-clear-preferred-port');
         }
       }
-    }
-
-    if (window?.electronAPI?.SerialPort?.createRaw) {
-      return new NodeSerialPortAdapter({ path: portPath });
     }
 
     throw new Error('当前环境不支持 Web Serial 或 Node SerialPort（请在 Electron 渲染端运行）');
