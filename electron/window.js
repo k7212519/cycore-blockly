@@ -11,6 +11,21 @@ const CODE_VIEWER_STATE_GET_CHANNEL = 'blockly-code-viewer-state-get';
 /** 后台预缓冲子窗口数量：1 个待用 + 1 个备用 */
 const SUB_WINDOW_POOL_SIZE = 2;
 
+/** 子窗口最小尺寸（4:3，约为原 800×600 的 80%） */
+const SUB_WINDOW_MIN_WIDTH = 640;
+const SUB_WINDOW_MIN_HEIGHT = 480;
+
+function applySubWindowMinimumSize(win) {
+    if (!win || win.isDestroyed()) {
+        return;
+    }
+    try {
+        win.setMinimumSize(SUB_WINDOW_MIN_WIDTH, SUB_WINDOW_MIN_HEIGHT);
+    } catch (e) {
+        console.warn('[SubWindowPool] 子窗口最小尺寸设置失败:', e.message);
+    }
+}
+
 /** 首次 before-quit 即置位；池窗口 closed 时 Electron 的 app.isQuitting 在实测中仍为 false */
 let applicationIsQuitting = false;
 app.once('before-quit', () => {
@@ -75,6 +90,8 @@ function pushPooledSubWindow(loadBasePage) {
             alwaysOnTop: false,
             width: 800,
             height: 600,
+            minWidth: SUB_WINDOW_MIN_WIDTH,
+            minHeight: SUB_WINDOW_MIN_HEIGHT,
             webPreferences: getSubWindowWebPreferences(),
         });
 
@@ -140,8 +157,8 @@ function centerSubWindowOnMainDisplay(subWindow, mainWin, width, height) {
             mainWin && !mainWin.isDestroyed()
                 ? screen.getDisplayMatching(mainWin.getBounds()).workArea
                 : screen.getPrimaryDisplay().workArea;
-        const w = Math.min(Math.max(1, width), wa.width);
-        const h = Math.min(Math.max(1, height), wa.height);
+        const w = Math.min(Math.max(SUB_WINDOW_MIN_WIDTH, width), wa.width);
+        const h = Math.min(Math.max(SUB_WINDOW_MIN_HEIGHT, height), wa.height);
         const x = Math.round(wa.x + Math.max(0, (wa.width - w) / 2));
         const y = Math.round(wa.y + Math.max(0, (wa.height - h) / 2));
         subWindow.setBounds({ x, y, width: w, height: h });
@@ -350,6 +367,8 @@ function registerWindowHandlers(mainWindow) {
                 alwaysOnTop,
                 width,
                 height,
+                minWidth: SUB_WINDOW_MIN_WIDTH,
+                minHeight: SUB_WINDOW_MIN_HEIGHT,
                 webPreferences: getSubWindowWebPreferences(),
             });
         } else {
@@ -360,6 +379,7 @@ function registerWindowHandlers(mainWindow) {
             }
         }
 
+        applySubWindowMinimumSize(subWindow);
         centerSubWindowOnMainDisplay(subWindow, mainWindow, width, height);
 
         openWindows.set(windowUrl, subWindow);
