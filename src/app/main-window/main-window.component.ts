@@ -29,7 +29,7 @@ import { UserCenterComponent } from '../tools/user-center/user-center.component'
 import { ModelStoreComponent } from '../tools/model-store/model-store.component';
 import { OnboardingComponent } from '../components/onboarding/onboarding.component';
 import { OnboardingService } from '../services/onboarding.service';
-import { TranslateService } from '@ngx-translate/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-main-window',
@@ -56,7 +56,8 @@ import { TranslateService } from '@ngx-translate/core';
     CloudSpaceComponent,
     UserCenterComponent,
     ModelStoreComponent,
-    OnboardingComponent
+    OnboardingComponent,
+    TranslateModule
   ],
   templateUrl: './main-window.component.html',
   styleUrl: './main-window.component.scss',
