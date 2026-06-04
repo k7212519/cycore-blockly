@@ -166,9 +166,31 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!text) return '';
     // 先去除 ANSI 格式化字符
     let cleaned = stripAnsi(text);
+    cleaned = this.applyBackspaceControl(cleaned);
+    cleaned = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    cleaned = cleaned.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
     // 再去除每行开头的状态标识，如 [ERROR]、[INFO]、[WARN] 等
     cleaned = cleaned.replace(/^\s*\[(ERROR|INFO|WARN|WARNING|DEBUG|TRACE|FATAL)\]\s*/gim, '');
     return cleaned;
+  }
+
+  private applyBackspaceControl(text: string): string {
+    if (!text.includes('\b')) {
+      return text;
+    }
+
+    const output: string[] = [];
+    for (const char of text) {
+      if (char === '\b') {
+        const previousChar = output[output.length - 1];
+        if (previousChar && previousChar !== '\n' && previousChar !== '\r') {
+          output.pop();
+        }
+      } else {
+        output.push(char);
+      }
+    }
+    return output.join('');
   }
 
   // 单击复制日志内容到剪切板
@@ -225,7 +247,8 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
     for (const item of this.logService.list) {
       const timeString = new Date(item.timestamp).toLocaleTimeString();
-      fileContent += `[${timeString}] ${item.detail || ''}\n`;
+      const detail = this.cleanLogContent(item.detail || '');
+      fileContent += `[${timeString}] ${detail}\n`;
     }
 
     // 写入文件
