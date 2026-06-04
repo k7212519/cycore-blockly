@@ -92,7 +92,7 @@ export class FfsManagerComponent {
 
   async ngOnInit() {
     this.currentUrl = this.router.url;
-    if (this.serialService.currentPort && this.serialService.currentPortInfo?.type !== 'debugger') {
+    if (this.serialService.currentPort && this.isSerialPortInfo(this.serialService.currentPortInfo)) {
       this.currentPort = this.serialService.currentPort;
     }
     await this.checkEsptool();
@@ -147,6 +147,11 @@ export class FfsManagerComponent {
 
   private getUploadPortFromSignal(action: any): string | null {
     return action?.payload?.port || this.serialService.currentPort || null;
+  }
+
+  private isSerialPortInfo(portInfo: PortItem | null | undefined): boolean {
+    const type = portInfo?.type;
+    return !type || type === 'serial';
   }
 
   private async pauseForUpload(uploadPort: string | null): Promise<void> {
@@ -365,7 +370,7 @@ export class FfsManagerComponent {
         return;
       }
       // 让 serial-monitor 等其他工具先释放同一串口，避免 Windows 上 EACCES。
-      this.uiService.sendToolSignal('serial-monitor:disconnect', { port: this.currentPort, source: this.selfSignalTag });
+      this.uiService.sendToolSignal('serial-monitor:disconnect', { port: this.currentPort, portType: 'serial', source: this.selfSignalTag });
       // 给被通知方一点时间真正关闭句柄
       await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -377,7 +382,7 @@ export class FfsManagerComponent {
           await this.ffsManagerService.release(true);
         } catch { }
         // 释放失败/连接失败后，把串口让回给 serial-monitor
-        this.uiService.sendToolSignal('serial-monitor:connect', { port: this.currentPort, source: this.selfSignalTag });
+        this.uiService.sendToolSignal('serial-monitor:connect', { port: this.currentPort, portType: 'serial', source: this.selfSignalTag });
       }
       this.cd.detectChanges();
     } else {
@@ -408,7 +413,7 @@ export class FfsManagerComponent {
       if (releasedPort) {
         // 进一步保险：等 OS 真正放掉独占句柄再放行后续工具。
         await this.waitForPortReady(releasedPort, 3000).catch(() => { /* ignore */ });
-        this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, source: this.selfSignalTag });
+        this.uiService.sendToolSignal('serial-monitor:connect', { port: releasedPort, portType: 'serial', source: this.selfSignalTag });
       }
       this.aborting = false;
       this.busy = false;
@@ -469,6 +474,13 @@ export class FfsManagerComponent {
 
     const targetPath = this.ffsFilesystemContentService.getDefaultUploadPath(file.name, session.type);
     if (!targetPath || !targetPath.trim()) return;
+    const fileNameError = this.ffsFilesystemContentService.validateUploadFileName(file.name, session.type);
+    if (fileNameError) {
+      this.errorText = fileNameError;
+      this.filesystemStatusText = '上传失败：文件名过长';
+      this.message.warning(fileNameError);
+      return;
+    }
 
     this.busy = true;
     this.errorText = '';
