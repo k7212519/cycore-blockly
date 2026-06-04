@@ -265,6 +265,10 @@ export class MainWindowComponent {
     this.logComponent?.exportData();
   }
 
+  toggleLogSearchToolbar() {
+    this.logComponent?.toggleSearchToolbar();
+  }
+
   // 新手引导关闭事件
   onOnboardingClosed() {
     this.onboardingService.close();

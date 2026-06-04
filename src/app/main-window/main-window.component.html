@@ -27,6 +27,15 @@
                   <div class="btn ccenter" (click)="exportLog()" nz-tooltip nzTooltipTitle="导出">
                     <i class="fa-light fa-download"></i>
                   </div>
+                  <div
+                    class="btn ccenter"
+                    [class.active]="logComponent?.showSearchToolbar"
+                    (click)="toggleLogSearchToolbar()"
+                    nz-tooltip
+                    nzTooltipTitle="搜索"
+                  >
+                    <i class="fa-light fa-search"></i>
+                  </div>
                   }
                   <div class="btn ccenter" (click)="clearCurrentComponent()" nz-tooltip nzTooltipTitle="清除">
                     <i class="fa-light fa-broom-wide"></i>
@@ -57,37 +66,37 @@
         </nz-resize-handle>
         <div class="right-box">
           @for (tool of openToolList; track tool) {
-            <div class="tool-panel" [style.z-index]="tool === topTool ? 100 : 1">
-              @switch (tool) {
-              @case ("code-viewer") {
-              <app-code-viewer></app-code-viewer>
-              }
-              @case ("serial-monitor") {
-              <app-serial-monitor></app-serial-monitor>
-              }
-              @case ("ffs-manager") {
-              <app-ffs-manager></app-ffs-manager>
-              }
-              @case ("aily-chat") {
-              <app-aily-chat></app-aily-chat>
-              }
-              @case ("simulator") {
-              <app-simulator></app-simulator>
-              }
-              @case ("app-store") {
-              <app-app-store></app-app-store>
-              }
-              @case ("cloud-space") {
-              <app-cloud-space></app-cloud-space>
-              }
-              @case ("model-store") {
-              <app-model-store></app-model-store>
-              }
-              @case ("user-center") {
-              <app-user-center></app-user-center>
-              }
-              }
-            </div>
+          <div class="tool-panel" [style.z-index]="tool === topTool ? 100 : 1">
+            @switch (tool) {
+            @case ("code-viewer") {
+            <app-code-viewer></app-code-viewer>
+            }
+            @case ("serial-monitor") {
+            <app-serial-monitor></app-serial-monitor>
+            }
+            @case ("ffs-manager") {
+            <app-ffs-manager></app-ffs-manager>
+            }
+            @case ("aily-chat") {
+            <app-aily-chat></app-aily-chat>
+            }
+            @case ("simulator") {
+            <app-simulator></app-simulator>
+            }
+            @case ("app-store") {
+            <app-app-store></app-app-store>
+            }
+            @case ("cloud-space") {
+            <app-cloud-space></app-cloud-space>
+            }
+            @case ("model-store") {
+            <app-model-store></app-model-store>
+            }
+            @case ("user-center") {
+            <app-user-center></app-user-center>
+            }
+            }
+          </div>
           }
         </div>
       </nz-sider>
@@ -99,10 +108,7 @@
 
 <!-- 新手引导组件 -->
 @if (onboardingConfig) {
-<app-onboarding 
-  [show]="showOnboarding" 
-  [config]="onboardingConfig"
-  (closed)="onOnboardingClosed()"
+<app-onboarding [show]="showOnboarding" [config]="onboardingConfig" (closed)="onOnboardingClosed()"
   (completed)="onOnboardingCompleted()">
 </app-onboarding>
 }

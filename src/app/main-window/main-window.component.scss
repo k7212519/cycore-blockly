@@ -114,6 +114,11 @@ app-guide {
             width: 30px;
             height: 30px;
 
+            &.active {
+              color: var(--aily-primary);
+              background: var(--aily-bg-tertiary);
+            }
+
             &:hover {
               background: var(--aily-bg-tertiary);
             }
