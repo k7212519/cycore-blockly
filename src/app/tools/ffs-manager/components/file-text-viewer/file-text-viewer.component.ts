@@ -1,5 +1,6 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslateModule } from '@ngx-translate/core';
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 
 export interface FileTextViewerData {
@@ -12,7 +13,7 @@ export interface FileTextViewerData {
 @Component({
   selector: 'app-file-text-viewer',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslateModule],
   templateUrl: './file-text-viewer.component.html',
   styleUrl: './file-text-viewer.component.scss',
 })

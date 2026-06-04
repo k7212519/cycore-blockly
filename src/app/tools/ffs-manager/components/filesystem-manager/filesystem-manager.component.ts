@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -22,7 +23,7 @@ interface ExplorerEntry {
 @Component({
   selector: 'app-filesystem-manager',
   standalone: true,
-  imports: [CommonModule, NzButtonModule, NzToolTipModule, NzPopconfirmModule],
+  imports: [CommonModule, TranslateModule, NzButtonModule, NzToolTipModule, NzPopconfirmModule],
   templateUrl: './filesystem-manager.component.html',
   styleUrl: './filesystem-manager.component.scss',
 })
@@ -58,6 +59,8 @@ export class FilesystemManagerComponent implements OnChanges {
   selectedEntry: ExplorerEntry | null = null;
   isDragOver = false;
   private dragDepth = 0;
+
+  constructor(private translate: TranslateService) {}
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['filesystemSession'] || changes['selectedPartition']) {
@@ -97,7 +100,7 @@ export class FilesystemManagerComponent implements OnChanges {
 
   get breadcrumbs(): { name: string; path: string }[] {
     const segs = this.currentPath.split('/').filter(Boolean);
-    const items: { name: string; path: string }[] = [{ name: '根目录', path: '/' }];
+    const items: { name: string; path: string }[] = [{ name: this.t('FILESYSTEM.ROOT'), path: '/' }];
     let acc = '';
     for (const s of segs) {
       acc += '/' + s;
@@ -354,7 +357,7 @@ export class FilesystemManagerComponent implements OnChanges {
     if (type === 'spiffs') return 'SPIFFS';
     if (type === 'littlefs') return 'LittleFS';
     if (type === 'fatfs') return 'FATFS';
-    return '普通分区';
+    return this.t('COMMON.NORMAL_PARTITION');
   }
 
   getIconClass(entry: ExplorerEntry): string {
@@ -372,9 +375,9 @@ export class FilesystemManagerComponent implements OnChanges {
   }
 
   getTypeLabel(entry: ExplorerEntry): string {
-    if (entry.type === 'dir') return '文件夹';
+    if (entry.type === 'dir') return this.t('FILESYSTEM.FOLDER');
     const ext = entry.name.split('.').pop()?.toUpperCase();
-    return ext ? `${ext} 文件` : '文件';
+    return ext ? this.t('FILESYSTEM.FILE_WITH_EXT', { ext }) : this.t('FILESYSTEM.FILE');
   }
 
   getPreviewMode(name: string): 'text' | 'image' | 'audio' | null {
@@ -399,8 +402,15 @@ export class FilesystemManagerComponent implements OnChanges {
 
   getPreviewLabel(name: string): string {
     const mode = this.getPreviewMode(name);
-    if (mode === 'audio') return '试听';
-    return '查看';
+    if (mode === 'audio') return this.t('FILESYSTEM.PREVIEW_AUDIO');
+    return this.t('FILESYSTEM.PREVIEW_VIEW');
+  }
+
+  getDeleteConfirmTitle(entry: ExplorerEntry): string {
+    return this.t('FILESYSTEM.CONFIRM_DELETE', {
+      type: entry.type === 'dir' ? this.t('FILESYSTEM.DIR') : this.t('FILESYSTEM.FILE'),
+      path: entry.fullPath,
+    });
   }
 
   trackEntry = (_: number, entry: ExplorerEntry) => entry.fullPath;
@@ -410,5 +420,9 @@ export class FilesystemManagerComponent implements OnChanges {
     this.history = ['/'];
     this.historyIndex = 0;
     this.selectedEntry = null;
+  }
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.translate.instant(`FFS_MANAGER.${key}`, params);
   }
 }

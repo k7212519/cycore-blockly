@@ -1,5 +1,6 @@
 import { Component, ElementRef, Inject, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { TranslateModule } from '@ngx-translate/core';
 import { NZ_MODAL_DATA, NzModalRef } from 'ng-zorro-antd/modal';
 
 export interface FileImageViewerData {
@@ -11,7 +12,7 @@ export interface FileImageViewerData {
 @Component({
   selector: 'app-file-image-viewer',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslateModule],
   templateUrl: './file-image-viewer.component.html',
   styleUrl: './file-image-viewer.component.scss',
 })

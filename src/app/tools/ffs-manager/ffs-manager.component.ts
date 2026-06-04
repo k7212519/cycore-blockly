@@ -8,6 +8,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { MenuComponent } from '../../components/menu/menu.component';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { ToolContainerComponent } from '../../components/tool-container/tool-container.component';
@@ -34,6 +35,7 @@ interface FfsUploadRestoreContext {
     NzButtonModule,
     NzSwitchModule,
     NzToolTipModule,
+    TranslateModule,
     ToolContainerComponent,
     SubWindowComponent,
     MenuComponent,
@@ -65,7 +67,7 @@ export class FfsManagerComponent {
   esptoolReady = false;
   busy = false;
   aborting = false;
-  statusText = '选择 ESP32 串口后刷新设备信息';
+  statusText = '';
   errorText = '';
   deviceInfo: FfsDeviceInfo | null = null;
   partitions: FfsPartitionInfo[] = [];
@@ -75,7 +77,7 @@ export class FfsManagerComponent {
   selectedFile: FfsFileEntry | null = null;
   filesystemUsage: FfsFilesystemUsage | null = null;
   filesystemDirty = false;
-  filesystemStatusText = '读取文件列表后可管理分区内容';
+  filesystemStatusText = '';
   private progressLastTs = 0;
   private progressLastPercent = -1;
 
@@ -87,8 +89,12 @@ export class FfsManagerComponent {
     private ffsFilesystemContentService: FfsFilesystemContentService,
     private message: NzMessageService,
     private modal: NzModalService,
-    private cd: ChangeDetectorRef
-  ) { }
+    private cd: ChangeDetectorRef,
+    private translate: TranslateService
+  ) {
+    this.statusText = this.t('STATUS.SELECT_PORT_REFRESH');
+    this.filesystemStatusText = this.t('STATUS.FILESYSTEM_READY_HINT');
+  }
 
   async ngOnInit() {
     this.currentUrl = this.router.url;
@@ -102,9 +108,13 @@ export class FfsManagerComponent {
     this.ffsManagerService.onBaudResolved = (result, port) => {
       if (port !== this.currentPort) return;
       this.currentBaudRate = String(result.baud);
-      const chipName = result.bridge?.productName || '当前 USB 桥接芯片';
+      const chipName = result.bridge?.productName || this.t('CURRENT_USB_BRIDGE');
       this.message.warning(
-        `检测到 ${chipName}，已将波特率从 ${result.requested} 自动降至 ${result.baud}`,
+        this.t('MESSAGES.BAUD_RATE_CAPPED', {
+          chipName,
+          requested: result.requested,
+          baud: result.baud,
+        }),
         { nzDuration: 4000 },
       );
       this.cd.detectChanges();
@@ -163,7 +173,7 @@ export class FfsManagerComponent {
 
     this.uploadRestoreContext = { port: uploadPort };
     this.switchValue = false;
-    this.statusText = '已暂停 ESP 会话以便固件烧录...';
+    this.statusText = this.t('STATUS.PAUSED_FOR_UPLOAD');
     this.cd.detectChanges();
 
     try {
@@ -266,7 +276,7 @@ export class FfsManagerComponent {
 
     this.currentPort = context.port;
     this.switchValue = true;
-    this.statusText = '固件烧录完成，正在重新连接 ESP...';
+    this.statusText = this.t('STATUS.RECONNECTING_AFTER_UPLOAD');
     this.cd.detectChanges();
 
     try {
@@ -315,41 +325,44 @@ export class FfsManagerComponent {
 
   async refreshAll() {
     if (!this.currentPort) {
-      this.message.warning('请先选择串口');
+      this.message.warning(this.t('STATUS.SELECT_PORT_FIRST'));
       return;
     }
 
     if (!this.esptoolReady) {
       await this.checkEsptool(true);
       if (!this.esptoolReady) {
-        this.message.warning('未检测到 esptool');
+        this.message.warning(this.t('STATUS.ESPTOOL_NOT_FOUND'));
         return;
       }
     }
 
     this.busy = true;
     this.errorText = '';
-    this.statusText = '正在读取设备信息...';
+    this.statusText = this.t('STATUS.READING_DEVICE_INFO');
     this.cd.detectChanges();
 
     try {
       const baudRate = this.getSelectedBaudRate();
       this.deviceInfo = await this.ffsManagerService.readDeviceInfo(this.currentPort, baudRate);
-      this.statusText = '正在读取分区表...';
+      this.statusText = this.t('STATUS.READING_PARTITION_TABLE');
       this.cd.detectChanges();
       this.partitions = await this.ffsManagerService.readPartitionTable(this.currentPort, baudRate);
       this.selectedPartition = this.filesystemPartitions[0] || this.partitions[0] || null;
       this.resetFilesystemState();
       this.statusText = this.partitions.length
-        ? `已读取 ${this.partitions.length} 个分区，其中 ${this.filesystemPartitions.length} 个文件系统分区`
-        : '没有读取到分区表';
+        ? this.t('STATUS.PARTITIONS_READ', {
+          total: this.partitions.length,
+          filesystem: this.filesystemPartitions.length,
+        })
+        : this.t('STATUS.NO_PARTITION_TABLE');
     } catch (error) {
       if (this.aborting) {
         this.errorText = '';
-        this.statusText = '已取消';
+        this.statusText = this.t('STATUS.CANCELLED');
       } else {
         this.errorText = this.formatError(error);
-        this.statusText = '读取失败';
+        this.statusText = this.t('STATUS.READ_FAILED');
         this.message.error(this.errorText);
       }
     } finally {
@@ -365,7 +378,7 @@ export class FfsManagerComponent {
   async switchConnection() {
     if (this.switchValue) {
       if (!this.currentPort) {
-        this.message.warning('请先选择串口');
+        this.message.warning(this.t('STATUS.SELECT_PORT_FIRST'));
         this.switchValue = false;
         return;
       }
@@ -390,8 +403,8 @@ export class FfsManagerComponent {
       const wasBusy = this.busy;
       this.aborting = wasBusy;
       if (wasBusy) {
-        this.statusText = '正在取消...';
-        this.filesystemStatusText = '正在取消...';
+        this.statusText = this.t('STATUS.CANCELLING');
+        this.filesystemStatusText = this.t('STATUS.CANCELLING');
         this.cd.detectChanges();
       }
       try {
@@ -409,7 +422,7 @@ export class FfsManagerComponent {
       this.partitions = [];
       this.selectedPartition = null;
       this.resetFilesystemState();
-      this.statusText = wasBusy ? '已取消' : '已断开';
+      this.statusText = wasBusy ? this.t('STATUS.CANCELLED') : this.t('STATUS.DISCONNECTED');
       if (releasedPort) {
         // 进一步保险：等 OS 真正放掉独占句柄再放行后续工具。
         await this.waitForPortReady(releasedPort, 3000).catch(() => { /* ignore */ });
@@ -423,7 +436,10 @@ export class FfsManagerComponent {
 
   async selectPartition(partition: FfsPartitionInfo) {
     if (this.selectedPartition?.index === partition.index) return;
-    if (this.filesystemDirty && !(await this.confirmDialog('切换分区', '当前文件系统有未写回修改，切换分区将丢弃这些修改，是否继续？'))) {
+    if (this.filesystemDirty && !(await this.confirmDialog(
+      this.t('DIALOGS.SWITCH_PARTITION_TITLE'),
+      this.t('DIALOGS.SWITCH_PARTITION_CONTENT')
+    ))) {
       return;
     }
     this.selectedPartition = partition;
@@ -436,9 +452,10 @@ export class FfsManagerComponent {
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在读取 ${partition.label || partition.offsetHex} 文件系统...`;
+    const partitionName = this.getPartitionDisplayName(partition);
+    this.filesystemStatusText = this.t('STATUS.READING_FILESYSTEM', { partition: partitionName });
     try {
-      const readPrefix = `正在读取 ${partition.label || partition.offsetHex} 文件系统`;
+      const readPrefix = this.t('STATUS.READING_FILESYSTEM_PROGRESS', { partition: partitionName });
       this.resetProgressThrottle();
       const image = await this.ffsManagerService.readPartitionImage(
         this.currentPort,
@@ -451,15 +468,15 @@ export class FfsManagerComponent {
       this.filesystemUsage = this.filesystemSession.usage;
       this.filesystemDirty = false;
       this.selectedFile = null;
-      this.filesystemStatusText = `已读取 ${this.filesystemFiles.length} 个文件系统条目`;
-      this.message.success('文件系统内容已读取');
+      this.filesystemStatusText = this.t('STATUS.FILESYSTEM_ENTRIES_READ', { count: this.filesystemFiles.length });
+      this.message.success(this.t('MESSAGES.FILESYSTEM_CONTENT_READ'));
     } catch (error) {
       if (this.aborting) {
         this.errorText = '';
-        this.filesystemStatusText = '已取消';
+        this.filesystemStatusText = this.t('STATUS.CANCELLED');
       } else {
         this.errorText = this.formatError(error);
-        this.filesystemStatusText = '文件系统读取失败';
+        this.filesystemStatusText = this.t('STATUS.FILESYSTEM_READ_FAILED');
         this.message.error(this.errorText);
       }
     } finally {
@@ -477,23 +494,23 @@ export class FfsManagerComponent {
     const fileNameError = this.ffsFilesystemContentService.validateUploadFileName(file.name, session.type);
     if (fileNameError) {
       this.errorText = fileNameError;
-      this.filesystemStatusText = '上传失败：文件名过长';
+      this.filesystemStatusText = this.t('STATUS.UPLOAD_FAILED_NAME_TOO_LONG');
       this.message.warning(fileNameError);
       return;
     }
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在上传 ${file.name}...`;
+    this.filesystemStatusText = this.t('STATUS.UPLOADING_FILE', { name: file.name });
     try {
       const data = new Uint8Array(await file.arrayBuffer());
       await this.ffsFilesystemContentService.writeFile(session, targetPath, data);
       await this.refreshFilesystemSession(true);
-      this.filesystemStatusText = `${file.name} 已加入文件系统，需写回设备后生效`;
-      this.message.success('文件已上传到镜像');
+      this.filesystemStatusText = this.t('STATUS.FILE_ADDED_PENDING', { name: file.name });
+      this.message.success(this.t('MESSAGES.FILE_UPLOADED'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '上传失败';
+      this.filesystemStatusText = this.t('STATUS.UPLOAD_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -507,17 +524,19 @@ export class FfsManagerComponent {
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在下载 ${entry.path}...`;
+    this.filesystemStatusText = this.t('STATUS.DOWNLOADING_FILE', { path: entry.path });
     try {
       const data = await this.ffsFilesystemContentService.readFile(session, entry.path);
-      const saved = await this.saveBinaryFile(entry.name, data, '保存文件');
-      this.filesystemStatusText = saved ? `${entry.path} 已下载` : '已取消下载';
+      const saved = await this.saveBinaryFile(entry.name, data, this.t('DIALOGS.SAVE_FILE_TITLE'));
+      this.filesystemStatusText = saved
+        ? this.t('STATUS.FILE_DOWNLOADED', { path: entry.path })
+        : this.t('STATUS.DOWNLOAD_CANCELLED');
       if (saved) {
-        this.message.success('文件已下载');
+        this.message.success(this.t('MESSAGES.FILE_DOWNLOADED'));
       }
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '下载失败';
+      this.filesystemStatusText = this.t('STATUS.DOWNLOAD_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -531,18 +550,18 @@ export class FfsManagerComponent {
 
     const mode = this.getPreviewMode(entry.name);
     if (!mode) {
-      this.message.warning('当前文件类型不支持预览');
+      this.message.warning(this.t('STATUS.PREVIEW_UNSUPPORTED'));
       return;
     }
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在读取 ${entry.path}...`;
+    this.filesystemStatusText = this.t('STATUS.READING_FILE', { path: entry.path });
     let audioUrl: string | null = null;
     try {
       const data = await this.ffsFilesystemContentService.readFile(session, entry.path);
       const sizeText = this.formatBytes(data.byteLength);
-      this.filesystemStatusText = `${entry.path} 已读取（${sizeText}）`;
+      this.filesystemStatusText = this.t('STATUS.FILE_READ', { path: entry.path, size: sizeText });
 
       if (mode === 'text') {
         this.modal.create<FileTextViewerComponent, FileTextViewerData>({
@@ -581,7 +600,7 @@ export class FfsManagerComponent {
     } catch (error) {
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '读取失败';
+      this.filesystemStatusText = this.t('STATUS.FILE_READ_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -610,15 +629,15 @@ export class FfsManagerComponent {
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在删除 ${entry.path}...`;
+    this.filesystemStatusText = this.t('STATUS.DELETING_ENTRY', { path: entry.path });
     try {
       await this.ffsFilesystemContentService.deleteEntry(session, entry);
       await this.refreshFilesystemSession(true);
-      this.filesystemStatusText = `${entry.path} 已删除，需写回设备后生效`;
-      this.message.success('文件系统条目已删除');
+      this.filesystemStatusText = this.t('STATUS.ENTRY_DELETED_PENDING', { path: entry.path });
+      this.message.success(this.t('MESSAGES.ENTRY_DELETED'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '删除失败';
+      this.filesystemStatusText = this.t('STATUS.DELETE_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -630,20 +649,24 @@ export class FfsManagerComponent {
     const session = this.filesystemSession;
     if (!session) return;
 
-    const nextPath = await this.promptDialog('重命名', entry.path, '新的路径');
+    const nextPath = await this.promptDialog(
+      this.t('DIALOGS.RENAME_TITLE'),
+      entry.path,
+      this.t('DIALOGS.NEW_PATH_PLACEHOLDER')
+    );
     if (nextPath === null || nextPath.trim() === entry.path) return;
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在重命名 ${entry.path}...`;
+    this.filesystemStatusText = this.t('STATUS.RENAMING_ENTRY', { path: entry.path });
     try {
       await this.ffsFilesystemContentService.renameEntry(session, entry, nextPath);
       await this.refreshFilesystemSession(true);
-      this.filesystemStatusText = `${entry.path} 已重命名，需写回设备后生效`;
-      this.message.success('文件系统条目已重命名');
+      this.filesystemStatusText = this.t('STATUS.ENTRY_RENAMED_PENDING', { path: entry.path });
+      this.message.success(this.t('MESSAGES.ENTRY_RENAMED'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '重命名失败';
+      this.filesystemStatusText = this.t('STATUS.RENAME_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -657,20 +680,20 @@ export class FfsManagerComponent {
 
     const base = basePath && basePath.startsWith('/') ? basePath : '/';
     const defaultPath = (base === '/' ? '' : base.replace(/\/$/, '')) + '/new_folder';
-    const path = await this.promptDialog('新建文件夹', defaultPath, '/path/to/dir');
+    const path = await this.promptDialog(this.t('DIALOGS.NEW_FOLDER_TITLE'), defaultPath, '/path/to/dir');
     if (path === null || !path.trim()) return;
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = `正在创建目录 ${path}...`;
+    this.filesystemStatusText = this.t('STATUS.CREATING_DIRECTORY', { path });
     try {
       await this.ffsFilesystemContentService.mkdir(session, path);
       await this.refreshFilesystemSession(true);
-      this.filesystemStatusText = `${path} 已创建，需写回设备后生效`;
-      this.message.success('目录已创建');
+      this.filesystemStatusText = this.t('STATUS.DIRECTORY_CREATED_PENDING', { path });
+      this.message.success(this.t('MESSAGES.DIRECTORY_CREATED'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '创建目录失败';
+      this.filesystemStatusText = this.t('STATUS.CREATE_DIRECTORY_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -684,15 +707,15 @@ export class FfsManagerComponent {
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = '正在格式化文件系统镜像...';
+    this.filesystemStatusText = this.t('STATUS.FORMATTING_IMAGE');
     try {
       await this.ffsFilesystemContentService.format(session);
       await this.refreshFilesystemSession(true);
-      this.filesystemStatusText = '文件系统镜像已格式化，需写回设备后生效';
-      this.message.success('文件系统镜像已格式化');
+      this.filesystemStatusText = this.t('STATUS.IMAGE_FORMATTED_PENDING');
+      this.message.success(this.t('MESSAGES.IMAGE_FORMATTED'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '格式化失败';
+      this.filesystemStatusText = this.t('STATUS.FORMAT_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -707,11 +730,14 @@ export class FfsManagerComponent {
 
     this.busy = true;
     this.errorText = '';
-    this.filesystemStatusText = '正在导出镜像并写回设备...';
+    this.filesystemStatusText = this.t('STATUS.EXPORTING_AND_WRITING');
     try {
       const image = await this.ffsFilesystemContentService.toImage(session);
       if (image.length !== partition.size) {
-        throw new Error(`导出的镜像大小 ${this.ffsFilesystemContentService.formatBytes(image.length)} 与分区大小 ${partition.sizeText} 不一致`);
+        throw new Error(this.t('ERRORS.IMAGE_SIZE_MISMATCH', {
+          imageSize: this.ffsFilesystemContentService.formatBytes(image.length),
+          partitionSize: partition.sizeText,
+        }));
       }
       this.resetProgressThrottle();
       await this.ffsManagerService.writePartitionImage(
@@ -719,15 +745,15 @@ export class FfsManagerComponent {
         this.getSelectedBaudRate(),
         partition,
         image,
-        (written, total) => this.reportProgress('正在写回文件系统镜像', written, total, 'filesystem')
+        (written, total) => this.reportProgress(this.t('STATUS.WRITING_FILESYSTEM_IMAGE'), written, total, 'filesystem')
       );
       session.image = image;
       this.filesystemDirty = false;
-      this.filesystemStatusText = '文件系统内容已写回设备';
-      this.message.success('文件系统内容已写回设备');
+      this.filesystemStatusText = this.t('STATUS.CONTENT_WRITTEN');
+      this.message.success(this.t('MESSAGES.CONTENT_WRITTEN'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.filesystemStatusText = '写回失败';
+      this.filesystemStatusText = this.t('STATUS.WRITE_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -744,7 +770,9 @@ export class FfsManagerComponent {
     if (!partition || !partition.filesystemType || !this.currentPort) return;
 
     this.busy = true;
-    const exportPrefix = `正在导出 ${partition.label || partition.offsetHex}`;
+    const exportPrefix = this.t('STATUS.EXPORTING_PARTITION', {
+      partition: this.getPartitionDisplayName(partition),
+    });
     this.statusText = `${exportPrefix}...`;
     this.resetProgressThrottle();
     try {
@@ -754,14 +782,19 @@ export class FfsManagerComponent {
         partition,
         (received, total) => this.reportProgress(exportPrefix, received, total, 'status')
       );
-      const saved = await this.saveBinaryFile(this.ffsManagerService.buildPartitionFileName(partition), data, '保存分区镜像', [{ name: 'Binary image', extensions: ['bin'] }]);
-      this.statusText = saved ? '分区镜像已导出' : '已取消导出';
+      const saved = await this.saveBinaryFile(
+        this.ffsManagerService.buildPartitionFileName(partition),
+        data,
+        this.t('DIALOGS.SAVE_PARTITION_IMAGE_TITLE'),
+        [{ name: this.t('FILTERS.BINARY_IMAGE'), extensions: ['bin'] }]
+      );
+      this.statusText = saved ? this.t('STATUS.PARTITION_EXPORTED') : this.t('STATUS.EXPORT_CANCELLED');
       if (saved) {
-        this.message.success('分区镜像已导出');
+        this.message.success(this.t('MESSAGES.PARTITION_EXPORTED'));
       }
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.statusText = '导出失败';
+      this.statusText = this.t('STATUS.EXPORT_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -775,16 +808,24 @@ export class FfsManagerComponent {
 
     const data = new Uint8Array(await file.arrayBuffer());
     if (data.length !== partition.size) {
-      this.message.warning(`镜像大小必须等于 ${partition.sizeText}`);
+      this.message.warning(this.t('MESSAGES.IMAGE_SIZE_MUST_EQUAL', { size: partition.sizeText }));
       return;
     }
 
-    if (!(await this.confirmDialog('恢复镜像', `确认将 ${file.name} 写入 ${partition.label || partition.offsetHex} 分区？`))) {
+    if (!(await this.confirmDialog(
+      this.t('DIALOGS.RESTORE_IMAGE_TITLE'),
+      this.t('DIALOGS.RESTORE_IMAGE_CONTENT', {
+        name: file.name,
+        partition: this.getPartitionDisplayName(partition),
+      })
+    ))) {
       return;
     }
 
     this.busy = true;
-    const restorePrefix = `正在恢复 ${partition.label || partition.offsetHex}`;
+    const restorePrefix = this.t('STATUS.RESTORING_PARTITION', {
+      partition: this.getPartitionDisplayName(partition),
+    });
     this.statusText = `${restorePrefix}...`;
     this.resetProgressThrottle();
     try {
@@ -795,11 +836,11 @@ export class FfsManagerComponent {
         data,
         (written, total) => this.reportProgress(restorePrefix, written, total, 'status')
       );
-      this.statusText = '分区镜像已写入';
-      this.message.success('分区镜像已写入');
+      this.statusText = this.t('STATUS.PARTITION_WRITTEN');
+      this.message.success(this.t('MESSAGES.PARTITION_WRITTEN'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.statusText = '恢复失败';
+      this.statusText = this.t('STATUS.RESTORE_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -810,23 +851,30 @@ export class FfsManagerComponent {
   async eraseSelectedPartition() {
     const partition = this.selectedPartition;
     if (!partition || !partition.filesystemType || !this.currentPort) return;
-    if (!(await this.confirmDialog('擦除分区', `确认擦除 ${partition.label || partition.offsetHex} 分区？该操作不可撤销。`))) {
+    if (!(await this.confirmDialog(
+      this.t('DIALOGS.ERASE_PARTITION_TITLE'),
+      this.t('DIALOGS.ERASE_PARTITION_CONTENT', {
+        partition: this.getPartitionDisplayName(partition),
+      })
+    ))) {
       return;
     }
 
     this.busy = true;
-    this.statusText = `正在擦除 ${partition.label || partition.offsetHex}...`;
+    this.statusText = this.t('STATUS.ERASING_PARTITION', {
+      partition: this.getPartitionDisplayName(partition),
+    });
     try {
       await this.ffsManagerService.erasePartition(
         this.currentPort,
         this.getSelectedBaudRate(),
         partition
       );
-      this.statusText = '分区已擦除';
-      this.message.success('分区已擦除');
+      this.statusText = this.t('STATUS.PARTITION_ERASED');
+      this.message.success(this.t('MESSAGES.PARTITION_ERASED'));
     } catch (error) {
       this.errorText = this.formatError(error);
-      this.statusText = '擦除失败';
+      this.statusText = this.t('STATUS.ERASE_FAILED');
       this.message.error(this.errorText);
     } finally {
       this.busy = false;
@@ -845,7 +893,7 @@ export class FfsManagerComponent {
   async getDevicePortList() {
     const ports = await this.serialService.getSerialPorts();
     this.portList = ports?.length ? ports : [{
-      name: 'Device not found',
+      name: this.t('NO_DEVICE_FOUND'),
       text: '',
       type: 'serial',
       icon: 'fa-light fa-triangle-exclamation',
@@ -896,7 +944,7 @@ export class FfsManagerComponent {
     if (type === 'spiffs') return 'SPIFFS';
     if (type === 'littlefs') return 'LittleFS';
     if (type === 'fatfs') return 'FATFS';
-    return '普通分区';
+    return this.t('COMMON.NORMAL_PARTITION');
   }
 
   getPartitionWidth(partition: FfsPartitionInfo): number {
@@ -946,10 +994,15 @@ export class FfsManagerComponent {
     this.selectedFile = null;
     this.filesystemUsage = null;
     this.filesystemDirty = false;
-    this.filesystemStatusText = '读取文件列表后可管理分区内容';
+    this.filesystemStatusText = this.t('STATUS.FILESYSTEM_READY_HINT');
   }
 
-  private async saveBinaryFile(fileName: string, data: Uint8Array, title = '保存分区镜像', filters?: Array<{ name: string; extensions: string[] }>): Promise<boolean> {
+  private async saveBinaryFile(
+    fileName: string,
+    data: Uint8Array,
+    title = this.t('DIALOGS.SAVE_PARTITION_IMAGE_TITLE'),
+    filters?: Array<{ name: string; extensions: string[] }>
+  ): Promise<boolean> {
     if (window['ipcRenderer'] && window['fs']) {
       const saveOptions: any = {
         suggestedName: fileName,
@@ -1005,7 +1058,7 @@ export class FfsManagerComponent {
     if (error instanceof Error) {
       return error.message;
     }
-    return String(error || '未知错误');
+    return String(error || this.t('COMMON.UNKNOWN_ERROR'));
   }
 
   private toBlobPart(data: Uint8Array): ArrayBuffer {
@@ -1019,8 +1072,8 @@ export class FfsManagerComponent {
       this.modal.confirm({
         nzTitle: title,
         nzContent: content,
-        nzOkText: '确认',
-        nzCancelText: '取消',
+        nzOkText: this.t('COMMON.CONFIRM'),
+        nzCancelText: this.t('COMMON.CANCEL'),
         nzBodyStyle: { background: 'var(--aily-bg-primary)' },
         nzOnOk: () => resolve(true),
         nzOnCancel: () => resolve(false),
@@ -1035,8 +1088,8 @@ export class FfsManagerComponent {
         nzTitle: title,
         nzBodyStyle: { background: 'var(--aily-bg-primary)' },
         nzContent: `<input id="ffs-prompt-input" class="ant-input" placeholder="${this.escapeHtml(placeholder)}" value="${this.escapeHtml(defaultValue)}" style="width:100%" />`,
-        nzOkText: '确认',
-        nzCancelText: '取消',
+        nzOkText: this.t('COMMON.CONFIRM'),
+        nzCancelText: this.t('COMMON.CANCEL'),
         nzOnOk: () => resolve(value),
         nzOnCancel: () => resolve(null),
       });
@@ -1062,5 +1115,13 @@ export class FfsManagerComponent {
     return String(text ?? '').replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     } as Record<string, string>)[c]);
+  }
+
+  private getPartitionDisplayName(partition: FfsPartitionInfo): string {
+    return partition.label || partition.offsetHex;
+  }
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.translate.instant(`FFS_MANAGER.${key}`, params);
   }
 }
