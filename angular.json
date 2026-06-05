@@ -39,6 +39,11 @@
                 "input": "public"
               },
               {
+                "glob": "*/i18n/*.json",
+                "input": "src/app/tools",
+                "output": "tools"
+              },
+              {
                 "glob": "**/*",
                 "input": "node_modules/blockly/media/",
                 "output": "blockly/media"
@@ -129,6 +134,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "*/i18n/*.json",
+                "input": "src/app/tools",
+                "output": "tools"
               }
             ],
             "styles": [

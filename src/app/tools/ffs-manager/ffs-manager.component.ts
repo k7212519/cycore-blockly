@@ -22,6 +22,7 @@ import { FilesystemManagerComponent } from './components/filesystem-manager/file
 import { PartitionMapComponent } from './components/partition-map/partition-map.component';
 import { FfsFileEntry, FfsFilesystemContentService, FfsFilesystemUsage, FfsMountedFilesystem } from './ffs-filesystem-content.service';
 import { FfsDeviceInfo, FfsFilesystemType, FfsManagerService, FfsPartitionInfo } from './ffs-manager.service';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 interface FfsUploadRestoreContext {
   port: string;
@@ -92,13 +93,16 @@ export class FfsManagerComponent {
     private message: NzMessageService,
     private modal: NzModalService,
     private cd: ChangeDetectorRef,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private toolI18n: ToolI18nService
   ) {
-    this.statusText = this.t('STATUS.SELECT_PORT_REFRESH');
-    this.filesystemStatusText = this.t('STATUS.FILESYSTEM_READY_HINT');
   }
 
   async ngOnInit() {
+    await this.toolI18n.load('ffs-manager');
+    this.statusText = this.t('STATUS.SELECT_PORT_REFRESH');
+    this.filesystemStatusText = this.t('STATUS.FILESYSTEM_READY_HINT');
+
     this.currentUrl = this.router.url;
     if (this.serialService.currentPort && this.isSerialPortInfo(this.serialService.currentPortInfo)) {
       this.currentPort = this.serialService.currentPort;

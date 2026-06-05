@@ -25,6 +25,7 @@ import {
 } from './app-store.config';
 import { AppStoreService } from './app-store.service';
 import { Subscription } from 'rxjs';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 @Component({
   selector: 'app-app-store',
@@ -58,10 +59,16 @@ export class AppStoreComponent implements OnInit, AfterViewInit, OnDestroy {
     private router: Router,
     private appStoreService: AppStoreService,
     private projectService: ProjectService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private toolI18n: ToolI18nService
   ) { }
 
   ngOnInit(): void {
+    void this.initTool();
+  }
+
+  private async initTool(): Promise<void> {
+    await this.toolI18n.load('app-store');
     this.currentUrl = this.router.url;
     this.refreshApps();
     this.layoutSubscription = this.appStoreService.layout$.subscribe(() => {

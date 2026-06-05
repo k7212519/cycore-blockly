@@ -6,6 +6,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { ToolContainerComponent } from '../../components/tool-container/tool-container.component';
 import { UiService } from '../../services/ui.service';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 type NetworkMode = 'http' | 'websocket';
 type NetworkLogType = 'request' | 'response' | 'system' | 'error';
@@ -61,10 +62,16 @@ export class NetworkDebuggerComponent implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
-    private uiService: UiService
+    private uiService: UiService,
+    private toolI18n: ToolI18nService
   ) { }
 
   ngOnInit(): void {
+    void this.initTool();
+  }
+
+  private async initTool(): Promise<void> {
+    await this.toolI18n.load('network-debugger');
     this.currentUrl = this.router.url;
   }
 

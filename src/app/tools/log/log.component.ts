@@ -13,6 +13,7 @@ import { ElectronService } from '../../services/electron.service';
 import { stripAnsi } from 'fancy-ansi';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 @Component({
   selector: 'app-log',
@@ -58,7 +59,8 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
     private projectService: ProjectService,
     private electronService: ElectronService,
     private cdr: ChangeDetectorRef,
-    private translate: TranslateService
+    private translate: TranslateService,
+    private toolI18n: ToolI18nService
   ) {
     // 当虚拟行元素变化时，动态测量每个元素的实际高度
     effect(() => {
@@ -72,6 +74,11 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit() {
+    void this.initTool();
+  }
+
+  private async initTool(): Promise<void> {
+    await this.toolI18n.load('log');
     // 初始化日志列表
     this.refreshLogList();
   }

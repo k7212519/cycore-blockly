@@ -6,6 +6,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { ToolContainerComponent } from '../../components/tool-container/tool-container.component';
 import { UiService } from '../../services/ui.service';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 type BusMode = 'can' | 'rs485' | 'modbus';
 type BusLogDirection = 'tx' | 'rx' | 'sys' | 'error';
@@ -112,10 +113,16 @@ export class IndustrialBusDebuggerComponent implements OnInit {
 
   constructor(
     private router: Router,
-    private uiService: UiService
+    private uiService: UiService,
+    private toolI18n: ToolI18nService
   ) { }
 
   ngOnInit(): void {
+    void this.initTool();
+  }
+
+  private async initTool(): Promise<void> {
+    await this.toolI18n.load('industrial-bus-debugger');
     this.currentUrl = this.router.url;
   }
 

@@ -32,6 +32,7 @@ import { Buffer } from 'buffer';
 import { TranslateService, TranslateModule } from '@ngx-translate/core';
 import { ConfigService } from '../../services/config.service';
 import { ElectronService } from '../../services/electron.service';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 interface UploadRestoreContext {
   port: string;
@@ -247,7 +248,8 @@ export class SerialMonitorComponent {
     private message: NzMessageService,
     private translate: TranslateService,
     private configService: ConfigService,
-    private electronService: ElectronService
+    private electronService: ElectronService,
+    private toolI18n: ToolI18nService
   ) {
     // 当虚拟行元素变化时，动态测量每个元素的实际高度
     effect(() => {
@@ -261,6 +263,8 @@ export class SerialMonitorComponent {
   }
 
   async ngOnInit() {
+    await this.toolI18n.load('serial-monitor');
+
     this.currentUrl = this.router.url;
 
     // 加载保存的串口监视器配置

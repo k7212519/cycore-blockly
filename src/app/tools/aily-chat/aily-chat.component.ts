@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, ViewChildren, QueryList, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, ViewChild, ViewChildren, QueryList, OnDestroy, OnInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { FormsModule } from '@angular/forms';
 import { XDialogComponent } from './components/x-dialog/x-dialog.component';
@@ -76,6 +76,7 @@ import { ContextBudgetService } from './services/context-budget.service';
 import { SubagentSessionService } from './services/subagent-session.service';
 import { ChatHistoryService } from './services/chat-history.service';
 import { ThemeService } from '../../services/theme.service';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 // 共享类型从 core/chat-types.ts 导入并重新导出（保持向后兼容）
 import { Tool, ResourceItem, ChatMessage, ToolCallState, ToolCallInfo } from './core/chat-types';
@@ -108,7 +109,7 @@ export { ToolCallState };
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ScrollManagerService, ResourceManagerService, MenuManagerService, EditCheckpointService, ChatEngineService],
 })
-export class AilyChatComponent implements OnDestroy {
+export class AilyChatComponent implements OnInit, OnDestroy {
   options = {
     autoHide: true,
     clickOnTrack: true,
@@ -198,6 +199,7 @@ export class AilyChatComponent implements OnDestroy {
     public resourceManager: ResourceManagerService,
     public menuManager: MenuManagerService,
     private themeService: ThemeService,
+    private toolI18n: ToolI18nService,
   ) {
     // 注册 OnPush CD 回调 — viewAdapter 每次 flush/appendImmediate 后调用 markForCheck
     this.engine.setCdCallback(
@@ -206,7 +208,13 @@ export class AilyChatComponent implements OnDestroy {
     );
   }
 
-  ngOnInit() {
+  ngOnInit(): void {
+    void this.initTool();
+  }
+
+  private async initTool(): Promise<void> {
+    await this.toolI18n.load('aily-chat');
+
     // 初始化宿主环境适配器
     if (!AilyHost.isInitialized()) {
       AilyHost.init(createElectronHostAdapter({

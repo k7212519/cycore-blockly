@@ -28,6 +28,7 @@ import { AppItem } from '../../../configs/tool.config';
 import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { Subscription } from 'rxjs';
 import { BleOtaDeviceItem, UploaderBleService } from '../../../services/uploader-ble.service';
+import { ToolI18nService } from '../../../services/tool-i18n.service';
 
 @Component({
   selector: 'app-header',
@@ -119,10 +120,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private probeRsService: ProbeRsService,
     private uploaderBleService: UploaderBleService,
     private ngZone: NgZone,
-    private appStoreService: AppStoreService
+    private appStoreService: AppStoreService,
+    private toolI18n: ToolI18nService
   ) { }
 
   ngOnInit(): void {
+    void this.toolI18n.load('serial-monitor');
+
     this.refreshHeaderApps();
     this.appStoreSubscription = this.appStoreService.layout$.subscribe(() => {
       this.refreshHeaderApps();
