@@ -317,7 +317,11 @@ export class UserCenterComponent {
   }
 
   get displayPlanEndDate(): string {
-    const endDate = this.currentUser?.subscription_plan?.end_date;
+    const subscriptionPlan = this.currentUser?.subscription_plan;
+    if (subscriptionPlan?.name?.toLowerCase() === 'free') {
+      return '';
+    }
+    const endDate = subscriptionPlan?.end_date;
     if (!endDate) {
       return '';
     }
