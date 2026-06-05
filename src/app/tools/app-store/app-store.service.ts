@@ -1,74 +1,250 @@
 import { Injectable } from '@angular/core';
-import { AppItem, APP_LIST, HEADER_APP_LIMIT, SIDEBAR_APP_LIMIT } from './app-store.config';
+import { BehaviorSubject } from 'rxjs';
+import {
+  APP_LIST,
+  APP_STORE_STORAGE_KEY,
+  APP_STORE_ZONES,
+  AVAILABLE_APP_IDS,
+  AppItem,
+  AppPlacementZone,
+  AppStoreLayout,
+  DEFAULT_APP_STORE_LAYOUT,
+  HEADER_APP_LIMIT
+} from './app-store.config';
+
+export interface AppVisibilityContext {
+  routeUrl?: string;
+  boardCore?: string;
+  isDevMode?: boolean;
+}
 
 @Injectable({
   providedIn: 'root'
 })
 export class AppStoreService {
-  private apps: AppItem[] = [...APP_LIST];
+  private readonly appMap = new Map(
+    APP_LIST
+      .filter(app => AVAILABLE_APP_IDS.includes(app.id))
+      .map(app => [app.id, app])
+  );
+  private readonly zoneLimits = new Map(APP_STORE_ZONES.map(zone => [zone.id, zone.limit]));
+  private readonly layoutSubject = new BehaviorSubject<AppStoreLayout>(this.loadLayout());
 
-  // Header 上显示的 app 数量上限
+  readonly layout$ = this.layoutSubject.asObservable();
   readonly HEADER_APP_LIMIT = HEADER_APP_LIMIT;
-  // Sidebar 上显示的 app 数量上限
-  readonly SIDEBAR_APP_LIMIT = SIDEBAR_APP_LIMIT;
 
-  constructor() {
-    this.loadAppsFromStorage();
+  get layout(): AppStoreLayout {
+    return this.cloneLayout(this.layoutSubject.value);
   }
 
-  // 从本地存储加载 app 配置
-  private loadAppsFromStorage(): void {
-    // 不再使用旧的 app-store-config，始终使用默认应用列表
-    // 用户的配置现在存储在 app-store-zones-config 中
-    this.apps = [...APP_LIST];
-  }
-
-  // 保存 app 配置到本地存储（已废弃，配置现在由组件管理）
-  private saveAppsToStorage(): void {
-    // 不再需要保存，配置由 app-store.component 管理
-  }
-
-  // 获取所有 app
   getAllApps(): AppItem[] {
-    return [...APP_LIST]; // 始终返回完整的默认应用列表
+    return [...this.appMap.values()].map(app => ({ ...app }));
   }
 
-  // 获取启用的 app
   getEnabledApps(): AppItem[] {
-    return this.apps.filter(app => app.enabled);
+    return this.getAllApps().filter(app => app.enabled !== false);
   }
 
-  // 获取显示在 header 上的 app（前6个）
-  getHeaderApps(): AppItem[] {
-    return this.apps.slice(0, this.HEADER_APP_LIMIT);
+  getApp(appId: string): AppItem | undefined {
+    const app = this.appMap.get(appId);
+    return app ? { ...app } : undefined;
   }
 
-  // 启用/禁用 app
-  toggleApp(appId: string, enabled: boolean): void {
-    const app = this.apps.find(a => a.id === appId);
-    if (app) {
-      app.enabled = enabled;
-      this.saveAppsToStorage();
+  getAppsForZone(zone: AppPlacementZone): AppItem[] {
+    return this.layoutSubject.value.zones[zone]
+      .map(appId => this.appMap.get(appId))
+      .filter((app): app is AppItem => !!app && app.enabled !== false)
+      .map(app => ({ ...app }));
+  }
+
+  getZoneIds(zone: AppPlacementZone): string[] {
+    return [...this.layoutSubject.value.zones[zone]];
+  }
+
+  setZoneApps(zone: AppPlacementZone, appIds: string[]): void {
+    const nextLayout = this.cloneLayout(this.layoutSubject.value);
+    nextLayout.zones[zone] = this.sanitizeZoneIds(zone, appIds);
+    this.commitLayout(nextLayout);
+  }
+
+  setVisibleZoneOrder(zone: AppPlacementZone, visibleIds: string[], visibleCatalogIds: string[]): void {
+    const visibleCatalogIdSet = new Set(visibleCatalogIds);
+    const preservedHiddenIds = this.layoutSubject.value.zones[zone]
+      .filter(appId => !visibleCatalogIdSet.has(appId));
+
+    this.setZoneApps(zone, [...visibleIds, ...preservedHiddenIds]);
+  }
+
+  toggleAppInZone(zone: AppPlacementZone, appId: string): void {
+    if (this.isAppInZone(zone, appId)) {
+      this.removeAppFromZone(zone, appId);
+    } else {
+      this.addAppToZone(zone, appId);
     }
   }
 
-  // 移动 app 顺序
-  moveApp(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex) return;
-    const [removed] = this.apps.splice(fromIndex, 1);
-    this.apps.splice(toIndex, 0, removed);
-    this.saveAppsToStorage();
+  addAppToZone(zone: AppPlacementZone, appId: string): boolean {
+    if (!this.canRegisterApp(appId) || this.isAppInZone(zone, appId)) {
+      return false;
+    }
+
+    const ids = this.getZoneIds(zone);
+    const limit = this.getZoneLimit(zone);
+    if (ids.length >= limit) {
+      return false;
+    }
+
+    this.setZoneApps(zone, [...ids, appId]);
+    return true;
   }
 
-  // 更新整个 apps 顺序
-  updateAppsOrder(apps: AppItem[]): void {
-    this.apps = apps;
-    this.saveAppsToStorage();
+  removeAppFromZone(zone: AppPlacementZone, appId: string): void {
+    this.setZoneApps(zone, this.getZoneIds(zone).filter(id => id !== appId));
   }
 
-  // 重置为默认配置
+  isAppInZone(zone: AppPlacementZone, appId: string): boolean {
+    return this.layoutSubject.value.zones[zone].includes(appId);
+  }
+
+  getZoneLimit(zone: AppPlacementZone): number {
+    return this.zoneLimits.get(zone) || Number.MAX_SAFE_INTEGER;
+  }
+
+  isAppVisible(app: AppItem, context: AppVisibilityContext = {}): boolean {
+    if (app.enabled === false) {
+      return false;
+    }
+
+    if (app.dev && !context.isDevMode) {
+      return false;
+    }
+
+    if (app.router?.length && context.routeUrl) {
+      const inRoute = app.router.some(route => context.routeUrl?.includes(route));
+      if (!inRoute) {
+        return false;
+      }
+    }
+
+    if (app.core?.length) {
+      const currentCore = String(context.boardCore || '').toLowerCase();
+      return app.core.some(core => this.matchesAppCore(core, currentCore));
+    }
+
+    return true;
+  }
+
   resetToDefault(): void {
-    this.apps = [...APP_LIST];
-    localStorage.removeItem('app-store-config');
+    this.removeStoredLayout();
+    this.commitLayout(this.normalizeLayout(DEFAULT_APP_STORE_LAYOUT), false);
+  }
+
+  private loadLayout(): AppStoreLayout {
+    const storedLayout = this.readStoredLayout();
+    return this.normalizeLayout(storedLayout || DEFAULT_APP_STORE_LAYOUT);
+  }
+
+  private readStoredLayout(): AppStoreLayout | null {
+    try {
+      const stored = localStorage.getItem(APP_STORE_STORAGE_KEY);
+      if (!stored) {
+        return null;
+      }
+
+      const parsed = JSON.parse(stored);
+      if (parsed?.zones) {
+        return {
+          version: 2,
+          zones: {
+            header: parsed.zones.header || []
+          }
+        };
+      }
+
+      return {
+        version: 2,
+        zones: {
+          header: parsed?.header || []
+        }
+      };
+    } catch (error) {
+      console.error('Failed to load app store layout:', error);
+      return null;
+    }
+  }
+
+  private commitLayout(layout: AppStoreLayout, persist = true): void {
+    const normalizedLayout = this.normalizeLayout(layout);
+    this.layoutSubject.next(normalizedLayout);
+
+    if (persist) {
+      this.saveLayout(normalizedLayout);
+    }
+  }
+
+  private saveLayout(layout: AppStoreLayout): void {
+    try {
+      localStorage.setItem(APP_STORE_STORAGE_KEY, JSON.stringify(layout));
+    } catch (error) {
+      console.error('Failed to save app store layout:', error);
+    }
+  }
+
+  private removeStoredLayout(): void {
+    try {
+      localStorage.removeItem(APP_STORE_STORAGE_KEY);
+      localStorage.removeItem('app-store-config');
+    } catch (error) {
+      console.error('Failed to reset app store layout:', error);
+    }
+  }
+
+  private normalizeLayout(layout: AppStoreLayout): AppStoreLayout {
+    return {
+      version: 2,
+      zones: {
+        header: this.sanitizeZoneIds('header', layout.zones.header || [])
+      }
+    };
+  }
+
+  private sanitizeZoneIds(zone: AppPlacementZone, appIds: string[]): string[] {
+    const limit = this.getZoneLimit(zone);
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const appId of appIds) {
+      if (result.length >= limit) {
+        break;
+      }
+
+      if (seen.has(appId) || !this.canRegisterApp(appId)) {
+        continue;
+      }
+
+      seen.add(appId);
+      result.push(appId);
+    }
+
+    return result;
+  }
+
+  private canRegisterApp(appId: string): boolean {
+    const app = this.appMap.get(appId);
+    return !!app && app.enabled !== false;
+  }
+
+  private cloneLayout(layout: AppStoreLayout): AppStoreLayout {
+    return {
+      version: 2,
+      zones: {
+        header: [...layout.zones.header]
+      }
+    };
+  }
+
+  private matchesAppCore(appCore: string, currentCore: string): boolean {
+    const normalizedAppCore = appCore.toLowerCase();
+    return currentCore === normalizedAppCore || currentCore.split(':').includes(normalizedAppCore);
   }
 }

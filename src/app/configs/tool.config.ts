@@ -7,7 +7,7 @@ export interface AppItem extends IMenuItem {
   core?: string[];
 }
 
-// 默认的 App 列表，前6个会显示在 header 上
+// 默认的 App 注册表，展示位置由 AppStoreService 管理
 export const APP_LIST: AppItem[] = [
   {
     id: 'code-viewer',
@@ -86,15 +86,36 @@ export const APP_LIST: AppItem[] = [
     icon: 'fa-light fa-user',
     enabled: true
   },
-  //   {
-  //     id: 'simulator',
-  //     name: 'MENU.SIMULATOR',
-  //     description: 'APP_STORE.SIMULATOR_DESC',
-  //     action: 'tool-open',
-  //     data: { type: 'tool', data: 'simulator' },
-  //     icon: 'fa-light fa-atom',
-  //     router: ['/main/blockly-editor'],
-  //     dev: true,
-  //     enabled: false
-  //   }
+  {
+    id: 'simulator',
+    name: 'MENU.SIMULATOR',
+    description: 'APP_STORE.SIMULATOR_DESC',
+    action: 'tool-open',
+    data: { type: 'tool', data: 'simulator' },
+    icon: 'fa-light fa-atom',
+    router: ['/main/blockly-editor'],
+    dev: true,
+    enabled: false
+  }
+];
+
+// 所有可用的 App id。App Store 和 toolbar 只会使用这里列出的 App。
+export const AVAILABLE_APP_IDS: string[] = [
+  'code-viewer',
+  'serial-monitor',
+  'ffs-manager',
+  'aily-chat',
+  'model-store',
+  'cloud-space',
+  'user-center'
+];
+
+// 软件初始状态 toolbar 显示的 App id。用户调整后会保存到本地配置。
+export const DEFAULT_TOOLBAR_APP_IDS: string[] = [
+  'code-viewer',
+  'serial-monitor',
+  'ffs-manager',
+  'aily-chat',
+  'cloud-space',
+  // 'model-store'
 ];

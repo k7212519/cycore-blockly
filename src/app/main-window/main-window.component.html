@@ -1,7 +1,7 @@
 <div class="main-window-box animate__animated animate__fadeIn">
   <app-header></app-header>
   <div class="content-box">
-    <nz-layout>
+    <nz-layout [class.app-layout-has-sider]="showRbox">
       <nz-content>
         <div class="middle-box">
           <ngx-simplebar [options]="options">
