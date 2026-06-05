@@ -5,6 +5,7 @@ export interface AppItem extends IMenuItem {
   description?: string;
   enabled?: boolean;
   core?: string[];
+  lock?: boolean;
 }
 
 // 默认的 App 注册表，展示位置由 AppStoreService 管理
@@ -36,7 +37,8 @@ export const APP_LIST: AppItem[] = [
     action: 'tool-open',
     data: { type: 'tool', data: 'serial-monitor' },
     icon: 'fa-light fa-monitor-waveform',
-    enabled: true
+    enabled: true,
+    lock: true
   },
   {
     id: 'mqtt-debugger',
@@ -84,7 +86,8 @@ export const APP_LIST: AppItem[] = [
     data: { type: 'tool', data: 'aily-chat' },
     icon: 'fa-light fa-star-christmas',
     more: 'AI',
-    enabled: true
+    enabled: true,
+    lock: true
   },
   {
     id: 'model-store',
@@ -111,7 +114,8 @@ export const APP_LIST: AppItem[] = [
     action: 'tool-open',
     data: { type: 'tool', data: 'user-center' },
     icon: 'fa-light fa-user',
-    enabled: true
+    enabled: true,
+    lock: true
   },
   {
     id: 'simulator',
@@ -130,9 +134,9 @@ export const APP_LIST: AppItem[] = [
 export const AVAILABLE_APP_IDS: string[] = [
   'code-viewer',
   'serial-monitor',
-  // 'mqtt-debugger',
-  // 'network-debugger',
-  // 'industrial-bus-debugger',
+  'mqtt-debugger',
+  'network-debugger',
+  'industrial-bus-debugger',
   'ffs-manager',
   'aily-chat',
   'model-store',

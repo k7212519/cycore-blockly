@@ -77,6 +77,9 @@ export class AppStoreService {
 
   toggleAppInZone(zone: AppPlacementZone, appId: string): void {
     if (this.isAppInZone(zone, appId)) {
+      if (this.isAppLocked(appId)) {
+        return;
+      }
       this.removeAppFromZone(zone, appId);
     } else {
       this.addAppToZone(zone, appId);
@@ -99,11 +102,19 @@ export class AppStoreService {
   }
 
   removeAppFromZone(zone: AppPlacementZone, appId: string): void {
+    if (this.isAppLocked(appId)) {
+      return;
+    }
+
     this.setZoneApps(zone, this.getZoneIds(zone).filter(id => id !== appId));
   }
 
   isAppInZone(zone: AppPlacementZone, appId: string): boolean {
     return this.layoutSubject.value.zones[zone].includes(appId);
+  }
+
+  isAppLocked(appId: string): boolean {
+    return this.appMap.get(appId)?.lock === true;
   }
 
   getZoneLimit(zone: AppPlacementZone): number {
@@ -210,10 +221,14 @@ export class AppStoreService {
 
   private sanitizeZoneIds(zone: AppPlacementZone, appIds: string[]): string[] {
     const limit = this.getZoneLimit(zone);
+    const lockedIds = this.getLockedZoneIds();
+    const lockedIdSet = new Set(lockedIds);
+    const maxNonLockedCount = Math.max(limit - lockedIds.length, 0);
     const seen = new Set<string>();
     const result: string[] = [];
+    let nonLockedCount = 0;
 
-    for (const appId of appIds) {
+    for (const appId of [...appIds, ...lockedIds]) {
       if (result.length >= limit) {
         break;
       }
@@ -222,11 +237,25 @@ export class AppStoreService {
         continue;
       }
 
+      const isLocked = lockedIdSet.has(appId);
+      if (!isLocked && nonLockedCount >= maxNonLockedCount) {
+        continue;
+      }
+
       seen.add(appId);
       result.push(appId);
+      if (!isLocked) {
+        nonLockedCount++;
+      }
     }
 
     return result;
+  }
+
+  private getLockedZoneIds(): string[] {
+    return [...this.appMap.values()]
+      .filter(app => app.lock === true && this.canRegisterApp(app.id))
+      .map(app => app.id);
   }
 
   private canRegisterApp(appId: string): boolean {

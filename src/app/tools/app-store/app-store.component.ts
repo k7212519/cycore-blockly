@@ -109,6 +109,10 @@ export class AppStoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleZone(app: AppItem, zone: AppPlacementZone): void {
+    if (app.lock) {
+      return;
+    }
+
     if (this.isPinned(app, zone)) {
       this.appStoreService.removeAppFromZone(zone, app.id);
       return;
@@ -118,6 +122,10 @@ export class AppStoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   removeFromZone(app: AppItem, zone: AppPlacementZone): void {
+    if (app.lock) {
+      return;
+    }
+
     this.appStoreService.removeAppFromZone(zone, app.id);
   }
 
