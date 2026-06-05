@@ -1,0 +1,180 @@
+@if (currentUrl == "/mqtt-debugger") {
+<app-sub-window [title]="'MQTT_DEBUGGER.TITLE' | translate" [winBtns]="['go-main', 'minimize', 'maximize', 'close']">
+  <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
+</app-sub-window>
+} @else {
+<app-tool-container [title]="'MQTT_DEBUGGER.TITLE' | translate" [path]="'/mqtt-debugger'" (closeEvent)="close()">
+  <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
+</app-tool-container>
+}
+
+<ng-template #windowBoxTemplate>
+  <div class="mqtt-debugger">
+    <section class="panel connection-panel">
+      <div class="panel-title">
+        <span>{{ 'MQTT_DEBUGGER.CONNECTION' | translate }}</span>
+        <strong class="status" [class.connected]="connectionState === 'connected'" [class.connecting]="connectionState === 'connecting'">
+          {{ statusKey | translate }}
+        </strong>
+      </div>
+
+      <div class="connection-grid">
+        <label class="field span-2">
+          <span>{{ 'MQTT_DEBUGGER.BROKER_URL' | translate }}</span>
+          <input type="text" [(ngModel)]="brokerUrl" placeholder="wss://broker.example.com:8084/mqtt" />
+        </label>
+
+        <label class="field">
+          <span>{{ 'MQTT_DEBUGGER.CLIENT_ID' | translate }}</span>
+          <input type="text" [(ngModel)]="clientId" />
+        </label>
+
+        <label class="field">
+          <span>{{ 'MQTT_DEBUGGER.KEEP_ALIVE' | translate }}</span>
+          <input type="number" min="0" max="65535" [(ngModel)]="keepAlive" />
+        </label>
+
+        <label class="field">
+          <span>{{ 'MQTT_DEBUGGER.USERNAME' | translate }}</span>
+          <input type="text" [(ngModel)]="username" />
+        </label>
+
+        <label class="field">
+          <span>{{ 'MQTT_DEBUGGER.PASSWORD' | translate }}</span>
+          <input type="password" [(ngModel)]="password" />
+        </label>
+
+        <label class="check-field">
+          <input type="checkbox" [(ngModel)]="cleanSession" />
+          <span>{{ 'MQTT_DEBUGGER.CLEAN_SESSION' | translate }}</span>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="primary" [disabled]="connectionState === 'connecting' || isConnected" (click)="connect()">
+          @if (connectionState === 'connecting') {
+          <i class="fa-light fa-spinner-third fa-spin"></i>
+          } @else {
+          <i class="fa-light fa-link"></i>
+          }
+          <span>{{ 'MQTT_DEBUGGER.CONNECT' | translate }}</span>
+        </button>
+        <button type="button" [disabled]="!isConnected" (click)="disconnect()">
+          <i class="fa-light fa-link-slash"></i>
+          <span>{{ 'MQTT_DEBUGGER.DISCONNECT' | translate }}</span>
+        </button>
+      </div>
+    </section>
+
+    <div class="workspace-grid">
+      <section class="panel topic-panel">
+        <div class="panel-title">{{ 'MQTT_DEBUGGER.SUBSCRIBE' | translate }}</div>
+
+        <label class="field">
+          <span>{{ 'MQTT_DEBUGGER.TOPIC' | translate }}</span>
+          <input type="text" [(ngModel)]="subscribeTopic" placeholder="sensor/#" />
+        </label>
+
+        <label class="field compact">
+          <span>QoS</span>
+          <select [(ngModel)]="subscribeQos">
+            @for (qos of qosOptions; track qos) {
+            <option [ngValue]="qos">{{ qos }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="actions">
+          <button type="button" class="primary" [disabled]="!isConnected" (click)="subscribe()">
+            <i class="fa-light fa-plus"></i>
+            <span>{{ 'MQTT_DEBUGGER.SUBSCRIBE' | translate }}</span>
+          </button>
+          <button type="button" [disabled]="!isConnected" (click)="unsubscribe()">
+            <i class="fa-light fa-minus"></i>
+            <span>{{ 'MQTT_DEBUGGER.UNSUBSCRIBE' | translate }}</span>
+          </button>
+        </div>
+
+        <div class="subscription-list sscroll">
+          @for (topic of subscriptions; track topic) {
+          <div class="subscription-row">
+            <code>{{ topic }}</code>
+            <button type="button" [disabled]="!isConnected" (click)="unsubscribe(topic)">
+              <i class="fa-light fa-xmark"></i>
+            </button>
+          </div>
+          }
+        </div>
+      </section>
+
+      <section class="panel publish-panel">
+        <div class="panel-title">{{ 'MQTT_DEBUGGER.PUBLISH' | translate }}</div>
+
+        <label class="field">
+          <span>{{ 'MQTT_DEBUGGER.TOPIC' | translate }}</span>
+          <input type="text" [(ngModel)]="publishTopic" placeholder="sensor/data" />
+        </label>
+
+        <label class="field grow">
+          <span>{{ 'MQTT_DEBUGGER.PAYLOAD' | translate }}</span>
+          <textarea class="mono" [(ngModel)]="publishPayload"></textarea>
+        </label>
+
+        <div class="publish-footer">
+          <label class="check-field">
+            <input type="checkbox" [(ngModel)]="publishRetain" />
+            <span>{{ 'MQTT_DEBUGGER.RETAIN' | translate }}</span>
+          </label>
+          <button type="button" class="primary" [disabled]="!isConnected" (click)="publish()">
+            <i class="fa-light fa-paper-plane"></i>
+            <span>{{ 'MQTT_DEBUGGER.PUBLISH' | translate }}</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel messages-panel">
+        <div class="panel-title">
+          <span>{{ 'MQTT_DEBUGGER.MESSAGES' | translate }}</span>
+          <button type="button" class="icon-action" (click)="clearMessages()">
+            <i class="fa-light fa-broom-wide"></i>
+          </button>
+        </div>
+        <div class="message-list sscroll">
+          @for (message of messages; track message.time + message.topic + message.payload) {
+          <div class="message-row">
+            <div class="message-meta">
+              <span class="time">{{ message.time }}</span>
+              <code>{{ message.topic }}</code>
+              <span>QoS {{ message.qos }}</span>
+              @if (message.retain) {
+              <span>{{ 'MQTT_DEBUGGER.RETAIN' | translate }}</span>
+              }
+            </div>
+            <pre class="mono">{{ message.payload }}</pre>
+          </div>
+          }
+        </div>
+      </section>
+
+      <section class="panel logs-panel">
+        <div class="panel-title">
+          <span>{{ 'MQTT_DEBUGGER.LOG' | translate }}</span>
+          <button type="button" class="icon-action" (click)="clearLogs()">
+            <i class="fa-light fa-broom-wide"></i>
+          </button>
+        </div>
+        <div class="log-list sscroll">
+          @for (log of logs; track log.time + log.label + log.detail) {
+          <div class="log-row" [class]="log.type">
+            <span class="time">{{ log.time }}</span>
+            <span class="label">{{ log.label | translate }}</span>
+            @if (log.detail) {
+            <span class="detail mono">{{ log.detail }}</span>
+            }
+          </div>
+          }
+        </div>
+      </section>
+    </div>
+  </div>
+</ng-template>

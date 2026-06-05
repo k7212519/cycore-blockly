@@ -1,0 +1,263 @@
+.mqtt-debugger {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  padding: 8px;
+  color: var(--aily-text-primary);
+  background: var(--aily-bg-secondary);
+}
+
+.panel {
+  min-height: 0;
+  padding: 10px;
+  border: 1px solid var(--aily-border-color);
+  border-radius: 6px;
+  background: var(--aily-bg-primary);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aily-text-secondary);
+}
+
+.connection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.span-2 {
+  grid-column: 1 / -1;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(280px, 1fr);
+  grid-template-rows: minmax(220px, 0.75fr) minmax(240px, 1fr);
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+}
+
+.topic-panel,
+.publish-panel,
+.messages-panel,
+.logs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+
+  span {
+    font-size: 12px;
+    color: var(--aily-text-secondary);
+  }
+
+  &.compact {
+    max-width: 120px;
+  }
+
+  &.grow {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  font-size: 12px;
+  color: var(--aily-text-secondary);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid var(--aily-border-color);
+  border-radius: 5px;
+  outline: none;
+  color: var(--aily-text-primary);
+  background: var(--aily-bg-secondary);
+}
+
+textarea {
+  flex: 1;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.mono {
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+}
+
+.actions,
+.publish-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.publish-footer {
+  justify-content: space-between;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--aily-border-color);
+  border-radius: 5px;
+  color: var(--aily-text-primary);
+  background: var(--aily-bg-secondary);
+  cursor: pointer;
+
+  &.primary {
+    color: #fff;
+    border-color: #1677ff;
+    background: #1677ff;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.icon-action {
+  width: 26px;
+  min-height: 26px;
+  padding: 0;
+}
+
+.status {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ff4d4f;
+
+  &.connecting {
+    color: #d89614;
+  }
+
+  &.connected {
+    color: #21a67a;
+  }
+}
+
+.subscription-list,
+.message-list,
+.log-list {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.subscription-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aily-border-color) 60%, transparent);
+
+  code {
+    overflow-wrap: anywhere;
+  }
+
+  button {
+    width: 26px;
+    min-height: 26px;
+    padding: 0;
+  }
+}
+
+.message-row {
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aily-border-color) 60%, transparent);
+
+  pre {
+    min-height: 36px;
+    margin: 6px 0 0;
+    padding: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 5px;
+    background: var(--aily-bg-secondary);
+  }
+}
+
+.message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--aily-text-secondary);
+
+  code {
+    color: var(--aily-text-primary);
+    overflow-wrap: anywhere;
+  }
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 70px minmax(110px, 170px) minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--aily-border-color) 60%, transparent);
+  font-size: 12px;
+
+  .time {
+    color: var(--aily-text-secondary);
+  }
+
+  .label,
+  .detail {
+    overflow-wrap: anywhere;
+  }
+
+  &.error .label {
+    color: #ff4d4f;
+  }
+
+  &.in .label {
+    color: #21a67a;
+  }
+
+  &.out .label {
+    color: #1677ff;
+  }
+}
+
+@media (max-width: 760px) {
+  .connection-grid,
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-grid {
+    grid-template-rows: auto auto minmax(220px, 1fr) minmax(180px, 0.8fr);
+  }
+}

@@ -77,6 +77,18 @@ export const routes: Routes = [
         loadComponent: () => import('./tools/serial-monitor/serial-monitor.component').then(m => m.SerialMonitorComponent)
     },
     {
+        path: "mqtt-debugger",
+        loadComponent: () => import('./tools/mqtt-debugger/mqtt-debugger.component').then(m => m.MqttDebuggerComponent)
+    },
+    {
+        path: "network-debugger",
+        loadComponent: () => import('./tools/network-debugger/network-debugger.component').then(m => m.NetworkDebuggerComponent)
+    },
+    {
+        path: "industrial-bus-debugger",
+        loadComponent: () => import('./tools/industrial-bus-debugger/industrial-bus-debugger.component').then(m => m.IndustrialBusDebuggerComponent)
+    },
+    {
         path: "ffs-manager",
         loadComponent: () => import('./tools/ffs-manager/ffs-manager.component').then(m => m.FfsManagerComponent)
     },

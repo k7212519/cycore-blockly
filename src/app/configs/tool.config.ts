@@ -39,6 +39,33 @@ export const APP_LIST: AppItem[] = [
     enabled: true
   },
   {
+    id: 'mqtt-debugger',
+    name: 'MENU.MQTT_DEBUGGER',
+    description: 'APP_STORE.MQTT_DEBUGGER_DESC',
+    action: 'tool-open',
+    data: { type: 'tool', data: 'mqtt-debugger' },
+    icon: 'fa-light fa-tower-broadcast',
+    enabled: true
+  },
+  {
+    id: 'network-debugger',
+    name: 'MENU.NETWORK_DEBUGGER',
+    description: 'APP_STORE.NETWORK_DEBUGGER_DESC',
+    action: 'tool-open',
+    data: { type: 'tool', data: 'network-debugger' },
+    icon: 'fa-light fa-network-wired',
+    enabled: true
+  },
+  {
+    id: 'industrial-bus-debugger',
+    name: 'MENU.INDUSTRIAL_BUS_DEBUGGER',
+    description: 'APP_STORE.INDUSTRIAL_BUS_DEBUGGER_DESC',
+    action: 'tool-open',
+    data: { type: 'tool', data: 'industrial-bus-debugger' },
+    icon: 'fa-light fa-microchip',
+    enabled: true
+  },
+  {
     id: 'ffs-manager',
     name: 'MENU.FFS_MANAGER',
     description: 'APP_STORE.FFS_MANAGER_DESC',
@@ -103,18 +130,21 @@ export const APP_LIST: AppItem[] = [
 export const AVAILABLE_APP_IDS: string[] = [
   'code-viewer',
   'serial-monitor',
+  // 'mqtt-debugger',
+  // 'network-debugger',
+  // 'industrial-bus-debugger',
   'ffs-manager',
   'aily-chat',
   'model-store',
   'cloud-space',
-  'user-center'
+  'user-center',
+  'ffs-manager'
 ];
 
 // 软件初始状态 toolbar 显示的 App id。用户调整后会保存到本地配置。
 export const DEFAULT_TOOLBAR_APP_IDS: string[] = [
   'code-viewer',
   'serial-monitor',
-  'ffs-manager',
   'aily-chat',
   'cloud-space',
   // 'model-store'
