@@ -63,6 +63,10 @@
         "to": "child/scripts"
       },
       {
+        "from": "child/ble-debugger",
+        "to": "child/ble-debugger"
+      },
+      {
         "from": "public/icon.ico",
         "to": "icon.ico"
       },
@@ -142,6 +146,7 @@
     "start": "ng serve",
     "watch": "ng build --watch --configuration development",
     "electron": "concurrently \"npm start\" \"wait-on tcp:4200 && electron ./electron/main.js --serve\"",
+    "install:ble-debugger": "npm install --prefix child/ble-debugger",
     "build": "ng build --base-href ./ && electron-builder build",
     "build:cn": "node ./scripts/build-electron.js --flavor cn",
     "build:global": "node ./scripts/build-electron.js --flavor global",

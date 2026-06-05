@@ -13,6 +13,7 @@ import { SerialMonitorComponent } from '../tools/serial-monitor/serial-monitor.c
 import { MqttDebuggerComponent } from '../tools/mqtt-debugger/mqtt-debugger.component';
 import { NetworkDebuggerComponent } from '../tools/network-debugger/network-debugger.component';
 import { IndustrialBusDebuggerComponent } from '../tools/industrial-bus-debugger/industrial-bus-debugger.component';
+import { BleDebuggerComponent } from '../tools/ble-debugger/ble-debugger.component';
 import { FfsManagerComponent } from '../tools/ffs-manager/ffs-manager.component';
 import { CodeViewerComponent } from '../editors/blockly-editor/tools/code-viewer/code-viewer.component';
 import { ProjectService } from '../services/project.service';
@@ -50,6 +51,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
     MqttDebuggerComponent,
     NetworkDebuggerComponent,
     IndustrialBusDebuggerComponent,
+    BleDebuggerComponent,
     FfsManagerComponent,
     CodeViewerComponent,
     SimplebarAngularModule,

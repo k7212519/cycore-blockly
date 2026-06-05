@@ -17,6 +17,7 @@
         "CLOUD_SPACE_DESC": "Espace de stockage cloud",
         "USER_CENTER_DESC": "Centre utilisateur et paramètres",
         "SIMULATOR_DESC": "Simulateur (En développement)",
-        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN, RS485 and Modbus frame builder/debugger"
+        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN, RS485 and Modbus frame builder/debugger",
+        "BLE_DEBUGGER_DESC": "BLE scan, GATT read/write and notification debugger"
     }
 }

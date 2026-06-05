@@ -38,7 +38,8 @@
         "AI_ASSISTANT": "AI 어시스턴트",
         "PROJECT_HUB": "프로젝트 허브",
         "NEW_INSTANCE": "새 창",
-        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger"
+        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger",
+        "BLE_DEBUGGER": "BLE 디버거"
     },
     "ESP32": {
         "UPLOAD_SPEED": "업로드 속도",

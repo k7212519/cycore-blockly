@@ -89,6 +89,10 @@ export const routes: Routes = [
         loadComponent: () => import('./tools/industrial-bus-debugger/industrial-bus-debugger.component').then(m => m.IndustrialBusDebuggerComponent)
     },
     {
+        path: "ble-debugger",
+        loadComponent: () => import('./tools/ble-debugger/ble-debugger.component').then(m => m.BleDebuggerComponent)
+    },
+    {
         path: "ffs-manager",
         loadComponent: () => import('./tools/ffs-manager/ffs-manager.component').then(m => m.FfsManagerComponent)
     },

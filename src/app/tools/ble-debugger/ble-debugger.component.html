@@ -1,0 +1,223 @@
+@if (currentUrl == "/ble-debugger") {
+<app-sub-window [title]="'BLE_DEBUGGER.TITLE' | translate" [winBtns]="['go-main', 'minimize', 'maximize', 'close']">
+  <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
+</app-sub-window>
+} @else {
+<app-tool-container [title]="'BLE_DEBUGGER.TITLE' | translate" [path]="'/ble-debugger'" (closeEvent)="close()">
+  <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
+</app-tool-container>
+}
+
+<ng-template #windowBoxTemplate>
+  <div class="ble-debugger">
+    <div class="topbar">
+      <div class="status-strip">
+        <span class="status" [class.ready]="backendStatus === 'ready'" [class.error]="backendStatus === 'error'">
+          <i class="fa-light fa-server"></i>
+          {{ backendStatusKey | translate }}
+        </span>
+        <span class="status" [class.ready]="adapterState === 'poweredOn'" [class.error]="adapterState !== 'poweredOn'">
+          <i class="fa-light fa-bluetooth-b"></i>
+          {{ adapterStatusKey | translate }}
+        </span>
+        @if (backendPid) {
+        <span class="pid mono">PID {{ backendPid }}</span>
+        }
+      </div>
+
+      <div class="actions compact-actions">
+        <button type="button" [disabled]="backendStatus === 'starting'" (click)="restartBackend()">
+          <i class="fa-light fa-rotate-right"></i>
+          <span>{{ 'BLE_DEBUGGER.RESTART' | translate }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="workspace-grid">
+      <section class="panel scan-panel">
+        <div class="panel-title">
+          <span>{{ 'BLE_DEBUGGER.SCAN' | translate }}</span>
+          <button type="button" class="icon-action" (click)="clearDevices()">
+            <i class="fa-light fa-broom-wide"></i>
+          </button>
+        </div>
+
+        <div class="field-row">
+          <label class="field">
+            <span>{{ 'BLE_DEBUGGER.SERVICE_FILTER' | translate }}</span>
+            <input type="text" [(ngModel)]="serviceFilter" placeholder="180D, FFE0" />
+          </label>
+          <label class="check-field">
+            <input type="checkbox" [(ngModel)]="allowDuplicates" />
+            <span>{{ 'BLE_DEBUGGER.DUPLICATES' | translate }}</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="primary" [disabled]="backendStatus === 'starting' || scanning" (click)="startScan()">
+            @if (scanning) {
+            <i class="fa-light fa-spinner-third fa-spin"></i>
+            } @else {
+            <i class="fa-light fa-radar"></i>
+            }
+            <span>{{ 'BLE_DEBUGGER.START_SCAN' | translate }}</span>
+          </button>
+          <button type="button" [disabled]="!scanning" (click)="stopScan()">
+            <i class="fa-light fa-stop"></i>
+            <span>{{ 'BLE_DEBUGGER.STOP_SCAN' | translate }}</span>
+          </button>
+        </div>
+
+        <div class="device-list sscroll">
+          @for (device of devices; track device.id) {
+          <div class="device-row" [class.active]="selectedDeviceId === device.id" [class.connected]="connectedDeviceId === device.id" (click)="selectedDeviceId = device.id">
+            <span class="signal" [class]="rssiClass(device)">
+              <i class="fa-light fa-signal-stream"></i>
+              {{ device.rssi ?? '-' }}
+            </span>
+            <span class="device-main">
+              <strong>{{ device.name || 'Unknown' }}</strong>
+              <span class="mono">{{ device.address || device.id }}</span>
+            </span>
+            <span class="device-actions">
+              <button type="button" [disabled]="connectingDeviceId === device.id || connectedDeviceId === device.id" (click)="connect(device); $event.stopPropagation()">
+                @if (connectingDeviceId === device.id) {
+                <i class="fa-light fa-spinner-third fa-spin"></i>
+                } @else {
+                <i class="fa-light fa-link"></i>
+                }
+              </button>
+            </span>
+          </div>
+          }
+        </div>
+      </section>
+
+      <section class="panel gatt-panel">
+        <div class="panel-title">
+          <span>{{ 'BLE_DEBUGGER.GATT' | translate }}</span>
+          <div class="title-actions">
+            <button type="button" class="icon-action" [disabled]="!connectedDeviceId" (click)="refreshGatt()">
+              <i class="fa-light fa-arrows-rotate"></i>
+            </button>
+            <button type="button" class="icon-action" [disabled]="!connectedDeviceId" (click)="disconnect()">
+              <i class="fa-light fa-link-slash"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="connected-device">
+          @if (connectedDeviceId && selectedDevice) {
+          <strong>{{ selectedDevice.name }}</strong>
+          <span class="mono">{{ selectedDevice.address || selectedDevice.id }}</span>
+          } @else {
+          <span>{{ 'BLE_DEBUGGER.NO_DEVICE' | translate }}</span>
+          }
+        </div>
+
+        <div class="gatt-list sscroll">
+          @for (service of services; track service.uuid) {
+          <div class="service-block">
+            <div class="service-title">
+              <i class="fa-light fa-diagram-project"></i>
+              <span class="mono">{{ service.uuid }}</span>
+            </div>
+            @for (characteristic of service.characteristics; track characteristic.rawServiceUuid + characteristic.rawUuid) {
+            <button type="button" class="characteristic-row" [class.active]="selectedServiceUuid === service.uuid && selectedCharacteristicUuid === characteristic.uuid" (click)="selectCharacteristic(service, characteristic)">
+              <span class="mono">{{ characteristic.uuid }}</span>
+              <span class="property-list">
+                @for (property of characteristic.properties; track property) {
+                <code>{{ property }}</code>
+                }
+              </span>
+            </button>
+            }
+          </div>
+          }
+        </div>
+      </section>
+
+      <section class="panel operation-panel">
+        <div class="panel-title">{{ 'BLE_DEBUGGER.OPERATION' | translate }}</div>
+
+        @if (selectedCharacteristic; as characteristic) {
+        <div class="selected-characteristic">
+          <span class="mono">{{ characteristic.serviceUuid }}</span>
+          <strong class="mono">{{ characteristic.uuid }}</strong>
+        </div>
+
+        <div class="operation-buttons">
+          <button type="button" [disabled]="!canRead(characteristic)" (click)="readSelected()">
+            <i class="fa-light fa-download"></i>
+            <span>{{ 'BLE_DEBUGGER.READ' | translate }}</span>
+          </button>
+          <button type="button" [disabled]="!canNotify(characteristic)" (click)="toggleNotify()" [class.active]="characteristic.notifying">
+            <i class="fa-light fa-bell"></i>
+            <span>{{ (characteristic.notifying ? 'BLE_DEBUGGER.UNSUBSCRIBE' : 'BLE_DEBUGGER.SUBSCRIBE') | translate }}</span>
+          </button>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>{{ 'BLE_DEBUGGER.WRITE_MODE' | translate }}</span>
+            <select [(ngModel)]="payloadMode">
+              <option value="hex">{{ 'BLE_DEBUGGER.HEX' | translate }}</option>
+              <option value="ascii">{{ 'BLE_DEBUGGER.ASCII' | translate }}</option>
+            </select>
+          </label>
+          <label class="check-field align-end">
+            <input type="checkbox" [(ngModel)]="writeWithoutResponse" />
+            <span>{{ 'BLE_DEBUGGER.WITHOUT_RESPONSE' | translate }}</span>
+          </label>
+        </div>
+
+        <label class="field grow">
+          <span>{{ 'BLE_DEBUGGER.PAYLOAD' | translate }}</span>
+          <textarea class="mono body-input" [(ngModel)]="payload"></textarea>
+        </label>
+
+        <div class="actions">
+          <button type="button" class="primary" [disabled]="!canWrite(characteristic)" (click)="writeSelected()">
+            <i class="fa-light fa-paper-plane"></i>
+            <span>{{ 'BLE_DEBUGGER.WRITE' | translate }}</span>
+          </button>
+        </div>
+
+        <div class="value-preview">
+          <div class="result-title">{{ 'BLE_DEBUGGER.LAST_VALUE' | translate }}</div>
+          <pre class="mono sscroll">{{ characteristic.lastValueHex || '-' }}</pre>
+          @if (characteristic.lastValueAscii) {
+          <code>{{ characteristic.lastValueAscii }}</code>
+          }
+        </div>
+        } @else {
+        <div class="empty-state">{{ 'BLE_DEBUGGER.NO_CHARACTERISTIC' | translate }}</div>
+        }
+      </section>
+
+      <section class="panel log-panel">
+        <div class="panel-title">
+          <span>{{ 'BLE_DEBUGGER.LOG' | translate }}</span>
+          <button type="button" class="icon-action" (click)="clearLogs()">
+            <i class="fa-light fa-broom-wide"></i>
+          </button>
+        </div>
+
+        <div class="log-list sscroll">
+          @for (log of logs; track log.id) {
+          <div class="log-row" [class]="log.type">
+            <span class="time">{{ log.time }}</span>
+            <span class="label">{{ log.label | translate }}</span>
+            @if (log.detail) {
+            <span class="detail mono">{{ log.detail }}</span>
+            }
+            @if (log.value) {
+            <span class="value mono">{{ log.value }}</span>
+            }
+          </div>
+          }
+        </div>
+      </section>
+    </div>
+  </div>
+</ng-template>

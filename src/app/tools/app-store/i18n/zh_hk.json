@@ -17,6 +17,7 @@
         "CLOUD_SPACE_DESC": "雲端儲存空間",
         "USER_CENTER_DESC": "用戶中心與設定",
         "SIMULATOR_DESC": "仿真器（開發中）",
-        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN、RS485、Modbus 幀構造與調試工具"
+        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN、RS485、Modbus 幀構造與調試工具",
+        "BLE_DEBUGGER_DESC": "BLE 掃描、GATT 讀寫和通知調試工具"
     }
 }

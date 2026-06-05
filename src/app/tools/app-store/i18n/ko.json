@@ -17,6 +17,7 @@
         "CLOUD_SPACE_DESC": "클라우드 저장 공간",
         "USER_CENTER_DESC": "사용자 센터 및 설정",
         "SIMULATOR_DESC": "시뮬레이터 (개발 중)",
-        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN, RS485 and Modbus frame builder/debugger"
+        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN, RS485 and Modbus frame builder/debugger",
+        "BLE_DEBUGGER_DESC": "BLE scan, GATT read/write and notification debugger"
     }
 }

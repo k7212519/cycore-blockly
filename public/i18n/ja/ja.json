@@ -38,7 +38,8 @@
         "AI_ASSISTANT": "AIアシスタント",
         "PROJECT_HUB": "プロジェクトハブ",
         "NEW_INSTANCE": "新しいウィンドウ",
-        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger"
+        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger",
+        "BLE_DEBUGGER": "BLEデバッガー"
     },
     "ESP32": {
         "UPLOAD_SPEED": "書き込み速度",

@@ -74,7 +74,8 @@
         "AI_ASSISTANT": "AI助手",
         "PROJECT_HUB": "项目广场",
         "NEW_INSTANCE": "新建窗口",
-        "INDUSTRIAL_BUS_DEBUGGER": "工业总线调试器"
+        "INDUSTRIAL_BUS_DEBUGGER": "工业总线调试器",
+        "BLE_DEBUGGER": "蓝牙调试器"
     },
     "ESP32": {
         "UPLOAD_SPEED": "烧录速度",

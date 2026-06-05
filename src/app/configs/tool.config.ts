@@ -68,6 +68,15 @@ export const APP_LIST: AppItem[] = [
     enabled: true
   },
   {
+    id: 'ble-debugger',
+    name: 'MENU.BLE_DEBUGGER',
+    description: 'APP_STORE.BLE_DEBUGGER_DESC',
+    action: 'tool-open',
+    data: { type: 'tool', data: 'ble-debugger' },
+    icon: 'fa-light fa-bluetooth',
+    enabled: true
+  },
+  {
     id: 'ffs-manager',
     name: 'MENU.FFS_MANAGER',
     description: 'APP_STORE.FFS_MANAGER_DESC',
@@ -137,6 +146,7 @@ export const AVAILABLE_APP_IDS: string[] = [
   'mqtt-debugger',
   'network-debugger',
   'industrial-bus-debugger',
+  'ble-debugger',
   'ffs-manager',
   'aily-chat',
   'model-store',

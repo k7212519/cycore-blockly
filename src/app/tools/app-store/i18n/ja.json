@@ -17,6 +17,7 @@
         "CLOUD_SPACE_DESC": "クラウドストレージ",
         "USER_CENTER_DESC": "ユーザーセンターと設定",
         "SIMULATOR_DESC": "シミュレータ（開発中）",
-        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN, RS485 and Modbus frame builder/debugger"
+        "INDUSTRIAL_BUS_DEBUGGER_DESC": "CAN, RS485 and Modbus frame builder/debugger",
+        "BLE_DEBUGGER_DESC": "BLE scan, GATT read/write and notification debugger"
     }
 }

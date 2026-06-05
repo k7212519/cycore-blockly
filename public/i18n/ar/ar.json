@@ -38,7 +38,8 @@
         "AI_ASSISTANT": "مساعد الذكاء الاصطناعي",
         "PROJECT_HUB": "ساحة المشاريع",
         "NEW_INSTANCE": "نافذة جديدة",
-        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger"
+        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger",
+        "BLE_DEBUGGER": "BLE Debugger"
     },
     "ESP32": {
         "UPLOAD_SPEED": "سرعة الرفع",

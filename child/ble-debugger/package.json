@@ -1,0 +1,14 @@
+{
+  "name": "@aily-project/ble-debugger-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BLE debugger backend for Aily Blockly",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@abandonware/noble": "^1.9.2-26",
+    "aily-blockly": "file:../.."
+  }
+}

@@ -38,7 +38,8 @@
         "AI_ASSISTANT": "Assistant IA",
         "PROJECT_HUB": "Centre de Projets",
         "NEW_INSTANCE": "Nouvelle fenêtre",
-        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger"
+        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger",
+        "BLE_DEBUGGER": "Débogueur BLE"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Vitesse de téléchargement",

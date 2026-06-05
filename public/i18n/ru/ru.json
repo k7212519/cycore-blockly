@@ -38,7 +38,8 @@
         "AI_ASSISTANT": "ИИ-ассистент",
         "PROJECT_HUB": "Центр проектов",
         "NEW_INSTANCE": "Новое окно",
-        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger"
+        "INDUSTRIAL_BUS_DEBUGGER": "Industrial Bus Debugger",
+        "BLE_DEBUGGER": "BLE Debugger"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Скорость загрузки",
