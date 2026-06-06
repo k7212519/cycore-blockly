@@ -28,8 +28,6 @@ export interface ChildToolConfig {
   env?: Record<string, string>;
 }
 
-const CHILD_TOOL_INDEX_ASSET_PATH = 'tools/index.json';
-
 let childToolConfigsLoaded = false;
 let childToolConfigLoadError: Error | null = null;
 
@@ -81,10 +79,14 @@ export function getChildToolDefaultToolbarAppIds(): string[] {
 
 function loadChildToolConfigs(): Record<string, ChildToolConfig> {
   const raw = readChildToolIndexText();
+  if (!raw) {
+    return {};
+  }
+
   return normalizeChildToolConfigs(JSON.parse(raw));
 }
 
-function readChildToolIndexText(): string {
+function readChildToolIndexText(): string | null {
   const fsApi = typeof window !== 'undefined' ? window['fs'] : null;
   const pathApi = typeof window !== 'undefined' ? window['path'] : null;
   const childPath = pathApi?.getAilyChildPath?.();
@@ -94,28 +96,11 @@ function readChildToolIndexText(): string {
     if (fsApi.existsSync(indexPath)) {
       return fsApi.readFileSync(indexPath, 'utf8');
     }
+
+    throw new Error(`Child tools index was not found: ${indexPath}`);
   }
 
-  return readBundledChildToolIndexText();
-}
-
-function readBundledChildToolIndexText(): string {
-  if (typeof XMLHttpRequest === 'undefined') {
-    throw new Error('Child tools index loader is not available');
-  }
-
-  const url = typeof document !== 'undefined'
-    ? new URL(CHILD_TOOL_INDEX_ASSET_PATH, document.baseURI).toString()
-    : CHILD_TOOL_INDEX_ASSET_PATH;
-  const request = new XMLHttpRequest();
-  request.open('GET', url, false);
-  request.send(null);
-
-  if ((request.status >= 200 && request.status < 300) || (request.status === 0 && request.responseText)) {
-    return request.responseText;
-  }
-
-  throw new Error(`Child tools index was not found: ${url}`);
+  return null;
 }
 
 function normalizeChildToolConfigs(indexData: any): Record<string, ChildToolConfig> {
@@ -153,7 +138,8 @@ function createChildToolAppItem(config: ChildToolConfig): AppItem {
   return {
     ...app,
     id: appId,
-    name: app.name || config.titleKey,
+    name: config.titleKey,
+    description: `${config.namespace}.DESCRIPTION`,
     action: app.action || 'tool-open',
     data: app.data || { type: 'tool', data: config.id },
     icon: app.icon || 'fa-light fa-puzzle-piece',
@@ -201,8 +187,8 @@ export const APP_LIST: AppItem[] = [
     data: { type: 'tool', data: 'ffs-manager' },
     icon: 'fa-light fa-database',
     enabled: true,
-    router: ['/main/blockly-editor'],
-    core: ['esp32'] // 仅 esp32 核心可用
+    // router: ['/main/blockly-editor'],
+    // core: ['esp32'] // 仅 esp32 核心可用
   },
   {
     id: 'aily-chat',

@@ -41,6 +41,7 @@
         "INVALID_PACKET": "无效数据包",
         "CONNACK_FAILED": "连接被拒绝",
         "SOCKET_ERROR": "连接错误",
-        "SOCKET_NOT_CONNECTED": "未连接"
+        "SOCKET_NOT_CONNECTED": "未连接",
+        "DESCRIPTION": "调试 MQTT 连接、主题、消息和负载。"
     }
 }

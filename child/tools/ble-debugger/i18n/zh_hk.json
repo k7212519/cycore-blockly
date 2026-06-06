@@ -70,6 +70,7 @@
         "STATUS_FAILED": "狀態獲取失敗",
         "MESSAGE_PARSE_FAILED": "訊息解析失敗",
         "WEBSOCKET_CLOSED": "WebSocket 已關閉",
-        "UNKNOWN": "未知"
+        "UNKNOWN": "未知",
+        "DESCRIPTION": "掃描 BLE 設備並調試 GATT 服務、讀寫和通知。"
     }
 }

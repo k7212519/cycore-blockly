@@ -517,21 +517,26 @@ child/tools/<tool-id>/i18n/
   ...
 ```
 
-主应用构建时需要把 child 语言包复制到 `ToolI18nService` 的运行时路径：
+每个 child 工具的语言包至少提供：
 
 ```json
 {
-  "glob": "*/i18n/*.json",
-  "input": "child",
-  "output": "tools"
+  "TOOL_NAMESPACE": {
+    "TITLE": "...",
+    "DESCRIPTION": "..."
+  }
 }
 ```
 
-新增命名空间时，还需要在 `src/app/services/tool-i18n.service.ts` 的 `TOOL_I18N_NAMESPACES` 中登记，例如：
+child 语言包不进入 Angular assets。宿主通过 `window.path.getAilyChildPath()` 在运行时读取 `child/tools/<tool-id>/i18n/<lang>.json`，并由 `ToolI18nService` 合并到 `TranslateService`。
+
+新增 Angular 内置工具命名空间时，需要在 `src/app/services/tool-i18n.service.ts` 的 `TOOL_I18N_NAMESPACES` 中登记，例如：
 
 ```ts
 '<tool-id>': ['TOOL_NAMESPACE']
 ```
+
+child 独立工具不需要在 `TOOL_I18N_NAMESPACES` 中登记，工具 id、标题 key 和 namespace 来自运行时读取的 `child/tools/index.json`。
 
 child server 应从同一目录提供语言包：
 

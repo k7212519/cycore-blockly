@@ -9,6 +9,7 @@ import { ThemeService } from './services/theme.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { TranslateService } from '@ngx-translate/core';
 import { resolveTranslatedApiErrorMessage } from './utils/api-error.utils';
+import { ToolI18nService } from './services/tool-i18n.service';
 
 // 声明 electronAPI 类型
 declare const window: any;
@@ -31,6 +32,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private message = inject(NzMessageService);
   private router = inject(Router);
   private translate = inject(TranslateService);
+  private toolI18n = inject(ToolI18nService);
 
   private oauthResultListener: (() => void) | null = null;
   private exampleListListener: (() => void) | null = null;
@@ -40,6 +42,7 @@ export class AppComponent implements OnInit, OnDestroy {
     await this.configService.init();
     this.themeService.init();
     await this.translationService.init();
+    await this.toolI18n.loadChildTools();
 
     // 在ElectronService初始化完成后再初始化认证服务
     await this.authService.initializeAuth();

@@ -41,6 +41,7 @@
         "INVALID_PACKET": "Invalid packet",
         "CONNACK_FAILED": "Connection refused",
         "SOCKET_ERROR": "Socket error",
-        "SOCKET_NOT_CONNECTED": "Not connected"
+        "SOCKET_NOT_CONNECTED": "Not connected",
+        "DESCRIPTION": "Debug MQTT connections, topics, messages, and payloads."
     }
 }

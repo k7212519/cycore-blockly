@@ -31,6 +31,7 @@
         "INVALID_HEADER": "請求頭格式無效",
         "REQUEST_FAILED": "請求失敗",
         "WS_ERROR": "WebSocket錯誤",
-        "WS_NOT_CONNECTED": "WebSocket未連接"
+        "WS_NOT_CONNECTED": "WebSocket未連接",
+        "DESCRIPTION": "調試 TCP、UDP、HTTP 和 WebSocket 網絡通信。"
     }
 }

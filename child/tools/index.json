@@ -4,8 +4,8 @@
     "titleKey": "MQTT_DEBUGGER.TITLE",
     "namespace": "MQTT_DEBUGGER",
     "app": {
-      "name": "MENU.MQTT_DEBUGGER",
-      "description": "APP_STORE.MQTT_DEBUGGER_DESC",
+      "name": "MQTT_DEBUGGER.TITLE",
+      "description": "MQTT_DEBUGGER.DESCRIPTION",
       "icon": "fa-light fa-tower-broadcast",
       "enabled": true
     },
@@ -19,8 +19,8 @@
     "titleKey": "NETWORK_DEBUGGER.TITLE",
     "namespace": "NETWORK_DEBUGGER",
     "app": {
-      "name": "MENU.NETWORK_DEBUGGER",
-      "description": "APP_STORE.NETWORK_DEBUGGER_DESC",
+      "name": "NETWORK_DEBUGGER.TITLE",
+      "description": "NETWORK_DEBUGGER.DESCRIPTION",
       "icon": "fa-light fa-network-wired",
       "enabled": true
     },
@@ -34,8 +34,8 @@
     "titleKey": "INDUSTRIAL_BUS_DEBUGGER.TITLE",
     "namespace": "INDUSTRIAL_BUS_DEBUGGER",
     "app": {
-      "name": "MENU.INDUSTRIAL_BUS_DEBUGGER",
-      "description": "APP_STORE.INDUSTRIAL_BUS_DEBUGGER_DESC",
+      "name": "INDUSTRIAL_BUS_DEBUGGER.TITLE",
+      "description": "INDUSTRIAL_BUS_DEBUGGER.DESCRIPTION",
       "icon": "fa-light fa-microchip",
       "enabled": true
     },
@@ -49,8 +49,8 @@
     "titleKey": "BLE_DEBUGGER.TITLE",
     "namespace": "BLE_DEBUGGER",
     "app": {
-      "name": "MENU.BLE_DEBUGGER",
-      "description": "APP_STORE.BLE_DEBUGGER_DESC",
+      "name": "BLE_DEBUGGER.TITLE",
+      "description": "BLE_DEBUGGER.DESCRIPTION",
       "icon": "fa-light fa-bluetooth",
       "enabled": true
     },

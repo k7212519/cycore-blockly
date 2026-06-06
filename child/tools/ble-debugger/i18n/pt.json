@@ -70,6 +70,7 @@
         "STATUS_FAILED": "Status failed",
         "MESSAGE_PARSE_FAILED": "Message parse failed",
         "WEBSOCKET_CLOSED": "WebSocket closed",
-        "UNKNOWN": "Unknown"
+        "UNKNOWN": "Unknown",
+        "DESCRIPTION": "Scan BLE devices and debug GATT services, reads, writes, and notifications."
     }
 }

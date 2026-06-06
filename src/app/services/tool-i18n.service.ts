@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { TranslateService } from '@ngx-translate/core';
 import { lastValueFrom } from 'rxjs';
+import { ChildToolConfig, getChildToolConfig, getChildToolConfigs } from '../configs/tool.config';
 
 export const TOOL_I18N_NAMESPACES = {
   'aily-chat': ['AILY_CHAT'],
@@ -24,7 +25,7 @@ export type ToolI18nName = keyof typeof TOOL_I18N_NAMESPACES;
 })
 export class ToolI18nService {
   private loaded = new Set<string>();
-  private registeredTools = new Set<ToolI18nName>();
+  private registeredTools = new Set<string>();
   private inFlight = new Map<string, Promise<void>>();
 
   constructor(
@@ -39,7 +40,8 @@ export class ToolI18nService {
   }
 
   load(toolName: string, lang: string = this.currentLang(), force = false): Promise<void> {
-    if (!this.isToolI18nName(toolName)) {
+    const childConfig = getChildToolConfig(toolName);
+    if (!this.isToolI18nName(toolName) && !childConfig) {
       return Promise.resolve();
     }
 
@@ -55,11 +57,7 @@ export class ToolI18nService {
       return currentRequest;
     }
 
-    const request = lastValueFrom(
-      this.http.get<Record<string, unknown>>(`tools/${toolName}/i18n/${lang}.json`, {
-        responseType: 'json',
-      }),
-    )
+    const request = this.loadTranslationData(toolName, lang, childConfig)
       .then((data) => {
         this.translate.setTranslation(lang, data, true);
         this.loaded.add(key);
@@ -73,6 +71,54 @@ export class ToolI18nService {
 
     this.inFlight.set(key, request);
     return request;
+  }
+
+  async loadChildTools(lang: string = this.currentLang(), force = false): Promise<void> {
+    const toolIds = Object.keys(getChildToolConfigs());
+    await Promise.all(toolIds.map(toolId => this.load(toolId, lang, force)));
+  }
+
+  private loadTranslationData(toolName: string, lang: string, childConfig: ChildToolConfig | null): Promise<Record<string, unknown>> {
+    if (childConfig) {
+      const data = this.readChildToolI18n(childConfig, lang);
+      if (data) {
+        return Promise.resolve(data);
+      }
+    }
+
+    if (!this.isToolI18nName(toolName)) {
+      return Promise.reject(new Error(`Tool i18n is not registered: ${toolName}`));
+    }
+
+    return lastValueFrom(
+      this.http.get<Record<string, unknown>>(`tools/${toolName}/i18n/${lang}.json`, {
+        responseType: 'json',
+      }),
+    );
+  }
+
+  private readChildToolI18n(config: ChildToolConfig, lang: string): Record<string, unknown> | null {
+    const fsApi = typeof window !== 'undefined' ? window['fs'] : null;
+    const pathApi = typeof window !== 'undefined' ? window['path'] : null;
+    const childPath = pathApi?.getAilyChildPath?.();
+
+    if (!childPath || !pathApi?.join || !fsApi?.existsSync || !fsApi?.readFileSync) {
+      return null;
+    }
+
+    const toolDir = config.childDir || pathApi.join('tools', config.id);
+    const candidates = lang === 'en' ? [lang] : [lang, 'en'];
+
+    for (const candidate of candidates) {
+      const filePath = pathApi.join(childPath, toolDir, 'i18n', `${candidate}.json`);
+      if (!fsApi.existsSync(filePath)) {
+        continue;
+      }
+
+      return JSON.parse(fsApi.readFileSync(filePath, 'utf8'));
+    }
+
+    return null;
   }
 
   private currentLang(): string {
