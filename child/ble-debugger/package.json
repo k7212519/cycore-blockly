@@ -4,11 +4,17 @@
   "private": true,
   "description": "BLE debugger backend for Aily Blockly",
   "main": "index.js",
+  "bin": {
+    "aily-ble-debugger": "index.js"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js rpc",
+    "serve": "node index.js serve",
+    "cli": "node index.js",
+    "scan": "node index.js scan"
   },
   "dependencies": {
     "@abandonware/noble": "^1.9.2-26",
-    "aily-blockly": "file:../.."
+    "ws": "^8.21.0"
   }
 }
