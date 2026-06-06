@@ -138,8 +138,8 @@ function createChildToolAppItem(config: ChildToolConfig): AppItem {
   return {
     ...app,
     id: appId,
-    name: config.titleKey,
-    description: `${config.namespace}.DESCRIPTION`,
+    name: app.name || config.titleKey,
+    description: app.description || `${config.namespace}.DESCRIPTION`,
     action: app.action || 'tool-open',
     data: app.data || { type: 'tool', data: config.id },
     icon: app.icon || 'fa-light fa-puzzle-piece',
@@ -186,9 +186,7 @@ export const APP_LIST: AppItem[] = [
     action: 'tool-open',
     data: { type: 'tool', data: 'ffs-manager' },
     icon: 'fa-light fa-database',
-    enabled: true,
-    // router: ['/main/blockly-editor'],
-    // core: ['esp32'] // 仅 esp32 核心可用
+    enabled: true
   },
   {
     id: 'aily-chat',

@@ -1,0 +1,29 @@
+:root {
+  --bg: #15181d;
+  --bg-soft: #1f242b;
+  --bg-panel: #242a32;
+  --bg-hover: #2d3540;
+  --line: #3a434f;
+  --text: #eef2f6;
+  --muted: #9ca8b5;
+  --primary: #45b8ff;
+  --primary-strong: #2f8fd8;
+  --ok: #54c98a;
+  --warn: #e3ad46;
+  --danger: #ef6b6b;
+  --chip-app: #7d8cff;
+  --chip-spiffs: #45b8ff;
+  --chip-littlefs: #54c98a;
+  --chip-fatfs: #e3ad46;
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+  --aily-bg-primary: #15181d;
+  --aily-bg-elevated: #242a32;
+  --aily-bg-tertiary: #1f242b;
+  --aily-text-primary: #eef2f6;
+  --aily-text-secondary: #c6d0dc;
+  --aily-text-tertiary: #9ca8b5;
+  --aily-border-input: #3a434f;
+  --aily-border-color: rgba(255, 255, 255, 0.08);
+  --aily-color-primary: #45b8ff;
+  --aily-scrollbar-thumb: #596575;
+}

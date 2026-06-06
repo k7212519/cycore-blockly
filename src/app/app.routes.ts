@@ -105,6 +105,11 @@ export const routes: Routes = [
         loadComponent: () => import('./tools/ffs-manager/ffs-manager.component').then(m => m.FfsManagerComponent)
     },
     {
+        path: "ffs-manager-child",
+        redirectTo: "child-tool/ffs-manager-child",
+        pathMatch: "full"
+    },
+    {
         path: "aily-chat",
         loadComponent: () => import('./tools/aily-chat/aily-chat.component').then(m => m.AilyChatComponent)
     },

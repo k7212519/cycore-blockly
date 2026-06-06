@@ -46,6 +46,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
   private remoteApi: any = null;
   private childReadyTimer: ReturnType<typeof setTimeout> | null = null;
   private langSubscription: Subscription | null = null;
+  private toolSignalSubscription: Subscription | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -86,6 +87,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnInit(): void {
     this.initialized = true;
+    this.toolSignalSubscription = this.uiService.actionSubject.subscribe((action: any) => this.forwardToolSignal(action));
     void this.initTool();
   }
 
@@ -98,6 +100,8 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
   ngOnDestroy(): void {
     this.langSubscription?.unsubscribe();
     this.langSubscription = null;
+    this.toolSignalSubscription?.unsubscribe();
+    this.toolSignalSubscription = null;
     this.destroyPenpalConnection();
     if (this.acquired && this.resolvedToolId) {
       void this.processService.release(this.resolvedToolId);
@@ -235,6 +239,9 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         },
         openExternal: (url: string) => {
           (window as any).electronAPI?.other?.openByBrowser?.(url);
+        },
+        sendToolSignal: async (signal: string, payload: any = {}) => {
+          return await this.sendToolSignalFromChild(signal, payload);
         }
       }
     });
@@ -275,6 +282,57 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     void Promise.resolve(this.remoteApi.setHostContext(this.createHostContext())).catch(() => undefined);
+  }
+
+  private forwardToolSignal(action: any): void {
+    if (!this.remoteApi?.handleToolSignal) return;
+    if (action?.action !== 'signal' || action?.type !== 'tool') return;
+    if (action?.payload?.source === this.childSignalSource()) return;
+
+    const task = Promise.resolve(this.remoteApi.handleToolSignal({
+      action: action.action,
+      type: action.type,
+      data: action.data,
+      payload: this.cloneSignalPayload(action.payload)
+    })).then(() => undefined).catch(() => undefined);
+
+    if (Array.isArray(action?.payload?.waitFor)) {
+      action.payload.waitFor.push(task);
+    }
+  }
+
+  private async sendToolSignalFromChild(signal: string, payload: any = {}): Promise<{ ok: boolean; waitFor: number }> {
+    const waitFor: Promise<void>[] = [];
+    const nextPayload = {
+      ...(payload || {}),
+      source: payload?.source || this.childSignalSource()
+    };
+
+    if (signal === 'serial-monitor:disconnect') {
+      nextPayload.waitFor = waitFor;
+    }
+
+    this.uiService.sendToolSignal(signal, nextPayload);
+
+    if (waitFor.length) {
+      await Promise.all(waitFor);
+    }
+
+    if (signal === 'serial-monitor:disconnect') {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
+    return { ok: true, waitFor: waitFor.length };
+  }
+
+  private cloneSignalPayload(payload: any): any {
+    if (!payload || typeof payload !== 'object') return payload || {};
+    const { waitFor: _waitFor, ...rest } = payload;
+    return rest;
+  }
+
+  private childSignalSource(): string {
+    return `child-tool:${this.resolvedToolId || this.toolId || 'unknown'}`;
   }
 
   private buildChildToolUrl(url: string): string {

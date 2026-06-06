@@ -61,5 +61,24 @@
     "env": {
       "AILY_BLE_DEBUGGER": "1"
     }
+  },
+  "ffs-manager-child": {
+    "id": "ffs-manager-child",
+    "titleKey": "FFS_MANAGER.CHILD_TITLE",
+    "namespace": "FFS_MANAGER",
+    "app": {
+      "name": "FFS_MANAGER.CHILD_TITLE",
+      "description": "FFS_MANAGER.CHILD_DESCRIPTION",
+      "icon": "fa-light fa-database",
+      "enabled": true
+    },
+    "childDir": "tools/ffs-manager",
+    "routePath": "/child-tool/ffs-manager-child",
+    "requiredDependencies": ["@abandonware/noble", "esptool-js", "serialport", "ws", "penpal"],
+    "installHint": "Run npm run install:ffs-manager in the project root.",
+    "startupTimeoutMs": 10000,
+    "env": {
+      "AILY_FFS_MANAGER": "1"
+    }
   }
 }

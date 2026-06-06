@@ -10,8 +10,8 @@ import { TerminalComponent } from '../tools/terminal/terminal.component';
 import { LogComponent } from '../tools/log/log.component';
 import { UiService } from '../services/ui.service';
 import { SerialMonitorComponent } from '../tools/serial-monitor/serial-monitor.component';
-import { ChildToolHostComponent } from '../tools/child-tool-host/child-tool-host.component';
 import { FfsManagerComponent } from '../tools/ffs-manager/ffs-manager.component';
+import { ChildToolHostComponent } from '../tools/child-tool-host/child-tool-host.component';
 import { CodeViewerComponent } from '../editors/blockly-editor/tools/code-viewer/code-viewer.component';
 import { ProjectService } from '../services/project.service';
 import { SimplebarAngularModule } from 'simplebar-angular';
@@ -46,8 +46,8 @@ import { isChildTool } from '../configs/tool.config';
     TerminalComponent,
     LogComponent,
     SerialMonitorComponent,
-    ChildToolHostComponent,
     FfsManagerComponent,
+    ChildToolHostComponent,
     CodeViewerComponent,
     SimplebarAngularModule,
     AppStoreComponent,
