@@ -1,0 +1,65 @@
+{
+  "mqtt-debugger": {
+    "id": "mqtt-debugger",
+    "titleKey": "MQTT_DEBUGGER.TITLE",
+    "namespace": "MQTT_DEBUGGER",
+    "app": {
+      "name": "MENU.MQTT_DEBUGGER",
+      "description": "APP_STORE.MQTT_DEBUGGER_DESC",
+      "icon": "fa-light fa-tower-broadcast",
+      "enabled": true
+    },
+    "childDir": "tools/mqtt-debugger",
+    "routePath": "/child-tool/mqtt-debugger",
+    "requiredDependencies": ["ws", "penpal"],
+    "installHint": "Run npm run install:mqtt-debugger in the project root."
+  },
+  "network-debugger": {
+    "id": "network-debugger",
+    "titleKey": "NETWORK_DEBUGGER.TITLE",
+    "namespace": "NETWORK_DEBUGGER",
+    "app": {
+      "name": "MENU.NETWORK_DEBUGGER",
+      "description": "APP_STORE.NETWORK_DEBUGGER_DESC",
+      "icon": "fa-light fa-network-wired",
+      "enabled": true
+    },
+    "childDir": "tools/network-debugger",
+    "routePath": "/child-tool/network-debugger",
+    "requiredDependencies": ["ws", "penpal"],
+    "installHint": "Run npm run install:network-debugger in the project root."
+  },
+  "industrial-bus-debugger": {
+    "id": "industrial-bus-debugger",
+    "titleKey": "INDUSTRIAL_BUS_DEBUGGER.TITLE",
+    "namespace": "INDUSTRIAL_BUS_DEBUGGER",
+    "app": {
+      "name": "MENU.INDUSTRIAL_BUS_DEBUGGER",
+      "description": "APP_STORE.INDUSTRIAL_BUS_DEBUGGER_DESC",
+      "icon": "fa-light fa-microchip",
+      "enabled": true
+    },
+    "childDir": "tools/industrial-bus-debugger",
+    "routePath": "/child-tool/industrial-bus-debugger",
+    "requiredDependencies": ["ws", "penpal"],
+    "installHint": "Run npm run install:industrial-bus-debugger in the project root."
+  },
+  "ble-debugger": {
+    "id": "ble-debugger",
+    "titleKey": "BLE_DEBUGGER.TITLE",
+    "namespace": "BLE_DEBUGGER",
+    "app": {
+      "name": "MENU.BLE_DEBUGGER",
+      "description": "APP_STORE.BLE_DEBUGGER_DESC",
+      "icon": "fa-light fa-bluetooth",
+      "enabled": true
+    },
+    "childDir": "tools/ble-debugger",
+    "routePath": "/child-tool/ble-debugger",
+    "requiredDependencies": ["@abandonware/noble", "ws", "penpal"],
+    "installHint": "Run npm run install:ble-debugger in the project root.",
+    "env": {
+      "AILY_BLE_DEBUGGER": "1"
+    }
+  }
+}

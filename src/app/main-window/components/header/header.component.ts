@@ -529,7 +529,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (btn.data.type == 'terminal') {
       return this.terminalIsOpen;
     } else if (btn.data && btn.data.data) {
-      return this.openToolList.indexOf(btn.data.data) !== -1;
+      return this.uiService.isToolOpen(btn.data.data);
     }
     return false;
   }

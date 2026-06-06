@@ -60,4 +60,4 @@ aily-todos/*.json
 docs/performance-optimization.md
 /child/rg.exe
 /child/probe-rs
-/child/*/node_modules/*
+/child/tools/*/node_modules/*

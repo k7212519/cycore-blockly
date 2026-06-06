@@ -180,6 +180,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     });
     return {
       open: (options) => ipcRenderer.send("window-open", options),
+      focus: (path) => ipcRenderer.invoke("window-focus-by-url", path),
       close: () => ipcRenderer.send("window-close"),
       onInitData: (callback) => {
         _initDataCallback = callback;

@@ -10,10 +10,7 @@ import { TerminalComponent } from '../tools/terminal/terminal.component';
 import { LogComponent } from '../tools/log/log.component';
 import { UiService } from '../services/ui.service';
 import { SerialMonitorComponent } from '../tools/serial-monitor/serial-monitor.component';
-import { MqttDebuggerComponent } from '../tools/mqtt-debugger/mqtt-debugger.component';
-import { NetworkDebuggerComponent } from '../tools/network-debugger/network-debugger.component';
-import { IndustrialBusDebuggerComponent } from '../tools/industrial-bus-debugger/industrial-bus-debugger.component';
-import { BleDebuggerComponent } from '../tools/ble-debugger/ble-debugger.component';
+import { ChildToolHostComponent } from '../tools/child-tool-host/child-tool-host.component';
 import { FfsManagerComponent } from '../tools/ffs-manager/ffs-manager.component';
 import { CodeViewerComponent } from '../editors/blockly-editor/tools/code-viewer/code-viewer.component';
 import { ProjectService } from '../services/project.service';
@@ -34,6 +31,7 @@ import { ModelStoreComponent } from '../tools/model-store/model-store.component'
 import { OnboardingComponent } from '../components/onboarding/onboarding.component';
 import { OnboardingService } from '../services/onboarding.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { isChildTool } from '../configs/tool.config';
 
 @Component({
   selector: 'app-main-window',
@@ -48,10 +46,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
     TerminalComponent,
     LogComponent,
     SerialMonitorComponent,
-    MqttDebuggerComponent,
-    NetworkDebuggerComponent,
-    IndustrialBusDebuggerComponent,
-    BleDebuggerComponent,
+    ChildToolHostComponent,
     FfsManagerComponent,
     CodeViewerComponent,
     SimplebarAngularModule,
@@ -85,6 +80,10 @@ export class MainWindowComponent {
 
   get openToolList() {
     return this.uiService.openToolList;
+  }
+
+  isChildTool(toolId: string): boolean {
+    return isChildTool(toolId);
   }
 
   options = {

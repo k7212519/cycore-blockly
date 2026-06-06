@@ -1,5 +1,3 @@
-import { DEFAULT_TOOLBAR_APP_IDS } from '../../configs/tool.config';
-
 export { APP_LIST, AVAILABLE_APP_IDS, DEFAULT_TOOLBAR_APP_IDS } from '../../configs/tool.config';
 export type { AppItem } from '../../configs/tool.config';
 
@@ -30,10 +28,3 @@ export const APP_STORE_ZONES: AppStoreZone[] = [
     limit: HEADER_APP_LIMIT
   },
 ];
-
-export const DEFAULT_APP_STORE_LAYOUT: AppStoreLayout = {
-  version: 2,
-  zones: {
-    header: [...DEFAULT_TOOLBAR_APP_IDS]
-  }
-};

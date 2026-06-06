@@ -78,19 +78,27 @@ export const routes: Routes = [
     },
     {
         path: "mqtt-debugger",
-        loadComponent: () => import('./tools/mqtt-debugger/mqtt-debugger.component').then(m => m.MqttDebuggerComponent)
+        redirectTo: "child-tool/mqtt-debugger",
+        pathMatch: "full"
     },
     {
         path: "network-debugger",
-        loadComponent: () => import('./tools/network-debugger/network-debugger.component').then(m => m.NetworkDebuggerComponent)
+        redirectTo: "child-tool/network-debugger",
+        pathMatch: "full"
     },
     {
         path: "industrial-bus-debugger",
-        loadComponent: () => import('./tools/industrial-bus-debugger/industrial-bus-debugger.component').then(m => m.IndustrialBusDebuggerComponent)
+        redirectTo: "child-tool/industrial-bus-debugger",
+        pathMatch: "full"
+    },
+    {
+        path: "child-tool/:toolId",
+        loadComponent: () => import('./tools/child-tool-host/child-tool-host.component').then(m => m.ChildToolHostComponent)
     },
     {
         path: "ble-debugger",
-        loadComponent: () => import('./tools/ble-debugger/ble-debugger.component').then(m => m.BleDebuggerComponent)
+        redirectTo: "child-tool/ble-debugger",
+        pathMatch: "full"
     },
     {
         path: "ffs-manager",

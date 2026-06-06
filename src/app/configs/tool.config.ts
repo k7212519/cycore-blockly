@@ -8,6 +8,159 @@ export interface AppItem extends IMenuItem {
   lock?: boolean;
 }
 
+export interface ChildToolAppConfig extends Partial<AppItem> {
+  available?: boolean;
+  defaultToolbar?: boolean;
+}
+
+export interface ChildToolConfig {
+  id: string;
+  titleKey: string;
+  namespace: string;
+  app?: ChildToolAppConfig;
+  childDir?: string;
+  entry?: string;
+  uiIndex?: string;
+  routePath?: string;
+  requiredDependencies?: string[];
+  installHint?: string;
+  startupTimeoutMs?: number;
+  env?: Record<string, string>;
+}
+
+const CHILD_TOOL_INDEX_ASSET_PATH = 'tools/index.json';
+
+let childToolConfigsLoaded = false;
+let childToolConfigLoadError: Error | null = null;
+
+export let CHILD_TOOL_CONFIGS: Record<string, ChildToolConfig> = {};
+
+export function getChildToolConfigs(forceReload = false): Record<string, ChildToolConfig> {
+  if (!childToolConfigsLoaded || forceReload) {
+    try {
+      CHILD_TOOL_CONFIGS = loadChildToolConfigs();
+      childToolConfigLoadError = null;
+    } catch (error) {
+      childToolConfigLoadError = error instanceof Error ? error : new Error(String(error || 'Unknown error'));
+      CHILD_TOOL_CONFIGS = {};
+      console.error('[child-tools] Failed to load child tools index:', childToolConfigLoadError);
+    }
+    childToolConfigsLoaded = true;
+  }
+
+  return CHILD_TOOL_CONFIGS;
+}
+
+export function getChildToolConfigLoadError(): Error | null {
+  return childToolConfigLoadError;
+}
+
+export function getChildToolConfig(toolId: string): ChildToolConfig | null {
+  return getChildToolConfigs()[toolId] || null;
+}
+
+export function isChildTool(toolId: string): boolean {
+  return !!getChildToolConfig(toolId);
+}
+
+export function getChildToolAppItems(): AppItem[] {
+  return Object.values(getChildToolConfigs())
+    .filter(config => config.app?.available !== false)
+    .map(config => createChildToolAppItem(config));
+}
+
+export function getChildToolAvailableAppIds(): string[] {
+  return getChildToolAppItems().map(app => app.id);
+}
+
+export function getChildToolDefaultToolbarAppIds(): string[] {
+  return Object.values(getChildToolConfigs())
+    .filter(config => config.app?.available !== false && config.app?.defaultToolbar === true)
+    .map(config => config.app?.id || config.id);
+}
+
+function loadChildToolConfigs(): Record<string, ChildToolConfig> {
+  const raw = readChildToolIndexText();
+  return normalizeChildToolConfigs(JSON.parse(raw));
+}
+
+function readChildToolIndexText(): string {
+  const fsApi = typeof window !== 'undefined' ? window['fs'] : null;
+  const pathApi = typeof window !== 'undefined' ? window['path'] : null;
+  const childPath = pathApi?.getAilyChildPath?.();
+
+  if (childPath && pathApi?.join && fsApi?.existsSync && fsApi?.readFileSync) {
+    const indexPath = pathApi.join(childPath, 'tools', 'index.json');
+    if (fsApi.existsSync(indexPath)) {
+      return fsApi.readFileSync(indexPath, 'utf8');
+    }
+  }
+
+  return readBundledChildToolIndexText();
+}
+
+function readBundledChildToolIndexText(): string {
+  if (typeof XMLHttpRequest === 'undefined') {
+    throw new Error('Child tools index loader is not available');
+  }
+
+  const url = typeof document !== 'undefined'
+    ? new URL(CHILD_TOOL_INDEX_ASSET_PATH, document.baseURI).toString()
+    : CHILD_TOOL_INDEX_ASSET_PATH;
+  const request = new XMLHttpRequest();
+  request.open('GET', url, false);
+  request.send(null);
+
+  if ((request.status >= 200 && request.status < 300) || (request.status === 0 && request.responseText)) {
+    return request.responseText;
+  }
+
+  throw new Error(`Child tools index was not found: ${url}`);
+}
+
+function normalizeChildToolConfigs(indexData: any): Record<string, ChildToolConfig> {
+  const source = indexData?.tools || indexData;
+
+  if (Array.isArray(source)) {
+    return source.reduce((configs: Record<string, ChildToolConfig>, item: any) => {
+      if (item?.id) {
+        configs[item.id] = item as ChildToolConfig;
+      }
+      return configs;
+    }, {});
+  }
+
+  if (!source || typeof source !== 'object') {
+    throw new Error('Child tools index must be an object or a tools array');
+  }
+
+  return Object.entries(source).reduce((configs: Record<string, ChildToolConfig>, [toolId, value]) => {
+    if (value && typeof value === 'object') {
+      const config = value as ChildToolConfig;
+      configs[config.id || toolId] = {
+        ...config,
+        id: config.id || toolId
+      };
+    }
+    return configs;
+  }, {});
+}
+
+function createChildToolAppItem(config: ChildToolConfig): AppItem {
+  const app = config.app || {};
+  const appId = app.id || config.id;
+
+  return {
+    ...app,
+    id: appId,
+    name: app.name || config.titleKey,
+    action: app.action || 'tool-open',
+    data: app.data || { type: 'tool', data: config.id },
+    icon: app.icon || 'fa-light fa-puzzle-piece',
+    enabled: app.enabled !== false
+  };
+}
+
 // 默认的 App 注册表，展示位置由 AppStoreService 管理
 export const APP_LIST: AppItem[] = [
   {
@@ -39,42 +192,6 @@ export const APP_LIST: AppItem[] = [
     icon: 'fa-light fa-monitor-waveform',
     enabled: true,
     lock: true
-  },
-  {
-    id: 'mqtt-debugger',
-    name: 'MENU.MQTT_DEBUGGER',
-    description: 'APP_STORE.MQTT_DEBUGGER_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'mqtt-debugger' },
-    icon: 'fa-light fa-tower-broadcast',
-    enabled: true
-  },
-  {
-    id: 'network-debugger',
-    name: 'MENU.NETWORK_DEBUGGER',
-    description: 'APP_STORE.NETWORK_DEBUGGER_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'network-debugger' },
-    icon: 'fa-light fa-network-wired',
-    enabled: true
-  },
-  {
-    id: 'industrial-bus-debugger',
-    name: 'MENU.INDUSTRIAL_BUS_DEBUGGER',
-    description: 'APP_STORE.INDUSTRIAL_BUS_DEBUGGER_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'industrial-bus-debugger' },
-    icon: 'fa-light fa-microchip',
-    enabled: true
-  },
-  {
-    id: 'ble-debugger',
-    name: 'MENU.BLE_DEBUGGER',
-    description: 'APP_STORE.BLE_DEBUGGER_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'ble-debugger' },
-    icon: 'fa-light fa-bluetooth',
-    enabled: true
   },
   {
     id: 'ffs-manager',
@@ -143,16 +260,11 @@ export const APP_LIST: AppItem[] = [
 export const AVAILABLE_APP_IDS: string[] = [
   'code-viewer',
   'serial-monitor',
-  'mqtt-debugger',
-  'network-debugger',
-  'industrial-bus-debugger',
-  'ble-debugger',
   'ffs-manager',
   'aily-chat',
   'model-store',
   'cloud-space',
   'user-center',
-  'ffs-manager'
 ];
 
 // 软件初始状态 toolbar 显示的 App id。用户调整后会保存到本地配置。

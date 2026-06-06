@@ -67,24 +67,15 @@
         <div class="right-box">
           @for (tool of openToolList; track tool) {
           <div class="tool-panel" [style.z-index]="tool === topTool ? 100 : 1">
+            @if (isChildTool(tool)) {
+            <app-child-tool-host [toolId]="tool"></app-child-tool-host>
+            } @else {
             @switch (tool) {
             @case ("code-viewer") {
             <app-code-viewer></app-code-viewer>
             }
             @case ("serial-monitor") {
             <app-serial-monitor></app-serial-monitor>
-            }
-            @case ("mqtt-debugger") {
-            <app-mqtt-debugger></app-mqtt-debugger>
-            }
-            @case ("network-debugger") {
-            <app-network-debugger></app-network-debugger>
-            }
-            @case ("industrial-bus-debugger") {
-            <app-industrial-bus-debugger></app-industrial-bus-debugger>
-            }
-            @case ("ble-debugger") {
-            <app-ble-debugger></app-ble-debugger>
             }
             @case ("ffs-manager") {
             <app-ffs-manager></app-ffs-manager>
@@ -106,6 +97,7 @@
             }
             @case ("user-center") {
             <app-user-center></app-user-center>
+            }
             }
             }
           </div>

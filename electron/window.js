@@ -196,6 +196,63 @@ function registerWindowHandlers(mainWindow) {
         openWindows.forEach((subWindow) => sendCodeViewerState(subWindow));
     };
 
+    const normalizeSubWindowUrl = (windowUrl) => {
+        if (typeof windowUrl !== 'string') {
+            return '';
+        }
+        const trimmedUrl = windowUrl.trim();
+        if (!trimmedUrl) {
+            return '';
+        }
+        const hashRouteIndex = trimmedUrl.indexOf('#/');
+        const routeUrl = hashRouteIndex >= 0 ? trimmedUrl.slice(hashRouteIndex + 2) : trimmedUrl;
+        return `/${routeUrl.replace(/^\/+/, '')}`;
+    };
+
+    const notifySubWindowState = (windowUrl, isOpen) => {
+        try {
+            if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+                mainWindow.webContents.send('sub-window-state-changed', {
+                    path: normalizeSubWindowUrl(windowUrl),
+                    open: !!isOpen,
+                });
+            }
+        } catch (error) {
+            console.error('Error sending sub-window-state-changed:', error.message);
+        }
+    };
+
+    const focusSubWindow = (targetWindow) => {
+        if (!targetWindow || targetWindow.isDestroyed()) {
+            return false;
+        }
+        if (targetWindow.isMinimized()) {
+            targetWindow.restore();
+        }
+        if (!targetWindow.isVisible()) {
+            targetWindow.show();
+        }
+        if (typeof targetWindow.moveTop === 'function') {
+            targetWindow.moveTop();
+        }
+        targetWindow.focus();
+        return true;
+    };
+
+    const focusSubWindowByUrl = (windowUrl) => {
+        const normalizedWindowUrl = normalizeSubWindowUrl(windowUrl);
+        if (!normalizedWindowUrl) {
+            return false;
+        }
+        const existingWindow = openWindows.get(normalizedWindowUrl);
+        if (existingWindow && !existingWindow.isDestroyed()) {
+            notifySubWindowState(normalizedWindowUrl, true);
+            return focusSubWindow(existingWindow);
+        }
+        openWindows.delete(normalizedWindowUrl);
+        return false;
+    };
+
     const loadSubWindowBasePage = (webContents) => {
         /** 池中仅占位，不加载 SPA 根页，避免出现 index / 首页再切目标页的闪屏；正式打开时再 load 路由 */
         webContents.loadURL('about:blank');
@@ -248,6 +305,7 @@ function registerWindowHandlers(mainWindow) {
 
         subWindow.on('closed', () => {
             openWindows.delete(windowUrl);
+            notifySubWindowState(windowUrl, false);
         });
     };
 
@@ -325,7 +383,7 @@ function registerWindowHandlers(mainWindow) {
 
 
     ipcMain.on("window-open", (event, data) => {
-        const windowUrl = data.path;
+        const windowUrl = normalizeSubWindowUrl(data.path);
         const width = data.width ? data.width : 800;
         const height = data.height ? data.height : 600;
         const alwaysOnTop = data.alwaysOnTop ? data.alwaysOnTop : false;
@@ -337,7 +395,8 @@ function registerWindowHandlers(mainWindow) {
             // 确保窗口仍然有效
             if (existingWindow && !existingWindow.isDestroyed()) {
                 // 激活已存在的窗口
-                existingWindow.focus();
+                notifySubWindowState(windowUrl, true);
+                focusSubWindow(existingWindow);
                 return;
             } else {
                 // 如果窗口已被销毁，从映射中移除
@@ -383,6 +442,7 @@ function registerWindowHandlers(mainWindow) {
         centerSubWindowOnMainDisplay(subWindow, mainWindow, width, height);
 
         openWindows.set(windowUrl, subWindow);
+        notifySubWindowState(windowUrl, true);
         attachSubWindowLifecycleListeners(subWindow, windowUrl);
 
         const sendInitToSubWindow = () => {
@@ -437,6 +497,10 @@ function registerWindowHandlers(mainWindow) {
         } else {
             subWindow.loadFile('renderer/index.html', { hash: `#/${data.path}` });
         }
+    });
+
+    ipcMain.handle("window-focus-by-url", (_event, windowUrl) => {
+        return focusSubWindowByUrl(windowUrl);
     });
 
     ipcMain.on("window-minimize", (event) => {

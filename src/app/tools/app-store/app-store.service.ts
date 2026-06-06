@@ -8,9 +8,14 @@ import {
   AppItem,
   AppPlacementZone,
   AppStoreLayout,
-  DEFAULT_APP_STORE_LAYOUT,
+  DEFAULT_TOOLBAR_APP_IDS,
   HEADER_APP_LIMIT
 } from './app-store.config';
+import {
+  getChildToolAppItems,
+  getChildToolAvailableAppIds,
+  getChildToolDefaultToolbarAppIds
+} from '../../configs/tool.config';
 
 export interface AppVisibilityContext {
   routeUrl?: string;
@@ -22,16 +27,22 @@ export interface AppVisibilityContext {
   providedIn: 'root'
 })
 export class AppStoreService {
-  private readonly appMap = new Map(
-    APP_LIST
-      .filter(app => AVAILABLE_APP_IDS.includes(app.id))
-      .map(app => [app.id, app])
-  );
+  private readonly appMap = new Map<string, AppItem>();
   private readonly zoneLimits = new Map(APP_STORE_ZONES.map(zone => [zone.id, zone.limit]));
-  private readonly layoutSubject = new BehaviorSubject<AppStoreLayout>(this.loadLayout());
+  private readonly layoutSubject = new BehaviorSubject<AppStoreLayout>({
+    version: 2,
+    zones: {
+      header: []
+    }
+  });
 
   readonly layout$ = this.layoutSubject.asObservable();
   readonly HEADER_APP_LIMIT = HEADER_APP_LIMIT;
+
+  constructor() {
+    this.refreshAppRegistry();
+    this.layoutSubject.next(this.loadLayout());
+  }
 
   get layout(): AppStoreLayout {
     return this.cloneLayout(this.layoutSubject.value);
@@ -147,12 +158,39 @@ export class AppStoreService {
 
   resetToDefault(): void {
     this.removeStoredLayout();
-    this.commitLayout(this.normalizeLayout(DEFAULT_APP_STORE_LAYOUT), false);
+    this.commitLayout(this.normalizeLayout(this.createDefaultLayout()), false);
   }
 
   private loadLayout(): AppStoreLayout {
     const storedLayout = this.readStoredLayout();
-    return this.normalizeLayout(storedLayout || DEFAULT_APP_STORE_LAYOUT);
+    return this.normalizeLayout(storedLayout || this.createDefaultLayout());
+  }
+
+  private refreshAppRegistry(): void {
+    this.appMap.clear();
+
+    const availableAppIds = new Set([
+      ...AVAILABLE_APP_IDS,
+      ...getChildToolAvailableAppIds()
+    ]);
+
+    for (const app of [...APP_LIST, ...getChildToolAppItems()]) {
+      if (availableAppIds.has(app.id)) {
+        this.appMap.set(app.id, { ...app });
+      }
+    }
+  }
+
+  private createDefaultLayout(): AppStoreLayout {
+    return {
+      version: 2,
+      zones: {
+        header: [
+          ...DEFAULT_TOOLBAR_APP_IDS,
+          ...getChildToolDefaultToolbarAppIds()
+        ]
+      }
+    };
   }
 
   private readStoredLayout(): AppStoreLayout | null {
