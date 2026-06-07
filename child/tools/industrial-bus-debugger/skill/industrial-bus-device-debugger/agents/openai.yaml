@@ -1,0 +1,4 @@
+interface:
+  display_name: "Industrial Bus Device Debugger"
+  short_description: "Debug MCU CAN, RS485, and Modbus workflows."
+  default_prompt: "Use $industrial-bus-device-debugger to debug an MCU industrial bus workflow."

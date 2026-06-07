@@ -159,8 +159,8 @@
     "ERRORS": {
       "IMAGE_SIZE_MISMATCH": "导出的镜像大小 {{imageSize}} 与分区大小 {{partitionSize}} 不一致"
     },
-    "DESCRIPTION": "????????? ESP Flash ???????",
-    "CHILD_TITLE": "FFS????????",
-    "CHILD_DESCRIPTION": "???????? noble BLE ? FFS ???"
+    "DESCRIPTION": "通过独立子工具管理 ESP Flash 文件系统分区。",
+    "CHILD_TITLE": "FFS 管理器（独立版）",
+    "CHILD_DESCRIPTION": "使用子进程和 noble BLE 的独立版 FFS 管理器"
   }
 }

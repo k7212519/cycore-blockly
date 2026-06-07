@@ -1,0 +1,4 @@
+interface:
+  display_name: "MQTT Device Debugger"
+  short_description: "Debug MQTT workflows for MCU firmware."
+  default_prompt: "Use $mqtt-device-debugger to debug an MCU MQTT workflow."

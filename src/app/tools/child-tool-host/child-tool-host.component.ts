@@ -3,6 +3,7 @@ import { Component, effect, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleC
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Connection, WindowMessenger, connect } from 'penpal';
 import { Subscription } from 'rxjs';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
@@ -20,6 +21,7 @@ type HostStatus = 'idle' | 'starting' | 'ready' | 'error' | 'closed';
   imports: [
     CommonModule,
     TranslateModule,
+    NzToolTipModule,
     SubWindowComponent,
     ToolContainerComponent
   ],
@@ -68,13 +70,6 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
   get isStandalone(): boolean {
     return this.currentUrl.startsWith('/child-tool/');
-  }
-
-  get hostStatusKey(): string {
-    if (this.hostStatus === 'ready') return this.key('BACKEND_READY');
-    if (this.hostStatus === 'starting') return this.key('BACKEND_STARTING');
-    if (this.hostStatus === 'error') return this.key('BACKEND_ERROR');
-    return this.key('BACKEND_CLOSED');
   }
 
   get backendStartingKey(): string {

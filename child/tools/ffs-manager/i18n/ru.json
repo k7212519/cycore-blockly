@@ -159,8 +159,8 @@
     "ERRORS": {
       "IMAGE_SIZE_MISMATCH": "Exported image size {{imageSize}} does not match partition size {{partitionSize}}"
     },
-    "DESCRIPTION": "Manage ESP flash filesystem partitions from an isolated child tool.",
-    "CHILD_TITLE": "FFS Manager (Standalone)",
-    "CHILD_DESCRIPTION": "Standalone FFS manager using a child process and noble BLE"
+    "DESCRIPTION": "Управление разделами файловой системы ESP Flash из изолированного дочернего инструмента.",
+    "CHILD_TITLE": "Менеджер FFS (автономный)",
+    "CHILD_DESCRIPTION": "Автономный менеджер FFS с дочерним процессом и noble BLE"
   }
 }

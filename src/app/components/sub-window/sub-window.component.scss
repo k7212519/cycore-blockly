@@ -22,6 +22,10 @@
         display: none;
       }
 
+      .header-btns {
+        display: flex;
+      }
+
       .go-main {
         display: flex;
       }
@@ -42,6 +46,11 @@
   display: flex;
   align-items: center;
   font-size: 15px;
+
+  .header-btns {
+    display: flex;
+    align-items: center;
+  }
 
   .btn {
     font-size: 16px;

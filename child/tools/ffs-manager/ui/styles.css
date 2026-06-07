@@ -743,10 +743,22 @@ select {
   height: 22px;
   padding: 0;
   border-radius: 3px;
+  color: var(--aily-text-secondary);
+  background: transparent;
 }
 
 .tb-btn.icon-btn i {
   font-size: 12px;
+}
+
+.tb-btn.icon-btn:hover:not(:disabled) {
+  color: var(--aily-text-primary);
+  background: rgba(127, 127, 127, 0.18);
+}
+
+.tb-btn.icon-btn.danger:hover:not(:disabled) {
+  color: #ff6b6b;
+  background: rgba(127, 127, 127, 0.18);
 }
 
 .empty {
