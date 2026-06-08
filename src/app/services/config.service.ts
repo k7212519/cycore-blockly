@@ -1285,6 +1285,9 @@ interface AppConfig {
   /** 当前选择的语言 */
   selectedLanguage?: string;
 
+  /** Header toolbar app ids saved by AppStoreService. */
+  toolbarAppIds?: string[];
+
   /** 跳过更新的版本列表 */
   skippedVersions?: string[];
 
