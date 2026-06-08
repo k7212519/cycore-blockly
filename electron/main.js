@@ -1207,53 +1207,79 @@ function escapePath(path) {
   return path.replace(/(\s|[()&|;<>`$\\])/g, '\\$1');
 }
 
-// 环境变量加载
-function loadEnv() {
-  // 将child目录添加到环境变量PATH中
-  const childPath = serve
-    ? path.join(__dirname, "..", "child")
-    : path.join(process.resourcesPath, "child");
-  const nodePath = path.join(childPath, isDarwin ? "node/bin" : "node");
+function appendPathSegment(pathValue, segment) {
+  if (!segment || !fs.existsSync(segment)) {
+    return pathValue;
+  }
+  return `${pathValue}${path.delimiter}${segment}`;
+}
 
-  // 只保留PowerShell路径，移除其他系统PATH
-  let customPath = nodePath + path.delimiter + childPath;
+// child 工具解压完成后再注入 PATH 与相关环境变量
+function applyChildToolEnv(childPath) {
+  const nodeBinPath = path.join(childPath, isDarwin ? "node/bin" : "node");
+  let customPath = childPath;
+
+  if (fs.existsSync(nodeBinPath)) {
+    customPath = `${nodeBinPath}${path.delimiter}${customPath}`;
+  }
 
   if (isWin32) {
-    // 使用环境变量获取系统路径，支持系统安装在任意盘符
     const systemRoot = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
     const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-    
-    // 添加必要的系统路径
     const systemPaths = [
       path.join(systemRoot, 'System32'),
       path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0'),
-      path.join(programFiles, 'PowerShell', '7'), // PowerShell 7 (如果存在)
+      path.join(programFiles, 'PowerShell', '7'),
       systemRoot
     ];
-
-    // 检查路径是否存在，只添加存在的路径
-    systemPaths.forEach(sysPath => {
-      if (fs.existsSync(sysPath)) {
-        customPath += path.delimiter + sysPath;
-      }
+    systemPaths.forEach((sysPath) => {
+      customPath = appendPathSegment(customPath, sysPath);
     });
-  }
-  if (isDarwin) {
-    const systemPaths = [
-      '/bin',
-      '/usr/bin'
-    ];
-    systemPaths.forEach(sysPath => {
-      if (fs.existsSync(sysPath)) {
-        customPath += path.delimiter + sysPath;
-      }
+  } else if (isDarwin) {
+    ['/bin', '/usr/bin'].forEach((sysPath) => {
+      customPath = appendPathSegment(customPath, sysPath);
     });
   } else if (isLinux) {
-    customPath += path.delimiter + '/bin';
+    customPath = appendPathSegment(customPath, '/bin');
   }
 
-  // 完全替换PATH
-  process.env.PATH = customPath;  
+  const ailyBuilderPath = path.join(childPath, "aily-builder");
+  const ninjaPath = path.join(ailyBuilderPath, "ninja");
+  const probeRsDir = path.join(childPath, "probe-rs");
+  const z7Path = path.join(childPath, isWin32 ? "7za.exe" : "7zz");
+  const rgPath = path.join(childPath, isWin32 ? "rg.exe" : "rg");
+  const probeRsPath = path.join(probeRsDir, `probe-rs${isWin32 ? ".exe" : ""}`);
+
+  customPath = appendPathSegment(customPath, ailyBuilderPath);
+  customPath = appendPathSegment(customPath, ninjaPath);
+  customPath = appendPathSegment(customPath, probeRsDir);
+
+  process.env.PATH = customPath;
+  process.env.AILY_CHILD_PATH = childPath;
+  process.env.AILY_7ZA_PATH = fs.existsSync(z7Path) ? z7Path : path.join(childPath, isWin32 ? "7za.exe" : "7zz");
+  process.env.AILY_RG_PATH = fs.existsSync(rgPath) ? rgPath : path.join(childPath, isWin32 ? "rg.exe" : "rg");
+  process.env.AILY_PROBE_RS_PATH = probeRsPath;
+  process.env.AILY_BUILDER_PATH = ailyBuilderPath;
+}
+
+function runInstallEnv(childPath) {
+  try {
+    if (isDarwin) {
+      macosInstallEnv(childPath);
+    } else if (isWin32) {
+      windowsInstallEnv(childPath);
+    }
+  } catch (error) {
+    console.error("installEnv error: ", error);
+  }
+  applyChildToolEnv(childPath);
+}
+
+// 环境变量加载
+function loadEnv() {
+  const childPath = serve
+    ? path.join(__dirname, "..", "child")
+    : path.join(process.resourcesPath, "child");
 
   // 读取config.json文件
   const configPath = path.join(__dirname, 'config', "config.json");
@@ -1291,24 +1317,6 @@ function loadEnv() {
   }
 
   registerAppDataResourceLockHandlers();
-
-  const runInstallEnv = () => {
-    try {
-      if (isDarwin) {
-        macosInstallEnv(childPath);
-      } else if (isWin32) {
-        windowsInstallEnv(childPath);
-      }
-    } catch (error) {
-      console.error("installEnv error: ", error);
-    }
-  };
-
-  if (serve) {
-    setImmediate(runInstallEnv);
-  } else {
-    runInstallEnv();
-  }
 
   // 检测并读取appdata_path目录下是否有config.json文件
   const userConfigPath = path.join(process.env.AILY_APPDATA_PATH, "config.json");
@@ -1398,9 +1406,6 @@ function loadEnv() {
     userConf = {}; // 确保userConf是一个对象
   }
 
-  // child Path
-  process.env.AILY_CHILD_PATH = childPath;
-
   // TODO 下一版本删除，强制将 cn 区域所有地址设置为标准地址
   if (hasCnRegionUrlChanges(conf.regions && conf.regions["cn"])) {
     Object.assign(conf.regions["cn"], forcedCnRegionUrls);
@@ -1449,14 +1454,6 @@ function loadEnv() {
   } catch (e) {
     console.error('清理代理环境变量失败:', e);
   }
-  // 7za path
-  process.env.AILY_7ZA_PATH = path.join(childPath, isWin32 ? "7za.exe" : "7zz");
-  // rg path
-  process.env.AILY_RG_PATH = path.join(childPath, isWin32 ? "rg.exe" : "rg");
-  // probe-rs path
-  process.env.AILY_PROBE_RS_PATH = path.join(childPath, "probe-rs", "probe-rs" + (isWin32 ? ".exe" : ""));
-  // aily builder path
-  process.env.AILY_BUILDER_PATH = path.join(childPath, "aily-builder");
   // 全局npm包路径
   process.env.AILY_NPM_PREFIX = process.env.AILY_APPDATA_PATH;
   // 默认全局编译器路径
@@ -1475,19 +1472,11 @@ function loadEnv() {
 
   process.env.AILY_PROJECT_PATH = conf["project_path"];
 
-  // 将aily builder以及其中的ninja添加到PATH中
-  const ailyBuilderPath = path.join(process.env.AILY_BUILDER_PATH);
-  if (fs.existsSync(ailyBuilderPath)) {
-    process.env.PATH = `${process.env.PATH}${path.delimiter}${ailyBuilderPath}`;
-  }
-  const ninjaPath = path.join(process.env.AILY_BUILDER_PATH, 'ninja');
-  if (fs.existsSync(ninjaPath)) {
-    process.env.PATH = `${process.env.PATH}${path.delimiter}${ninjaPath}`;
-  }
-  // 将 probe-rs 添加到 PATH 中
-  const probeRsDir = path.join(childPath, 'probe-rs');
-  if (fs.existsSync(probeRsDir)) {
-    process.env.PATH = `${process.env.PATH}${path.delimiter}${probeRsDir}`;
+  if (serve) {
+    applyChildToolEnv(childPath);
+    setImmediate(() => runInstallEnv(childPath));
+  } else {
+    runInstallEnv(childPath);
   }
 
   // 当前系统语言
