@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, ElementRef, isDevMode, NgZone, OnDestroy, ViewChild, viewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, isDevMode, NgZone, OnDestroy, OnInit, ViewChild, viewChild } from '@angular/core';
 import { HEADER_BTNS, HEADER_MENU } from '../../../configs/menu.config';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { FormsModule } from '@angular/forms';
@@ -24,10 +24,11 @@ import { BoardSelectorDialogComponent } from '../board-selector-dialog/board-sel
 import { LoginDialogComponent } from '../login-dialog/login-dialog.component';
 import { PlatformService } from '../../../services/platform.service';
 import { ProbeRsService } from '../../../services/probe-rs.service';
-// import { AppStoreService } from '../../../tools/app-store/app-store.service';
-import { AppItem, APP_LIST } from '../../../configs/tool.config';
+import { AppItem } from '../../../configs/tool.config';
+import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { Subscription } from 'rxjs';
 import { BleOtaDeviceItem, UploaderBleService } from '../../../services/uploader-ble.service';
+import { ToolI18nService } from '../../../services/tool-i18n.service';
 
 @Component({
   selector: 'app-header',
@@ -41,10 +42,10 @@ import { BleOtaDeviceItem, UploaderBleService } from '../../../services/uploader
   templateUrl: './header.component.html',
   styleUrl: './header.component.scss',
 })
-export class HeaderComponent implements OnDestroy {
+export class HeaderComponent implements OnInit, OnDestroy {
   headerBtns = HEADER_BTNS;
   headerMenu = HEADER_MENU;
-  headerApps = APP_LIST;
+  headerApps: AppItem[] = [];
 
   get isMac() {
     return this.platformService.isMac();
@@ -61,6 +62,7 @@ export class HeaderComponent implements OnDestroy {
   private unsubscribeMaximizeChanged?: () => void;
   private unsubscribeCloseRequest?: () => void;
   private bleDevicesSubscription?: Subscription;
+  private appStoreSubscription?: Subscription;
   private blePortListRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
   private selectDebounceTimer: ReturnType<typeof setTimeout> | null = null; // 防抖计时器
@@ -99,11 +101,6 @@ export class HeaderComponent implements OnDestroy {
     return isDevMode()
   }
 
-  // 从 AppStoreService 获取要显示在 header 上的 apps
-  // get headerApps(): AppItem[] {
-  //   return this.appStoreService.getHeaderApps();
-  // }
-
   constructor(
     private projectService: ProjectService,
     private uiService: UiService,
@@ -123,8 +120,19 @@ export class HeaderComponent implements OnDestroy {
     private probeRsService: ProbeRsService,
     private uploaderBleService: UploaderBleService,
     private ngZone: NgZone,
-    // private appStoreService: AppStoreService
+    private appStoreService: AppStoreService,
+    private toolI18n: ToolI18nService
   ) { }
+
+  ngOnInit(): void {
+    void this.toolI18n.load('serial-monitor');
+
+    this.refreshHeaderApps();
+    this.appStoreSubscription = this.appStoreService.layout$.subscribe(() => {
+      this.refreshHeaderApps();
+      setTimeout(() => this.cd.detectChanges(), 0);
+    });
+  }
 
   async ngAfterViewInit() {
     this.bleDevicesSubscription = this.uploaderBleService.scanStateChanged.subscribe((state) => {
@@ -521,7 +529,7 @@ export class HeaderComponent implements OnDestroy {
     if (btn.data.type == 'terminal') {
       return this.terminalIsOpen;
     } else if (btn.data && btn.data.data) {
-      return this.openToolList.indexOf(btn.data.data) !== -1;
+      return this.uiService.isToolOpen(btn.data.data);
     }
     return false;
   }
@@ -703,6 +711,7 @@ export class HeaderComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.appStoreSubscription?.unsubscribe();
     if (this.bleDevicesSubscription) {
       this.bleDevicesSubscription.unsubscribe();
     }
@@ -960,7 +969,15 @@ export class HeaderComponent implements OnDestroy {
   }
 
   showApp(app: AppItem) {
-    return (!app.dev || this.isDevMode) && this.showInRouter(app) && this.showInCore(app);
+    return this.appStoreService.isAppVisible(app, {
+      routeUrl: this.router.url,
+      boardCore: this.projectService.currentBoardConfig?.core,
+      isDevMode: this.isDevMode
+    });
+  }
+
+  private refreshHeaderApps(): void {
+    this.headerApps = this.appStoreService.getAppsForZone('header');
   }
 
   private showInCore(app: AppItem) {

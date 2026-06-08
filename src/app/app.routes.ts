@@ -77,8 +77,37 @@ export const routes: Routes = [
         loadComponent: () => import('./tools/serial-monitor/serial-monitor.component').then(m => m.SerialMonitorComponent)
     },
     {
+        path: "mqtt-debugger",
+        redirectTo: "child-tool/mqtt-debugger",
+        pathMatch: "full"
+    },
+    {
+        path: "network-debugger",
+        redirectTo: "child-tool/network-debugger",
+        pathMatch: "full"
+    },
+    {
+        path: "industrial-bus-debugger",
+        redirectTo: "child-tool/industrial-bus-debugger",
+        pathMatch: "full"
+    },
+    {
+        path: "child-tool/:toolId",
+        loadComponent: () => import('./tools/child-tool-host/child-tool-host.component').then(m => m.ChildToolHostComponent)
+    },
+    {
+        path: "ble-debugger",
+        redirectTo: "child-tool/ble-debugger",
+        pathMatch: "full"
+    },
+    {
         path: "ffs-manager",
         loadComponent: () => import('./tools/ffs-manager/ffs-manager.component').then(m => m.FfsManagerComponent)
+    },
+    {
+        path: "ffs-manager-child",
+        redirectTo: "child-tool/ffs-manager-child",
+        pathMatch: "full"
     },
     {
         path: "aily-chat",

@@ -10,6 +10,7 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { ProjectSettingDialogComponent } from '../components/project-setting-dialog/project-setting-dialog.component';
 import { AuthService } from './auth.service';
 import { LogService } from './log.service';
+import { getChildToolConfig } from '../configs/tool.config';
 
 @Injectable({
   providedIn: 'root',
@@ -23,6 +24,8 @@ export class UiService {
 
   // 用来记录当前已打开的工具
   openToolList: string[] = [];
+
+  openWindowPathList: string[] = [];
 
   // 用来获取当前最上层的工具
   get topTool() {
@@ -65,7 +68,11 @@ export class UiService {
     if (this.electronService.isElectron) {
       this.isMainWindow = true;
       window['ipcRenderer'].on('window-go-main', (event, toolName) => {
-        this.openTool(toolName);
+        this.openToolInMainWindow(toolName);
+      });
+
+      window['ipcRenderer'].on('sub-window-state-changed', (_event, state) => {
+        this.updateSubWindowState(state?.path, !!state?.open);
       });
 
       window['ipcRenderer'].on('window-receive', async (event, message) => {
@@ -121,6 +128,7 @@ export class UiService {
   }
 
   openWindow(opt: WindowOpts) {
+    this.updateSubWindowState(opt.path, true);
     window['subWindow'].open(opt);
   }
 
@@ -139,12 +147,84 @@ export class UiService {
     //   this.openTerminal();
     //   return;
     // }
+    const toolWindowPath = this.getToolWindowPath(name);
+    if (this.isMainWindow && toolWindowPath && window['subWindow']?.focus) {
+      void window['subWindow'].focus(toolWindowPath)
+        .then((focused: boolean) => {
+          if (!focused) {
+            this.openToolInMainWindow(name);
+          }
+        })
+        .catch(() => this.openToolInMainWindow(name));
+      return;
+    }
+
+    this.openToolInMainWindow(name);
+  }
+
+  private openToolInMainWindow(name: string) {
     this.openToolList = this.openToolList.filter((e) => e !== name);
     this.openToolList.push(name);
     this.actionSubject.next({ action: 'open', type: 'tool', data: name });
   }
 
-  // 如果其它组件/程序要关闭工具，调用这个方法
+  private getToolWindowPath(name: string): string | null {
+    const childToolConfig = getChildToolConfig(name);
+    if (childToolConfig) {
+      return childToolConfig.routePath || `/child-tool/${childToolConfig.id}`;
+    }
+
+    switch (name) {
+      case 'code-viewer':
+      case 'serial-monitor':
+      case 'ffs-manager':
+      case 'simulator':
+      case 'model-store':
+        return `/${name}`;
+      default:
+        return null;
+    }
+  }
+
+  private normalizeToolWindowPath(path: string | null | undefined): string | null {
+    if (typeof path !== 'string') {
+      return null;
+    }
+    const trimmedPath = path.trim();
+    if (!trimmedPath) {
+      return null;
+    }
+    const hashRouteIndex = trimmedPath.indexOf('#/');
+    const routePath = hashRouteIndex >= 0 ? trimmedPath.slice(hashRouteIndex + 2) : trimmedPath;
+    return `/${routePath.replace(/^\/+/, '')}`;
+  }
+
+  private updateSubWindowState(path: string | null | undefined, open: boolean) {
+    const normalizedPath = this.normalizeToolWindowPath(path);
+    if (!normalizedPath) {
+      return;
+    }
+
+    const isOpen = this.openWindowPathList.includes(normalizedPath);
+    if (open && !isOpen) {
+      this.openWindowPathList.push(normalizedPath);
+      this.actionSubject.next({ action: 'open', type: 'sub-window', data: normalizedPath });
+    } else if (!open && isOpen) {
+      this.openWindowPathList = this.openWindowPathList.filter((path) => path !== normalizedPath);
+      this.actionSubject.next({ action: 'close', type: 'sub-window', data: normalizedPath });
+    }
+  }
+
+  private isToolWindowOpen(name: string): boolean {
+    const toolWindowPath = this.getToolWindowPath(name);
+    if (!toolWindowPath) {
+      return false;
+    }
+
+    const normalizedPath = this.normalizeToolWindowPath(toolWindowPath);
+    return !!normalizedPath && this.openWindowPathList.includes(normalizedPath);
+  }
+
   closeTool(name: string) {
     if (name == 'terminal') {
       this.closeTerminal();
@@ -183,7 +263,7 @@ export class UiService {
 
   // 判断某个工具是否打开
   isToolOpen(name: string): boolean {
-    return this.openToolList.includes(name);
+    return this.openToolList.includes(name) || this.isToolWindowOpen(name);
   }
 
   turnBottomSider(data = 'default') {

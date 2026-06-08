@@ -11,6 +11,7 @@ import { LogComponent } from '../tools/log/log.component';
 import { UiService } from '../services/ui.service';
 import { SerialMonitorComponent } from '../tools/serial-monitor/serial-monitor.component';
 import { FfsManagerComponent } from '../tools/ffs-manager/ffs-manager.component';
+import { ChildToolHostComponent } from '../tools/child-tool-host/child-tool-host.component';
 import { CodeViewerComponent } from '../editors/blockly-editor/tools/code-viewer/code-viewer.component';
 import { ProjectService } from '../services/project.service';
 import { SimplebarAngularModule } from 'simplebar-angular';
@@ -30,6 +31,7 @@ import { ModelStoreComponent } from '../tools/model-store/model-store.component'
 import { OnboardingComponent } from '../components/onboarding/onboarding.component';
 import { OnboardingService } from '../services/onboarding.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { isChildTool } from '../configs/tool.config';
 
 @Component({
   selector: 'app-main-window',
@@ -45,6 +47,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
     LogComponent,
     SerialMonitorComponent,
     FfsManagerComponent,
+    ChildToolHostComponent,
     CodeViewerComponent,
     SimplebarAngularModule,
     AppStoreComponent,
@@ -77,6 +80,10 @@ export class MainWindowComponent {
 
   get openToolList() {
     return this.uiService.openToolList;
+  }
+
+  isChildTool(toolId: string): boolean {
+    return isChildTool(toolId);
   }
 
   options = {

@@ -1,0 +1,29 @@
+:root {
+  --bg: #f4f6f8;
+  --bg-soft: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-hover: #eef3f7;
+  --line: #d7dee6;
+  --text: #1c2630;
+  --muted: #647283;
+  --primary: #1377bd;
+  --primary-strong: #0b609e;
+  --ok: #12805a;
+  --warn: #a86f00;
+  --danger: #c93d3d;
+  --chip-app: #5967d8;
+  --chip-spiffs: #1681c4;
+  --chip-littlefs: #12805a;
+  --chip-fatfs: #b27610;
+  --shadow: 0 14px 34px rgba(33, 47, 66, 0.14);
+  --aily-bg-primary: #f4f6f8;
+  --aily-bg-elevated: #ffffff;
+  --aily-bg-tertiary: #eef3f7;
+  --aily-text-primary: #1c2630;
+  --aily-text-secondary: #465568;
+  --aily-text-tertiary: #647283;
+  --aily-border-input: #d7dee6;
+  --aily-border-color: rgba(33, 47, 66, 0.12);
+  --aily-color-primary: #1377bd;
+  --aily-scrollbar-thumb: #aab6c4;
+}

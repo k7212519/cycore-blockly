@@ -1,0 +1,20 @@
+{
+  "name": "@aily-project/network-debugger-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Network debugger backend for Aily Blockly",
+  "main": "index.js",
+  "bin": {
+    "aily-network-debugger": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js rpc",
+    "serve": "node index.js serve",
+    "cli": "node index.js",
+    "request": "node index.js request"
+  },
+  "dependencies": {
+    "penpal": "^7.0.6",
+    "ws": "^8.21.0"
+  }
+}

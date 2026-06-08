@@ -1,7 +1,7 @@
 <div class="main-window-box animate__animated animate__fadeIn">
   <app-header></app-header>
   <div class="content-box">
-    <nz-layout>
+    <nz-layout [class.app-layout-has-sider]="showRbox">
       <nz-content>
         <div class="middle-box">
           <ngx-simplebar [options]="options">
@@ -67,6 +67,9 @@
         <div class="right-box">
           @for (tool of openToolList; track tool) {
           <div class="tool-panel" [style.z-index]="tool === topTool ? 100 : 1">
+            @if (isChildTool(tool)) {
+            <app-child-tool-host [toolId]="tool"></app-child-tool-host>
+            } @else {
             @switch (tool) {
             @case ("code-viewer") {
             <app-code-viewer></app-code-viewer>
@@ -94,6 +97,7 @@
             }
             @case ("user-center") {
             <app-user-center></app-user-center>
+            }
             }
             }
           </div>

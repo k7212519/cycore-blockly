@@ -180,6 +180,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     });
     return {
       open: (options) => ipcRenderer.send("window-open", options),
+      focus: (path) => ipcRenderer.invoke("window-focus-by-url", path),
       close: () => ipcRenderer.send("window-close"),
       onInitData: (callback) => {
         _initDataCallback = callback;
@@ -281,22 +282,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     async: (pattern, options = {}) => {
       return ipcRenderer.invoke("glob-search-async", pattern, options);
     }
-  },
-  ble: {
-    onDeviceList: (callback) => {
-      const listener = (_event, devices) => {
-        console.log('[BLE:preload] device list from main:', Array.isArray(devices) ? devices.length : 'invalid', devices);
-        callback(devices);
-      };
-      ipcRenderer.on('ble-device-list', listener);
-      return () => ipcRenderer.removeListener('ble-device-list', listener);
-    },
-    selectDevice: (deviceId) => ipcRenderer.invoke('ble-select-device', deviceId),
-    setPreferredDevice: (deviceId) => ipcRenderer.invoke('ble-set-preferred-device', deviceId),
-    cancelDeviceRequest: () => ipcRenderer.invoke('ble-cancel-device-request'),
-    startDeviceListUpdates: () => ipcRenderer.invoke('ble-start-device-list-updates'),
-    stopDeviceListUpdates: () => ipcRenderer.invoke('ble-stop-device-list-updates'),
-    debugState: () => ipcRenderer.invoke('ble-debug-state'),
   },
   wifi: {
 

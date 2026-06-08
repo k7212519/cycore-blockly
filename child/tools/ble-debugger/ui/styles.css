@@ -1,0 +1,489 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --panel-soft: #f8fafc;
+  --text: #1f2937;
+  --muted: #64748b;
+  --border: #d8dee8;
+  --primary: #1677ff;
+  --ok: #18a058;
+  --warn: #b7791f;
+  --danger: #d93025;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181f;
+    --panel: #1d232d;
+    --panel-soft: #151b23;
+    --text: #e5edf7;
+    --muted: #95a3b7;
+    --border: #303a49;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+button.primary {
+  color: #ffffff;
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+button.active {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  outline: none;
+  color: var(--text);
+  background: var(--panel-soft);
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.ble-debugger {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 46px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.status-strip,
+.actions,
+.title-actions,
+.operation-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status,
+.pid {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-soft);
+  white-space: nowrap;
+}
+
+.status.ready {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.status.error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.mono {
+  font-family: Consolas, Monaco, "Courier New", monospace;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(260px, 1.25fr);
+  grid-template-rows: minmax(260px, 1fr) minmax(190px, 0.58fr);
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+  padding: 8px;
+}
+
+.panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.panel-title,
+.result-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 22px;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.field-row,
+.field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.field-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(130px, auto);
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field span,
+.check-field {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  white-space: nowrap;
+}
+
+.check-field input {
+  width: 14px;
+  min-height: 14px;
+  margin: 0;
+}
+
+.device-list,
+.gatt-list,
+.log-list {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.device-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 34px;
+  gap: 6px;
+  width: 100%;
+  min-height: 50px;
+  margin-bottom: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  text-align: left;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.device-row.active {
+  border-color: var(--primary);
+}
+
+.device-row.connected {
+  border-color: var(--ok);
+}
+
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.signal.strong {
+  color: var(--ok);
+}
+
+.signal.medium {
+  color: var(--warn);
+}
+
+.signal.weak {
+  color: var(--danger);
+}
+
+.device-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device-main strong,
+.device-main span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-main span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.icon-action,
+.device-action {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.connected-device,
+.selected-characteristic,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 5px;
+  color: var(--muted);
+  background: var(--panel-soft);
+}
+
+.connected-device strong,
+.connected-device span,
+.selected-characteristic span,
+.selected-characteristic strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.service-block {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.service-title {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 5px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.characteristic-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.46fr) minmax(0, 0.54fr);
+  width: 100%;
+  min-height: 38px;
+  margin-bottom: 5px;
+  padding: 5px 6px;
+  text-align: left;
+}
+
+.property-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.property-list code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.operation-panel .field.payload {
+  flex: 1;
+  min-height: 0;
+}
+
+.value-preview {
+  display: flex;
+  min-height: 76px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.value-preview pre {
+  min-height: 36px;
+  max-height: 78px;
+  margin: 0;
+  padding: 7px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 5px;
+  background: var(--panel-soft);
+}
+
+.value-preview code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.empty-state {
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 68px minmax(86px, 145px) minmax(0, 0.75fr);
+  gap: 8px;
+  align-items: start;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.log-row .time {
+  color: var(--muted);
+}
+
+.log-row .label,
+.log-row .detail,
+.log-row .value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-row .value {
+  grid-column: 3;
+  color: var(--text);
+}
+
+.log-row.error .label {
+  color: var(--danger);
+}
+
+.log-row.rx .label,
+.log-row.notify .label {
+  color: var(--ok);
+}
+
+.log-row.tx .label {
+  color: var(--primary);
+}
+
+.log-row.scan .label,
+.log-row.connect .label {
+  color: var(--warn);
+}
+
+.overlay {
+  position: absolute;
+  inset: 48px 8px 8px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+}
+
+.ble-debugger.loading .overlay,
+.ble-debugger.failed .overlay {
+  display: flex;
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .status-strip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 0.8fr) minmax(260px, 1fr) auto minmax(180px, 0.6fr);
+  }
+
+  .field-row,
+  .field-grid,
+  .characteristic-row,
+  .log-row {
+    grid-template-columns: 1fr;
+  }
+
+  .log-row .value {
+    grid-column: 1;
+  }
+}

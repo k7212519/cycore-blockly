@@ -167,6 +167,10 @@ app-guide {
 nz-layout {
   height: 100%;
 
+  &.app-layout-has-sider {
+    flex-direction: row;
+  }
+
   nz-content {
     height: 100%;
   }
