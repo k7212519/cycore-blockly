@@ -55,7 +55,7 @@ export class NpmService {
   }
 
   private clampProgress(value: number): number {
-    return Math.max(0, Math.min(100, Math.floor(value)));
+    return Math.max(0, Math.min(100, Math.round(value)));
   }
 
   private updateBoardDependencyNotice(progress: BoardDependencyInstallProgress, value: number) {
@@ -76,18 +76,19 @@ export class NpmService {
       return null;
     }
 
-    if (/^下载完成[:：]/i.test(text)) {
+    if (/^(下载完成|Download complete)[:：]/i.test(text)) {
       return { phase: 'download', percent: 100 };
     }
 
-    const match = text.match(/^(下载进度|解压进度)[:：]\s*(\d+(?:\.\d+)?)/i);
+    const match = text.match(/^(下载进度|Download progress|解压进度|Extract progress)[:：]?\s*(\d+(?:\.\d+)?)/i);
     if (!match) {
       return null;
     }
 
     const percent = Math.max(0, Math.min(100, Number(match[2])));
+    const isDownload = /^(下载进度|Download progress)/i.test(match[1]);
     return {
-      phase: match[1].startsWith('下载') ? 'download' : 'extract',
+      phase: isDownload ? 'download' : 'extract',
       percent
     };
   }
@@ -106,6 +107,8 @@ export class NpmService {
     if (parsed.phase === 'download') {
       progress.downloadProgress = Math.max(progress.downloadProgress, parsed.percent);
     } else {
+      // 收到解压进度说明下载必然已完成，避免 downloadProgress=0 导致整体进度偏低
+      progress.downloadProgress = 100;
       progress.extractProgress = Math.max(progress.extractProgress, parsed.percent);
     }
 
@@ -383,7 +386,7 @@ export class NpmService {
             name: dependency.name,
             downloadProgress: 0,
             extractProgress: 0,
-            lastProgress: this.clampProgress((index / dependenciesToInstall.length) * 100)
+            lastProgress: Math.max(1, this.clampProgress((index / dependenciesToInstall.length) * 100))
           };
           this.boardDependencyInstallProgress = progress;
 
