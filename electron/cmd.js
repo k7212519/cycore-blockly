@@ -1,10 +1,24 @@
 const { spawn, exec } = require('child_process');
 const { ipcMain } = require('electron');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { isWin32, isDarwin, isLinux } = require('./platform');
 
 function summarizeArgs(args = []) {
   return args.join(' ').slice(0, 1000);
+}
+
+function buildCommandEnv(extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv };
+  if (isDarwin) {
+    const zdotdir = path.join(os.tmpdir(), 'aily-blockly-zsh');
+    try {
+      fs.mkdirSync(zdotdir, { recursive: true });
+    } catch (_) {}
+    env.ZDOTDIR = zdotdir;
+  }
+  return env;
 }
 
 function killRegisteredProcessTree(pid, label) {
@@ -200,7 +214,7 @@ class CommandManager {
     
     const child = spawn(command, args, {
       cwd: cwd || process.cwd(),
-      env: { ...process.env, ...env },
+      env: buildCommandEnv(env),
       shell: shell,
       stdio: ['pipe', 'pipe', 'pipe']
     });
