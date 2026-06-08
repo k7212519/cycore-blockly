@@ -192,7 +192,6 @@
     "watch": "ng build --watch --configuration development",
     "electron": "concurrently \"npm start\" \"wait-on tcp:4200 && electron ./electron/main.js --serve\"",
     "install:tools": "node ./scripts/install-tools.js",
-    "install:ffs-manager": "npm install --prefix child/tools/ffs-manager",
     "build": "ng build --base-href ./ && electron-builder build",
     "build:cn": "node ./scripts/build-electron.js --flavor cn",
     "build:global": "node ./scripts/build-electron.js --flavor global",
