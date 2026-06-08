@@ -75,6 +75,7 @@ $header-inner-height: 38px;
   .toolbox {
     position: relative;
     display: flex;
+    align-items: center;
     height: 100%;
     background: var(--aily-bg-primary);
 
@@ -127,16 +128,10 @@ $header-inner-height: 38px;
   padding-top: 1px;
 }
 
-.appStoreBtn {
-  padding-left:12px;
-  border-left: 1px solid var(--aily-border-primary);
-  height: 24px !important;
-}
-
 .win-btns {
   display: flex;
   align-items: center;
-  margin-left: 15px;
+  margin-left: 10px;
   font-size: 15px;
 
   .btn {
