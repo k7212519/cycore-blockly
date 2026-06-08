@@ -1,0 +1,23 @@
+{
+  "name": "@aily-project/ffs-manager-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FFS manager child tool backend for Aily Blockly",
+  "main": "index.js",
+  "bin": {
+    "aily-ffs-manager": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js rpc",
+    "serve": "node index.js serve",
+    "cli": "node index.js",
+    "ports": "node index.js ports"
+  },
+  "dependencies": {
+    "@abandonware/noble": "^1.9.2-26",
+    "esptool-js": "^0.6.0",
+    "penpal": "^7.0.6",
+    "serialport": "^13.0.0",
+    "ws": "^8.21.0"
+  }
+}

@@ -134,6 +134,10 @@ class SkillRegistryImpl {
       this.scanDirectory(builtinDir, { type: 'builtin' });
     }
 
+    for (const childToolSkillDir of this.getChildToolSkillDirs()) {
+      this.scanDirectory(childToolSkillDir, { type: 'builtin' });
+    }
+
     // 1. 加载全局 skills（用户在 AppData 下自定义的）
     const globalDir = this.getGlobalSkillsDir();
     if (globalDir) {
@@ -228,7 +232,35 @@ class SkillRegistryImpl {
     return null;
   }
 
-  /** 全局 skills 目录：${appDataPath}/aily-skills/ */
+  /** Child tool skills live under child/tools/<tool-id>/skill/<skill-name>/SKILL.md. */
+  private getChildToolSkillDirs(): string[] {
+    const host = AilyHost.get();
+    const childPath = host.path?.getAilyChildPath?.();
+    if (!childPath) return [];
+
+    const indexPath = host.path.join(childPath, 'tools', 'index.json');
+    if (!host.fs.existsSync(indexPath)) return [];
+
+    try {
+      const raw = host.fs.readFileSync(indexPath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      const source = parsed?.tools || parsed;
+      const configs = Array.isArray(source) ? source : Object.values(source || {});
+
+      return configs
+        .map((config: any) => {
+          const toolId = config?.id;
+          const childDir = config?.childDir || (toolId ? host.path.join('tools', toolId) : '');
+          return childDir ? host.path.join(childPath, childDir, 'skill') : '';
+        })
+        .filter((dir: string): dir is string => !!dir && host.fs.existsSync(dir));
+    } catch (error) {
+      console.warn('[SkillRegistry] Failed to scan child tool skills:', error);
+      return [];
+    }
+  }
+
+  /** Global skills directory: {appDataPath}/aily-skills/. */
   private getGlobalSkillsDir(): string | null {
     const host = AilyHost.get();
     const appDataPath = host.path?.getAppDataPath?.();

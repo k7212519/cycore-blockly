@@ -1,0 +1,19 @@
+{
+  "name": "@aily-project/mqtt-debugger-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MQTT debugger backend for Aily Blockly",
+  "main": "index.js",
+  "bin": {
+    "aily-mqtt-debugger": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js rpc",
+    "serve": "node index.js serve",
+    "cli": "node index.js"
+  },
+  "dependencies": {
+    "penpal": "^7.0.6",
+    "ws": "^8.21.0"
+  }
+}

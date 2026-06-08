@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flash Filesystem Device Debugger"
+  short_description: "Debug ESP MCU flash partitions and filesystems."
+  default_prompt: "Use $flash-filesystem-device-debugger to debug an ESP flash filesystem workflow."

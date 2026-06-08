@@ -1,0 +1,49 @@
+:root {
+  color-scheme: dark;
+  --aily-bg-primary: #2b2d30;
+  --aily-bg-secondary: #323437;
+  --aily-bg-tertiary: #3a3c3f;
+  --aily-bg-elevated: #1f1f1f;
+  --aily-bg-input: #363636;
+  --aily-bg-hover: #405e8d;
+  --aily-bg-active: #007acc;
+
+  --aily-text-primary: #ffffff;
+  --aily-text-secondary: #999999;
+  --aily-text-tertiary: #cccccc;
+  --aily-text-disabled: #666666;
+
+  --aily-border-input: #434343;
+  --aily-border-subtle: #505050;
+
+  --aily-color-primary: #007bff;
+  --aily-color-primary-alt: #348ce9;
+  --aily-color-warning: #f7ce42;
+  --aily-color-success-alt: #10b981;
+  --aily-color-error-bright: rgb(210, 0, 0);
+
+  --aily-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --aily-scrollbar-thumb-hover: #777777;
+  --aily-shadow-lg: 0 0 5px #111111;
+
+  --bg: var(--aily-bg-primary);
+  --panel: var(--aily-bg-elevated);
+  --panel-soft: var(--aily-bg-tertiary);
+  --panel-muted: var(--aily-bg-secondary);
+  --text: var(--aily-text-primary);
+  --muted: var(--aily-text-secondary);
+  --muted-strong: var(--aily-text-tertiary);
+  --border: var(--aily-border-input);
+  --border-soft: rgba(127, 127, 127, 0.08);
+  --primary: var(--aily-color-primary);
+  --primary-strong: var(--aily-color-primary-alt);
+  --primary-soft: rgba(77, 178, 255, 0.16);
+  --ok: var(--aily-color-success-alt);
+  --warn: var(--aily-color-warning);
+  --danger: #ff6b6b;
+  --danger-strong: var(--aily-color-error-bright);
+  --danger-soft: rgba(255, 138, 101, 0.12);
+  --control-hover: rgba(127, 127, 127, 0.18);
+  --selected-bg: rgba(77, 178, 255, 0.18);
+  --shadow: var(--aily-shadow-lg);
+}

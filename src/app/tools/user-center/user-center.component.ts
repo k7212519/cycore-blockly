@@ -15,6 +15,7 @@ import { UiService } from '../../services/ui.service';
 import { NzToolTipModule } from "ng-zorro-antd/tooltip";
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { resolveTranslatedApiErrorMessage } from '../../utils/api-error.utils';
+import { ToolI18nService } from '../../services/tool-i18n.service';
 
 @Component({
   selector: 'app-user-center',
@@ -63,12 +64,15 @@ export class UserCenterComponent {
   benefits: any = null;
 
   constructor(
-    private uiService: UiService
+    private uiService: UiService,
+    private toolI18n: ToolI18nService
   ) {
 
   }
 
   async ngOnInit() {
+    await this.toolI18n.load('user-center');
+
     // 首先检查并同步登录状态
     await this.checkAndSyncAuthStatus();
 

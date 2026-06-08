@@ -1,0 +1,84 @@
+{
+  "mqtt-debugger": {
+    "id": "mqtt-debugger",
+    "titleKey": "MQTT_DEBUGGER.TITLE",
+    "namespace": "MQTT_DEBUGGER",
+    "app": {
+      "name": "MQTT_DEBUGGER.TITLE",
+      "description": "MQTT_DEBUGGER.DESCRIPTION",
+      "icon": "fa-light fa-tower-broadcast",
+      "enabled": true
+    },
+    "childDir": "tools/mqtt-debugger",
+    "routePath": "/child-tool/mqtt-debugger",
+    "requiredDependencies": ["ws", "penpal"],
+    "installHint": "Run npm run install:mqtt-debugger in the project root."
+  },
+  "network-debugger": {
+    "id": "network-debugger",
+    "titleKey": "NETWORK_DEBUGGER.TITLE",
+    "namespace": "NETWORK_DEBUGGER",
+    "app": {
+      "name": "NETWORK_DEBUGGER.TITLE",
+      "description": "NETWORK_DEBUGGER.DESCRIPTION",
+      "icon": "fa-light fa-network-wired",
+      "enabled": true
+    },
+    "childDir": "tools/network-debugger",
+    "routePath": "/child-tool/network-debugger",
+    "requiredDependencies": ["ws", "penpal"],
+    "installHint": "Run npm run install:network-debugger in the project root."
+  },
+  "industrial-bus-debugger": {
+    "id": "industrial-bus-debugger",
+    "titleKey": "INDUSTRIAL_BUS_DEBUGGER.TITLE",
+    "namespace": "INDUSTRIAL_BUS_DEBUGGER",
+    "app": {
+      "name": "INDUSTRIAL_BUS_DEBUGGER.TITLE",
+      "description": "INDUSTRIAL_BUS_DEBUGGER.DESCRIPTION",
+      "icon": "fa-light fa-microchip",
+      "enabled": true
+    },
+    "childDir": "tools/industrial-bus-debugger",
+    "routePath": "/child-tool/industrial-bus-debugger",
+    "requiredDependencies": ["ws", "penpal"],
+    "installHint": "Run npm run install:industrial-bus-debugger in the project root."
+  },
+  "ble-debugger": {
+    "id": "ble-debugger",
+    "titleKey": "BLE_DEBUGGER.TITLE",
+    "namespace": "BLE_DEBUGGER",
+    "app": {
+      "name": "BLE_DEBUGGER.TITLE",
+      "description": "BLE_DEBUGGER.DESCRIPTION",
+      "icon": "fa-light fa-bluetooth",
+      "enabled": true
+    },
+    "childDir": "tools/ble-debugger",
+    "routePath": "/child-tool/ble-debugger",
+    "requiredDependencies": ["@abandonware/noble", "ws", "penpal"],
+    "installHint": "Run npm run install:ble-debugger in the project root.",
+    "env": {
+      "AILY_BLE_DEBUGGER": "1"
+    }
+  },
+  "ffs-manager-child": {
+    "id": "ffs-manager-child",
+    "titleKey": "FFS_MANAGER.CHILD_TITLE",
+    "namespace": "FFS_MANAGER",
+    "app": {
+      "name": "FFS_MANAGER.CHILD_TITLE",
+      "description": "FFS_MANAGER.CHILD_DESCRIPTION",
+      "icon": "fa-light fa-database",
+      "enabled": true
+    },
+    "childDir": "tools/ffs-manager",
+    "routePath": "/child-tool/ffs-manager-child",
+    "requiredDependencies": ["@abandonware/noble", "esptool-js", "serialport", "ws", "penpal"],
+    "installHint": "Run npm run install:ffs-manager in the project root.",
+    "startupTimeoutMs": 10000,
+    "env": {
+      "AILY_FFS_MANAGER": "1"
+    }
+  }
+}

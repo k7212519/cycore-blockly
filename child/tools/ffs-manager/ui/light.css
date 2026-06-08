@@ -1,0 +1,79 @@
+:root {
+  --aily-bg-primary: #e8e8e8;
+  --aily-bg-secondary: #e0e0e0;
+  --aily-bg-tertiary: #d6d6d6;
+  --aily-bg-elevated: #ededed;
+  --aily-bg-input: #f5f5f5;
+  --aily-bg-hover: #7bb6ee;
+  --aily-bg-active: #3893d8;
+  --aily-bg-overlay: rgba(0, 0, 0, 0.45);
+  --aily-bg-card: #d6d6d6;
+
+  --aily-text-primary: #2e2e2e;
+  --aily-text-secondary: #555555;
+  --aily-text-tertiary: #636363;
+  --aily-text-quaternary: #404040;
+  --aily-text-disabled: #909090;
+  --aily-text-muted: #6a6a6a;
+  --aily-text-hint: #7a7a7a;
+
+  --aily-border-primary: #d0d0d0;
+  --aily-border-secondary: #c8c8c8;
+  --aily-border-tertiary: #bfbfbf;
+  --aily-border-input: #b8b8b8;
+  --aily-border-subtle: #d0d0d0;
+  --aily-border-active: #b0b0b0;
+
+  --aily-color-link: #0078d4;
+  --aily-color-link-hover: #005fb8;
+  --aily-color-accent: #0078d4;
+  --aily-color-primary: #0078d4;
+  --aily-color-primary-alt: #005fb8;
+  --aily-color-warning: #d49a10;
+  --aily-color-warning-alt: #b87d06;
+  --aily-color-error: #c02020;
+  --aily-color-error-bright: #d41400;
+  --aily-color-error-notice: #b87d06;
+  --aily-color-success: #2e7a2a;
+  --aily-color-success-alt: #256d22;
+
+  --aily-scrollbar-thumb: rgba(80, 80, 80, 0.35);
+  --aily-scrollbar-thumb-hover: rgba(80, 80, 80, 0.55);
+  --aily-scrollbar-track: transparent;
+  --aily-scrollbar-track-alt: #e0e0e0;
+
+  --aily-menu-hover: #c5ddf3;
+  --aily-menu-text: #2e2e2e;
+  --aily-menu-text-secondary: #636363;
+  --aily-menu-separator: #c8c8c8;
+
+  --aily-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --aily-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --aily-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.18);
+
+  --aily-loading-dot: #0078d4;
+  --aily-editor-bg: #f0f0f0;
+  --aily-editor-flyout-bg: #e0e0e0;
+  --aily-icon-color: #555555;
+  --aily-tab-active-text: #2e2e2e;
+  --aily-tab-inactive-text: #7a7a7a;
+  --aily-highlight-bg: rgba(0, 0, 0, 0.09);
+
+  --bg: var(--aily-bg-primary);
+  --bg-soft: var(--aily-bg-tertiary);
+  --bg-panel: var(--aily-bg-elevated);
+  --bg-hover: var(--aily-bg-hover);
+  --line: var(--aily-border-input);
+  --text: var(--aily-text-primary);
+  --muted: var(--aily-text-secondary);
+  --primary: var(--aily-color-primary);
+  --primary-strong: var(--aily-color-primary-alt);
+  --ok: var(--aily-color-success-alt);
+  --warn: var(--aily-color-warning);
+  --danger: #ff6b6b;
+  --chip-app: #b388ff;
+  --chip-spiffs: #4db2ff;
+  --chip-littlefs: #50c878;
+  --chip-fatfs: #ffd166;
+  --shadow: var(--aily-shadow-lg);
+}

@@ -123,8 +123,6 @@ export class UploaderBleService implements BleOtaTransport {
   private scanPromise: Promise<BleOtaDeviceItem> | null = null;
   private searching = false;
   private scanTimeoutTimer: any = null;
-  private bridgeInitialized = false;
-  private removeBridgeDeviceListListener?: () => void;
   private emitLogTimer: any = null;
 
   private server: any = null;
@@ -275,7 +273,6 @@ export class UploaderBleService implements BleOtaTransport {
     this.debug('beginScan called', {
       hasBluetooth: !!bluetooth,
       hasRequestDevice: !!bluetooth?.requestDevice,
-      hasBridge: !!window['ble']?.onDeviceList,
       userAgent: navigator.userAgent,
     });
 
@@ -283,11 +280,6 @@ export class UploaderBleService implements BleOtaTransport {
       throw new Error(this.t('WEB_BLUETOOTH_UNSUPPORTED'));
     }
 
-    if (this.isElectronRuntime() && !window['ble']?.onDeviceList) {
-      throw new Error(this.t('SCAN_BRIDGE_MISSING'));
-    }
-
-    this.setupElectronBluetoothBridge();
     this.discoveredDevices.clear();
     this.startSearchWindow(timeoutMs);
 
@@ -297,12 +289,6 @@ export class UploaderBleService implements BleOtaTransport {
     };
 
     this.debug('calling navigator.bluetooth.requestDevice', requestOptions);
-
-    window['ble']?.debugState?.().then(state => {
-      this.debug('main debug state before requestDevice', state);
-    }).catch(error => {
-      this.debug('main debug state failed', error?.message || error);
-    });
 
     this.scanPromise = bluetooth.requestDevice(requestOptions)
       .then((device: any) => {
@@ -323,7 +309,6 @@ export class UploaderBleService implements BleOtaTransport {
         this.debug('requestDevice finished');
         this.clearSearchTimeout();
         this.searching = false;
-        window['ble']?.stopDeviceListUpdates?.().catch?.(() => undefined);
         this.scanPromise = null;
         this.emitDevices(false);
       });
@@ -337,10 +322,6 @@ export class UploaderBleService implements BleOtaTransport {
     try {
       this.clearSearchTimeout();
       this.searching = false;
-      await window['ble']?.stopDeviceListUpdates?.().catch?.(() => undefined);
-      if (window['ble']?.cancelDeviceRequest) {
-        await window['ble'].cancelDeviceRequest();
-      }
     } catch (error) {
       console.warn('取消 BLE 扫描失败:', error);
     } finally {
@@ -781,7 +762,7 @@ export class UploaderBleService implements BleOtaTransport {
         return this.authorizeDiscoveredDevice(discovered, progress);
       }
 
-      if (id && this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
+      if (id) {
         return this.authorizeRememberedDevice(id, deviceName || device?.name, progress);
       }
 
@@ -836,32 +817,16 @@ export class UploaderBleService implements BleOtaTransport {
     const startedSearchWindow = !this.searching;
 
     try {
-      this.setupElectronBluetoothBridge();
       if (startedSearchWindow) {
         this.discoveredDevices.clear();
         this.searching = true;
         this.emitDevices(true);
-      }
-      // 注意: 必须保持 requestDevice 处于用户手势同步调用栈中。
-      // 任何 await 都可能消耗 Chromium 的 transient user activation，
-      // 触发 "Must be handling a user gesture to show a permission request"。
-      // 因此 setPreferredDevice 走 fire-and-forget; IPC 消息会在同一 tick 同步派发到主进程，
-      // 主进程在收到 select-bluetooth-device 事件时再读取 preferred 列表，时序上足够。
-      if (this.isElectronRuntime() && window['ble']?.setPreferredDevice) {
-        Promise.resolve(window['ble'].setPreferredDevice(preferredDevice.id))
-          .then((result: any) => {
-            if (result?.success === false) {
-              this.debug('setPreferredDevice rejected by main', result?.error);
-            }
-          })
-          .catch((error: any) => this.debug('setPreferredDevice failed', error?.message || error));
       }
 
       const requestPromise = bluetooth.requestDevice(requestOptions);
       const timeoutPromise = new Promise<never>((_resolve, reject) => {
         timeoutTimer = setTimeout(() => {
           timedOut = true;
-          window['ble']?.cancelDeviceRequest?.().catch?.(() => undefined);
           reject(new Error(this.t('CONFIRM_DEVICE_TIMEOUT')));
         }, DEVICE_AUTHORIZATION_TIMEOUT_MS);
       });
@@ -889,7 +854,6 @@ export class UploaderBleService implements BleOtaTransport {
       }
       if (startedSearchWindow) {
         this.searching = false;
-        window['ble']?.stopDeviceListUpdates?.().catch?.(() => undefined);
         this.emitDevices(false);
       }
     }
@@ -1024,56 +988,17 @@ export class UploaderBleService implements BleOtaTransport {
     return updated;
   }
 
-  private cacheDiscoveredDevice(rawDevice: any): void {
-    const id = rawDevice.deviceId || rawDevice.id;
-    if (!id) return;
-    this.discoveredDevices.set(id, {
-      id,
-      name: rawDevice.deviceName || rawDevice.name || this.t('DEFAULT_DEVICE_NAME'),
-      source: 'electron-scan',
-    });
-  }
-
-  private setupElectronBluetoothBridge(): void {
-    if (this.bridgeInitialized) return;
-    this.bridgeInitialized = true;
-
-    if (!window['ble']?.onDeviceList) {
-      this.debug('electron BLE bridge missing');
-      return;
-    }
-
-    this.debug('register electron BLE device list listener');
-
-    this.removeBridgeDeviceListListener = window['ble'].onDeviceList((devices: any[]) => {
-      if (!this.searching) return;
-
-      this.debug('device list received from electron', {
-        count: Array.isArray(devices) ? devices.length : -1,
-        devices,
-      });
-      this.discoveredDevices.clear();
-      for (const device of devices || []) {
-        this.cacheDiscoveredDevice(device);
-      }
-      this.emitDevices(true);
-    });
-  }
-
   private startSearchWindow(timeoutMs: number): void {
     this.clearSearchTimeout();
     this.searching = true;
-    window['ble']?.startDeviceListUpdates?.().catch?.(() => undefined);
     this.emitDevices(true);
 
     this.scanTimeoutTimer = setTimeout(() => {
       this.searching = false;
-      window['ble']?.stopDeviceListUpdates?.().catch?.(() => undefined);
       this.debug('scan timeout reached', {
         timeoutMs,
         discoveredCount: this.discoveredDevices.size,
       });
-      window['ble']?.cancelDeviceRequest?.().catch?.(() => undefined);
       this.emitDevices(false);
     }, Math.max(0, timeoutMs));
   }
@@ -1138,10 +1063,6 @@ export class UploaderBleService implements BleOtaTransport {
 
   private getBluetooth(): any {
     return navigator?.['bluetooth'];
-  }
-
-  private isElectronRuntime(): boolean {
-    return !!window['ipcRenderer'] || navigator.userAgent.toLowerCase().includes(' electron/');
   }
 
   private isSelectedGattConnected(): boolean {

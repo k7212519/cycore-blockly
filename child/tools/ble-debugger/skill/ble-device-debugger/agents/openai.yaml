@@ -1,0 +1,4 @@
+interface:
+  display_name: "BLE Device Debugger"
+  short_description: "Develop and debug BLE device workflows."
+  default_prompt: "Use $ble-device-debugger to design and debug a BLE device workflow."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Network Device Debugger"
+  short_description: "Debug MCU HTTP and WebSocket workflows."
+  default_prompt: "Use $network-device-debugger to debug an MCU network workflow."
