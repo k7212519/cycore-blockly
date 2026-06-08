@@ -19,6 +19,7 @@ export interface AppStoreLayout {
 export const HEADER_APP_LIMIT = 8;
 
 export const APP_STORE_STORAGE_KEY = 'app-store-zones-config';
+export const TOOLBAR_APP_IDS_CONFIG_KEY = 'toolbarAppIds';
 
 export const APP_STORE_ZONES: AppStoreZone[] = [
   {
