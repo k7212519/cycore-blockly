@@ -787,9 +787,17 @@ ipcMain.on('renderer-ready', () => {
   }
 });
 
-// macos检查安装环境
-function macosInstallEnv(childPath) {
+// 检查并解压 child 目录下的平台组件包
+function installChildEnv(childPath, options) {
   const child_process = require("child_process");
+  const {
+    platformDir,
+    z7Name,
+    extraExtractArgs = [],
+    isNodeInstallComplete,
+    isProbeRsInstallComplete,
+    afterNodeInstall,
+  } = options;
 
   // 从文件名中提取版本号
   function extractVersion(filename, keyword) {
@@ -871,27 +879,51 @@ function macosInstallEnv(childPath) {
     }
   }
 
-  function ensure7zz() {
-    const z7Name = "7zz";
+  function ensure7z() {
     const z7Path = path.join(childPath, z7Name);
     if (fs.existsSync(z7Path)) {
       return z7Path;
     }
 
-    const z7SourcePath = path.join(childPath, "macos", z7Name);
+    const z7SourcePath = path.join(childPath, platformDir, z7Name);
     if (!fs.existsSync(z7SourcePath)) {
       return null;
     }
 
     try {
-      const escapeZ7SourcePath = escapePath(z7SourcePath);
-      const escapeZ7Path = escapePath(z7Path);
-      child_process.execSync(`cp ${escapeZ7SourcePath} ${escapeZ7Path}`, { stdio: 'inherit' });
-      child_process.execSync(`chmod +x ${escapeZ7Path}`, { stdio: 'inherit' });
-      console.log('安装 7zz 成功！');
+      fs.copyFileSync(z7SourcePath, z7Path);
+      if (!isWin32) {
+        fs.chmodSync(z7Path, 0o755);
+      }
+      console.log(`安装 ${z7Name} 成功！`);
       return z7Path;
     } catch (error) {
-      console.error("安装 7zz 失败，错误码:", error);
+      console.error(`安装 ${z7Name} 失败，错误码:`, error);
+      return null;
+    }
+  }
+
+  function ensureRg() {
+    const rgName = isWin32 ? "rg.exe" : "rg";
+    const rgPath = path.join(childPath, rgName);
+    if (fs.existsSync(rgPath)) {
+      return rgPath;
+    }
+
+    const rgSourcePath = path.join(childPath, platformDir, rgName);
+    if (!fs.existsSync(rgSourcePath)) {
+      return null;
+    }
+
+    try {
+      fs.copyFileSync(rgSourcePath, rgPath);
+      if (!isWin32) {
+        fs.chmodSync(rgPath, 0o755);
+      }
+      console.log(`安装 ${rgName} 成功！`);
+      return rgPath;
+    } catch (error) {
+      console.error(`安装 ${rgName} 失败，错误码:`, error);
       return null;
     }
   }
@@ -926,6 +958,22 @@ function macosInstallEnv(childPath) {
     }
   }
 
+  function run7zExtract(z7Path, extractArgs) {
+    const result = child_process.spawnSync(z7Path, extractArgs, {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status !== 0) {
+      const message = result.stderr?.toString()?.trim() || `exit code ${result.status}`;
+      throw new Error(message);
+    }
+  }
+
   function extract7zPackage(z7Path, archivePath, targetPath, keyword, validateComplete) {
     const archiveVersion = extractVersion(path.basename(archivePath), keyword);
     const installedVersion = readInstalledVersion(targetPath);
@@ -954,14 +1002,12 @@ function macosInstallEnv(childPath) {
     }
 
     try {
-      const escapeTargetPath = escapePath(targetPath);
-      const escapeArchivePath = escapePath(archivePath);
-      const escapeZ7Path = escapePath(z7Path);
-      // 7-Zip 25.01+ 默认拒绝解压符号链接，node 包的 npm/npx/corepack 依赖 bin 下的软链
-      child_process.execSync(
-        `mkdir -p ${escapeTargetPath} && ${escapeZ7Path} x ${escapeArchivePath} -o${escapeTargetPath} -t7z -y -snld20`,
-        { stdio: 'inherit' }
-      );
+      fs.mkdirSync(targetPath, { recursive: true });
+      const extractArgs = ["x", archivePath, `-o${targetPath}`, "-y", ...extraExtractArgs];
+      if (!isWin32) {
+        extractArgs.push("-t7z");
+      }
+      run7zExtract(z7Path, extractArgs);
 
       if (!validateComplete(targetPath)) {
         throw new Error(`${keyword} 解压后缺少关键文件`);
@@ -979,6 +1025,47 @@ function macosInstallEnv(childPath) {
     }
   }
 
+  function isAilyBuilderInstallComplete(targetPath) {
+    const requiredFiles = [
+      path.join(targetPath, "index.js"),
+      path.join(targetPath, "node_modules/tree-sitter/build/Release/tree_sitter_runtime_binding.node"),
+      path.join(targetPath, "node_modules/tree-sitter-cpp/build/Release/tree_sitter_cpp_binding.node"),
+    ];
+    return requiredFiles.every((filePath) => fs.existsSync(filePath));
+  }
+
+  const z7Path = ensure7z();
+  const sourceDir = path.join(childPath, serve ? platformDir : "");
+
+  const packages = [
+    { name: "node", afterExtract: afterNodeInstall },
+    { name: "aily-builder" },
+    { name: "probe-rs" },
+  ];
+  const validators = {
+    node: isNodeInstallComplete,
+    "aily-builder": isAilyBuilderInstallComplete,
+    "probe-rs": isProbeRsInstallComplete,
+  };
+
+  for (const pkg of packages) {
+    const targetPath = path.join(childPath, pkg.name);
+    const archivePath = findLatestVersionFile(sourceDir, pkg.name);
+    if (z7Path) {
+      extract7zPackage(z7Path, archivePath, targetPath, pkg.name, validators[pkg.name]);
+    } else {
+      console.error(`解压 ${pkg.name} 需要 ${z7Name}，但未找到`);
+    }
+    if (typeof pkg.afterExtract === "function") {
+      pkg.afterExtract(targetPath);
+    }
+  }
+
+  ensureRg();
+}
+
+// macos 检查安装环境
+function macosInstallEnv(childPath) {
   const NODE_BIN_LINKS = [
     ["corepack", "../lib/node_modules/corepack/dist/corepack.js"],
     ["npm", "../lib/node_modules/npm/bin/npm-cli.js"],
@@ -1077,60 +1164,39 @@ function macosInstallEnv(childPath) {
     }
   }
 
-  function isNodeInstallComplete(targetPath) {
-    const binPath = path.join(targetPath, "bin");
-    if (!fs.existsSync(path.join(binPath, "node"))) {
-      return false;
-    }
+  installChildEnv(childPath, {
+    platformDir: "macos",
+    z7Name: "7zz",
+    extraExtractArgs: ["-snld20"],
+    isNodeInstallComplete(targetPath) {
+      const binPath = path.join(targetPath, "bin");
+      if (!fs.existsSync(path.join(binPath, "node"))) {
+        return false;
+      }
 
-    return NODE_BIN_LINKS.every(([name, relativeTarget]) => (
-      isNodeBinEntryValid(binPath, name, relativeTarget)
-    ));
-  }
+      return NODE_BIN_LINKS.every(([name, relativeTarget]) => (
+        isNodeBinEntryValid(binPath, name, relativeTarget)
+      ));
+    },
+    isProbeRsInstallComplete(targetPath) {
+      return fs.existsSync(path.join(targetPath, "probe-rs"));
+    },
+    afterNodeInstall: ensureNodeBinExecutable,
+  });
+}
 
-  function isAilyBuilderInstallComplete(targetPath) {
-    const requiredFiles = [
-      path.join(targetPath, "index.js"),
-      path.join(targetPath, "node_modules/tree-sitter/build/Release/tree_sitter_runtime_binding.node"),
-      path.join(targetPath, "node_modules/tree-sitter-cpp/build/Release/tree_sitter_cpp_binding.node"),
-    ];
-    return requiredFiles.every((filePath) => fs.existsSync(filePath));
-  }
-
-  function isProbeRsInstallComplete(targetPath) {
-    return fs.existsSync(path.join(targetPath, "probe-rs"));
-  }
-
-  const z7Path = ensure7zz();
-  const sourceDir = path.join(childPath, serve ? "macos" : "");
-
-  const nodeName = "node";
-  const nodePath = path.join(childPath, nodeName);
-  const nodeZipPath = findLatestVersionFile(sourceDir, nodeName);
-  if (z7Path) {
-    extract7zPackage(z7Path, nodeZipPath, nodePath, nodeName, isNodeInstallComplete);
-  } else {
-    console.error(`解压 ${nodeName} 需要 7zz，但未找到`);
-  }
-  ensureNodeBinExecutable(nodePath);
-
-  const ailyBuilderName = "aily-builder";
-  const ailyBuilderPath = path.join(childPath, ailyBuilderName);
-  const ailyBuilderZipPath = findLatestVersionFile(sourceDir, ailyBuilderName);
-  if (z7Path) {
-    extract7zPackage(z7Path, ailyBuilderZipPath, ailyBuilderPath, ailyBuilderName, isAilyBuilderInstallComplete);
-  } else {
-    console.error(`解压 ${ailyBuilderName} 需要 7zz，但未找到`);
-  }
-
-  const probeRsName = "probe-rs";
-  const probeRsPath = path.join(childPath, probeRsName);
-  const probeRsZipPath = findLatestVersionFile(sourceDir, probeRsName);
-  if (z7Path) {
-    extract7zPackage(z7Path, probeRsZipPath, probeRsPath, probeRsName, isProbeRsInstallComplete);
-  } else {
-    console.error(`解压 ${probeRsName} 需要 7zz，但未找到`);
-  }
+// windows 检查安装环境
+function windowsInstallEnv(childPath) {
+  installChildEnv(childPath, {
+    platformDir: "windows",
+    z7Name: "7za.exe",
+    isNodeInstallComplete(targetPath) {
+      return fs.existsSync(path.join(targetPath, "node.exe"));
+    },
+    isProbeRsInstallComplete(targetPath) {
+      return fs.existsSync(path.join(targetPath, "probe-rs.exe"));
+    },
+  });
 }
 
 // 路径转义
@@ -1226,8 +1292,22 @@ function loadEnv() {
 
   registerAppDataResourceLockHandlers();
 
-  if (isDarwin) {
-    macosInstallEnv(childPath);
+  const runInstallEnv = () => {
+    try {
+      if (isDarwin) {
+        macosInstallEnv(childPath);
+      } else if (isWin32) {
+        windowsInstallEnv(childPath);
+      }
+    } catch (error) {
+      console.error("installEnv error: ", error);
+    }
+  };
+
+  if (serve) {
+    setImmediate(runInstallEnv);
+  } else {
+    runInstallEnv();
   }
 
   // 检测并读取appdata_path目录下是否有config.json文件
