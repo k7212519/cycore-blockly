@@ -653,7 +653,7 @@ export class NpmService {
 
   // 安装SDK
   async installSDK(sdk: any) {
-    await this.installPackage(sdk, this.translate.instant('NPM.TYPE_SDK'));
+    await this.installPackage(sdk, this.translate.instant('NPM.TYPE_SDK'), sdk?.version);
   }
 
   // 安装编译器
