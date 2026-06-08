@@ -186,7 +186,9 @@ export class HeaderComponent implements OnDestroy {
         this.cd.markForCheck();
       }, 0);
     })
-    this.checkAndSetDefaultPort();
+    if (this.electronService.isElectron) {
+      this.checkAndSetDefaultPort();
+    }
   }
 
   // 检查串口列表并设置默认串口

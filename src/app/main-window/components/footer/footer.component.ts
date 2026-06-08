@@ -22,8 +22,8 @@ export class FooterComponent {
     this.uiService.stateSubject.subscribe((state: ActionState) => {
       this.changeState(state);
     });
-    // 其他窗口通过electron侧改变主窗口状态
-    window['ipcRenderer'].on('state-update', (event, state: ActionState) => {
+    // 其他窗口通过 Electron 侧改变主窗口状态。网页模式下没有 ipcRenderer。
+    window['ipcRenderer']?.on?.('state-update', (event, state: ActionState) => {
       this.changeState(state);
     });
   }

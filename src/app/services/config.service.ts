@@ -49,8 +49,36 @@ export class ConfigService {
 
   async init() {
     if (!this.electronService.isElectron) {
-      console.log('[ConfigService] 非Electron环境，跳过数据加载，直接标记就绪');
-      // 非 Electron 环境下，跳过 loading 状态（没有数据源）
+      console.log('[ConfigService] 非Electron环境，从远程加载基础数据');
+      this.data = this.createBrowserDefaultConfig();
+      this.data["selectedLanguage"] = this.get_lang_filename(navigator.language);
+      setRegistryUrl(this.getCurrentNpmRegistry());
+      setServerUrl(this.getCurrentApiServer());
+      setToolWebUrl(this.getCurrentRegionConfig()?.tool_web || 'https://tool.aily.pro');
+
+      try {
+        const [boardList, libraryList] = await Promise.all([
+          this.loadBoardList(),
+          this.loadLibraryList()
+        ]);
+        this.boardList = boardList;
+        this.libraryList = libraryList;
+        this.boardDict = {};
+        this.boardList.forEach(board => {
+          this.boardDict[board.name] = board;
+        });
+        this.libraryDict = {};
+        this.libraryList.forEach(library => {
+          this.libraryDict[library.name] = library;
+        });
+      } catch (error) {
+        console.error('[ConfigService] 浏览器环境远程数据加载失败:', error);
+        this.boardList = [];
+        this.libraryList = [];
+        this.boardDict = {};
+        this.libraryDict = {};
+      }
+
       this._isDataReady = true;
       return;
     }
@@ -70,6 +98,57 @@ export class ConfigService {
     else lang = lang.toLowerCase();
 
     return lang;
+  }
+
+  private createBrowserDefaultConfig(): AppConfig {
+    return {
+      lang: 'zh_CN',
+      theme: 'default',
+      font: 'default',
+      platform: 'web',
+      appdata_path: {
+        win32: '',
+        darwin: '',
+        linux: ''
+      },
+      project_path: '',
+      region: 'cn',
+      regions: {
+        cn: {
+          name: 'China',
+          api_server: 'https://aapi.diandeng.tech',
+          web: 'https://aily.pro',
+          tool_web: 'https://tool.aily.pro',
+          npm_registry: 'https://registry.diandeng.tech',
+          resource: 'https://blockly.diandeng.tech',
+          updater: ''
+        },
+        eu: {
+          name: 'Europe',
+          api_server: 'https://api.aily.pro',
+          web: 'https://aily.pro',
+          tool_web: 'https://tool.aily.pro',
+          npm_registry: 'https://registry.aily.pro',
+          resource: 'https://rs1.aily.pro',
+          updater: ''
+        }
+      },
+      compile: {
+        verbose: true,
+        warnings: 'error'
+      },
+      upload: {
+        verbose: true,
+        warnings: 'error'
+      },
+      devmode: {
+        enabled: false,
+        autoSave: false
+      },
+      blockly: {
+        renderer: 'thrasos'
+      }
+    };
   }
 
   async load() {
@@ -986,6 +1065,7 @@ interface AppConfig {
     [key: string]: {
       name: string;
       api_server: string;
+      web?: string;
       tool_web: string;
       npm_registry: string;
       resource: string;

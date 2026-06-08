@@ -1672,6 +1672,9 @@ export class ProjectService {
   generateUniqueProjectName(prjPath, prefix = 'project_'): string {
     const baseDateStr = generateDateString();
     prefix = prefix + baseDateStr;
+    if (!window['path']?.isExists) {
+      return prefix + 'a';
+    }
     const pt = this.platformService.getPlatformSeparator();
 
     // 尝试使用字母后缀 a-z

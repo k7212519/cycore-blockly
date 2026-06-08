@@ -123,8 +123,8 @@ export class MainWindowComponent {
       this.cd.detectChanges();
     });
 
-    // 语言设置变化后，重新加载项目
-    window['ipcRenderer'].on('setting-changed', async (event, data) => {
+    // 语言设置变化后，重新加载项目。网页模式下没有 ipcRenderer。
+    window['ipcRenderer']?.on?.('setting-changed', async (event, data) => {
       await this.configService.load();
       if (data.action == 'language-changed' && this.router.url.includes('/main/blockly-editor')) {
         console.log('mainwindow setLanguage', data);

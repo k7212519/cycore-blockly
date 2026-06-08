@@ -10,8 +10,6 @@ import { ElectronService } from '../../services/electron.service';
 import Splide from '@splidejs/splide';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { OnboardingService } from '../../services/onboarding.service';
-import { GUIDE_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 
 @Component({
   selector: 'app-guide',
@@ -25,42 +23,6 @@ export class GuideComponent implements OnInit, AfterViewInit {
   showMenu = true;
   showMore = false;
   sponsors: any[] = [];
-  showImgUrl: string | null = null;
-  imgLoading = false;
-  private imgRetryCount = 0;
-  private readonly maxRetry = 1;
-
-  showImg(url: string) {
-    this.imgLoading = true;
-    this.imgRetryCount = 0;
-    this.showImgUrl = url;
-  }
-
-  hideImg() {
-    this.showImgUrl = null;
-    this.imgLoading = false;
-    this.imgRetryCount = 0;
-  }
-
-  onImgLoad() {
-    this.imgLoading = false;
-  }
-
-  onImgError() {
-    if (this.imgRetryCount < this.maxRetry && this.showImgUrl) {
-      this.imgRetryCount++;
-      const currentUrl = this.showImgUrl;
-      // 200ms 后重新加载
-      setTimeout(() => {
-        if (this.showImgUrl === currentUrl) {
-          // 添加时间戳强制重新加载
-          this.showImgUrl = currentUrl + (currentUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
-        }
-      }, 200);
-    } else {
-      this.imgLoading = false;
-    }
-  }
 
   get recentlyProjects() {
     return this.projectService.recentlyProjects
@@ -72,8 +34,7 @@ export class GuideComponent implements OnInit, AfterViewInit {
     private router: Router,
     private electronService: ElectronService,
     private http: HttpClient,
-    private configService: ConfigService,
-    private onboardingService: OnboardingService
+    private configService: ConfigService
   ) { }
 
   /**
@@ -91,27 +52,6 @@ export class GuideComponent implements OnInit, AfterViewInit {
 
   ngOnInit() {
     this.loadSponsors();
-    this.checkFirstLaunch();
-  }
-
-  // 检查是否是第一次启动
-  private checkFirstLaunch() {
-    const hasSeenOnboarding = this.configService.data.onboardingCompleted;
-    if (!hasSeenOnboarding) {
-      // 延迟显示引导，确保页面已渲染
-      setTimeout(() => {
-        this.onboardingService.start(GUIDE_ONBOARDING_CONFIG, {
-          onClosed: () => this.onOnboardingClosed(),
-          onCompleted: () => this.onOnboardingClosed()
-        });
-      }, 500);
-    }
-  }
-
-  // 跳过或关闭引导
-  private onOnboardingClosed() {
-    this.configService.data.onboardingCompleted = true;
-    this.configService.save();
   }
 
   ngAfterViewInit() {

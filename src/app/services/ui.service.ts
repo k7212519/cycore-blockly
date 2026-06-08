@@ -60,6 +60,10 @@ export class UiService {
     (window as any).openAndSendToAilyChat = (text: string, options?: Record<string, any>) => {
       this.openAndSendToChat(text, options);
     };
+    if (!this.electronService.isElectron) {
+      this.isMainWindow = true;
+      return;
+    }
     if (this.electronService.isElectron) {
       this.isMainWindow = true;
       window['ipcRenderer'].on('window-go-main', (event, toolName) => {
@@ -221,7 +225,7 @@ export class UiService {
   // 更新footer右下角的状态
   updateFooterState(state: ActionState) {
     // 判断当前url是否是main-window
-    if (this.isMainWindow) {
+    if (this.isMainWindow || !window['ipcRenderer']?.send) {
       this.stateSubject.next(state);
     } else {
       window['ipcRenderer'].send('state-update', state);
