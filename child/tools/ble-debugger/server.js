@@ -13,6 +13,9 @@ const MIME_TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon'
@@ -76,6 +79,12 @@ function serveStatic(uiRoot, request, response) {
     return;
   }
 
+  const fontPath = fontPathFromRequest(requestUrl.pathname);
+  if (fontPath) {
+    serveFile(fontPath, response);
+    return;
+  }
+
   const i18nPath = i18nPathFromRequest(requestUrl.pathname);
   if (i18nPath) {
     serveFile(i18nPath, response);
@@ -91,6 +100,29 @@ function serveStatic(uiRoot, request, response) {
   }
 
   serveFile(filePath, response);
+}
+
+function fontPathFromRequest(requestPath) {
+  if (!requestPath.startsWith('/fonts/')) return '';
+
+  const decoded = decodeURIComponent(requestPath.replace(/^\/fonts\//, ''));
+  if (decoded.includes('\0')) return '';
+
+  const candidates = [
+    path.join(__dirname, 'ui', 'fonts'),
+    path.resolve(__dirname, '..', '..', '..', 'public', 'fonts'),
+    process.resourcesPath ? path.join(process.resourcesPath, 'renderer', 'fonts') : ''
+  ].filter(Boolean);
+
+  for (const root of candidates) {
+    const resolvedRoot = path.resolve(root);
+    const resolvedFile = path.resolve(path.join(resolvedRoot, decoded));
+    const relative = path.relative(resolvedRoot, resolvedFile);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) continue;
+    if (fs.existsSync(resolvedFile)) return resolvedFile;
+  }
+
+  return path.join(candidates[0] || __dirname, decoded);
 }
 
 function serveFile(filePath, response) {

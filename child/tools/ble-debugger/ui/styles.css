@@ -1,32 +1,89 @@
+@font-face {
+  font-family: "MiSans Regular";
+  src: url("/fonts/MiSans-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
 :root {
   color-scheme: light dark;
-  --bg: #f4f6f8;
-  --panel: #ffffff;
-  --panel-soft: #f8fafc;
-  --text: #1f2937;
-  --muted: #64748b;
-  --border: #d8dee8;
-  --primary: #1677ff;
-  --ok: #18a058;
-  --warn: #b7791f;
-  --danger: #d93025;
-  --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  --aily-bg-primary: #e8e8e8;
+  --aily-bg-secondary: #e0e0e0;
+  --aily-bg-tertiary: #d6d6d6;
+  --aily-bg-elevated: #ededed;
+  --aily-text-primary: #2e2e2e;
+  --aily-text-secondary: #555555;
+  --aily-text-tertiary: #636363;
+  --aily-border-input: #b8b8b8;
+  --aily-color-primary: #0078d4;
+  --aily-color-primary-alt: #005fb8;
+  --aily-color-warning: #d49a10;
+  --aily-color-success-alt: #256d22;
+  --aily-scrollbar-thumb: rgba(80, 80, 80, 0.35);
+  --aily-scrollbar-thumb-hover: rgba(80, 80, 80, 0.55);
+  --aily-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.18);
+  --bg: var(--aily-bg-primary);
+  --panel: var(--aily-bg-elevated);
+  --panel-soft: var(--aily-bg-tertiary);
+  --panel-muted: var(--aily-bg-secondary);
+  --text: var(--aily-text-primary);
+  --muted: var(--aily-text-secondary);
+  --muted-strong: var(--aily-text-tertiary);
+  --border: var(--aily-border-input);
+  --border-soft: rgba(127, 127, 127, 0.08);
+  --primary: var(--aily-color-primary);
+  --primary-strong: var(--aily-color-primary-alt);
+  --primary-soft: rgba(77, 178, 255, 0.16);
+  --ok: var(--aily-color-success-alt);
+  --warn: var(--aily-color-warning);
+  --danger: #ff6b6b;
+  --danger-soft: rgba(255, 138, 101, 0.12);
+  --control-hover: rgba(127, 127, 127, 0.18);
+  --selected-bg: rgba(77, 178, 255, 0.18);
+  --shadow: var(--aily-shadow-lg);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14181f;
-    --panel: #1d232d;
-    --panel-soft: #151b23;
-    --text: #e5edf7;
-    --muted: #95a3b7;
-    --border: #303a49;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --aily-bg-primary: #2b2d30;
+    --aily-bg-secondary: #323437;
+    --aily-bg-tertiary: #3a3c3f;
+    --aily-bg-elevated: #1f1f1f;
+    --aily-text-primary: #ffffff;
+    --aily-text-secondary: #999999;
+    --aily-text-tertiary: #cccccc;
+    --aily-border-input: #434343;
+    --aily-color-primary: #007bff;
+    --aily-color-primary-alt: #348ce9;
+    --aily-color-warning: #f7ce42;
+    --aily-color-success-alt: #10b981;
+    --aily-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+    --aily-scrollbar-thumb-hover: #777777;
+    --aily-shadow-lg: 0 0 5px #111111;
   }
 }
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--aily-scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--aily-scrollbar-thumb);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--aily-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 html,
@@ -39,7 +96,10 @@ body,
 
 body {
   overflow: hidden;
-  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  user-select: none;
+  font-family: "MiSans Regular", "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  letter-spacing: 0;
   color: var(--text);
   background: var(--bg);
 }
@@ -55,26 +115,36 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 30px;
+  gap: 5px;
+  min-height: 26px;
   max-width: 100%;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text);
-  background: var(--panel-soft);
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--muted);
+  background: transparent;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+
+button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--control-hover);
 }
 
 button.primary {
-  color: #ffffff;
-  border-color: var(--primary);
-  background: var(--primary);
+  color: var(--primary);
+  background: transparent;
+}
+
+button.primary:hover:not(:disabled) {
+  color: var(--primary-strong);
+  background: var(--primary-soft);
 }
 
 button.active {
-  color: var(--primary);
-  border-color: var(--primary);
+  color: var(--text);
+  background: var(--selected-bg);
 }
 
 button:disabled {
@@ -86,24 +156,33 @@ input,
 select,
 textarea {
   width: 100%;
-  min-height: 30px;
-  padding: 5px 8px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 3px;
   outline: none;
   color: var(--text);
   background: var(--panel-soft);
 }
 
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+
 textarea {
   min-height: 80px;
+  line-height: 1.45;
   resize: vertical;
 }
 
 .ble-debugger {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
+  background: var(--bg);
 }
 
 .topbar {
@@ -111,9 +190,10 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 46px;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
+  min-height: 40px;
+  margin: 10px 10px 0;
+  padding: 7px 8px;
+  border-radius: 5px;
   background: var(--panel);
 }
 
@@ -133,8 +213,7 @@ textarea {
   min-width: 0;
   height: 26px;
   padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 4px;
   font-size: 12px;
   color: var(--muted);
   background: var(--panel-soft);
@@ -143,12 +222,10 @@ textarea {
 
 .status.ready {
   color: var(--ok);
-  border-color: var(--ok);
 }
 
 .status.error {
   color: var(--danger);
-  border-color: var(--danger);
 }
 
 .mono {
@@ -159,10 +236,10 @@ textarea {
   display: grid;
   grid-template-columns: minmax(190px, 0.75fr) minmax(260px, 1.25fr);
   grid-template-rows: minmax(260px, 1fr) minmax(190px, 0.58fr);
-  gap: 8px;
+  gap: 10px;
   min-height: 0;
   flex: 1;
-  padding: 8px;
+  padding: 10px;
 }
 
 .panel {
@@ -171,10 +248,8 @@ textarea {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--panel);
-  box-shadow: var(--shadow);
 }
 
 .panel-title,
@@ -186,7 +261,7 @@ textarea {
   gap: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--text);
   letter-spacing: 0;
 }
 
@@ -245,19 +320,25 @@ textarea {
   min-height: 50px;
   margin-bottom: 6px;
   padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  border: 0;
+  border-radius: 4px;
   text-align: left;
   background: var(--panel-soft);
   cursor: pointer;
 }
 
+.device-row:hover {
+  color: var(--text);
+  background: var(--control-hover);
+}
+
 .device-row.active {
-  border-color: var(--primary);
+  background: var(--selected-bg);
+  box-shadow: 0 0 0 1px var(--primary) inset;
 }
 
 .device-row.connected {
-  border-color: var(--ok);
+  box-shadow: 0 0 0 1px var(--ok) inset;
 }
 
 .signal {
@@ -315,7 +396,7 @@ textarea {
   gap: 3px;
   min-height: 44px;
   padding: 8px;
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--muted);
   background: var(--panel-soft);
 }
@@ -330,7 +411,7 @@ textarea {
 
 .service-block {
   padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .service-title {
@@ -352,6 +433,11 @@ textarea {
   text-align: left;
 }
 
+.characteristic-row.active {
+  color: var(--text);
+  background: var(--selected-bg);
+}
+
 .property-list {
   display: flex;
   flex-wrap: wrap;
@@ -361,7 +447,7 @@ textarea {
 
 .property-list code {
   padding: 1px 4px;
-  border-radius: 4px;
+  border-radius: 3px;
   font-size: 10px;
   color: var(--muted);
   background: var(--panel);
@@ -387,7 +473,7 @@ textarea {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--panel-soft);
 }
 
@@ -409,7 +495,7 @@ textarea {
   gap: 8px;
   align-items: start;
   padding: 5px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   font-size: 12px;
 }
 
@@ -453,8 +539,7 @@ textarea {
   display: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--muted);
   background: color-mix(in srgb, var(--panel) 92%, transparent);
 }

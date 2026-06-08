@@ -9,13 +9,15 @@ import {
   AppPlacementZone,
   AppStoreLayout,
   DEFAULT_TOOLBAR_APP_IDS,
-  HEADER_APP_LIMIT
+  HEADER_APP_LIMIT,
+  TOOLBAR_APP_IDS_CONFIG_KEY
 } from './app-store.config';
 import {
   getChildToolAppItems,
   getChildToolAvailableAppIds,
   getChildToolDefaultToolbarAppIds
 } from '../../configs/tool.config';
+import { ConfigService } from '../../services/config.service';
 
 export interface AppVisibilityContext {
   routeUrl?: string;
@@ -39,9 +41,14 @@ export class AppStoreService {
   readonly layout$ = this.layoutSubject.asObservable();
   readonly HEADER_APP_LIMIT = HEADER_APP_LIMIT;
 
-  constructor() {
+  constructor(private configService: ConfigService) {
     this.refreshAppRegistry();
     this.layoutSubject.next(this.loadLayout());
+
+    this.configService.configReloaded$.subscribe(() => {
+      this.refreshAppRegistry();
+      this.layoutSubject.next(this.loadLayout());
+    });
   }
 
   get layout(): AppStoreLayout {
@@ -194,32 +201,32 @@ export class AppStoreService {
   }
 
   private readStoredLayout(): AppStoreLayout | null {
-    try {
-      const stored = localStorage.getItem(APP_STORE_STORAGE_KEY);
-      if (!stored) {
-        return null;
-      }
-
-      const parsed = JSON.parse(stored);
-      if (parsed?.zones) {
-        return {
-          version: 2,
-          zones: {
-            header: parsed.zones.header || []
-          }
-        };
-      }
-
-      return {
-        version: 2,
-        zones: {
-          header: parsed?.header || []
-        }
-      };
-    } catch (error) {
-      console.error('Failed to load app store layout:', error);
+    const toolbarAppIds = this.readConfigToolbarAppIds();
+    if (!toolbarAppIds) {
       return null;
     }
+
+    return {
+      version: 2,
+      zones: {
+        header: toolbarAppIds
+      }
+    };
+  }
+
+  private readConfigToolbarAppIds(): string[] | null {
+    const configData = this.configService.data;
+    if (!configData || !Object.prototype.hasOwnProperty.call(configData, TOOLBAR_APP_IDS_CONFIG_KEY)) {
+      return null;
+    }
+
+    const toolbarAppIds = configData[TOOLBAR_APP_IDS_CONFIG_KEY];
+    if (!Array.isArray(toolbarAppIds)) {
+      console.warn(`[AppStoreService] ${TOOLBAR_APP_IDS_CONFIG_KEY} in config.json must be an array.`);
+      return null;
+    }
+
+    return toolbarAppIds.filter((appId): appId is string => typeof appId === 'string');
   }
 
   private commitLayout(layout: AppStoreLayout, persist = true): void {
@@ -232,15 +239,30 @@ export class AppStoreService {
   }
 
   private saveLayout(layout: AppStoreLayout): void {
-    try {
-      localStorage.setItem(APP_STORE_STORAGE_KEY, JSON.stringify(layout));
-    } catch (error) {
-      console.error('Failed to save app store layout:', error);
+    if (!this.configService.data) {
+      this.configService.data = {};
     }
+
+    this.configService.data[TOOLBAR_APP_IDS_CONFIG_KEY] = [...layout.zones.header];
+    void this.configService.save().catch(error => {
+      console.error('Failed to save app store layout:', error);
+    });
   }
 
   private removeStoredLayout(): void {
     try {
+      let shouldSave = false;
+      if (this.configService.data && Object.prototype.hasOwnProperty.call(this.configService.data, TOOLBAR_APP_IDS_CONFIG_KEY)) {
+        delete this.configService.data[TOOLBAR_APP_IDS_CONFIG_KEY];
+        shouldSave = true;
+      }
+
+      if (shouldSave) {
+        void this.configService.save().catch(error => {
+          console.error('Failed to reset app store layout:', error);
+        });
+      }
+
       localStorage.removeItem(APP_STORE_STORAGE_KEY);
       localStorage.removeItem('app-store-config');
     } catch (error) {

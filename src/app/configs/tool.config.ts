@@ -257,5 +257,5 @@ export const DEFAULT_TOOLBAR_APP_IDS: string[] = [
   'serial-monitor',
   'aily-chat',
   'cloud-space',
-  // 'model-store'
+  'user-center'
 ];
