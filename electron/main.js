@@ -1472,7 +1472,8 @@ function loadEnv() {
 
   process.env.AILY_PROJECT_PATH = conf["project_path"];
 
-  if (serve) {
+  // macOS 生产/开发均走异步自解压，完成后再次覆盖 child 环境变量；Windows 生产包由 NSIS 预解压
+  if (isDarwin || serve) {
     applyChildToolEnv(childPath);
     setImmediate(() => runInstallEnv(childPath));
   } else {
