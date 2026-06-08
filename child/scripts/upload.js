@@ -400,13 +400,18 @@ async function main() {
 
         let uploadParamSource = 'fallback';
         let uploadParam = fallbackUploadParam;
-        const preprocessResult = buildUploadParamFromPreprocess(currentProjectPath, platform);
-        if (preprocessResult.success) {
-            uploadParamSource = 'preprocess';
-            uploadParam = preprocessResult.uploadParam;
-            logger.log(`[preprocess] 命中 upload.pattern，tool=${preprocessResult.toolName}`);
+        const isEsp32Board = core.toLowerCase().includes('esp32');
+        if (isEsp32Board) {
+            const preprocessResult = buildUploadParamFromPreprocess(currentProjectPath, platform);
+            if (preprocessResult.success) {
+                uploadParamSource = 'preprocess';
+                uploadParam = preprocessResult.uploadParam;
+                logger.log(`[preprocess] 命中 upload.pattern，tool=${preprocessResult.toolName}`);
+            } else {
+                logger.warn(`[preprocess] ${preprocessResult.reason}，回退到现有 uploadParam`);
+            }
         } else {
-            logger.warn(`[preprocess] ${preprocessResult.reason}，回退到现有 uploadParam`);
+            logger.log(`[preprocess] 跳过（非 ESP32 板，core=${core}）`);
         }
 
         logger.log(`上传参数来源: ${uploadParamSource}`);
