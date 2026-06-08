@@ -192,7 +192,6 @@
     "watch": "ng build --watch --configuration development",
     "electron": "concurrently \"npm start\" \"wait-on tcp:4200 && electron ./electron/main.js --serve\"",
     "install:tools": "node ./scripts/install-tools.js",
-    "install:ffs-manager": "npm install --prefix child/tools/ffs-manager",
     "build": "ng build --base-href ./ && electron-builder build",
     "build:cn": "node ./scripts/build-electron.js --flavor cn",
     "build:global": "node ./scripts/build-electron.js --flavor global",
@@ -280,7 +279,7 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.6.2",
-    "wait-on": "^8.0.2"
+    "wait-on": "^9.0.10"
   },
   "optionalDependencies": {
     "dmg-license": "^1.0.11"
