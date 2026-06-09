@@ -31,14 +31,13 @@
 - tool id：使用 kebab-case，例如 `network-debugger`、`serial-debugger`、`my-protocol-debugger`。
 - package name：推荐 `@aily-project/subapp-<tool-id>`，但主应用识别工具不依赖 package name。
 - i18n namespace：使用大写下划线，例如 `NETWORK_DEBUGGER`、`MY_PROTOCOL_DEBUGGER`。
-- UI 标题 key：优先提供 `<NAMESPACE>.CHILD_TITLE`，否则提供 `<NAMESPACE>.TITLE`。
-- UI 描述 key：优先提供 `<NAMESPACE>.CHILD_DESCRIPTION`，否则提供 `<NAMESPACE>.DESCRIPTION`。
+- UI 标题 key：使用 `<NAMESPACE>.TITLE`。
+- UI 描述 key：使用 `<NAMESPACE>.DESCRIPTION`。
 
 必须实现的宿主识别结构：
 
 <tool-id>/
   package.json
-  package-lock.json
   index.js
   core.js
   cli.js
@@ -234,9 +233,7 @@ i18n 要求：
   {
     "MY_TOOL_NAMESPACE": {
       "TITLE": "...",
-      "DESCRIPTION": "...",
-      "CHILD_TITLE": "...",
-      "CHILD_DESCRIPTION": "..."
+      "DESCRIPTION": "..."
     }
   }
 - child server 必须能提供：
@@ -334,7 +331,6 @@ Angular ChildToolHost
 ```text
 <tool-id>/
   package.json
-  package-lock.json
   index.js
   core.js
   cli.js
@@ -542,14 +538,12 @@ function applyTheme(theme) {
   "MY_TOOL": {
     "TITLE": "My Tool",
     "DESCRIPTION": "Debug my protocol.",
-    "CHILD_TITLE": "My Tool",
-    "CHILD_DESCRIPTION": "Debug my protocol as a standalone child app.",
     "STATUS": "Status"
   }
 }
 ```
 
-如果只有 `TITLE` / `DESCRIPTION`，主应用也能使用；但建议同时提供 `CHILD_TITLE` / `CHILD_DESCRIPTION`，让子应用场景和普通工具描述可以分开。
+外部子应用统一只提供 `TITLE` / `DESCRIPTION`，避免额外区分 child 场景和普通工具场景。
 
 ## 11. CLI 与 AI 调用
 
