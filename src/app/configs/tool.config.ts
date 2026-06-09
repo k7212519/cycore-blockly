@@ -22,11 +22,31 @@ export interface ChildToolConfig {
   entry?: string;
   uiIndex?: string;
   routePath?: string;
-  requiredDependencies?: string[];
-  installHint?: string;
   startupTimeoutMs?: number;
   env?: Record<string, string>;
 }
+
+interface ChildToolI18nMeta {
+  namespace: string;
+  keys: Set<string>;
+}
+
+const CHILD_TOOL_ICON_BY_DIR: Record<string, string> = {
+  'ble-debugger': 'fa-light fa-bluetooth',
+  'ffs-manager': 'fa-light fa-database',
+  'industrial-bus-debugger': 'fa-light fa-microchip',
+  'mqtt-debugger': 'fa-light fa-tower-broadcast',
+  'network-debugger': 'fa-light fa-network-wired',
+  'serial-debugger': 'fa-light fa-monitor-waveform'
+};
+
+const CHILD_TOOL_ID_BY_DIR: Record<string, string> = {
+  'ffs-manager': 'ffs-manager-child'
+};
+
+const CHILD_TOOL_STARTUP_TIMEOUT_MS_BY_DIR: Record<string, number> = {
+  'ffs-manager': 10000
+};
 
 let childToolConfigsLoaded = false;
 let childToolConfigLoadError: Error | null = null;
@@ -41,7 +61,7 @@ export function getChildToolConfigs(forceReload = false): Record<string, ChildTo
     } catch (error) {
       childToolConfigLoadError = error instanceof Error ? error : new Error(String(error || 'Unknown error'));
       CHILD_TOOL_CONFIGS = {};
-      console.error('[child-tools] Failed to load child tools index:', childToolConfigLoadError);
+      console.error('[child-tools] Failed to scan child tools:', childToolConfigLoadError);
     }
     childToolConfigsLoaded = true;
   }
@@ -78,57 +98,138 @@ export function getChildToolDefaultToolbarAppIds(): string[] {
 }
 
 function loadChildToolConfigs(): Record<string, ChildToolConfig> {
-  const raw = readChildToolIndexText();
-  if (!raw) {
-    return {};
-  }
-
-  return normalizeChildToolConfigs(JSON.parse(raw));
-}
-
-function readChildToolIndexText(): string | null {
   const fsApi = typeof window !== 'undefined' ? window['fs'] : null;
   const pathApi = typeof window !== 'undefined' ? window['path'] : null;
   const childPath = pathApi?.getAilyChildPath?.();
 
-  if (childPath && pathApi?.join && fsApi?.existsSync && fsApi?.readFileSync) {
-    const indexPath = pathApi.join(childPath, 'tools', 'index.json');
-    if (fsApi.existsSync(indexPath)) {
-      return fsApi.readFileSync(indexPath, 'utf8');
-    }
-
-    throw new Error(`Child tools index was not found: ${indexPath}`);
+  if (!childPath || !pathApi?.join || !fsApi?.existsSync || !fsApi?.readdirSync || !fsApi?.readFileSync) {
+    return {};
   }
 
-  return null;
-}
-
-function normalizeChildToolConfigs(indexData: any): Record<string, ChildToolConfig> {
-  const source = indexData?.tools || indexData;
-
-  if (Array.isArray(source)) {
-    return source.reduce((configs: Record<string, ChildToolConfig>, item: any) => {
-      if (item?.id) {
-        configs[item.id] = item as ChildToolConfig;
-      }
-      return configs;
-    }, {});
+  const toolsPath = pathApi.join(childPath, 'tools');
+  if (!fsApi.existsSync(toolsPath)) {
+    throw new Error(`Child tools directory was not found: ${toolsPath}`);
   }
 
-  if (!source || typeof source !== 'object') {
-    throw new Error('Child tools index must be an object or a tools array');
-  }
+  const toolDirs = fsApi.readdirSync(toolsPath)
+    .filter((name: unknown): name is string => typeof name === 'string' && !!name.trim())
+    .filter((name: string) => isDirectory(fsApi, pathApi.join(toolsPath, name)))
+    .sort((left: string, right: string) => left.localeCompare(right));
 
-  return Object.entries(source).reduce((configs: Record<string, ChildToolConfig>, [toolId, value]) => {
-    if (value && typeof value === 'object') {
-      const config = value as ChildToolConfig;
-      configs[config.id || toolId] = {
-        ...config,
-        id: config.id || toolId
-      };
+  return toolDirs.reduce((configs: Record<string, ChildToolConfig>, dirName: string) => {
+    const config = createChildToolConfigFromDirectory(fsApi, pathApi, toolsPath, dirName);
+    if (config) {
+      configs[config.id] = config;
     }
     return configs;
   }, {});
+}
+
+function createChildToolConfigFromDirectory(
+  fsApi: any,
+  pathApi: any,
+  toolsPath: string,
+  dirName: string
+): ChildToolConfig | null {
+  const toolPath = pathApi.join(toolsPath, dirName);
+  const packagePath = pathApi.join(toolPath, 'package.json');
+  if (!fsApi.existsSync(packagePath)) {
+    return null;
+  }
+
+  let packageJson: any = {};
+  try {
+    packageJson = JSON.parse(fsApi.readFileSync(packagePath, 'utf8'));
+  } catch (error) {
+    console.warn(`[child-tools] Failed to read ${packagePath}:`, error);
+    return null;
+  }
+
+  const entry = typeof packageJson?.main === 'string' && packageJson.main.trim()
+    ? packageJson.main.trim()
+    : 'index.js';
+  const uiIndex = pathApi.join('ui', 'index.html');
+  const scriptPath = pathApi.join(toolPath, entry);
+  const uiPath = pathApi.join(toolPath, uiIndex);
+
+  if (!fsApi.existsSync(scriptPath) || !fsApi.existsSync(uiPath)) {
+    return null;
+  }
+
+  const i18nMeta = readChildToolI18nMeta(fsApi, pathApi, toolPath);
+  const namespace = i18nMeta?.namespace || createNamespaceFromDirName(dirName);
+  const titleKey = createChildToolTitleKey(namespace, i18nMeta);
+  const descriptionKey = createChildToolDescriptionKey(namespace, i18nMeta);
+  const id = CHILD_TOOL_ID_BY_DIR[dirName] || dirName;
+  const startupTimeoutMs = CHILD_TOOL_STARTUP_TIMEOUT_MS_BY_DIR[dirName];
+
+  return {
+    id,
+    titleKey,
+    namespace,
+    app: {
+      name: titleKey,
+      description: descriptionKey,
+      icon: CHILD_TOOL_ICON_BY_DIR[dirName] || 'fa-light fa-puzzle-piece',
+      enabled: true
+    },
+    childDir: pathApi.join('tools', dirName),
+    entry,
+    uiIndex,
+    routePath: `/child-tool/${id}`,
+    ...(startupTimeoutMs ? { startupTimeoutMs } : {})
+  };
+}
+
+function readChildToolI18nMeta(fsApi: any, pathApi: any, toolPath: string): ChildToolI18nMeta | null {
+  const i18nPath = pathApi.join(toolPath, 'i18n', 'en.json');
+  if (!fsApi.existsSync(i18nPath)) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(fsApi.readFileSync(i18nPath, 'utf8'));
+    const namespace = Object.keys(data || {}).find(key => data[key] && typeof data[key] === 'object');
+    if (!namespace) {
+      return null;
+    }
+
+    return {
+      namespace,
+      keys: new Set(Object.keys(data[namespace] || {}))
+    };
+  } catch (error) {
+    console.warn(`[child-tools] Failed to read i18n metadata from ${i18nPath}:`, error);
+    return null;
+  }
+}
+
+function createNamespaceFromDirName(dirName: string): string {
+  return dirName.replace(/-/g, '_').toUpperCase();
+}
+
+function createChildToolTitleKey(namespace: string, i18nMeta: ChildToolI18nMeta | null): string {
+  return i18nMeta?.keys.has('CHILD_TITLE') ? `${namespace}.CHILD_TITLE` : `${namespace}.TITLE`;
+}
+
+function createChildToolDescriptionKey(namespace: string, i18nMeta: ChildToolI18nMeta | null): string {
+  return i18nMeta?.keys.has('CHILD_DESCRIPTION') ? `${namespace}.CHILD_DESCRIPTION` : `${namespace}.DESCRIPTION`;
+}
+
+function isDirectory(fsApi: any, path: string): boolean {
+  try {
+    if (typeof fsApi.isDirectory === 'function') {
+      return !!fsApi.isDirectory(path);
+    }
+
+    const stat = fsApi.statSync?.(path);
+    if (stat && typeof stat.isDirectory === 'function') {
+      return stat.isDirectory();
+    }
+    return !!stat?._isDirectory;
+  } catch {
+    return false;
+  }
 }
 
 function createChildToolAppItem(config: ChildToolConfig): AppItem {

@@ -72,12 +72,20 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     return this.currentUrl.startsWith('/child-tool/');
   }
 
-  get backendStartingKey(): string {
-    return this.key('BACKEND_STARTING');
-  }
-
   get backendFailedKey(): string {
     return this.key('BACKEND_FAILED');
+  }
+
+  get backendFailedText(): string {
+    return this.translateWithFallback(this.backendFailedKey, {
+      zh_cn: '子应用启动失败',
+      zh_hk: '子應用啟動失敗',
+      default: 'Child app failed to start'
+    });
+  }
+
+  get isLoading(): boolean {
+    return this.hostStatus === 'starting' || (this.hostStatus === 'ready' && !this.frameLoaded);
   }
 
   ngOnInit(): void {
@@ -173,8 +181,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
       id: config.id,
       childDir: config.childDir,
       entry: config.entry || 'index.js',
-      uiIndex: config.uiIndex || 'ui/index.html',
-      requiredDependencies: config.requiredDependencies || []
+      uiIndex: config.uiIndex || 'ui/index.html'
     });
 
     await this.toolI18n.load(config.id);
@@ -420,6 +427,18 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
   private key(name: string): string {
     return this.config?.namespace ? `${this.config.namespace}.${name}` : name;
+  }
+
+  private translateWithFallback(key: string, fallback: { zh_cn: string; zh_hk: string; default: string }): string {
+    const translated = this.translate.instant(key);
+    if (typeof translated === 'string' && translated && translated !== key) {
+      return translated;
+    }
+
+    const lang = this.normalizeLang(this.translate.currentLang || this.translate.defaultLang || 'en');
+    if (lang === 'zh_cn') return fallback.zh_cn;
+    if (lang === 'zh_hk') return fallback.zh_hk;
+    return fallback.default;
   }
 
   private showConfigError(message: string): void {

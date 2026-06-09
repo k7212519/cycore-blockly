@@ -63,48 +63,8 @@
         "to": "child/scripts"
       },
       {
-        "from": "child/tools/index.json",
-        "to": "child/tools/index.json"
-      },
-      {
-        "from": "child/tools/ble-debugger",
-        "to": "child/tools/ble-debugger",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/ffs-manager",
-        "to": "child/tools/ffs-manager",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/mqtt-debugger",
-        "to": "child/tools/mqtt-debugger",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/network-debugger",
-        "to": "child/tools/network-debugger",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/industrial-bus-debugger",
-        "to": "child/tools/industrial-bus-debugger",
+        "from": "child/tools",
+        "to": "child/tools",
         "filter": [
           "**/*",
           "!node_modules/aily-blockly/**",

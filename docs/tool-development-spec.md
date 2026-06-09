@@ -85,33 +85,30 @@ Angular 内置工具需要更新：
 - `AVAILABLE_APP_IDS`
 - 如需默认显示，再更新 `DEFAULT_TOOLBAR_APP_IDS`
 
-child 独立子应用工具还需要登记到：
+child 独立子应用工具不写入 `APP_LIST`、`AVAILABLE_APP_IDS`、`DEFAULT_TOOLBAR_APP_IDS`，也不再维护 `child/tools/index.json`。主应用启动时通过 `window.path.getAilyChildPath()` 扫描 `child/tools/*`，符合以下条件的目录会自动注册：
+
+- 目录名使用 kebab-case，默认也是工具 id。
+- 目录内存在 `package.json`。
+- 后端入口存在：优先使用 `package.json` 的 `main` 字段，缺省为 `index.js`。
+- UI 入口存在：`ui/index.html`。
+- 语言元数据存在：优先读取 `i18n/en.json` 中第一个命名空间对象。
+
+child 工具注册信息由目录内容推导：
 
 ```text
-child/tools/index.json
+id          = <tool-id>
+childDir    = tools/<tool-id>
+routePath   = /child-tool/<tool-id>
+namespace   = i18n/en.json 的顶层命名空间，缺省为 <tool-id> 转大写下划线
+titleKey    = <namespace>.CHILD_TITLE 或 <namespace>.TITLE
+description = <namespace>.CHILD_DESCRIPTION 或 <namespace>.DESCRIPTION
+entry       = package.json.main 或 index.js
+uiIndex     = ui/index.html
 ```
 
-```json
-{
-  "<tool-id>": {
-    "id": "<tool-id>",
-    "titleKey": "TOOL_NAMESPACE.TITLE",
-    "namespace": "TOOL_NAMESPACE",
-    "app": {
-      "name": "MENU.TOOL_NAME",
-      "description": "APP_STORE.TOOL_DESC",
-      "icon": "fa-light fa-puzzle-piece",
-      "enabled": true
-    },
-    "childDir": "tools/<tool-id>",
-    "routePath": "/child-tool/<tool-id>",
-    "requiredDependencies": ["ws", "penpal"],
-    "installHint": "Run npm run install:<tool-id> in the project root."
-  }
-}
-```
+如果确实需要历史 id、特殊图标、启动超时等例外，只在 `src/app/configs/tool.config.ts` 的小映射中维护，例如 `ffs-manager` 目录注册为 `ffs-manager-child`。不要为了这些例外恢复集中索引文件，也不要再添加 `requiredDependencies` 或 `installHint`。
 
-工具 id 使用 kebab-case。Angular 内置工具仍然在 `APP_LIST` 中登记，例如：
+Angular 内置工具仍然在 `APP_LIST` 中登记，例如：
 
 ```ts
 {
@@ -437,9 +434,11 @@ child 工具在 Angular 中统一使用 `ChildToolHostComponent` 和 `ChildToolP
 
 `ChildToolProcessService` 启动 child 服务时应检查：
 
-- `child/tools/<tool-id>/index.js` 是否存在。
+- `child/tools/<tool-id>/package.json` 是否存在。
+- `package.json.main` 指向的后端入口是否存在，缺省检查 `child/tools/<tool-id>/index.js`。
 - `child/tools/<tool-id>/ui/index.html` 是否存在。
-- 必需依赖是否安装，例如原生库、`ws`、`penpal`。
+
+宿主不维护 `requiredDependencies` 清单，也不在启动前逐项检查 `node_modules`。缺失运行时依赖由 child 后端进程自身报错，并通过 stdout/stderr、`fatal` 事件或启动失败信息反馈给宿主。
 
 ## 7. core / cli / server 分层
 
@@ -536,7 +535,7 @@ child 语言包不进入 Angular assets。宿主通过 `window.path.getAilyChild
 '<tool-id>': ['TOOL_NAMESPACE']
 ```
 
-child 独立工具不需要在 `TOOL_I18N_NAMESPACES` 中登记，工具 id、标题 key 和 namespace 来自运行时读取的 `child/tools/index.json`。
+child 独立工具不需要在 `TOOL_I18N_NAMESPACES` 中登记。工具 id 默认来自 `child/tools/<tool-id>` 目录名，namespace、标题 key 和描述 key 来自运行时读取的 `child/tools/<tool-id>/i18n/en.json`。
 
 child server 应从同一目录提供语言包：
 
@@ -573,24 +572,23 @@ child/tools/<tool-id>/ui/
 
 ## 11. 打包与依赖
 
-child 工具需要在根 `package.json` 中被复制到 Electron resources。
+child 工具通过根 `package.json` 被整体复制到 Electron resources。通常只维护一条 `child/tools` 资源规则，新增子应用目录后无需逐个追加打包项。
 
 示例：
 
 ```json
 {
-  "from": "child/tools/<tool-id>",
-  "to": "child/tools/<tool-id>"
+  "from": "child/tools",
+  "to": "child/tools",
+  "filter": [
+    "**/*",
+    "!node_modules/aily-blockly/**",
+    "!node_modules/.aily-blockly-*/**"
+  ]
 }
 ```
 
-如果工具有安装步骤，在根 scripts 中添加：
-
-```json
-{
-  "install:<tool-id>": "npm install --prefix child/tools/<tool-id>"
-}
-```
+不要在根 `package.json` 为每个 child 工具添加 `install:<tool-id>` 脚本，也不要恢复统一的 `install:tools` 包装脚本。child 工具依赖由各自目录内的 `package.json` / `package-lock.json` 表达，构建或发布流程按需要在对应子目录安装。
 
 原生依赖注意事项：
 
@@ -646,18 +644,17 @@ npx ng build --configuration development --base-href ./
 
 - 明确工具类型：Angular 内置工具或 child 独立子应用。
 - 确定 tool id、菜单名、图标、可见条件。
-- 更新 `tool.config.ts`。
-- 更新 `app.routes.ts`。
-- 更新 `main-window.component.ts/html`。
+- 如果是 Angular 内置工具，更新 `tool.config.ts`、`app.routes.ts`、`main-window.component.ts/html`。
 - 添加工具 i18n。
-- 如果是 child 工具，创建 `child/tools/<tool-id>` 项目。
+- 如果是 child 工具，创建 `child/tools/<tool-id>` 项目，确保包含 `package.json`、后端入口、`ui/index.html` 和 `i18n/en.json`。
+- 如果 child 工具有历史 id、特殊图标或特殊启动超时，在 `tool.config.ts` 的小映射中补充例外。
 - 实现 `core.js`。
 - 实现 CLI，保证 AI 可调用。
 - 实现 `serve`、HTTP 静态服务、WebSocket JSON-RPC。
 - 实现 child UI。
 - 实现 `lang`、`theme` URL 参数读取和 `light.css` / `dark.css` 加载。
 - Angular host 只负责 iframe/Penpal/进程生命周期。
-- 更新根 `package.json` 的安装和打包资源。
+- 确认根 `package.json` 已整体复制 `child/tools`，不要新增 per-tool 安装脚本。
 - 跑完整验证清单。
 
 ## 14. 推荐架构示意
