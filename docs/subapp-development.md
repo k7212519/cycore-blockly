@@ -34,7 +34,7 @@
 - UI 标题 key：优先提供 `<NAMESPACE>.CHILD_TITLE`，否则提供 `<NAMESPACE>.TITLE`。
 - UI 描述 key：优先提供 `<NAMESPACE>.CHILD_DESCRIPTION`，否则提供 `<NAMESPACE>.DESCRIPTION`。
 
-必须实现的目录结构：
+必须实现的宿主识别结构：
 
 <tool-id>/
   package.json
@@ -49,14 +49,13 @@
     zh_hk.json
   ui/
     index.html
-    app.js
-    styles.css
-    light.css
-    dark.css
+    ... framework or static assets
   vendor/
     penpal.min.js
 
-如果使用 TypeScript、Vite、React、Vue 或其他构建器，可以保留源码目录，但交付目录必须包含上面的运行时文件。Aily Blockly 主应用不会进入源码目录帮你构建，也不会为每个工具维护专用 Angular wrapper。
+如果不使用构建器，推荐使用 `ui/app.js`、`ui/styles.css`、`ui/light.css`、`ui/dark.css` 这种直观命名。若使用 Angular、Vue、React、Vite 或其他构建器，交付目录可以是框架生成的任意 JS/CSS 文件名和资源目录，例如 `main-*.js`、`chunk-*.js`、`styles-*.css`、`assets/` 等；这不影响主应用加载。主应用只要求 `ui/index.html` 存在，并且其中引用的资源能由 child server 正常提供。
+
+Aily Blockly 主应用不会进入源码目录帮你构建，也不会为每个工具维护专用 Angular wrapper。构建后的可运行 UI 必须已经落在交付目录的 `ui/` 内。
 
 主应用如何发现工具：
 - 主应用运行时扫描 `child/tools/*`。
@@ -225,7 +224,7 @@ CLI 模式：
 - `cli.js`：参数解析，调用 core，输出统一 JSON。
 - `server.js`：HTTP 静态服务、WebSocket JSON-RPC、token 校验、shutdown、事件广播。
 - `index.js`：根据命令选择 `serve`、`rpc`、CLI 子命令，处理 SIGTERM/SIGINT、uncaughtException、unhandledRejection。
-- `ui/app.js`：浏览器 UI、Penpal、WebSocket 客户端、i18n、主题切换。
+- `ui/`：浏览器 UI。可以是手写 `app.js`，也可以是 Angular、Vue、React 等框架构建出的 bundle；无论文件名如何，都要实现 Penpal、WebSocket 客户端、i18n 和主题响应。
 
 i18n 要求：
 - 语言包放在 `i18n/<lang>.json`。
@@ -246,12 +245,11 @@ i18n 要求：
 - UI 加载语言时先尝试 URL 或 Penpal 传入的语言，失败后回退到 `en`。
 
 主题要求：
-- `ui/styles.css` 放布局、尺寸、状态等基础样式。
-- `ui/light.css` 放浅色主题变量或覆盖。
-- `ui/dark.css` 放深色主题变量或覆盖。
-- UI 首屏必须从 URL `theme` 加载对应 CSS。
-- Penpal `setHostContext({ theme })` 到达后必须切换主题 CSS。
-- 不要把主题写死在 HTML 或 app.js 里。
+- 无构建器静态 UI 推荐使用 `ui/styles.css` 放布局、尺寸、状态等基础样式，用 `ui/light.css` 和 `ui/dark.css` 放主题变量或覆盖。
+- Angular、Vue、React、Vite 等框架项目不强制提供独立的 `light.css` / `dark.css` 文件；主题可以由框架 bundle、CSS variables、class、data attribute 或构建产物中的样式文件实现。
+- UI 首屏必须读取 URL `theme` 并立即应用对应主题。
+- Penpal `setHostContext({ theme })` 到达后必须切换到新主题。
+- 不要把主题固定成单一浅色或单一深色；也不要依赖主应用 DOM 或 Angular 样式来完成子应用主题。
 
 交付要求：
 - 如果仓库根目录就是子应用目录，根目录必须能直接复制为 `child/tools/<tool-id>/`。
@@ -274,7 +272,7 @@ serve 验证：
 - 确认 stdout 有单行 ready JSON。
 - 打开 ready.url，并手动追加 `&lang=zh_cn&theme=dark` 或 `?lang=zh_cn&theme=dark`。
 - 确认 `/i18n/zh_cn.json` 可访问，缺失语言能回退 `/i18n/en.json`。
-- 确认 `ui/light.css` 和 `ui/dark.css` 能切换加载。
+- 确认 `theme=light` 和 `theme=dark` 都能让 UI 呈现对应主题；若是框架构建产物，不要求存在独立 `light.css` / `dark.css`。
 - 确认 `/ws?token=...` 能连接并执行 `status`。
 - 确认 `/api/shutdown?token=...` 能安全关闭。
 - 确认错误 token 访问 `/ws` 和敏感 API 会被拒绝。
@@ -355,10 +353,7 @@ Angular ChildToolHost
     ru.json
   ui/
     index.html
-    app.js
-    styles.css
-    light.css
-    dark.css
+    ... compiled JS/CSS/assets or static UI files
   vendor/
     penpal.min.js
   skill/
@@ -496,15 +491,24 @@ const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${
 
 UI 应该是工具界面，不是落地页。调试类工具应紧凑、可扫描、信息密度适中。
 
-必须提供：
+主应用对 UI 文件名的硬性要求只有一个：
 
 ```text
+ui/index.html
+```
+
+`index.html` 可以引用任意构建产物。对于 Angular、Vue、React、Vite 等项目，JS/CSS 文件名可以由构建器生成，资源也可以放在 `assets/`、`static/` 或其他由 `index.html` 正确引用的目录中。
+
+无构建器静态 UI 推荐提供：
+
+```text
+ui/app.js
 ui/styles.css
 ui/light.css
 ui/dark.css
 ```
 
-推荐在 `index.html` 中保留主题 link：
+如果采用独立主题文件，推荐在 `index.html` 中保留主题 link：
 
 ```html
 <link rel="stylesheet" href="./styles.css">
@@ -521,6 +525,8 @@ function applyTheme(theme) {
   document.getElementById('theme-style')?.setAttribute('href', `./${normalized}.css`);
 }
 ```
+
+如果主题已经被框架打包进同一个 CSS 或 JS bundle，则只需要在首屏和 `setHostContext()` 时更新根节点 class/data attribute 或应用状态，确保视觉结果随 `light` / `dark` 切换即可。
 
 ## 10. i18n
 
