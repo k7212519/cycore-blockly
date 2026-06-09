@@ -123,9 +123,15 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
   onFrameLoad(event: Event): void {
     const iframe = event.target as HTMLIFrameElement;
+    this.log('iframe load', {
+      url: this.sanitizeUrl(this.serverInfo?.url),
+      hasContentWindow: !!iframe.contentWindow
+    });
+
     if (!iframe.contentWindow) {
       this.hostStatus = 'error';
       this.errorMessage = `${this.resolvedToolId} iframe did not expose contentWindow`;
+      this.logError('iframe missing contentWindow', this.errorMessage);
       return;
     }
 
@@ -138,6 +144,13 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
       this.showConfigError('Child tool id is missing');
       return;
     }
+
+    this.log('init', {
+      inputToolId: this.toolId,
+      routeToolId: this.route.snapshot.paramMap.get('toolId'),
+      resolvedToolId: nextToolId,
+      currentUrl: this.router.url
+    });
 
     if (this.acquired && this.resolvedToolId && this.resolvedToolId !== nextToolId) {
       await this.processService.release(this.resolvedToolId);
@@ -156,7 +169,16 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.routePath = config.routePath || `/child-tool/${config.id}`;
     this.currentUrl = this.router.url;
 
+    this.log('config loaded', {
+      id: config.id,
+      childDir: config.childDir,
+      entry: config.entry || 'index.js',
+      uiIndex: config.uiIndex || 'ui/index.html',
+      requiredDependencies: config.requiredDependencies || []
+    });
+
     await this.toolI18n.load(config.id);
+    this.log('i18n loaded');
     await this.startServer(false);
   }
 
@@ -170,17 +192,22 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.errorMessage = '';
     this.frameLoaded = false;
     this.destroyPenpalConnection();
+    this.log(restart ? 'restart server' : 'start server');
 
     try {
       this.serverInfo = restart
         ? await this.processService.restart(this.config.id)
         : await this.processService.acquire(this.config.id);
       this.acquired = true;
-      this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(this.buildChildToolUrl(this.serverInfo.url));
+      const childToolUrl = this.buildChildToolUrl(this.serverInfo.url);
+      this.log('server acquired', this.sanitizeHostInfo(this.serverInfo));
+      this.log('iframe url prepared', this.sanitizeUrl(childToolUrl));
+      this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(childToolUrl);
       this.hostStatus = 'ready';
     } catch (error) {
       this.hostStatus = 'error';
       this.errorMessage = error instanceof Error ? error.message : String(error || '');
+      this.logError('start failed', this.errorMessage);
     }
   }
 
@@ -188,6 +215,11 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.destroyPenpalConnection();
 
     const allowedOrigin = this.serverInfo?.origin || this.resolveOrigin(this.serverInfo?.url);
+    this.log('penpal connect', {
+      allowedOrigin: allowedOrigin || '*',
+      iframeUrl: this.sanitizeUrl(this.serverInfo?.url)
+    });
+
     const messenger = new WindowMessenger({
       remoteWindow: iframe.contentWindow!,
       allowedOrigins: allowedOrigin ? [allowedOrigin] : ['*']
@@ -198,6 +230,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         this.ngZone.run(() => {
           this.hostStatus = 'error';
           this.errorMessage = `${this.resolvedToolId} UI did not report ready`;
+          this.logError('child ready timeout', this.errorMessage);
         });
       }
     }, 10000);
@@ -208,6 +241,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         getHostContext: () => this.createHostContext(),
         childReady: (payload: any) => {
           this.ngZone.run(() => {
+            this.log('child ready', payload || {});
             this.frameLoaded = true;
             this.hostStatus = 'ready';
             this.errorMessage = '';
@@ -221,6 +255,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
           this.ngZone.run(() => {
             this.hostStatus = 'error';
             this.errorMessage = error?.message || String(error || `${this.resolvedToolId} child error`);
+            this.logError('child error', this.errorMessage);
             this.clearChildReadyTimer();
           });
         },
@@ -243,6 +278,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
     void this.penpalConnection.promise
       .then(remote => {
+        this.log('penpal connected');
         this.remoteApi = remote;
         this.pushHostContext();
       })
@@ -250,6 +286,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         this.ngZone.run(() => {
           this.hostStatus = 'error';
           this.errorMessage = error instanceof Error ? error.message : String(error || 'Penpal connection failed');
+          this.logError('penpal failed', this.errorMessage);
           this.clearChildReadyTimer();
         });
       });
@@ -390,5 +427,39 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.errorMessage = message;
     this.titleKey = 'MENU.TOOL';
     this.routePath = '';
+    this.logError('config error', message);
+  }
+
+  private log(stage: string, details?: any): void {
+    console.info(`[child-tool-host:${this.resolvedToolId || this.toolId || 'unknown'}] ${stage}`, details ?? '');
+  }
+
+  private logError(stage: string, details?: any): void {
+    console.error(`[child-tool-host:${this.resolvedToolId || this.toolId || 'unknown'}] ${stage}`, details ?? '');
+  }
+
+  private sanitizeHostInfo(info: ChildToolHostInfo | null): any {
+    if (!info) return info;
+
+    return {
+      ...info,
+      url: this.sanitizeUrl(info.url),
+      wsUrl: this.sanitizeUrl(info.wsUrl),
+      shutdownUrl: this.sanitizeUrl(info.shutdownUrl)
+    };
+  }
+
+  private sanitizeUrl(url: any): any {
+    if (typeof url !== 'string' || !url) return url;
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has('token')) {
+        parsed.searchParams.set('token', '<redacted>');
+      }
+      return parsed.toString();
+    } catch {
+      return url.replace(/([?&]token=)[^&]+/g, '$1<redacted>');
+    }
   }
 }

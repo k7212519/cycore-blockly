@@ -15,6 +15,7 @@ yarn.lock
 /child/node
 /child/clangd
 /child/aily-builder
+/child/tools
 /child/7zz
 /child/7za.exe
 /child/rg
