@@ -1,0 +1,68 @@
+<main class="auth-page">
+  <section class="auth-shell login-shell" aria-labelledby="login-title">
+    <div class="auth-panel">
+      <div class="brand">
+        <img src="/imgs/logo-horizen.svg" alt="少年中国芯嵌入式云端开发平台" />
+      </div>
+
+      <h1 id="login-title">嵌入式芯片开发平台</h1>
+      <p class="intro">登录后创建、编译并直接烧录你的嵌入式项目。</p>
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <div class="field">
+          <label for="username">用户名</label>
+          <input
+            id="username"
+            type="text"
+            formControlName="username"
+            autocomplete="username"
+            placeholder="请输入用户名"
+            [class.invalid]="form.controls.username.invalid && form.controls.username.touched"
+          />
+          <div class="field-error">
+            @if (form.controls.username.invalid && form.controls.username.touched) {
+              请输入 2 到 50 个字符的用户名
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">密码</label>
+          <input
+            id="password"
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            placeholder="请输入密码"
+            [class.invalid]="form.controls.password.invalid && form.controls.password.touched"
+          />
+          <div class="field-error">
+            @if (form.controls.password.invalid && form.controls.password.touched) {
+              请输入 3 到 50 个字符的密码
+            }
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="remember">
+            <input type="checkbox" formControlName="rememberMe" />
+            <span>记住登录状态</span>
+          </label>
+          <a routerLink="/account-recover">忘记密码？</a>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary-button" type="submit" [disabled]="submitting">
+            {{ submitting ? '登录中...' : '登录' }}
+          </button>
+          <button class="secondary-button" type="button" routerLink="/register">
+            使用激活码注册
+          </button>
+        </div>
+      </form>
+
+    </div>
+
+    <aside class="visual-panel" aria-hidden="true"></aside>
+  </section>
+</main>

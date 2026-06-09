@@ -146,6 +146,11 @@ export let HEADER_MENU: IMenuItem[] = [
     sep: true,
   },
   {
+    name: 'MENU.LOGOUT',
+    action: 'user-logout',
+    icon: 'fa-light fa-arrow-right-from-bracket',
+  },
+  {
     name: 'MENU.EXIT',
     action: 'app-exit',
     data: { type: 'other', action: 'exitApp' },

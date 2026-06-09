@@ -1,0 +1,78 @@
+<main class="auth-page">
+  <section class="auth-shell register-shell" aria-labelledby="register-title">
+    <div class="auth-panel">
+      <div class="brand">
+        <img src="/imgs/logo-horizen.svg" alt="少年中国芯嵌入式云端开发平台" />
+      </div>
+
+      <p class="eyebrow">Activate account</p>
+      <h1 id="register-title">创建开发者账号</h1>
+      <p class="intro">使用有效的 16 位激活码开通云端项目空间。</p>
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <div class="field">
+          <label for="username">用户名</label>
+          <input id="username" formControlName="username" autocomplete="username"
+            placeholder="3 到 50 个字符" (blur)="checkUsername()"
+            [class.invalid]="form.controls.username.invalid && form.controls.username.touched" />
+          <div class="field-error">
+            @if (form.controls.username.hasError('unavailable')) {
+              用户名已存在
+            } @else if (form.controls.username.invalid && form.controls.username.touched) {
+              请输入 3 到 50 个字符的用户名
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">密码</label>
+          <input id="password" type="password" formControlName="password"
+            autocomplete="new-password" placeholder="请输入密码"
+            [class.invalid]="form.controls.password.invalid && form.controls.password.touched" />
+          <div class="field-error">
+            @if (form.controls.password.invalid && form.controls.password.touched) {
+              密码长度应为 3 到 50 个字符
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="confirmPassword">确认密码</label>
+          <input id="confirmPassword" type="password" formControlName="confirmPassword"
+            autocomplete="new-password" placeholder="再次输入密码"
+            [class.invalid]="form.hasError('passwordMismatch') && form.controls.confirmPassword.touched" />
+          <div class="field-error">
+            @if (form.hasError('passwordMismatch') && form.controls.confirmPassword.touched) {
+              两次输入的密码不一致
+            }
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="activationCode">激活码</label>
+          <input id="activationCode" formControlName="activationCode" inputmode="numeric"
+            maxlength="16" placeholder="16 位数字" (blur)="validateCode()"
+            [class.invalid]="form.controls.activationCode.invalid && form.controls.activationCode.touched" />
+          <div class="field-error">
+            @if (form.controls.activationCode.hasError('invalidCode')) {
+              激活码无效或已过期
+            } @else if (form.controls.activationCode.invalid && form.controls.activationCode.touched) {
+              激活码必须为 16 位数字
+            }
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="primary-button" type="submit" [disabled]="submitting">
+            {{ submitting ? '注册中...' : '注册' }}
+          </button>
+          <button class="secondary-button" type="button" routerLink="/login">
+            已有账号，返回登录
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <aside class="visual-panel" aria-hidden="true"></aside>
+  </section>
+</main>

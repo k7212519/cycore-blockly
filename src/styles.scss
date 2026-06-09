@@ -8,6 +8,11 @@ body {
   user-select: none;
 }
 
+input,
+textarea {
+  user-select: text;
+}
+
 .loading-box {
   width: 100vw;
   height: 100vh;

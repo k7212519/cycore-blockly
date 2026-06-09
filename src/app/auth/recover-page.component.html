@@ -1,0 +1,90 @@
+<main class="auth-page">
+  <section class="auth-shell recover-shell" aria-labelledby="recover-title">
+    <div class="auth-panel">
+      <div class="brand">
+        <img src="/imgs/logo-horizen.svg" alt="少年中国芯嵌入式云端开发平台" />
+      </div>
+
+      <p class="eyebrow">Account recovery</p>
+      <h1 id="recover-title">找回开发者账号</h1>
+      <p class="intro">先验证激活码，再重新设置用户名和密码。</p>
+
+      <div class="steps" aria-label="找回步骤">
+        <span class="step active">1</span>
+        <span class="step-line" [class.active]="step === 2"></span>
+        <span class="step" [class.active]="step === 2">2</span>
+      </div>
+
+      @if (step === 1) {
+        <form [formGroup]="codeForm" (ngSubmit)="verifyCode()">
+          <div class="field">
+            <label for="activationCode">激活码</label>
+            <input id="activationCode" formControlName="activationCode" inputmode="numeric"
+              maxlength="16" placeholder="请输入 16 位数字激活码"
+              [class.invalid]="codeForm.controls.activationCode.invalid && codeForm.controls.activationCode.touched" />
+            <div class="field-error">
+              @if (codeForm.controls.activationCode.invalid && codeForm.controls.activationCode.touched) {
+                激活码必须为 16 位数字
+              }
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="primary-button" type="submit" [disabled]="verifying">
+              {{ verifying ? '验证中...' : '验证激活码' }}
+            </button>
+            <button class="secondary-button" type="button" routerLink="/login">返回登录</button>
+          </div>
+        </form>
+      } @else {
+        <form [formGroup]="accountForm" (ngSubmit)="resetAccount()">
+          <div class="field">
+            <label for="username">用户名</label>
+            <input id="username" formControlName="username" autocomplete="username"
+              placeholder="请输入用户名"
+              [class.invalid]="accountForm.controls.username.invalid && accountForm.controls.username.touched" />
+            <div class="field-error">
+              @if (accountForm.controls.username.invalid && accountForm.controls.username.touched) {
+                请输入 2 到 50 个字符的用户名
+              }
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="password">新密码</label>
+            <input id="password" type="password" formControlName="password"
+              autocomplete="new-password" placeholder="请输入新密码"
+              [class.invalid]="accountForm.controls.password.invalid && accountForm.controls.password.touched" />
+            <div class="field-error">
+              @if (accountForm.controls.password.invalid && accountForm.controls.password.touched) {
+                密码长度应为 3 到 50 个字符
+              }
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="confirmPassword">确认新密码</label>
+            <input id="confirmPassword" type="password" formControlName="confirmPassword"
+              autocomplete="new-password" placeholder="再次输入新密码"
+              [class.invalid]="accountForm.hasError('passwordMismatch') && accountForm.controls.confirmPassword.touched" />
+            <div class="field-error">
+              @if (accountForm.hasError('passwordMismatch') && accountForm.controls.confirmPassword.touched) {
+                两次输入的密码不一致
+              }
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="primary-button" type="submit" [disabled]="resetting">
+              {{ resetting ? '重置中...' : '重置账号' }}
+            </button>
+            <button class="secondary-button" type="button" (click)="back()">返回上一步</button>
+            <button class="link-button" type="button" routerLink="/login">直接返回登录</button>
+          </div>
+        </form>
+      }
+    </div>
+
+    <aside class="visual-panel" aria-hidden="true"></aside>
+  </section>
+</main>

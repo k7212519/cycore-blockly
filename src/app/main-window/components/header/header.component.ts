@@ -26,6 +26,7 @@ import { PlatformService } from '../../../services/platform.service';
 // import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { AppItem } from '../../../tools/app-store/app-store.config';
 import { APP_LIST } from '../../../configs/tool.config';
+import { EdaAuthService } from '../../../auth/eda-auth.service';
 
 @Component({
   selector: 'app-header',
@@ -109,6 +110,7 @@ export class HeaderComponent implements OnDestroy {
     private electronService: ElectronService,
     private configService: ConfigService,
     private authService: AuthService,
+    private edaAuthService: EdaAuthService,
     private translate: TranslateService,
     private platformService: PlatformService,
     // private appStoreService: AppStoreService
@@ -456,6 +458,9 @@ export class HeaderComponent implements OnDestroy {
       case 'app-exit':
         this.close();
         break;
+      case 'user-logout':
+        this.logout();
+        break;
       case 'example-open':
         if (this.isLoaded()) { // 只在已加载项目时检查
           this.electronService.openNewInStance('/main/playground')
@@ -745,6 +750,21 @@ export class HeaderComponent implements OnDestroy {
       nzWidth: '350px',
       nzContent: LoginDialogComponent
     });
+  }
+
+  logout(): void {
+    this.edaAuthService.logout().subscribe({
+      next: () => this.finishLogout(),
+      error: () => this.finishLogout(),
+    });
+  }
+
+  private finishLogout(): void {
+    this.edaAuthService.clearLocalSession();
+    this.uiService.closeTool('user-center');
+    this.closeMenu();
+    this.message.success('已退出登录');
+    void this.router.navigate(['/login']);
   }
 
   showInRouter(menuItem: IMenuItem) {

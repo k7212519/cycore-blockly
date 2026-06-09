@@ -6,6 +6,7 @@ import { ConfigService } from './services/config.service';
 import { TranslationService } from './services/translation.service';
 import { AuthService } from './services/auth.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { EdaAuthService } from './auth/eda-auth.service';
 
 // 声明 electronAPI 类型
 declare const window: any;
@@ -24,6 +25,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private configService = inject(ConfigService);
   private translationService = inject(TranslationService);
   private authService = inject(AuthService);
+  private edaAuthService = inject(EdaAuthService);
   private message = inject(NzMessageService);
   private router = inject(Router);
 
@@ -34,6 +36,7 @@ export class AppComponent implements OnInit, OnDestroy {
     await this.electronService.init();
     await this.configService.init();
     await this.translationService.init();
+    await this.edaAuthService.initialize();
 
     // 在ElectronService初始化完成后再初始化认证服务
     await this.authService.initializeAuth();

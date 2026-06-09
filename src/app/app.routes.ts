@@ -1,13 +1,30 @@
 import { Routes } from '@angular/router';
+import { authGuard, guestGuard } from './auth/auth.guard';
 
 export const routes: Routes = [
     {
         path: '',
-        redirectTo: 'main',
+        redirectTo: 'login',
         pathMatch: 'full'
     },
     {
+        path: 'login',
+        canActivate: [guestGuard],
+        loadComponent: () => import('./auth/login-page.component').then(m => m.LoginPageComponent)
+    },
+    {
+        path: 'register',
+        canActivate: [guestGuard],
+        loadComponent: () => import('./auth/register-page.component').then(m => m.RegisterPageComponent)
+    },
+    {
+        path: 'account-recover',
+        canActivate: [guestGuard],
+        loadComponent: () => import('./auth/recover-page.component').then(m => m.RecoverPageComponent)
+    },
+    {
         path: 'main',
+        canActivate: [authGuard],
         loadComponent: () => import('./main-window/main-window.component').then(m => m.MainWindowComponent),
         children: [
             {
@@ -62,46 +79,57 @@ export const routes: Routes = [
     // },
     {
         path: "project-new",
+        canActivate: [authGuard],
         loadComponent: () => import('./windows/project-new/project-new.component').then(m => m.ProjectNewComponent)
     },
     {
         path: "settings",
+        canActivate: [authGuard],
         loadComponent: () => import('./windows/settings/settings.component').then(m => m.SettingsComponent)
     },
     {
         path: "about",
+        canActivate: [authGuard],
         loadComponent: () => import('./windows/about/about.component').then(m => m.AboutComponent)
     },
     {
         path: "serial-monitor",
+        canActivate: [authGuard],
         loadComponent: () => import('./tools/serial-monitor/serial-monitor.component').then(m => m.SerialMonitorComponent)
     },
     {
         path: "aily-chat",
+        canActivate: [authGuard],
         loadComponent: () => import('./tools/aily-chat/aily-chat.component').then(m => m.AilyChatComponent)
     },
     {
         path: "code-viewer",
+        canActivate: [authGuard],
         loadComponent: () => import('./editors/blockly-editor/tools/code-viewer/code-viewer.component').then(m => m.CodeViewerComponent)
     },
     {
         path: "simulator",
+        canActivate: [authGuard],
         loadComponent: () => import('./tools/simulator/simulator.component').then(m => m.SimulatorComponent)
     },
     {
         path: "iframe",
+        canActivate: [authGuard],
         loadComponent: () => import('./windows/iframe/iframe.component').then(m => m.IframeComponent)
     },
     {
         path: "graph-editor",
+        canActivate: [authGuard],
         loadComponent: () => import('./editors/graph-editor/graph-editor.component').then(m => m.GraphEditorComponent)
     },
     {
         path: "model-store",
+        canActivate: [authGuard],
         loadComponent: () => import('./tools/model-store/model-store.component').then(m => m.ModelStoreComponent)
     },
     {
         path: "model-deploy",
+        canActivate: [authGuard],
         children: [
             {
                 path: '',
@@ -132,6 +160,7 @@ export const routes: Routes = [
     },
     {
         path: "model-train",
+        canActivate: [authGuard],
         children: [
             {
                 path: '',
@@ -159,5 +188,9 @@ export const routes: Routes = [
             //     loadComponent: () => import('./windows/model-train/audio-train/audio-train.component').then(m => m.AudioTrainComponent)
             // }
         ]
+    },
+    {
+        path: '**',
+        redirectTo: 'login'
     }
 ];
