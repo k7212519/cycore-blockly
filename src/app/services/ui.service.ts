@@ -105,7 +105,16 @@ export class UiService {
   }
 
   openWindow(opt: WindowOpts) {
-    window['subWindow'].open(opt);
+    if (window['subWindow']?.open) {
+      window['subWindow'].open(opt);
+      return;
+    }
+
+    if (opt?.path) {
+      const mainRoutes = new Set(['project-new', 'playground']);
+      const route = mainRoutes.has(opt.path) ? ['/main', opt.path] : ['/', opt.path];
+      this.router.navigate(route);
+    }
   }
 
   // 这个方法是给header用的
