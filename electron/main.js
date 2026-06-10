@@ -975,9 +975,18 @@ function installChildEnv(childPath, options) {
   }
 
   function extract7zPackage(z7Path, archivePath, targetPath, keyword, validateComplete) {
-    const archiveVersion = extractVersion(path.basename(archivePath), keyword);
     const installedVersion = readInstalledVersion(targetPath);
     const isComplete = validateComplete(targetPath);
+
+    if (!archivePath || !fs.existsSync(archivePath)) {
+      if (isComplete) {
+        return true;
+      }
+      console.error(`未找到 ${keyword} 压缩包: ${archivePath}`);
+      return false;
+    }
+
+    const archiveVersion = extractVersion(path.basename(archivePath), keyword);
 
     if (isComplete) {
       if (!installedVersion && archiveVersion) {
@@ -991,14 +1000,6 @@ function installChildEnv(childPath, options) {
     } else if (fs.existsSync(targetPath)) {
       console.warn(`${keyword} 安装不完整，准备重新解压: ${targetPath}`);
       removeInstallDir(targetPath);
-    }
-
-    if (!archivePath || !fs.existsSync(archivePath)) {
-      if (isComplete) {
-        return true;
-      }
-      console.error(`未找到 ${keyword} 压缩包: ${archivePath}`);
-      return false;
     }
 
     try {
@@ -1050,7 +1051,9 @@ function installChildEnv(childPath, options) {
 
   for (const pkg of packages) {
     const targetPath = path.join(childPath, pkg.name);
-    const archivePath = findLatestVersionFile(sourceDir, pkg.name);
+    const archivePath =
+      findLatestVersionFile(sourceDir, pkg.name) ||
+      findLatestVersionFile(path.join(childPath, platformDir), pkg.name);
     if (z7Path) {
       extract7zPackage(z7Path, archivePath, targetPath, pkg.name, validators[pkg.name]);
     } else {
