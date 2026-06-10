@@ -2,6 +2,9 @@
 const { ipcMain } = require("electron");
 const pty = require("@lydell/node-pty");
 const { exec } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { isWin32 } = require("./platform");
 
 // 匹配 PowerShell 提示符: PS D:\path>   以后需要匹配mac os和linux的提示符（陈吕洲 2025.3.4）
@@ -19,6 +22,31 @@ const shellMap = {
 
 const promptRegex = promptRegexMap[process.platform]
 const terminals = new Map();
+
+function getShellArgs() {
+  if (process.platform === "darwin") {
+    return ["-f"];
+  }
+  if (process.platform === "linux") {
+    return ["--noprofile", "--norc"];
+  }
+  if (process.platform === "win32") {
+    return ["-NoProfile", "-NoLogo"];
+  }
+  return [];
+}
+
+function buildTerminalEnv() {
+  const env = { ...process.env };
+  if (process.platform === "darwin") {
+    const zdotdir = path.join(os.tmpdir(), "aily-blockly-zsh");
+    try {
+      fs.mkdirSync(zdotdir, { recursive: true });
+    } catch (_) {}
+    env.ZDOTDIR = zdotdir;
+  }
+  return env;
+}
 
 function killRegisteredProcessTree(pid, label) {
   if (!pid) {
@@ -110,13 +138,15 @@ function registerTerminalHandlers(mainWindow) {
 
       console.log(`启动终端，工作目录: ${cwd}`);
 
-      const ptyProcess = pty.spawn(shell, [], {
+      const terminalEnv = buildTerminalEnv();
+      const ptyProcess = pty.spawn(shell, getShellArgs(), {
         name: "xterm-color",
         cols: args.cols || 80,  // 确保有合适的默认值
         rows: args.rows || 24,
         cwd: cwd,
-        env: process.env,
+        env: terminalEnv,
       });
+      console.log(`终端 PATH: ${terminalEnv.PATH}`);
       ptyProcess.__startedAt = Date.now();
       ptyProcess.__cwd = cwd;
 

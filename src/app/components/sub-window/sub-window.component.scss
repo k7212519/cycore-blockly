@@ -38,8 +38,16 @@
   padding-left: 10px;
   display: flex;
   align-items: center;
+  gap: 6px;
   flex-grow: 1;
+  min-width: 0;
   -webkit-app-region: drag;
+}
+
+.title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .win-btns {

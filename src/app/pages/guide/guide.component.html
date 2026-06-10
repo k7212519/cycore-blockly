@@ -46,7 +46,8 @@
   </div>
   <div class="right-box ccenter">
     <div class="item" style="height: 50px;" (click)="openUrl('https://sensecraft.seeed.cc/ai/application')">
-      <div><img style="height: 16px;margin-top: -5px;" [src]="sensecraftImg" alt=""> {{'GUIDE.AI_APP_CENTER' | translate}}</div>
+      <div><img style="height: 16px;margin-top: -5px;" [src]="sensecraftImg" alt=""> {{'GUIDE.AI_APP_CENTER' |
+        translate}}</div>
       <div class="desc-scroll"><span>{{'GUIDE.AI_APP_CENTER_DESC' | translate}}</span></div>
       <div class="arrow"><i class=" fa-regular fa-angle-right"></i></div>
     </div>
@@ -82,7 +83,7 @@
           <i class="fa-brands fa-github"></i>
         </div>
         <div (click)="openUrl('https://discord.gg/ddMbGVmpQ8')">
-          <i class="fa-brands fa-discord"></i>
+          <i class="fa-brands fa-discord" style="font-size: 24px"></i>
         </div>
         }
       </div>
@@ -126,9 +127,6 @@
     <div class="spinner"></div>
   </div>
   }
-  <img [src]="showImgUrl" alt="预览图片" 
-       [class.hidden]="imgLoading" 
-       (load)="onImgLoad()" 
-       (error)="onImgError()">
+  <img [src]="showImgUrl" alt="预览图片" [class.hidden]="imgLoading" (load)="onImgLoad()" (error)="onImgError()">
 </div>
 }

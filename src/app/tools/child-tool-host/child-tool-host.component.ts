@@ -3,6 +3,7 @@ import { Component, effect, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleC
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { Connection, WindowMessenger, connect } from 'penpal';
 import { Subscription } from 'rxjs';
@@ -10,11 +11,24 @@ import { SubWindowComponent } from '../../components/sub-window/sub-window.compo
 import { ToolContainerComponent } from '../../components/tool-container/tool-container.component';
 import { ChildToolConfig, getChildToolConfig } from '../../configs/tool.config';
 import { ChildToolHostInfo, ChildToolProcessService } from '../../services/child-tool-process.service';
+import { LogService } from '../../services/log.service';
 import { ThemeService } from '../../services/theme.service';
 import { ToolI18nService } from '../../services/tool-i18n.service';
 import { UiService } from '../../services/ui.service';
 
 type HostStatus = 'idle' | 'starting' | 'ready' | 'error' | 'closed';
+type HostMessageState = 'success' | 'info' | 'warning' | 'error' | 'loading';
+
+interface NormalizedHostMessage {
+  title: string;
+  text: string;
+  detail: string;
+  state: HostMessageState;
+  logState: string;
+  showMessage: boolean;
+  sendToLog: boolean;
+  duration?: number;
+}
 
 @Component({
   selector: 'app-child-tool-host',
@@ -59,7 +73,9 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     private processService: ChildToolProcessService,
     private ngZone: NgZone,
     private translate: TranslateService,
-    private themeService: ThemeService
+    private themeService: ThemeService,
+    private message: NzMessageService,
+    private logService: LogService
   ) {
     this.langSubscription = this.translate.onLangChange.subscribe(() => this.pushHostContext());
     effect(() => {
@@ -72,12 +88,20 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     return this.currentUrl.startsWith('/child-tool/');
   }
 
-  get backendStartingKey(): string {
-    return this.key('BACKEND_STARTING');
-  }
-
   get backendFailedKey(): string {
     return this.key('BACKEND_FAILED');
+  }
+
+  get backendFailedText(): string {
+    return this.translateWithFallback(this.backendFailedKey, {
+      zh_cn: '子应用启动失败',
+      zh_hk: '子應用啟動失敗',
+      default: 'Child app failed to start'
+    });
+  }
+
+  get isLoading(): boolean {
+    return this.hostStatus === 'starting' || (this.hostStatus === 'ready' && !this.frameLoaded);
   }
 
   ngOnInit(): void {
@@ -123,9 +147,15 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
   onFrameLoad(event: Event): void {
     const iframe = event.target as HTMLIFrameElement;
+    this.log('iframe load', {
+      url: this.sanitizeUrl(this.serverInfo?.url),
+      hasContentWindow: !!iframe.contentWindow
+    });
+
     if (!iframe.contentWindow) {
       this.hostStatus = 'error';
       this.errorMessage = `${this.resolvedToolId} iframe did not expose contentWindow`;
+      this.logError('iframe missing contentWindow', this.errorMessage);
       return;
     }
 
@@ -138,6 +168,13 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
       this.showConfigError('Child tool id is missing');
       return;
     }
+
+    this.log('init', {
+      inputToolId: this.toolId,
+      routeToolId: this.route.snapshot.paramMap.get('toolId'),
+      resolvedToolId: nextToolId,
+      currentUrl: this.router.url
+    });
 
     if (this.acquired && this.resolvedToolId && this.resolvedToolId !== nextToolId) {
       await this.processService.release(this.resolvedToolId);
@@ -156,7 +193,15 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.routePath = config.routePath || `/child-tool/${config.id}`;
     this.currentUrl = this.router.url;
 
+    this.log('config loaded', {
+      id: config.id,
+      childDir: config.childDir,
+      entry: config.entry || 'index.js',
+      uiIndex: config.uiIndex || 'ui/index.html'
+    });
+
     await this.toolI18n.load(config.id);
+    this.log('i18n loaded');
     await this.startServer(false);
   }
 
@@ -170,17 +215,22 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.errorMessage = '';
     this.frameLoaded = false;
     this.destroyPenpalConnection();
+    this.log(restart ? 'restart server' : 'start server');
 
     try {
       this.serverInfo = restart
         ? await this.processService.restart(this.config.id)
         : await this.processService.acquire(this.config.id);
       this.acquired = true;
-      this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(this.buildChildToolUrl(this.serverInfo.url));
+      const childToolUrl = this.buildChildToolUrl(this.serverInfo.url);
+      this.log('server acquired', this.sanitizeHostInfo(this.serverInfo));
+      this.log('iframe url prepared', this.sanitizeUrl(childToolUrl));
+      this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(childToolUrl);
       this.hostStatus = 'ready';
     } catch (error) {
       this.hostStatus = 'error';
       this.errorMessage = error instanceof Error ? error.message : String(error || '');
+      this.logError('start failed', this.errorMessage);
     }
   }
 
@@ -188,6 +238,11 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     this.destroyPenpalConnection();
 
     const allowedOrigin = this.serverInfo?.origin || this.resolveOrigin(this.serverInfo?.url);
+    this.log('penpal connect', {
+      allowedOrigin: allowedOrigin || '*',
+      iframeUrl: this.sanitizeUrl(this.serverInfo?.url)
+    });
+
     const messenger = new WindowMessenger({
       remoteWindow: iframe.contentWindow!,
       allowedOrigins: allowedOrigin ? [allowedOrigin] : ['*']
@@ -198,6 +253,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         this.ngZone.run(() => {
           this.hostStatus = 'error';
           this.errorMessage = `${this.resolvedToolId} UI did not report ready`;
+          this.logError('child ready timeout', this.errorMessage);
         });
       }
     }, 10000);
@@ -208,6 +264,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         getHostContext: () => this.createHostContext(),
         childReady: (payload: any) => {
           this.ngZone.run(() => {
+            this.log('child ready', payload || {});
             this.frameLoaded = true;
             this.hostStatus = 'ready';
             this.errorMessage = '';
@@ -218,12 +275,9 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
           });
         },
         childError: (error: any) => {
-          this.ngZone.run(() => {
-            this.hostStatus = 'error';
-            this.errorMessage = error?.message || String(error || `${this.resolvedToolId} child error`);
-            this.clearChildReadyTimer();
-          });
+          this.ngZone.run(() => this.handleChildError(error));
         },
+        reportHostMessage: (payload: any) => this.ngZone.run(() => this.reportHostMessage(payload)),
         requestClose: () => {
           this.ngZone.run(() => this.close());
         },
@@ -243,6 +297,7 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
 
     void this.penpalConnection.promise
       .then(remote => {
+        this.log('penpal connected');
         this.remoteApi = remote;
         this.pushHostContext();
       })
@@ -250,9 +305,141 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
         this.ngZone.run(() => {
           this.hostStatus = 'error';
           this.errorMessage = error instanceof Error ? error.message : String(error || 'Penpal connection failed');
+          this.logError('penpal failed', this.errorMessage);
           this.clearChildReadyTimer();
         });
       });
+  }
+
+  private handleChildError(error: any): void {
+    const message = this.stringifyHostMessageValue(error?.message ?? error) || `${this.resolvedToolId} child error`;
+    const detail = this.stringifyHostMessageValue(error?.detail ?? error?.stack ?? error?.message ?? error) || message;
+
+    this.hostStatus = 'error';
+    this.errorMessage = message;
+    this.logError('child error', this.errorMessage);
+    this.reportHostMessage({
+      state: 'error',
+      title: this.getToolDisplayName(),
+      message,
+      detail
+    });
+    this.clearChildReadyTimer();
+  }
+
+  private reportHostMessage(payload: any): { ok: boolean; error?: string } {
+    const hostMessage = this.normalizeHostMessage(payload);
+    if (!hostMessage) {
+      return { ok: false, error: 'message is required' };
+    }
+
+    this.emitHostMessage(hostMessage);
+    return { ok: true };
+  }
+
+  private normalizeHostMessage(payload: any): NormalizedHostMessage | null {
+    const data = this.isRecord(payload) ? payload : { message: payload };
+    const title = this.stringifyHostMessageValue(data['title']) || this.getToolDisplayName();
+    const text = this.stringifyHostMessageValue(data['message'] ?? data['text'] ?? data['detail']);
+    const detail = this.stringifyHostMessageValue(data['detail'] ?? data['message'] ?? data['text']);
+
+    if (!text && !detail) {
+      return null;
+    }
+
+    const state = this.normalizeHostMessageState(data['state'] ?? data['level'] ?? data['type']);
+    return {
+      title,
+      text: text || detail,
+      detail: detail || text,
+      state,
+      logState: this.toLogState(state),
+      showMessage: data['showMessage'] !== false,
+      sendToLog: data['sendToLog'] !== false,
+      duration: this.normalizeMessageDuration(data['duration'] ?? data['nzDuration'])
+    };
+  }
+
+  private emitHostMessage(hostMessage: NormalizedHostMessage): void {
+    if (hostMessage.showMessage) {
+      const text = hostMessage.title
+        ? `${hostMessage.title}: ${hostMessage.text}`
+        : hostMessage.text;
+      const options = hostMessage.duration === undefined ? undefined : { nzDuration: hostMessage.duration };
+
+      switch (hostMessage.state) {
+        case 'success':
+          this.message.success(text, options);
+          break;
+        case 'warning':
+          this.message.warning(text, options);
+          break;
+        case 'error':
+          this.message.error(text, options);
+          break;
+        case 'loading':
+          this.message.loading(text, options);
+          break;
+        default:
+          this.message.info(text, options);
+          break;
+      }
+    }
+
+    if (hostMessage.sendToLog) {
+      this.logService.update({
+        title: hostMessage.title,
+        detail: hostMessage.detail,
+        state: hostMessage.logState
+      });
+    }
+  }
+
+  private normalizeHostMessageState(state: any): HostMessageState {
+    const normalized = String(state || 'info').trim().toLowerCase();
+    if (normalized === 'success' || normalized === 'done') return 'success';
+    if (normalized === 'warn' || normalized === 'warning') return 'warning';
+    if (normalized === 'error' || normalized === 'failed' || normalized === 'fatal') return 'error';
+    if (normalized === 'loading' || normalized === 'doing') return 'loading';
+    return 'info';
+  }
+
+  private toLogState(state: HostMessageState): string {
+    if (state === 'success') return 'done';
+    if (state === 'warning') return 'warn';
+    if (state === 'loading') return 'doing';
+    return state;
+  }
+
+  private normalizeMessageDuration(duration: any): number | undefined {
+    if (duration === undefined || duration === null || duration === '') return undefined;
+    const value = Number(duration);
+    return Number.isFinite(value) && value >= 0 ? value : undefined;
+  }
+
+  private getToolDisplayName(): string {
+    const translated = this.titleKey ? this.translate.instant(this.titleKey) : '';
+    if (typeof translated === 'string' && translated && translated !== this.titleKey) {
+      return translated;
+    }
+    return this.resolvedToolId || this.toolId || 'Child tool';
+  }
+
+  private stringifyHostMessageValue(value: any): string {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value.trim();
+    if (value instanceof Error) return value.message || String(value);
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  private isRecord(value: any): value is Record<string, any> {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
   }
 
   private destroyPenpalConnection(): void {
@@ -385,10 +572,56 @@ export class ChildToolHostComponent implements OnInit, OnChanges, OnDestroy {
     return this.config?.namespace ? `${this.config.namespace}.${name}` : name;
   }
 
+  private translateWithFallback(key: string, fallback: { zh_cn: string; zh_hk: string; default: string }): string {
+    const translated = this.translate.instant(key);
+    if (typeof translated === 'string' && translated && translated !== key) {
+      return translated;
+    }
+
+    const lang = this.normalizeLang(this.translate.currentLang || this.translate.defaultLang || 'en');
+    if (lang === 'zh_cn') return fallback.zh_cn;
+    if (lang === 'zh_hk') return fallback.zh_hk;
+    return fallback.default;
+  }
+
   private showConfigError(message: string): void {
     this.hostStatus = 'error';
     this.errorMessage = message;
     this.titleKey = 'MENU.TOOL';
     this.routePath = '';
+    this.logError('config error', message);
+  }
+
+  private log(stage: string, details?: any): void {
+    console.info(`[child-tool-host:${this.resolvedToolId || this.toolId || 'unknown'}] ${stage}`, details ?? '');
+  }
+
+  private logError(stage: string, details?: any): void {
+    console.error(`[child-tool-host:${this.resolvedToolId || this.toolId || 'unknown'}] ${stage}`, details ?? '');
+  }
+
+  private sanitizeHostInfo(info: ChildToolHostInfo | null): any {
+    if (!info) return info;
+
+    return {
+      ...info,
+      url: this.sanitizeUrl(info.url),
+      wsUrl: this.sanitizeUrl(info.wsUrl),
+      shutdownUrl: this.sanitizeUrl(info.shutdownUrl)
+    };
+  }
+
+  private sanitizeUrl(url: any): any {
+    if (typeof url !== 'string' || !url) return url;
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has('token')) {
+        parsed.searchParams.set('token', '<redacted>');
+      }
+      return parsed.toString();
+    } catch {
+      return url.replace(/([?&]token=)[^&]+/g, '$1<redacted>');
+    }
   }
 }

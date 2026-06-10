@@ -1,7 +1,7 @@
 {
   "name": "aily-blockly",
   "productName": "aily blockly",
-  "version": "0.9.56",
+  "version": "0.9.57",
   "author": "coloz",
   "description": "aily blockly dev",
   "main": "electron/main.js",
@@ -63,48 +63,8 @@
         "to": "child/scripts"
       },
       {
-        "from": "child/tools/index.json",
-        "to": "child/tools/index.json"
-      },
-      {
-        "from": "child/tools/ble-debugger",
-        "to": "child/tools/ble-debugger",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/ffs-manager",
-        "to": "child/tools/ffs-manager",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/mqtt-debugger",
-        "to": "child/tools/mqtt-debugger",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/network-debugger",
-        "to": "child/tools/network-debugger",
-        "filter": [
-          "**/*",
-          "!node_modules/aily-blockly/**",
-          "!node_modules/.aily-blockly-*/**"
-        ]
-      },
-      {
-        "from": "child/tools/industrial-bus-debugger",
-        "to": "child/tools/industrial-bus-debugger",
+        "from": "child/tools",
+        "to": "child/tools",
         "filter": [
           "**/*",
           "!node_modules/aily-blockly/**",
@@ -191,7 +151,6 @@
     "start": "ng serve",
     "watch": "ng build --watch --configuration development",
     "electron": "concurrently \"npm start\" \"wait-on tcp:4200 && electron ./electron/main.js --serve\"",
-    "install:tools": "node ./scripts/install-tools.js",
     "build": "ng build --base-href ./ && electron-builder build",
     "build:cn": "node ./scripts/build-electron.js --flavor cn",
     "build:global": "node ./scripts/build-electron.js --flavor global",

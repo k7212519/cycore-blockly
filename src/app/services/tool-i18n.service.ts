@@ -57,7 +57,8 @@ export class ToolI18nService {
       return currentRequest;
     }
 
-    const request = this.loadTranslationData(toolName, lang, childConfig)
+    const request = Promise.resolve()
+      .then(() => this.loadTranslationData(toolName, lang, childConfig))
       .then((data) => {
         this.translate.setTranslation(lang, data, true);
         this.loaded.add(key);
@@ -110,12 +111,17 @@ export class ToolI18nService {
     const candidates = lang === 'en' ? [lang] : [lang, 'en'];
 
     for (const candidate of candidates) {
-      const filePath = pathApi.join(childPath, toolDir, 'i18n', `${candidate}.json`);
-      if (!fsApi.existsSync(filePath)) {
-        continue;
-      }
+      try {
+        const filePath = pathApi.join(childPath, toolDir, 'i18n', `${candidate}.json`);
+        if (!fsApi.existsSync(filePath)) {
+          continue;
+        }
 
-      return JSON.parse(fsApi.readFileSync(filePath, 'utf8'));
+        const data = JSON.parse(fsApi.readFileSync(filePath, 'utf8'));
+        return data && typeof data === 'object' ? data : null;
+      } catch (error) {
+        console.warn(`Failed to read i18n file for child tool ${config.id} (${candidate}):`, error);
+      }
     }
 
     return null;

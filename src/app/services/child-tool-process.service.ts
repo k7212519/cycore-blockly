@@ -18,6 +18,7 @@ interface ChildToolBackendMessage {
 interface ChildToolSession {
   streamId: string;
   stdoutBuffer: string;
+  stderrBuffer: string;
   removeListener: (() => void) | null;
   startPromise: Promise<ChildToolHostInfo> | null;
   readyResolve: ((value: ChildToolHostInfo) => void) | null;
@@ -94,6 +95,7 @@ export class ChildToolProcessService implements OnDestroy {
       session = {
         streamId: '',
         stdoutBuffer: '',
+        stderrBuffer: '',
         removeListener: null,
         startPromise: null,
         readyResolve: null,
@@ -158,28 +160,43 @@ export class ChildToolProcessService implements OnDestroy {
     const scriptPath = pathApi.join(projectPath, config.entry || 'index.js');
     const uiPath = pathApi.join(projectPath, config.uiIndex || pathApi.join('ui', 'index.html'));
 
+    this.log(config, 'resolve paths', {
+      childPath,
+      childDir,
+      projectPath,
+      scriptPath,
+      uiPath
+    });
+
     if (fsApi?.existsSync && !fsApi.existsSync(scriptPath)) {
-      throw new Error(`${config.id} backend was not found: ${scriptPath}`);
+      const message = `${config.id} backend was not found: ${scriptPath}`;
+      this.logError(config, 'backend missing', message);
+      throw new Error(message);
     }
 
     if (fsApi?.existsSync && !fsApi.existsSync(uiPath)) {
-      throw new Error(`${config.id} UI was not found: ${uiPath}`);
-    }
-
-    const missingDependencies = this.findMissingDependencies(projectPath, config.requiredDependencies || []);
-    if (missingDependencies.length) {
-      const hint = config.installHint || `Run npm install --prefix child/${childDir}.`;
-      throw new Error(`${config.id} dependencies are missing: ${missingDependencies.join(', ')}. ${hint}`);
+      const message = `${config.id} UI was not found: ${uiPath}`;
+      this.logError(config, 'UI missing', message);
+      throw new Error(message);
     }
 
     session.streamId = `child_tool_${config.id.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     session.stdoutBuffer = '';
+    session.stderrBuffer = '';
+    this.log(config, 'spawn server', {
+      command: 'node',
+      args: [scriptPath, 'serve', '--host', '127.0.0.1', '--port', '0'],
+      cwd: projectPath,
+      streamId: session.streamId
+    });
 
     const readyPromise = new Promise<ChildToolHostInfo>((resolve, reject) => {
       const timeout = setTimeout(() => {
         session.readyResolve = null;
         session.readyReject = null;
-        reject(new Error(`${config.id} server did not report ready`));
+        const reason = `${config.id} server did not report ready${this.formatBufferedStderr(session)}`;
+        this.logError(config, 'ready timeout', reason);
+        reject(new Error(reason));
       }, config.startupTimeoutMs || 8000);
 
       session.readyResolve = value => {
@@ -210,21 +227,17 @@ export class ChildToolProcessService implements OnDestroy {
 
     if (!result?.success) {
       this.handleClose(session);
-      throw new Error(result?.error || `Failed to start ${config.id} server`);
+      const message = result?.error || `Failed to start ${config.id} server`;
+      this.logError(config, 'spawn failed', {
+        message,
+        result
+      });
+      throw new Error(message);
     }
 
-    return await readyPromise;
-  }
-
-  private findMissingDependencies(projectPath: string, dependencies: string[]): string[] {
-    const pathApi = window['path'];
-    const fsApi = window['fs'];
-    if (!fsApi?.existsSync || !pathApi?.join) return [];
-
-    return dependencies.filter(dependency => {
-      const packagePath = pathApi.join(projectPath, 'node_modules', ...dependency.split('/'), 'package.json');
-      return !fsApi.existsSync(packagePath);
-    });
+    const hostInfo = await readyPromise;
+    this.log(config, 'server ready promise resolved', this.sanitizeHostInfo(hostInfo));
+    return hostInfo;
   }
 
   private handleProcessOutput(config: ChildToolConfig, session: ChildToolSession, output: any): void {
@@ -235,14 +248,34 @@ export class ChildToolProcessService implements OnDestroy {
       return;
     }
 
+    if (output.type === 'stderr' && output.data) {
+      session.stderrBuffer += String(output.data);
+      this.logError(config, 'stderr', this.tailText(String(output.data)));
+      return;
+    }
+
     if (output.type === 'error') {
-      this.rejectReady(session, output.error || `${config.id} server process error`);
+      const reason = output.error || `${config.id} server process error`;
+      this.logError(config, 'process error', reason);
+      this.rejectReady(session, reason);
       this.handleClose(session);
       return;
     }
 
     if (output.type === 'close') {
-      this.rejectReady(session, `${config.id} server closed with code ${output.code ?? 'unknown'}`);
+      const reason = `${config.id} server closed with code ${output.code ?? 'unknown'}${this.formatBufferedStderr(session)}`;
+      const details = {
+        code: output.code,
+        signal: output.signal,
+        reason
+      };
+
+      if (session.readyReject || (session.running && session.refCount > 0)) {
+        this.logError(config, 'process closed', details);
+        this.rejectReady(session, reason);
+      } else {
+        this.log(config, 'process closed', details);
+      }
       this.handleClose(session);
     }
   }
@@ -258,7 +291,7 @@ export class ChildToolProcessService implements OnDestroy {
       try {
         this.handleBackendMessage(config, session, JSON.parse(trimmed));
       } catch {
-        // Non-JSON output belongs to the child tool's own log stream.
+        this.log(config, 'stdout', trimmed);
       }
     }
   }
@@ -267,13 +300,20 @@ export class ChildToolProcessService implements OnDestroy {
     if (message.event === 'ready' && message.data?.url) {
       session.hostInfo = message.data as ChildToolHostInfo;
       session.running = true;
+      this.log(config, 'backend event: ready', this.sanitizeHostInfo(session.hostInfo));
       this.resolveReady(session, session.hostInfo);
       return;
     }
 
     if (message.event === 'fatal') {
       const error = message.data?.message || `${config.id} server fatal error`;
+      this.logError(config, 'backend event: fatal', error);
       this.rejectReady(session, error);
+      return;
+    }
+
+    if (message.event) {
+      this.log(config, `backend event: ${message.event}`, message.data || {});
     }
   }
 
@@ -300,6 +340,50 @@ export class ChildToolProcessService implements OnDestroy {
     session.running = false;
     session.streamId = '';
     session.stdoutBuffer = '';
+    session.stderrBuffer = '';
     session.hostInfo = null;
+  }
+
+  private log(config: ChildToolConfig, stage: string, details?: any): void {
+    console.info(`[child-tool:${config.id}] ${stage}`, details ?? '');
+  }
+
+  private logError(config: ChildToolConfig, stage: string, details?: any): void {
+    console.error(`[child-tool:${config.id}] ${stage}`, details ?? '');
+  }
+
+  private sanitizeHostInfo(info: ChildToolHostInfo | any): any {
+    if (!info || typeof info !== 'object') return info;
+
+    return {
+      ...info,
+      url: this.sanitizeUrl(info.url),
+      wsUrl: this.sanitizeUrl(info.wsUrl),
+      shutdownUrl: this.sanitizeUrl(info.shutdownUrl)
+    };
+  }
+
+  private sanitizeUrl(url: any): any {
+    if (typeof url !== 'string' || !url) return url;
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.searchParams.has('token')) {
+        parsed.searchParams.set('token', '<redacted>');
+      }
+      return parsed.toString();
+    } catch {
+      return url.replace(/([?&]token=)[^&]+/g, '$1<redacted>');
+    }
+  }
+
+  private formatBufferedStderr(session: ChildToolSession): string {
+    const stderr = this.tailText(session.stderrBuffer).trim();
+    return stderr ? `: ${stderr}` : '';
+  }
+
+  private tailText(value: string, maxLength = 4000): string {
+    const text = String(value || '');
+    return text.length > maxLength ? `...${text.slice(-maxLength)}` : text;
   }
 }

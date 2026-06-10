@@ -257,11 +257,15 @@ img.qrcode {
 
 .group-btn {
   display: flex;
+  gap: 15px;
   margin-top: 8px;
 
   >div {
     height: 30px;
-    width: 50px;
+    width: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 
     i {
       font-size: 26px;
