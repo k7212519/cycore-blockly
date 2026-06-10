@@ -1,5 +1,5 @@
 import { test, expect, getMainWindow, launchAilyElectron, navigate } from '../fixtures/electron-app';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -42,6 +42,7 @@ test.describe('全流程：选板子 → 新建项目 → 编译', () => {
   test.beforeAll(async () => {
     if (ENABLED || ALL_BOARDS_ENABLED) {
       await cleanGlobalAilyProjectDir();
+      await bootstrapAfterGlobalDataCleanup();
     }
   });
 
@@ -110,15 +111,18 @@ async function cleanGlobalAilyProjectDir(): Promise<void> {
 
   console.log(`[e2e] 清理全局 aily-project 目录：${globalProjectDir}`);
   await rmWithRetry(globalProjectDir);
-  await mkdir(globalProjectDir, { recursive: true });
-  await writeFile(
-    path.join(globalProjectDir, 'config.json'),
-    JSON.stringify({
-      onboardingCompleted: true,
-      blocklyOnboardingCompleted: true,
-      ailyChatOnboardingCompleted: true,
-    }),
-  );
+}
+
+async function bootstrapAfterGlobalDataCleanup(): Promise<void> {
+  console.log('[e2e] 全局数据已清理，先启动一次应用以完成首次初始化，然后关闭并重新打开执行用例。');
+  const launched = await launchAilyElectron();
+  try {
+    const win = await getMainWindow(launched.app, 120_000);
+    await win.waitForLoadState('domcontentloaded').catch(() => {});
+    await win.waitForTimeout(5_000);
+  } finally {
+    await launched.close();
+  }
 }
 
 async function rmWithRetry(targetPath: string): Promise<void> {
