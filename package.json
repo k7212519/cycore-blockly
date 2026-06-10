@@ -196,7 +196,12 @@
     "build:cn": "node ./scripts/build-electron.js --flavor cn",
     "build:global": "node ./scripts/build-electron.js --flavor global",
     "build:mac": "ng build --base-href ./ && electron-builder --mac --arm64 --x64",
-    "build:mac:universal": "ng build --base-href ./ && electron-builder --mac --universal"
+    "build:mac:universal": "ng build --base-href ./ && electron-builder --mac --universal",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:fast": "cross-env E2E_SKIP_BUILD=1 playwright test",
+    "test:e2e:report": "playwright show-report"
   },
   "private": true,
   "dependencies": {
@@ -265,11 +270,13 @@
     "@angular-devkit/build-angular": "^19.0.0",
     "@angular/cli": "^19.0.0",
     "@angular/compiler-cli": "^19.0.0",
+    "@playwright/test": "^1.49.0",
     "@types/jasmine": "~5.1.0",
     "@types/node": "^22.10.7",
     "@types/sortablejs": "^1.15.9",
     "@types/ua-parser-js": "^0.7.39",
     "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "electron": "^35.0.2",
     "electron-builder": "^25.1.8",
     "jasmine-core": "~5.4.0",

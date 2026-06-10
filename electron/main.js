@@ -959,9 +959,19 @@ function escapePath(path) {
 // 环境变量加载
 function loadEnv() {
   // 将child目录添加到环境变量PATH中
-  const childPath = serve
+  let childPath = serve
     ? path.join(__dirname, "..", "child")
     : path.join(process.resourcesPath, "child");
+  // 健壮性回退：当打包资源目录下不存在 child 时（例如开发环境下直接以 `electron .`
+  // 加载已构建的渲染层、并非通过 --serve 启动），回退到项目根目录下的 child，
+  // 以便内置 node/npm 及各类工具链（aily-builder、7za、rg、probe-rs 等）仍可用。
+  // 生产环境下 resourcesPath/child 必然存在，因此不会触发回退，行为保持不变。
+  if (!fs.existsSync(childPath)) {
+    const fallbackChildPath = path.join(__dirname, "..", "child");
+    if (fs.existsSync(fallbackChildPath)) {
+      childPath = fallbackChildPath;
+    }
+  }
   const nodePath = path.join(childPath, isDarwin ? "node/bin" : "node");
 
   // 只保留PowerShell路径，移除其他系统PATH
