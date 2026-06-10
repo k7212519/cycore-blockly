@@ -24,6 +24,9 @@ import path from 'node:path';
 const ENABLED = process.env['AILY_E2E_FULLFLOW'] === '1';
 const ALL_BOARDS_ENABLED = process.env['AILY_E2E_ALL_BOARDS'] === '1';
 const BOARD_KEYWORD = process.env['AILY_E2E_BOARD_KEYWORD'] || 'uno r4';
+const SINGLE_BOARD_TIMEOUT_MS = readTimeoutEnv('AILY_E2E_SINGLE_BOARD_TIMEOUT_MS', 45 * 60_000);
+const INSTALL_TIMEOUT_MS = readTimeoutEnv('AILY_E2E_INSTALL_TIMEOUT_MS', 30 * 60_000);
+const COMPILE_TIMEOUT_MS = readTimeoutEnv('AILY_E2E_COMPILE_TIMEOUT_MS', 10 * 60_000);
 
 type BoardCandidate = {
   name: string;
@@ -35,6 +38,20 @@ type BoardTarget = string | BoardCandidate;
 type PageLogBuffer = {
   messages: string[];
 };
+
+function readTimeoutEnv(name: string, fallbackMs: number): number {
+  const raw = process.env[name];
+  if (!raw) {
+    return fallbackMs;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    console.warn(`[e2e] 忽略无效超时配置 ${name}=${raw}，使用默认值 ${fallbackMs}ms。`);
+    return fallbackMs;
+  }
+  return value;
+}
 
 test.describe('全流程：选板子 → 新建项目 → 编译', () => {
   const projectDirs: string[] = [];
@@ -54,8 +71,7 @@ test.describe('全流程：选板子 → 新建项目 → 编译', () => {
 
   test('应能从选板子一路走到编译完成', async ({ electronApp }) => {
     test.skip(!ENABLED, '未开启单开发板全流程用例（需 AILY_E2E_FULLFLOW=1）。');
-    // 创建 + 编译都可能较慢，放宽到 7 分钟。
-    test.setTimeout(420_000);
+    test.setTimeout(SINGLE_BOARD_TIMEOUT_MS);
 
     const win = await getMainWindow(electronApp);
     const pageLog = attachDiagnostics(win);
@@ -396,7 +412,7 @@ async function waitForDependenciesAndPrecompile(
 ): Promise<void> {
   console.log('[e2e] 等待依赖安装与后台预编译完成后再触发编译。');
 
-  const deadline = Date.now() + 10 * 60_000;
+  const deadline = Date.now() + INSTALL_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const joined = pageLog.messages.join('\n');
     const installDone =
@@ -418,7 +434,7 @@ async function waitForDependenciesAndPrecompile(
     await win.waitForTimeout(1000);
   }
 
-  throw new Error('[e2e] 等待依赖安装和后台预编译完成超时。');
+  throw new Error(`[e2e] 等待依赖安装和后台预编译完成超时（${INSTALL_TIMEOUT_MS}ms）。`);
 }
 
 async function getNoticeText(win: Awaited<ReturnType<typeof getMainWindow>>): Promise<string> {
@@ -437,7 +453,7 @@ async function waitForCompileDone(
   const noticeTitle = win.locator('app-notification .text-box .ellipsis').first();
   const noticeText = win.locator('app-notification .text-box .ellipsis.text');
 
-  const compileDeadline = Date.now() + 300_000;
+  const compileDeadline = Date.now() + COMPILE_TIMEOUT_MS;
   let compileResult = '';
   let lastError = '';
   while (Date.now() < compileDeadline) {
