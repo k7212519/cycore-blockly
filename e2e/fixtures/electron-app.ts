@@ -51,6 +51,9 @@ export async function launchAilyElectron(): Promise<LaunchedAilyElectron> {
     throw error;
   }
 
+  app.on('console', (msg) => {
+    console.log(`[electron:${msg.type()}] ${msg.text()}`);
+  });
   app.on('close', () => {});
 
   let closed = false;

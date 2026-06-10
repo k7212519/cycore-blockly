@@ -1277,9 +1277,17 @@ function runInstallEnv(childPath) {
 
 // 环境变量加载
 function loadEnv() {
-  const childPath = serve
+  let childPath = serve
     ? path.join(__dirname, "..", "child")
     : path.join(process.resourcesPath, "child");
+
+  if (!fs.existsSync(childPath)) {
+    const devChildPath = path.join(__dirname, "..", "child");
+    if (fs.existsSync(devChildPath)) {
+      console.warn(`child 工具目录不存在，回退到开发目录: ${childPath} -> ${devChildPath}`);
+      childPath = devChildPath;
+    }
+  }
 
   // 读取config.json文件
   const configPath = path.join(__dirname, 'config', "config.json");
