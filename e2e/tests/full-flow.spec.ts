@@ -129,6 +129,42 @@ async function cleanGlobalAilyProjectDir(): Promise<void> {
   await rmWithRetry(globalProjectDir);
 }
 
+async function cleanAilyBuilderArtifacts(): Promise<void> {
+  const targets = getAilyBuilderArtifactDirs();
+
+  for (const targetPath of targets) {
+    const resolved = path.resolve(targetPath);
+    if (!/(^|[\\/])aily-builder[\\/](project|cache)$/.test(resolved)) {
+      throw new Error(`[e2e] 拒绝清理异常 aily-builder 目录：${targetPath}`);
+    }
+
+    console.log(`[e2e] 清理 aily-builder 构建缓存：${targetPath}`);
+    await rmWithRetry(targetPath);
+  }
+}
+
+function getAilyBuilderArtifactDirs(): string[] {
+  if (process.platform === 'win32') {
+    const localAppData = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+    return [
+      path.join(localAppData, 'aily-builder', 'project'),
+      path.join(localAppData, 'aily-builder', 'cache'),
+    ];
+  }
+
+  if (process.platform === 'darwin') {
+    return [
+      path.join(os.homedir(), 'Library', 'aily-builder', 'project'),
+      path.join(os.homedir(), 'Library', 'Caches', 'aily-builder', 'cache'),
+    ];
+  }
+
+  return [
+    path.join(os.homedir(), '.cache', 'aily-builder', 'project'),
+    path.join(os.homedir(), '.aily-builder', 'cache'),
+  ];
+}
+
 async function bootstrapAfterGlobalDataCleanup(): Promise<void> {
   console.log('[e2e] 全局数据已清理，先启动一次应用以完成首次初始化，然后关闭并重新打开执行用例。');
   const launched = await launchAilyElectron();
@@ -305,6 +341,7 @@ async function createProjectAndCompile(
   projectDirs: string[],
   pageLog: PageLogBuffer,
 ): Promise<string> {
+  await cleanAilyBuilderArtifacts();
   await openProjectNew(win);
   await waitForBoardCards(win);
 
