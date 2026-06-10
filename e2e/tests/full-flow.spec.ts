@@ -341,6 +341,7 @@ async function createProjectAndCompile(
   const compileBtn = win.locator('app-header app-act-btn[data-action="compile"]');
   await expect(compileBtn).toBeVisible({ timeout: 60_000 });
   const compileLogStart = pageLog.messages.length;
+  await dismissOnboardingIfVisible(win, 5_000);
   await compileBtn.click();
 
   await waitForCompileDone(win, pageLog, compileLogStart);
@@ -376,6 +377,7 @@ async function selectBoardForProject(
     const label = normalizeBoardLabel((await card.locator('.name').innerText().catch(() => '')) || '');
     if (label === targetLabel) {
       await card.scrollIntoViewIfNeeded();
+      await dismissOnboardingIfVisible(win, 5_000);
       await card.click();
       return;
     }
