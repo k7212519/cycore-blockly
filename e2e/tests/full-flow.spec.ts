@@ -118,8 +118,11 @@ async function bootstrapAfterGlobalDataCleanup(): Promise<void> {
   const launched = await launchAilyElectron();
   try {
     const win = await getMainWindow(launched.app, 120_000);
+    attachDiagnostics(win);
     await win.waitForLoadState('domcontentloaded').catch(() => {});
-    await win.waitForTimeout(5_000);
+    await expect(win.locator('app-guide .menu-box .btn.link').first()).toBeVisible({ timeout: 60_000 });
+    await dismissOnboardingIfVisible(win, 10_000);
+    await win.waitForTimeout(1_000);
   } finally {
     await launched.close();
   }
@@ -143,6 +146,27 @@ async function rmWithRetry(targetPath: string): Promise<void> {
   }
 }
 
+async function dismissOnboardingIfVisible(
+  win: Awaited<ReturnType<typeof getMainWindow>>,
+  timeout = 2_000,
+): Promise<void> {
+  const overlay = win.locator('app-onboarding .onboarding-overlay');
+  const skipButton = win.locator('app-onboarding .btn-skip').first();
+
+  if (!(await overlay.first().isVisible({ timeout }).catch(() => false))) {
+    return;
+  }
+
+  console.log('[e2e] 检测到新手引导遮罩，点击跳过以避免阻塞自动化流程。');
+  await skipButton.click({ timeout: 10_000 }).catch(async () => {
+    await win.evaluate(() => {
+      const button = document.querySelector<HTMLButtonElement>('app-onboarding .btn-skip');
+      button?.click();
+    });
+  });
+  await expect(overlay).toHaveCount(0, { timeout: 10_000 });
+}
+
 function attachDiagnostics(win: Awaited<ReturnType<typeof getMainWindow>>): PageLogBuffer {
   const pageLog: PageLogBuffer = { messages: [] };
   win.on('console', (msg) => {
@@ -154,12 +178,18 @@ function attachDiagnostics(win: Awaited<ReturnType<typeof getMainWindow>>): Page
     console.log(`[page:${msg.type()}] ${text}`);
   });
   win.on('pageerror', (err) => console.log(`[pageerror] ${err.message}`));
+  win.on('requestfailed', (request) => {
+    console.log(`[requestfailed] ${request.failure()?.errorText || 'unknown'} ${request.url()}`);
+  });
   return pageLog;
 }
 
 async function openProjectNew(win: Awaited<ReturnType<typeof getMainWindow>>): Promise<void> {
+  await dismissOnboardingIfVisible(win);
   await navigate(win, '/main/project-new');
   await expect(win.locator('app-project-new .project-new-box')).toBeVisible();
+  await win.waitForTimeout(750);
+  await dismissOnboardingIfVisible(win, 5_000);
 }
 
 async function waitForBoardCards(win: Awaited<ReturnType<typeof getMainWindow>>, timeout = 60_000) {
@@ -223,6 +253,7 @@ async function collectCreatableBoards(win: Awaited<ReturnType<typeof getMainWind
       continue;
     }
 
+    await dismissOnboardingIfVisible(win, 5_000);
     await card.click();
     const useThisBtn = win.locator('app-project-new .desc-box .next button').first();
     if (!(await useThisBtn.isVisible().catch(() => false))) {
@@ -328,6 +359,7 @@ async function selectBoardForProject(
     // ProjectNewComponent.search() 有 200ms debounce，等搜索结果稳定后再点。
     await win.waitForTimeout(500);
     await expect(boardCards.first()).toBeVisible({ timeout: 15_000 });
+    await dismissOnboardingIfVisible(win, 5_000);
     await boardCards.first().click();
     return;
   }
@@ -335,6 +367,7 @@ async function selectBoardForProject(
   await searchInput.fill('');
   await win.waitForTimeout(500);
   await expect(boardCards.first()).toBeVisible({ timeout: 15_000 });
+  await dismissOnboardingIfVisible(win, 5_000);
 
   const targetLabel = normalizeBoardLabel(boardTarget.label);
   const count = await boardCards.count();
