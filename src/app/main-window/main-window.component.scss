@@ -42,20 +42,20 @@ app-guide {
   position: relative;
   min-height: 0;
 
-  ngx-simplebar {
-    height: 100%;
-    width: 100%;
+  // ngx-simplebar {
+  //   height: 100%;
+  //   width: 100%;
 
-    ::ng-deep {
-      .simplebar-content-wrapper {
-        height: 100%;
-      }
+  //   ::ng-deep {
+  //     .simplebar-content-wrapper {
+  //       height: 100%;
+  //     }
 
-      .simplebar-content {
-        height: 100%;
-      }
-    }
-  }
+  //     .simplebar-content {
+  //       height: 100%;
+  //     }
+  //   }
+  // }
 }
 
 .bottom-box {

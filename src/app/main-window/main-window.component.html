@@ -4,9 +4,9 @@
     <nz-layout [class.app-layout-has-sider]="showRbox">
       <nz-content>
         <div class="middle-box">
-          <ngx-simplebar [options]="options">
+          <!-- <ngx-simplebar [options]="options"> -->
             <router-outlet></router-outlet>
-          </ngx-simplebar>
+          <!-- </ngx-simplebar> -->
         </div>
         @if (showBbox) {
         <div nz-resizable class="resizable-box" [style.height.px]="bottomHeight" [nzMaxHeight]="600" [nzMinHeight]="50"
