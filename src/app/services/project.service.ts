@@ -1827,6 +1827,7 @@ export class ProjectService {
           nickname: currentPackageJson.nickname, // 保留昵称
           author: currentPackageJson.author, // 保留作者
           description: currentPackageJson.description, // 保留描述
+          ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }), // 保留云端项目ID
           dependencies: {
             // 从模板获取新的开发板依赖和基础库
             ...templatePackageJson.dependencies,
@@ -1838,7 +1839,6 @@ export class ProjectService {
           },
           // 不保留其他自定义配置
           // ...(currentPackageJson.projectConfig && { projectConfig: currentPackageJson.projectConfig }),
-          // ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }),
         };
 
         // 写入新的package.json
