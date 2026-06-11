@@ -11,7 +11,7 @@ aily Blockly是aily Project下的blockly IDE，前期面向非专业用户提供
 > 我们以提供工业级别软件为目标，进行本项目的设计和开发，但本项目目前还处于alpha阶段，不建议用于量产设备固件开发，但当前版本用于原型验证、教育教学是完全没有问题的。  
 
 ## 视频介绍
-[v1-2_1024.webm](https://github.com/user-attachments/assets/2e97dd34-4096-4d3e-a97b-d50e63e3d258)
+[ailyblockly-2min.webm](https://github.com/user-attachments/assets/bc8da095-2e4d-4ba0-ad31-2a4824a21576)  
 
 ## 中国版下载地址
 [下载](https://yiyu.pro/download)  
