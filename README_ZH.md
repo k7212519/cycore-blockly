@@ -10,6 +10,14 @@ aily Blockly是aily Project下的blockly IDE，前期面向非专业用户提供
 
 > 我们以提供工业级别软件为目标，进行本项目的设计和开发，但本项目目前还处于alpha阶段，不建议用于量产设备固件开发，但当前版本用于原型验证、教育教学是完全没有问题的。  
 
+## 视频介绍
+![aily blockly中文宣传视频](https://dl.aily.pro/videos/v1.webm)  
+<video src="https://dl.aily.pro/videos/v1.webm" controls="controls"></video>
+
+## 中国版下载地址
+[下载](https://yiyu.pro/download)  
+
+
 ## 当前版本亮点  
 1. 工程化项目管理
 使用npm进行项目管理，做到以项目为单位进行开发板和库的管理。解决了诸多传统嵌入式开发环境的工程化不足的问题。如，使用Arduino IDE可能出现board package、库和当前项目不匹配，造成编译失败，运行错误的问题。在本软件上，各项目中的开发板版本和库版本是独立的，项目间互不影响。
@@ -38,7 +46,7 @@ AI可以根据用户程序和需求生成模组连线图，方便用户参考。
 当前版本不建议实际用于工作，因为后期我们做出的诸多调整，可能会导致版本间的不兼容。
 
 ## 文档
-[使用文档](https://aily.pro/doc)  
+[使用文档](https://yiyu.pro/doc)  
 [库适配文档](https://github.com/ailyProject/aily-blockly-libraries/blob/main/%E5%BA%93%E8%A7%84%E8%8C%83.md)  
 [软件开发文档](./develop.md)  
 
