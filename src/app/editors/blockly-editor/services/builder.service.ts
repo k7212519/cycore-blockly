@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { TranslateService } from '@ngx-translate/core';
 import { CmdOutput, CmdService } from '../../../services/cmd.service';
 import { CrossPlatformCmdService } from '../../../services/cross-platform-cmd.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
@@ -27,6 +28,7 @@ export class _BuilderService {
     private cmdService: CmdService,
     private crossPlatformCmdService: CrossPlatformCmdService,
     private message: NzMessageService,
+    private translate: TranslateService,
     private noticeService: NoticeService,
     private logService: LogService,
     private workflowService: WorkflowService,
@@ -69,6 +71,28 @@ export class _BuilderService {
   isUploading = false;
 
   private initialized = false; // 防止重复初始化
+
+  private t(key: string, params?: Record<string, any>): string {
+    return this.translate.instant(`BLOCKLY_EDITOR.BUILD.${key}`, params);
+  }
+
+  private buildNoticeTitle(boardName: string): string {
+    return this.t('RUNNING_TITLE', { board: boardName });
+  }
+
+  private messageWithDuration(message: string, seconds: string): string {
+    return this.t('MESSAGE_WITH_DURATION', { message, seconds });
+  }
+
+  private updateCancelledNotice(buildDuration: string, setTimeout = 5000): void {
+    this.noticeService.update({
+      title: this.t('CANCELLED_TITLE'),
+      text: this.t('CANCELLED_WITH_TIME', { seconds: buildDuration }),
+      state: 'warn',
+      setTimeout,
+      isCancellationNotice: true
+    });
+  }
 
   private isInstallInProgress(): boolean {
     return this.npmService.isInstalling || this.workflowService.currentState === ProcessState.INSTALLING;
@@ -715,8 +739,8 @@ export class _BuilderService {
     const cleanDetailMessage = (details || errorMessage).trim();
 
     this.noticeService.update({
-      title: "编译失败",
-      text: `${cleanErrorMessage} (耗时: ${buildDuration}s)`,
+      title: this.t('FAILED_TITLE'),
+      text: this.messageWithDuration(cleanErrorMessage, buildDuration),
       state: 'error',
       detail: cleanDetailMessage,
       setTimeout: 600000,
@@ -732,13 +756,13 @@ export class _BuilderService {
   async build(): Promise<ActionState> {
     if (!this.workflowService.startBuild()) {
       const state = this.workflowService.currentState;
-      let msg = "系统繁忙";
-      if (state === ProcessState.BUILDING) msg = "编译正在进行中";
-      else if (state === ProcessState.UPLOADING) msg = "上传正在进行中";
-      else if (state === ProcessState.INSTALLING) msg = "依赖安装中";
+      let msg = this.t('BUSY_SYSTEM');
+      if (state === ProcessState.BUILDING) msg = this.t('BUSY_BUILDING');
+      else if (state === ProcessState.UPLOADING) msg = this.t('BUSY_UPLOADING');
+      else if (state === ProcessState.INSTALLING) msg = this.t('BUSY_INSTALLING');
       
-      this.message.warning(msg + "，请稍后再试");
-      return Promise.reject({ state: 'warn', text: msg + "，请稍后" });
+      this.message.warning(this.t('BUSY_RETRY_LATER', { message: msg }));
+      return Promise.reject({ state: 'warn', text: this.t('BUSY_WAIT', { message: msg }) });
     }
 
     this.buildCompleted = false;
@@ -752,7 +776,7 @@ export class _BuilderService {
 
     return this.appDataResourceLock.runShared('build:preprocess-and-compile', () => {
       if (this.cancelled) {
-        return Promise.reject({ state: 'warn', text: '编译已取消' });
+        return Promise.reject({ state: 'warn', text: this.t('CANCELLED_TITLE') });
       }
 
       return new Promise<ActionState>(async (resolve, reject) => {
@@ -770,8 +794,8 @@ export class _BuilderService {
         // 1. 检查是否有预编译程序正在运行，等待其完成
         if (this.preprocessProcess) {
           this.safeUpdateNotice({
-            title: "编译准备中",
-            text: "预编译正在运行",
+            title: this.t('PREPARING_TITLE'),
+            text: this.t('PRECOMPILE_RUNNING'),
             state: 'doing',
             progress: 0,
             setTimeout: 0,
@@ -795,7 +819,7 @@ export class _BuilderService {
             if (this.cancelled) {
               console.log('等待预编译时被取消');
               this.workflowService.finishBuild(false, 'Cancelled while waiting for preprocessing');
-              reject({ state: 'warn', text: '编译已取消' });
+              reject({ state: 'warn', text: this.t('CANCELLED_TITLE') });
               return;
             }
           }
@@ -829,8 +853,8 @@ export class _BuilderService {
           
           // 简短提示，引导用户查看日志详情，添加 detail 字段以显示"查看详情"按钮
           this.noticeService.update({
-            title: "预编译失败",
-            text: "依赖分析时发生错误，请查看日志了解详情",
+            title: this.t('PRECOMPILE_FAILED_TITLE'),
+            text: this.t('PRECOMPILE_FAILED_DETAIL'),
             state: 'error',
             detail: cleanError,
             setTimeout: 600000,
@@ -844,7 +868,7 @@ export class _BuilderService {
           this.preprocessError = null;
           this.preprocessFullError = '';
           
-          reject({ state: 'error', text: '预编译失败，请查看日志了解详情' });
+          reject({ state: 'error', text: this.t('PRECOMPILE_FAILED_RETRY') });
           return;
         }
 
@@ -865,8 +889,8 @@ export class _BuilderService {
         // 4. 检查是否存在预编译缓存文件，如果不存在则启动预编译
         if (!window['path'].isExists(preprocessCachePath)) {
           this.safeUpdateNotice({
-            title: "编译准备中",
-            text: "依赖分析系统正在运行",
+            title: this.t('PREPARING_TITLE'),
+            text: this.t('DEPENDENCY_ANALYSIS_RUNNING'),
             state: 'doing',
             progress: 0,
             setTimeout: 0,
@@ -893,8 +917,8 @@ export class _BuilderService {
               
               // 使用与编译错误一致的通知方式（错误已在 complete 中发送到日志，不重复发送）
               this.noticeService.update({
-                title: "预编译失败",
-                text: `${cleanError} (耗时: ${buildDuration}s)`,
+                title: this.t('PRECOMPILE_FAILED_TITLE'),
+                text: this.messageWithDuration(cleanError, buildDuration),
                 state: 'error',
                 detail: cleanError,
                 setTimeout: 600000,
@@ -907,7 +931,7 @@ export class _BuilderService {
               this.preprocessError = null;
               this.preprocessFullError = '';
               
-              reject({ state: 'error', text: '预编译错误: ' + cleanError });
+              reject({ state: 'error', text: this.t('PRECOMPILE_ERROR_WITH_MESSAGE', { message: cleanError }) });
               return;
             }
           } catch (error) {
@@ -922,8 +946,8 @@ export class _BuilderService {
             
             // 使用与编译错误一致的通知方式（错误已在 complete/error 中发送到日志，不重复发送）
             this.noticeService.update({
-              title: "预编译失败",
-              text: `${errorMsg} (耗时: ${buildDuration}s)`,
+              title: this.t('PRECOMPILE_FAILED_TITLE'),
+              text: this.messageWithDuration(errorMsg, buildDuration),
               state: 'error',
               detail: errorMsg,
               setTimeout: 600000,
@@ -932,7 +956,7 @@ export class _BuilderService {
             
             this.passed = false;
             this.workflowService.finishBuild(false, 'Preprocessing failed');
-            reject({ state: 'error', text: '预编译失败: ' + errorMsg });
+            reject({ state: 'error', text: this.t('PRECOMPILE_FAILED_WITH_MESSAGE', { message: errorMsg }) });
             return;
           }
         } else {
@@ -956,7 +980,7 @@ export class _BuilderService {
         }
 
         let compileCommand: string = "";
-        let completeTitle: string = `编译完成`;
+        let completeTitle: string = this.t('COMPLETE_TITLE');
 
         try {
           // 获取最新代码
@@ -979,7 +1003,7 @@ export class _BuilderService {
           const compileScriptPath = this.electronService.pathJoin(window['path'].getAilyChildPath(), 'scripts', 'compile.js');
           compileCommand = `node "${compileScriptPath}" "${configFilePath}"`;
 
-          completeTitle = `编译完成`;
+          completeTitle = this.t('COMPLETE_TITLE');
 
           let lastProgress = 0;
           let lastBuildText = '';
@@ -993,10 +1017,10 @@ export class _BuilderService {
 
           this.buildStartTime = Date.now();
 
-          const buildText = isFirstBuild ? "首次编译可能需要较长时间" : "闪电构建系统正在运行";
+          const buildText = isFirstBuild ? this.t('FIRST_BUILD_HINT') : this.t('FAST_BUILD_HINT');
           
           this.safeUpdateNotice({
-            title: `正在编译${boardName}`,
+            title: this.buildNoticeTitle(boardName),
             text: buildText,
             state: 'doing',
             progress: 0,
@@ -1029,8 +1053,8 @@ export class _BuilderService {
                 if (processExitCode !== 0 || processSignal) {
                   this.isErrored = true;
                   const processErrorMessage = processSignal
-                    ? `编译进程被信号终止: ${processSignal}`
-                    : `编译进程异常退出，退出码: ${processExitCode}`;
+                    ? this.t('PROCESS_SIGNAL_TERMINATED', { signal: processSignal })
+                    : this.t('PROCESS_EXITED_WITH_CODE', { code: processExitCode });
                   lastStdErr = lastStdErr || processErrorMessage;
                   if (!fullStdErr) {
                     fullStdErr = processErrorMessage;
@@ -1041,7 +1065,7 @@ export class _BuilderService {
 
               if (output.type === 'error') {
                 this.isErrored = true;
-                const processErrorMessage = output.error || '编译进程启动失败';
+                const processErrorMessage = output.error || this.t('PROCESS_START_FAILED');
                 lastStdErr = lastStdErr || processErrorMessage;
                 if (!fullStdErr) {
                   fullStdErr = processErrorMessage;
@@ -1096,7 +1120,7 @@ export class _BuilderService {
                         
                         // 安全更新UI
                         this.safeUpdateNotice({
-                          title: `正在编译${boardName}`,
+                          title: this.buildNoticeTitle(boardName),
                           text: lastBuildText,
                           state: 'doing',
                           progress: this.currentProgress,
@@ -1181,8 +1205,8 @@ export class _BuilderService {
               if (!this.cancelled && !this.isErrored && ((processExitCode !== null && processExitCode !== 0) || processSignal)) {
                 this.isErrored = true;
                 const processErrorMessage = processSignal
-                  ? `编译进程被信号终止: ${processSignal}`
-                  : `编译进程异常退出，退出码: ${processExitCode}`;
+                  ? this.t('PROCESS_SIGNAL_TERMINATED', { signal: processSignal })
+                  : this.t('PROCESS_EXITED_WITH_CODE', { code: processExitCode });
                 lastStdErr = lastStdErr || processErrorMessage;
                 if (!fullStdErr) {
                   fullStdErr = processErrorMessage;
@@ -1200,7 +1224,7 @@ export class _BuilderService {
                 console.log(`编译耗时: ${buildDuration} 秒`);
 
                 const displayText = this.extractFirmwareInfo(lastLogLines);
-                const displayTextWithTime = `${displayText} (耗时: ${buildDuration}s)`;
+                const displayTextWithTime = this.messageWithDuration(displayText, buildDuration);
                 
                 // 安全更新UI
                 this.safeUpdateNotice({ title: completeTitle, text: displayTextWithTime, state: 'done', setTimeout: 600000 });
@@ -1215,12 +1239,12 @@ export class _BuilderService {
                 this.compileValidationService.triggerAfterSuccessfulCompile();
                 
                 this.workflowService.finishBuild(true);
-                resolve({ state: 'done', text: `编译完成 (耗时: ${buildDuration}s)` });
+                resolve({ state: 'done', text: this.t('COMPLETE_WITH_TIME', { seconds: buildDuration }) });
               } else if (this.isErrored) {
                 console.log(`编译失败，耗时: ${buildDuration} 秒`);
 
                 lastStdErr = lastStdErr.replace(/\[\d+(;\d+)*m/g, '');
-                this.handleCompileError(lastStdErr || '编译未完成', false, fullStdErr || lastStdErr || '编译未完成');
+                this.handleCompileError(lastStdErr || this.t('INCOMPLETE'), false, fullStdErr || lastStdErr || this.t('INCOMPLETE'));
                 this.logService.update({ detail: fullStdErr, state: 'error' });
                 this.passed = false;
                 
@@ -1230,17 +1254,12 @@ export class _BuilderService {
                 });
                 
                 this.workflowService.finishBuild(false, 'Compilation failed');
-                reject({ state: 'error', text: `编译失败 (耗时: ${buildDuration}s)`, fullStdErr: fullStdErr || lastStdErr });
+                reject({ state: 'error', text: this.t('FAILED_WITH_TIME', { seconds: buildDuration }), fullStdErr: fullStdErr || lastStdErr });
               } else if (this.cancelled) {
                 console.warn("编译中断")
                 console.log(`编译已取消，耗时: ${buildDuration} 秒`);
 
-                this.noticeService.update({
-                  title: "编译已取消",
-                  text: `编译已取消 (耗时: ${buildDuration}s)`,
-                  state: 'warn',
-                  setTimeout: 55000
-                });
+                this.updateCancelledNotice(buildDuration, 55000);
                 this.passed = false;
                 
                 // 记录编译取消状态（不阻塞）
@@ -1249,20 +1268,20 @@ export class _BuilderService {
                 });
                 
                 this.workflowService.finishBuild(false, 'Cancelled');
-                reject({ state: 'warn', text: `编译已取消 (耗时: ${buildDuration}s)` });
+                reject({ state: 'warn', text: this.t('CANCELLED_WITH_TIME', { seconds: buildDuration }) });
               } else {
                 // 处理未知状态：进程异常结束但没有设置任何标志
                 console.error('编译进程异常结束，未知状态，lastProgress:', lastProgress);
                 
                 this.noticeService.update({
-                  title: "编译异常结束",
-                  text: `编译进程异常结束 (耗时: ${buildDuration}s)`,
+                  title: this.t('ABNORMAL_END_TITLE'),
+                  text: this.t('ABNORMAL_END_WITH_TIME', { seconds: buildDuration }),
                   state: 'error',
                   setTimeout: 60000
                 });
                 this.passed = false;
                 this.workflowService.finishBuild(false, 'Abnormal termination');
-                reject({ state: 'error', text: `编译进程异常结束 (耗时: ${buildDuration}s)` });
+                reject({ state: 'error', text: this.t('ABNORMAL_END_WITH_TIME', { seconds: buildDuration }) });
               }
               
               // 最后清理订阅和 reject 引用
@@ -1271,20 +1290,15 @@ export class _BuilderService {
             }
           })
         } catch (error) {
-          if (error.message === '编译已取消') {
+          if (error.message === '编译已取消' || error.message === this.t('CANCELLED_TITLE')) {
             const buildEndTime = Date.now();
             const buildDuration = ((buildEndTime - this.buildStartTime) / 1000).toFixed(2);
 
-            this.noticeService.update({
-              title: "编译已取消",
-              text: `编译已取消 (耗时: ${buildDuration}s)`,
-              state: 'warn',
-              setTimeout: 5000
-            });
+            this.updateCancelledNotice(buildDuration);
             this.cancelled = true;
             this.workflowService.finishBuild(false, 'Cancelled');
 
-            reject({ state: 'warn', text: `编译已取消 (耗时: ${buildDuration}s)` });
+            reject({ state: 'warn', text: this.t('CANCELLED_WITH_TIME', { seconds: buildDuration }) });
             return;
           }
           throw error;
@@ -1363,7 +1377,7 @@ export class _BuilderService {
       return `Flash use ${flashPercent}%   Ram use ${ramPercent}%`;
     }
 
-    return "编译完成";
+    return this.t('FIRMWARE_INFO_FALLBACK');
   }
 
 
@@ -1404,8 +1418,8 @@ export class _BuilderService {
         
         // 安全更新UI
         this.safeUpdateNotice({
-          title: `正在编译${boardName}`,
-          text: '正在分析依赖...',
+          title: this.buildNoticeTitle(boardName),
+          text: this.t('ANALYZING_DEPS'),
           state: 'doing',
           progress: this.currentProgress,
           setTimeout: 0,
@@ -1426,8 +1440,8 @@ export class _BuilderService {
         
         // 安全更新UI
         this.safeUpdateNotice({
-          title: `正在编译${boardName}`,
-          text: '正在处理...',
+          title: this.buildNoticeTitle(boardName),
+          text: this.t('PROCESSING'),
           state: 'doing',
           progress: this.currentProgress,
           setTimeout: 0,
@@ -1457,7 +1471,7 @@ export class _BuilderService {
     // 如果已取消，只允许更新为取消状态
     if (this.cancelled) {
       // 只允许显示取消相关的通知
-      if (config.state === 'warn' && config.title && config.title.includes('取消')) {
+      if (config.state === 'warn' && config.isCancellationNotice) {
         this.noticeService.update(config);
       }
       // 其他所有更新都被忽略
@@ -1479,12 +1493,7 @@ export class _BuilderService {
       setTimeout(() => {
         // 再次检查是否仍处于取消状态
         if (this.cancelled && !this.buildCompleted && !this.isErrored) {
-          this.noticeService.update({
-            title: "编译已取消",
-            text: `编译已取消 (耗时: ${buildDuration}s)`,
-            state: 'warn',
-            setTimeout: 5000
-          });
+          this.updateCancelledNotice(buildDuration);
         }
       }, delay);
     });
@@ -1551,12 +1560,7 @@ export class _BuilderService {
     });
 
     // 4. 立即更新 UI 状态
-    this.noticeService.update({
-      title: "编译已取消",
-      text: `编译已取消 (耗时: ${buildDuration}s)`,
-      state: 'warn',
-      setTimeout: 5000
-    });
+    this.updateCancelledNotice(buildDuration);
 
     // 5. 完成 workflow 状态
     this.workflowService.finishBuild(false, 'Cancelled');
@@ -1570,7 +1574,7 @@ export class _BuilderService {
       
       // 使用 setTimeout 确保同步操作完成后再 reject
       setTimeout(() => {
-        rejectFunc({ state: 'warn', text: `编译已取消 (耗时: ${buildDuration}s)` });
+        rejectFunc({ state: 'warn', text: this.t('CANCELLED_WITH_TIME', { seconds: buildDuration }) });
       }, 0);
     } else {
       console.log('Promise 已完成，仅清理资源');
