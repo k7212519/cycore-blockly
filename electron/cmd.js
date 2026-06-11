@@ -9,6 +9,201 @@ function summarizeArgs(args = []) {
   return args.join(' ').slice(0, 1000);
 }
 
+function uniqueNonEmpty(items) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    if (!item || typeof item !== 'string') {
+      continue;
+    }
+    const normalized = item.trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function fileExists(filePath) {
+  try {
+    return !!filePath && fs.existsSync(filePath);
+  } catch (_) {
+    return false;
+  }
+}
+
+function windowsShellDiagnostics(candidates) {
+  return {
+    env: {
+      SystemRoot: process.env.SystemRoot || '',
+      windir: process.env.windir || '',
+      ComSpec: process.env.ComSpec || '',
+      ProgramFiles: process.env.ProgramFiles || '',
+      ProgramFilesX86: process.env['ProgramFiles(x86)'] || ''
+    },
+    candidates: candidates.map(candidate => ({
+      kind: candidate.kind,
+      source: candidate.source,
+      path: candidate.path,
+      exists: candidate.exists
+    }))
+  };
+}
+
+function getWindowsShellCandidates() {
+  if (!isWin32) {
+    return [];
+  }
+
+  const windowsRoots = uniqueNonEmpty([
+    process.env.SystemRoot,
+    process.env.windir,
+    'C:\\Windows'
+  ]);
+  const programFilesRoots = uniqueNonEmpty([
+    process.env.ProgramFiles,
+    process.env['ProgramFiles(x86)'],
+    'C:\\Program Files'
+  ]);
+
+  const candidates = [];
+
+  for (const root of windowsRoots) {
+    candidates.push({
+      kind: 'powershell',
+      source: `${root}\\System32`,
+      path: path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    });
+    candidates.push({
+      kind: 'powershell',
+      source: `${root}\\Sysnative`,
+      path: path.join(root, 'Sysnative', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    });
+  }
+
+  for (const root of programFilesRoots) {
+    candidates.push({
+      kind: 'powershell',
+      source: `${root}\\PowerShell\\7`,
+      path: path.join(root, 'PowerShell', '7', 'pwsh.exe')
+    });
+  }
+
+  candidates.push({
+    kind: 'cmd',
+    source: 'ComSpec',
+    path: process.env.ComSpec
+  });
+
+  for (const root of windowsRoots) {
+    candidates.push({
+      kind: 'cmd',
+      source: `${root}\\System32`,
+      path: path.join(root, 'System32', 'cmd.exe')
+    });
+    candidates.push({
+      kind: 'cmd',
+      source: `${root}\\Sysnative`,
+      path: path.join(root, 'Sysnative', 'cmd.exe')
+    });
+  }
+
+  const seen = new Set();
+  return candidates
+    .filter(candidate => candidate.path && typeof candidate.path === 'string')
+    .map(candidate => ({
+      ...candidate,
+      path: candidate.path.trim()
+    }))
+    .filter(candidate => {
+      const key = `${candidate.kind}:${candidate.path.toLowerCase()}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .map(candidate => ({
+      ...candidate,
+      exists: fileExists(candidate.path)
+    }));
+}
+
+const POWERSHELL_COMMANDS = new Set([
+  'copy-item',
+  'get-childitem',
+  'move-item',
+  'new-item',
+  'remove-item',
+  'test-path'
+]);
+
+function getWindowsShellPreference(command) {
+  const lowerCommand = String(command || '').replace(/^"|"$/g, '').trim().toLowerCase();
+  if (!lowerCommand) {
+    return 'powershell';
+  }
+  if (lowerCommand === 'node' || lowerCommand === 'node.exe') {
+    return 'cmd';
+  }
+  if (lowerCommand.endsWith('.cmd') || lowerCommand.endsWith('.bat')) {
+    return 'cmd';
+  }
+  if (POWERSHELL_COMMANDS.has(lowerCommand)) {
+    return 'powershell';
+  }
+  return 'powershell';
+}
+
+function resolveWindowsShell(preference = 'powershell') {
+  const candidates = getWindowsShellCandidates();
+  const preferredKinds = preference === 'cmd'
+    ? ['cmd', 'powershell']
+    : ['powershell', 'cmd'];
+  const shell = candidates.find(candidate => preferredKinds.includes(candidate.kind) && candidate.exists);
+
+  if (!shell) {
+    const diagnostics = windowsShellDiagnostics(candidates);
+    const error = new Error(
+      `无法启动 Windows shell：未找到可用的 PowerShell 或 cmd.exe。` +
+      `请检查 SystemRoot/windir/ComSpec 环境变量或系统文件是否完整。`
+    );
+    error.shellDiagnostics = diagnostics;
+    throw error;
+  }
+
+  return {
+    shell: shell.path,
+    kind: shell.kind,
+    diagnostics: windowsShellDiagnostics(candidates)
+  };
+}
+
+function formatSpawnError(error, entry) {
+  const baseMessage = error?.message || String(error);
+  const shellDiagnostics = entry?.shellDiagnostics || error?.shellDiagnostics;
+  if (!isWin32 || !shellDiagnostics) {
+    return baseMessage;
+  }
+
+  const diagnostics = shellDiagnostics;
+  const candidateLines = diagnostics.candidates
+    .map(candidate => `${candidate.exists ? 'OK' : 'MISS'} ${candidate.kind} ${candidate.path} (${candidate.source})`)
+    .join('\n');
+  const envLines = [
+    `SystemRoot=${diagnostics.env.SystemRoot}`,
+    `windir=${diagnostics.env.windir}`,
+    `ComSpec=${diagnostics.env.ComSpec}`,
+    `ProgramFiles=${diagnostics.env.ProgramFiles}`,
+    `ProgramFiles(x86)=${diagnostics.env.ProgramFilesX86}`
+  ].join('\n');
+
+  return `${baseMessage}\nWindows shell 诊断:\n${envLines}\n${candidateLines}`;
+}
+
 function buildCommandEnv(extraEnv = {}) {
   const env = { ...process.env, ...extraEnv };
   if (isDarwin) {
@@ -155,14 +350,19 @@ class CommandManager {
     
     // 根据平台选择正确的 shell
     let shell;
+    let shellKind = 'default';
+    let shellDiagnostics;
     if (isWin32) {
-      // 使用绝对路径，避免 PATH 中找不到 powershell 导致 ENOENT
-      const systemRoot = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
-      shell = path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+      const resolvedShell = resolveWindowsShell(getWindowsShellPreference(command));
+      shell = resolvedShell.shell;
+      shellKind = resolvedShell.kind;
+      shellDiagnostics = resolvedShell.diagnostics;
     } else if (isDarwin) {
       shell = '/bin/zsh';
+      shellKind = 'zsh';
     } else if (isLinux) {
       shell = '/bin/bash';
+      shellKind = 'bash';
     } else {
       shell = true; // 使用系统默认 shell
     }
@@ -181,7 +381,10 @@ class CommandManager {
       // 因为 .cmd 本质是批处理，用 cmd.exe 运行是最原生、最稳的
       // 同时也避开了 PowerShell 执行策略 (ExecutionPolicy) 的干扰
       if (command.endsWith('.cmd') || command.endsWith('.bat')) {
-        shell = true;
+        const resolvedShell = resolveWindowsShell('cmd');
+        shell = resolvedShell.shell;
+        shellKind = resolvedShell.kind;
+        shellDiagnostics = resolvedShell.diagnostics;
       }
     }
 
@@ -226,6 +429,8 @@ class CommandManager {
       args,
       cwd: cwd || process.cwd(),
       shell,
+      shellKind,
+      shellDiagnostics,
       startedAt
     });
     console.info('[PROC_TRACE][CMD_SPAWN]', {
@@ -234,7 +439,8 @@ class CommandManager {
       command,
       args: summarizeArgs(args),
       cwd: cwd || process.cwd(),
-      shell: String(shell)
+      shell: String(shell),
+      shellKind
     });
 
     // console.log("====child:" , child,{
@@ -362,16 +568,20 @@ function registerCmdHandlers(mainWindow) {
       // 监听进程错误
       process.on('error', (error) => {
         const entry = commandManager.processes.get(streamId);
-        console.error(`[CMD][${streamId}] error: ${error.message}`);
+        const formattedError = formatSpawnError(error, entry);
+        console.error(`[CMD][${streamId}] error: ${formattedError}`);
         console.error('[PROC_TRACE][CMD_ERROR]', {
           streamId,
           pid: process.pid,
-          error: error.message,
+          error: formattedError,
+          code: error?.code,
+          shell: entry?.shell ? String(entry.shell) : undefined,
+          shellKind: entry?.shellKind,
           durationMs: entry ? Date.now() - entry.startedAt : undefined
         });
         sendCmdData(senderWindow, `cmd-data-${streamId}`, {
           type: 'error',
-          error: error.message,
+          error: formattedError,
           streamId
         });
         commandManager.processes.delete(streamId);
@@ -384,9 +594,14 @@ function registerCmdHandlers(mainWindow) {
       };
 
     } catch (error) {
+      const formattedError = formatSpawnError(error);
+      console.error('[PROC_TRACE][CMD_START_ERROR]', {
+        streamId,
+        error: formattedError
+      });
       return {
         success: false,
-        error: error.message,
+        error: formattedError,
         streamId
       };
     }
