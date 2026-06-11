@@ -610,6 +610,7 @@ const { initLogger, registerLoggerHandlers } = require("./logger");
 const { registerToolsHandlers } = require("./tools");
 const { registerNotificationHandlers } = require("./notification");
 const { registerProbeRsHandlers } = require("./probe-rs");
+const { registerBleHandlers, registerWebBluetoothChooser } = require("./ble");
 
 let mainWindow;
 let userConf;
@@ -1612,6 +1613,7 @@ function createWindow() {
       nodeIntegration: true,
       webSecurity: false,
       preload: path.join(__dirname, "preload.js"),
+      enableBlinkFeatures: 'WebBluetooth',
       // 启用 Web Serial API 支持
       // enableBlinkFeatures: 'Serial',
       // 禁用后台节流和页面可见性，避免在后台时停止渲染
@@ -1619,6 +1621,8 @@ function createWindow() {
       pageVisibility: true,
     },
   });
+
+  registerWebBluetoothChooser(mainWindow);
 
   mainWindow.setBounds(winState.state);
 
@@ -1747,6 +1751,7 @@ function createWindow() {
   registerToolsHandlers(mainWindow);
   registerNotificationHandlers(mainWindow);
   registerProbeRsHandlers(mainWindow);
+  registerBleHandlers();
 
   // 检查是否有待处理的OAuth回调
   // 注意：这里不再使用 setTimeout 自动发送，而是等待 renderer-ready 事件
@@ -2090,6 +2095,14 @@ function normalizePortPath(value) {
   return typeof value === 'string' ? value.toLowerCase().replace(/[\\/]/g, '') : '';
 }
 
+function isAllowedWebDevicePermission(permission) {
+  return permission === 'serial' || permission === 'bluetooth' || permission === 'bluetoothScanning';
+}
+
+function isAllowedWebDeviceType(deviceType) {
+  return deviceType === 'serial' || deviceType === 'bluetooth' || deviceType === 'bluetoothLE';
+}
+
 app.on('web-contents-created', (event, contents) => {
   contents.session.on('select-serial-port', (event, portList, webContents, callback) => {
     event.preventDefault();
@@ -2120,17 +2133,15 @@ app.on('web-contents-created', (event, contents) => {
   });
 
   contents.session.setPermissionCheckHandler((wc, permission) => {
-    if (permission === 'serial') {
-      return true;
-    }
-    return false;
+    return isAllowedWebDevicePermission(permission);
+  });
+
+  contents.session.setPermissionRequestHandler((wc, permission, callback) => {
+    callback(isAllowedWebDevicePermission(permission));
   });
 
   contents.session.setDevicePermissionHandler((details) => {
-    if (details.deviceType === 'serial') {
-      return true;
-    }
-    return false;
+    return isAllowedWebDeviceType(details.deviceType);
   });
 });
 
