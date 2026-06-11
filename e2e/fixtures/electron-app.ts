@@ -1,4 +1,6 @@
 import { test as base, _electron, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,6 +20,7 @@ import path from 'node:path';
  */
 
 const ROOT = path.resolve(__dirname, '..', '..');
+let electronPreflightDone = false;
 
 type AilyFixtures = {
   electronApp: ElectronApplication;
@@ -31,6 +34,8 @@ type LaunchedAilyElectron = {
 };
 
 export async function launchAilyElectron(): Promise<LaunchedAilyElectron> {
+  assertElectronCanLaunch();
+
   const userDataDir = await mkdtemp(path.join(os.tmpdir(), 'aily-e2e-'));
   const { ELECTRON_RUN_AS_NODE, ...env } = process.env;
 
@@ -65,10 +70,76 @@ export async function launchAilyElectron(): Promise<LaunchedAilyElectron> {
         return;
       }
       closed = true;
-      await app.close().catch(() => {});
+      await closeElectronApp(app);
       await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
     },
   };
+}
+
+async function closeElectronApp(app: ElectronApplication, timeoutMs = 5_000): Promise<void> {
+  const processRef = app.process();
+  let didExit = processRef.exitCode !== null || processRef.signalCode !== null;
+  processRef.once('exit', () => {
+    didExit = true;
+  });
+
+  await Promise.race([
+    app.close(),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]).catch(() => {});
+
+  if (didExit || processRef.exitCode !== null || processRef.signalCode !== null) {
+    return;
+  }
+
+  console.warn(`[e2e] Electron ${processRef.pid ?? ''} 关闭超时，强制结束进程。`);
+  processRef.kill();
+
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, 2_000);
+    processRef.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function assertElectronCanLaunch(): void {
+  if (electronPreflightDone) {
+    return;
+  }
+
+  const electronCli = path.join(ROOT, 'node_modules', 'electron', 'cli.js');
+  if (!existsSync(electronCli)) {
+    throw new Error('[e2e] 未找到 Electron CLI。请先执行 `npm install` 安装 devDependencies。');
+  }
+
+  const { ELECTRON_RUN_AS_NODE, ...env } = process.env;
+  const result = spawnSync(process.execPath, [electronCli, '--version'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    env,
+    timeout: 15_000,
+  });
+
+  if (result.status !== 0) {
+    const detail = [
+      result.error ? `error=${result.error.message}` : '',
+      result.signal ? `signal=${result.signal}` : '',
+      `status=${result.status}`,
+      result.stdout ? `stdout=${result.stdout.trim()}` : '',
+      result.stderr ? `stderr=${result.stderr.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const macHint =
+      process.platform === 'darwin'
+        ? ' macOS 下可先检查 Electron.app 是否能直接运行、是否被系统策略拦截，必要时重装依赖或重新签名 Electron.app。'
+        : '';
+    throw new Error(`[e2e] Electron CLI 预检失败，无法启动 Electron。${detail}.${macHint}`);
+  }
+
+  electronPreflightDone = true;
 }
 
 /**

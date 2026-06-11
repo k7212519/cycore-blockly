@@ -1,4 +1,5 @@
 import { test, expect, getMainWindow, launchAilyElectron, navigate } from '../fixtures/electron-app';
+import { readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,7 +20,7 @@ import path from 'node:path';
  *   npm run test:e2e:fast -- full-flow.spec.ts
  *
  * 本机需具备：内置工具链（child/node、child/aily-builder）、该开发板可安装
- * （网络/缓存），以及对应编译器与 SDK 已安装于 %LOCALAPPDATA%\aily-project\tools 与 \sdk。
+ * （网络/缓存），以及对应编译器与 SDK 已安装于应用数据目录下的 aily-project/tools 与 sdk。
  */
 const ENABLED = process.env['AILY_E2E_FULLFLOW'] === '1';
 const ALL_BOARDS_ENABLED = process.env['AILY_E2E_ALL_BOARDS'] === '1';
@@ -55,6 +56,8 @@ function readTimeoutEnv(name: string, fallbackMs: number): number {
 
 test.describe('全流程：选板子 → 新建项目 → 编译', () => {
   const projectDirs: string[] = [];
+  const singleBoardTest = ENABLED ? test : test.skip;
+  const allBoardsTest = ALL_BOARDS_ENABLED ? test : test.skip;
 
   test.beforeAll(async () => {
     if (ENABLED || ALL_BOARDS_ENABLED) {
@@ -69,8 +72,7 @@ test.describe('全流程：选板子 → 新建项目 → 编译', () => {
     }
   });
 
-  test('应能从选板子一路走到编译完成', async ({ electronApp }) => {
-    test.skip(!ENABLED, '未开启单开发板全流程用例（需 AILY_E2E_FULLFLOW=1）。');
+  singleBoardTest('应能从选板子一路走到编译完成', async ({ electronApp }) => {
     test.setTimeout(SINGLE_BOARD_TIMEOUT_MS);
 
     const win = await getMainWindow(electronApp);
@@ -79,8 +81,7 @@ test.describe('全流程：选板子 → 新建项目 → 编译', () => {
     await createProjectAndCompile(win, BOARD_KEYWORD, projectDirs, pageLog);
   });
 
-  test('应能让所有可创建开发板完成新建项目并编译', async ({ electronApp }) => {
-    test.skip(!ALL_BOARDS_ENABLED, '未开启全开发板全流程用例（需 AILY_E2E_ALL_BOARDS=1）。');
+  allBoardsTest('应能让所有可创建开发板完成新建项目并编译', async ({ electronApp }) => {
     // 每块板最多 7 分钟，给全量运行留足时间。
     test.setTimeout(24 * 60 * 60 * 1000);
 
@@ -118,8 +119,7 @@ test.describe('全流程：选板子 → 新建项目 → 编译', () => {
 });
 
 async function cleanGlobalAilyProjectDir(): Promise<void> {
-  const localAppData = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
-  const globalProjectDir = path.join(localAppData, 'aily-project');
+  const globalProjectDir = getAilyAppDataPath();
 
   if (!path.resolve(globalProjectDir).endsWith(`${path.sep}aily-project`)) {
     throw new Error(`[e2e] 拒绝清理异常全局目录：${globalProjectDir}`);
@@ -127,6 +127,26 @@ async function cleanGlobalAilyProjectDir(): Promise<void> {
 
   console.log(`[e2e] 清理全局 aily-project 目录：${globalProjectDir}`);
   await rmWithRetry(globalProjectDir);
+}
+
+function getAilyAppDataPath(): string {
+  if (process.env['AILY_APPDATA_PATH']) {
+    return process.env['AILY_APPDATA_PATH'];
+  }
+
+  const configPath = path.resolve(__dirname, '..', '..', 'electron', 'config', 'config.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8')) as {
+    appdata_path?: Partial<Record<NodeJS.Platform, string>>;
+  };
+  const configuredPath = config.appdata_path?.[process.platform];
+
+  if (!configuredPath) {
+    throw new Error(`[e2e] electron/config/config.json 未配置当前平台 appdata_path：${process.platform}`);
+  }
+
+  return configuredPath
+    .replace('%HOMEPATH%', os.homedir())
+    .replace(/^~(?=$|[\\/])/, os.homedir());
 }
 
 async function cleanAilyBuilderArtifacts(): Promise<void> {
