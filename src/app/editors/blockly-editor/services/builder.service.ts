@@ -97,6 +97,15 @@ export class _BuilderService {
     }, 100);
   }
 
+  private async getMissingBoardDependencies(): Promise<string[]> {
+    const boardPackageJson = await this.projectService.getBoardPackageJson();
+    return this.npmService.getMissingBoardDependencies(boardPackageJson);
+  }
+
+  private formatMissingBoardDependenciesMessage(missingDependencies: string[]): string {
+    return `开发板依赖未安装完成，请先修复依赖安装: ${missingDependencies.join(', ')}`;
+  }
+
   init() {
     if (this.initialized) {
       console.warn('_BuilderService 已经初始化过了，跳过重复初始化');
@@ -165,6 +174,19 @@ export class _BuilderService {
       const currentState = this.workflowService.currentState;
       if (currentState === ProcessState.BUILDING || currentState === ProcessState.UPLOADING) {
         console.log('编译/上传进行中，跳过自动预编译');
+        return;
+      }
+
+      let missingBoardDependencies: string[] = [];
+      try {
+        missingBoardDependencies = await this.getMissingBoardDependencies();
+      } catch (error) {
+        console.warn('[后台预处理] 检查开发板依赖失败，跳过自动预编译:', error);
+        return;
+      }
+      if (missingBoardDependencies.length > 0) {
+        console.warn('[后台预处理] 开发板依赖未安装完成，跳过自动预编译:', missingBoardDependencies);
+        this.pendingPrecompile = false;
         return;
       }
 
@@ -510,6 +532,11 @@ export class _BuilderService {
     const boardModule = await this.projectService.getBoardModule();
     const appDataPath = window['path'].getAppDataPath();
     const ailyChildPath = window['path'].getAilyChildPath();
+    const missingBoardDependencies = await this.getMissingBoardDependencies();
+
+    if (missingBoardDependencies.length > 0) {
+      throw new Error(this.formatMissingBoardDependenciesMessage(missingBoardDependencies));
+    }
 
     // 参数校验：检查所有必需参数是否存在
     const missingParams: string[] = [];
