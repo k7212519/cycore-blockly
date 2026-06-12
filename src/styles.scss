@@ -4,7 +4,7 @@ body {
   margin: 0;
   font-family: "MiSans Regular", "FiraCode Regular" !important;
   overflow: hidden;
-  background-color: #2b2d30 !important;
+  background-color: #222 !important;
   user-select: none;
 }
 
@@ -16,7 +16,7 @@ textarea {
 .loading-box {
   width: 100vw;
   height: 100vh;
-  background: #2b2d30;
+  background: #222;
   position: fixed;
   top: 0;
   left: 0;
@@ -101,7 +101,7 @@ nz-option-container {
 }
 
 .ddark {
-  $bbackground: #2b2d30;
+  $bbackground: #222;
   $lline: #222427;
 }
 

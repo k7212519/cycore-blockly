@@ -1,8 +1,10 @@
-<div class="header-box" [class.darwin]="isMac" [class.full-screen]="isMacFullScreen">
-  <div class="menu ccenter" (click)="openMenu()">
-    <div class="btn ccenter" nz-tooltip nzTooltipTitle="{{ 'MENU.MENU' | translate }}">
+<div class="header-box" [class.darwin]="isNativeMacWindow" [class.full-screen]="isMacFullScreen">
+  <div class="menu ccenter">
+    <button type="button" class="menu-pill ccenter" [class.active]="showMenu" (click)="openMenu()"
+      [attr.aria-expanded]="showMenu" nz-tooltip nzTooltipTitle="{{ 'MENU.MENU' | translate }}">
       <i class="fa-regular fa-bars"></i>
-    </div>
+      <span>{{ 'MENU.MENU' | translate }}</span>
+    </button>
   </div>
 
   @if(isLoaded()){
@@ -50,21 +52,6 @@
         <i class="fa-light fa-grid-2-plus"></i>
       </div>
     </div> -->
-  </div>
-  <div class="win-btns">
-    <div class="btn ccenter minimize" (click)="minimize()">
-      <i class="fa-regular fa-minus"></i>
-    </div>
-    <div class="btn ccenter maximize" (click)="maximize()">
-      @if (isWindowFullScreen) {
-      <i class="fa-regular fa-window-restore"></i>
-      } @else {
-      <i class="fa-regular fa-window-maximize"></i>
-      }
-    </div>
-    <div class="btn ccenter close" (click)="close()">
-      <i class="fa-regular fa-xmark"></i>
-    </div>
   </div>
 </div>
 <!-- menu -->

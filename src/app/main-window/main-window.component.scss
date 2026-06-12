@@ -9,9 +9,10 @@ iframe {
   width: 100vw;
   border-radius: 5px;
   overflow: hidden;
+  background: #222;
 
   .content-box {
-    height: calc(100vh - 70px);
+    height: calc(100vh - 92px);
     width: 100%;
     position: relative;
     overflow: hidden;

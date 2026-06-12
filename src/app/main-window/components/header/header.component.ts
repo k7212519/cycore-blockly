@@ -49,6 +49,10 @@ export class HeaderComponent implements OnDestroy {
     return this.platformService.isMac();
   }
 
+  get isNativeMacWindow() {
+    return this.electronService.isElectron && this.isMac;
+  }
+
   private _isWindowFullScreen = false;
 
   get isWindowFullScreen() {

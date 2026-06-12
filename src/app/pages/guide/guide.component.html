@@ -39,35 +39,4 @@
       }
     </div>
   </div>
-  <div class="right-box ccenter">
-    <div class="item" style="height: 165px;">
-      <div>{{'GUIDE.SPONSORS' | translate}}</div>
-      <div>{{'GUIDE.SPONSORS_DESC' | translate}}</div>
-      @if (sponsors.length > 0) {
-      <div id="sponsor-splide" class="splide sponsor-carousel">
-        <div class="splide__track">
-          <ul class="splide__list">
-            @for (sponsor of sponsors; track $index) {
-            <li class="splide__slide">
-              <div class="sponsor-item" (click)="sponsor.url && openUrl(sponsor.url)">
-                @if (sponsor.img) {
-                <div class="ccenter img-box">
-                  <img [src]="'sponsor/' + sponsor.img" [alt]="sponsor.name" [title]="sponsor.name">
-                </div>
-                <div class="sponsor-name">{{ sponsor.name }}</div>
-                }@else {
-                <div class="ccenter img-box">
-                  <div class="person-name">{{ sponsor.name }}</div>
-                </div>
-                <div class="sponsor-name">{{ sponsor.company }}</div>
-                }
-              </div>
-            </li>
-            }
-          </ul>
-        </div>
-      </div>
-      }
-    </div>
-  </div>
 </div>

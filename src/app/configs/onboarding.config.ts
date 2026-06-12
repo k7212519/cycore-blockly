@@ -28,24 +28,6 @@ export const GUIDE_ONBOARDING_CONFIG: OnboardingConfig = {
       titleKey: 'GUIDE.ONBOARDING.STEP4_TITLE',
       descKey: 'GUIDE.ONBOARDING.STEP4_DESC',
       position: 'right'
-    },
-    {
-      target: '.right-box .item:first-child',
-      titleKey: 'GUIDE.ONBOARDING.STEP5_TITLE',
-      descKey: 'GUIDE.ONBOARDING.STEP5_DESC',
-      position: 'left'
-    },
-    {
-      target: '.right-box .item:nth-child(2)',
-      titleKey: 'GUIDE.ONBOARDING.STEP6_TITLE',
-      descKey: 'GUIDE.ONBOARDING.STEP6_DESC',
-      position: 'left'
-    },
-    {
-      target: '.right-box .item:nth-child(3)',
-      titleKey: 'GUIDE.ONBOARDING.STEP7_TITLE',
-      descKey: 'GUIDE.ONBOARDING.STEP7_DESC',
-      position: 'left'
     }
   ]
 };

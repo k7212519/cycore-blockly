@@ -1,9 +1,7 @@
-@use '@splidejs/splide/css';
-
 .guide-box {
   min-height: 100%;
-  min-width: 1197px;
-  background: #2b2d30;
+  min-width: 0;
+  background: #222;
   display: flex;
   justify-content: flex-start;
 
@@ -14,20 +12,6 @@
     padding: 10px 0 10px 100px;
     flex-grow: 1;
     flex-shrink: 1;
-  }
-
-  .right-box {
-    flex-grow: 0;
-    flex-shrink: 0;
-    padding: 10px 0 10px 0;
-    width: 680px;
-    height: 560px;
-    position: relative;
-    display: flex;
-    justify-content: flex-end;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 15px;
   }
 
   .stitle {
@@ -148,58 +132,6 @@ img.qrcode {
   width: 100px;
   height: 100px;
   border-radius: 3px;
-}
-
-// 赞助商轮播样式
-.sponsor-carousel {
-  overflow: hidden;
-
-  .splide__slide {
-    display: flex;
-    justify-content: center;
-  }
-
-  .sponsor-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-    width: 110px;
-
-    .img-box {
-      height: 80px;
-      margin-bottom: 5px;
-
-      img {
-        max-height: 80px;
-        max-width: 100px;
-        object-fit: contain;
-      }
-    }
-
-
-
-    .sponsor-name {
-      margin-bottom: 10px;
-      font-size: 12px;
-      color: #ccc;
-      text-align: center;
-      white-space: nowrap;
-    }
-
-    .person-name {
-      font-size: 22px;
-      white-space: nowrap;
-    }
-
-    .person-company {
-      font-size: 12px;
-      color: #999;
-    }
-  }
 }
 
 .group-btn {
