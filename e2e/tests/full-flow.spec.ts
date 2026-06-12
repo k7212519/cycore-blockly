@@ -1,4 +1,4 @@
-import { test, expect, getMainWindow, launchAilyElectron, navigate } from '../fixtures/electron-app';
+import { test, expect, closeAilyElectronApp, getMainWindow, launchAilyElectron, navigate } from '../fixtures/electron-app';
 import { readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -91,7 +91,7 @@ test.describe('全流程：选板子 → 新建项目 → 编译', () => {
     const boards = await collectCreatableBoards(win);
     expect(boards.length, '至少应发现一个可创建的开发板').toBeGreaterThan(0);
     console.log(`[all-boards] 将验证 ${boards.length} 个可创建开发板。`);
-    await electronApp.close().catch(() => {});
+    await closeAilyElectronApp(electronApp).catch(() => {});
 
     const failures: Array<{ board: BoardCandidate; message: string }> = [];
     for (const board of boards) {

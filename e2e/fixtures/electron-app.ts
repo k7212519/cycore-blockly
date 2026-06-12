@@ -70,33 +70,47 @@ export async function launchAilyElectron(): Promise<LaunchedAilyElectron> {
         return;
       }
       closed = true;
-      await closeElectronApp(app);
+      await closeAilyElectronApp(app);
       await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
     },
   };
 }
 
-async function closeElectronApp(app: ElectronApplication, timeoutMs = 5_000): Promise<void> {
+export async function closeAilyElectronApp(app: ElectronApplication, timeoutMs = 10_000): Promise<void> {
   const processRef = app.process();
   let didExit = processRef.exitCode !== null || processRef.signalCode !== null;
   processRef.once('exit', () => {
     didExit = true;
   });
 
-  await Promise.race([
-    app.close(),
-    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-  ]).catch(() => {});
+  await app
+    .evaluate(({ app }) => {
+      app.exit(0);
+    })
+    .catch(() => {});
+
+  await waitForElectronExit(processRef, timeoutMs);
 
   if (didExit || processRef.exitCode !== null || processRef.signalCode !== null) {
     return;
   }
 
-  console.warn(`[e2e] Electron ${processRef.pid ?? ''} 关闭超时，强制结束进程。`);
-  processRef.kill();
+  await Promise.race([app.close(), waitForElectronExit(processRef, timeoutMs)]).catch(() => {});
+
+  if (didExit || processRef.exitCode !== null || processRef.signalCode !== null) {
+    return;
+  }
+
+  throw new Error(`[e2e] Electron ${processRef.pid ?? ''} 关闭超时。`);
+}
+
+async function waitForElectronExit(processRef: ReturnType<ElectronApplication['process']>, timeoutMs: number): Promise<void> {
+  if (processRef.exitCode !== null || processRef.signalCode !== null) {
+    return;
+  }
 
   await new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, 2_000);
+    const timer = setTimeout(resolve, timeoutMs);
     processRef.once('exit', () => {
       clearTimeout(timer);
       resolve();
