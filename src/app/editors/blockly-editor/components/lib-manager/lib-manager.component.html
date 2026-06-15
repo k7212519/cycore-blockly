@@ -41,13 +41,16 @@
     <div class="lib-list">
         @for( lib of libraryList;track lib.name ) {
         <div class="lib-item">
-            <div class="name ellipsis" [nz-tooltip] [nzTooltipTitle]="lib.tested?'':'该库未通过测试，可能存在问题'">{{lib._nickname}}
-                @if(lib.tested){
-                <i class="fa-regular fa-badge-check"></i>
-                }@else {
-                <i class="fa-regular fa-circle-exclamation"></i>
-                }
-                <span>{{lib.author}}</span>
+            <div class="name" [nz-tooltip] [nzTooltipTitle]="lib.tested?'':'该库未通过测试，可能存在问题'">
+                <div class="name-main">
+                    <span class="nickname ellipsis" [title]="lib._nickname">{{lib._nickname}}</span>
+                    @if(lib.tested){
+                    <i class="fa-regular fa-badge-check"></i>
+                    }@else {
+                    <i class="fa-regular fa-circle-exclamation"></i>
+                    }
+                </div>
+                <span class="author ellipsis" [title]="lib.author">{{lib.author}}</span>
             </div>
             <div class="desc ellipsis">
                 <div class="icon ccenter">
