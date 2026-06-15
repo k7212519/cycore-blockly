@@ -165,8 +165,7 @@ export class ChildToolProcessService implements OnDestroy {
       childDir,
       projectPath,
       scriptPath,
-      uiPath,
-      requiredDependencies: config.requiredDependencies || []
+      uiPath
     });
 
     if (fsApi?.existsSync && !fsApi.existsSync(scriptPath)) {
@@ -178,18 +177,6 @@ export class ChildToolProcessService implements OnDestroy {
     if (fsApi?.existsSync && !fsApi.existsSync(uiPath)) {
       const message = `${config.id} UI was not found: ${uiPath}`;
       this.logError(config, 'UI missing', message);
-      throw new Error(message);
-    }
-
-    const missingDependencies = this.findMissingDependencies(projectPath, config.requiredDependencies || []);
-    if (missingDependencies.length) {
-      const hint = config.installHint || `Run npm install --prefix child/tools/${config.id}.`;
-      const message = `${config.id} dependencies are missing: ${missingDependencies.join(', ')}. ${hint}`;
-      this.logError(config, 'dependencies missing', {
-        missingDependencies,
-        projectPath,
-        hint
-      });
       throw new Error(message);
     }
 
@@ -251,17 +238,6 @@ export class ChildToolProcessService implements OnDestroy {
     const hostInfo = await readyPromise;
     this.log(config, 'server ready promise resolved', this.sanitizeHostInfo(hostInfo));
     return hostInfo;
-  }
-
-  private findMissingDependencies(projectPath: string, dependencies: string[]): string[] {
-    const pathApi = window['path'];
-    const fsApi = window['fs'];
-    if (!fsApi?.existsSync || !pathApi?.join) return [];
-
-    return dependencies.filter(dependency => {
-      const packagePath = pathApi.join(projectPath, 'node_modules', ...dependency.split('/'), 'package.json');
-      return !fsApi.existsSync(packagePath);
-    });
   }
 
   private handleProcessOutput(config: ChildToolConfig, session: ChildToolSession, output: any): void {

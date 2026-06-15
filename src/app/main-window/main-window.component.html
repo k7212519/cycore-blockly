@@ -4,15 +4,15 @@
     <nz-layout [class.app-layout-has-sider]="showRbox">
       <nz-content>
         <div class="middle-box">
-          <ngx-simplebar [options]="options">
+          <!-- <ngx-simplebar [options]="options"> -->
             <router-outlet></router-outlet>
-          </ngx-simplebar>
+          <!-- </ngx-simplebar> -->
         </div>
         @if (showBbox) {
         <div nz-resizable class="resizable-box" [style.height.px]="bottomHeight" [nzMaxHeight]="600" [nzMinHeight]="50"
           (nzResize)="onContentResize($event)">
-          <nz-resize-handle nzDirection="top" nzCursorType="grid">
-            <div class="content-resize-line"></div>
+          <nz-resize-handle class="layout-resize-handle" nzDirection="top" nzCursorType="grid">
+            <div class="toolbox-pane__resize-handle toolbox-pane__resize-handle--top"></div>
           </nz-resize-handle>
           <div class="bottom-box">
             <div class="tool-container">
@@ -61,8 +61,8 @@
       @if (showRbox) {
       <nz-sider [nzWidth]="siderWidth" nz-resizable [nzMinWidth]="400" [nzMaxWidth]="800"
         (nzResize)="onSideResize($event)">
-        <nz-resize-handle nzDirection="left" nzCursorType="grid">
-          <div class="sider-resize-line"></div>
+        <nz-resize-handle class="layout-resize-handle" nzDirection="left" nzCursorType="grid">
+          <div class="toolbox-pane__resize-handle toolbox-pane__resize-handle--left"></div>
         </nz-resize-handle>
         <div class="right-box">
           @for (tool of openToolList; track tool) {

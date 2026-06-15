@@ -316,9 +316,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       .then(() => {
         console.log('install board dependencies success');
       })
-      .catch((err) => {
-        console.error('install board dependencies error', err);
-      });
+      .catch(() => undefined);
   }
 
   private scheduleProjectLoadedCodeRefresh(): void {

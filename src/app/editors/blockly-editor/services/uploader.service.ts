@@ -102,7 +102,7 @@ export class _UploaderService {
         const result = await this.flashSoftdevice(softdeviceName, serialPort);
         return { success: result.success, result };
       } catch (error: any) {
-        return { success: false, result: { success: false, message: error.message || '烧录失败' } };
+        return { success: false, result: { success: false, message: error.message || this.uploadT('SOFTDEVICE_FLASH_FAILED_SHORT') } };
       }
     }, 'uploader-flash-softdevice');
   }
@@ -122,8 +122,7 @@ export class _UploaderService {
   private safeUpdateNotice(config: any) {
     // 如果已取消，只允许更新为取消状态
     if (this.cancelled) {
-      const cancelledText = this.t('CANCELLED');
-      if (config.state === 'warn' && config.title && (config.title.includes('取消') || config.title === cancelledText || config.text === cancelledText)) {
+      if (config.state === 'warn' && config.isCancellationNotice) {
         this.noticeService.update(config);
       }
       // 其他所有更新都被忽略
@@ -135,7 +134,7 @@ export class _UploaderService {
   }
 
   // 添加这个错误处理方法
-  private handleUploadError(errorMessage: string, title = "上传失败", details?: string) {
+  private handleUploadError(errorMessage: string, title = this.uploadT('FAILED_TITLE'), details?: string) {
     // console.error("handle errror: ", errorMessage);
     const cleanDetailMessage = (details || errorMessage || '').toString().trim();
     this.noticeService.update({
@@ -173,8 +172,9 @@ export class _UploaderService {
 
         // 先判断当前是否处于编译状态
         if (this.workflowService.currentState === ProcessState.BUILDING) {
-          this.message.warning('当前正在编译中，请稍后再试');
-          reject({ state: 'warn', text: '当前正在编译中，请稍后再试' });
+          const message = this.uploadT('BUILDING_RETRY_LATER');
+          this.message.warning(message);
+          reject({ state: 'warn', text: message });
           return;
         }
 
@@ -183,8 +183,9 @@ export class _UploaderService {
         const capturedPortInfo = this.serialService.currentPortInfo;
         if (!capturedSerialPort) {
           this.uploadInProgress = false;
-          this.handleUploadError('请先选择串口', '未选择串口');
-          reject({ state: 'error', text: '请先选择串口' });
+          const message = this.uploadT('SELECT_PORT_MESSAGE');
+          this.handleUploadError(message, this.uploadT('SELECT_PORT_TITLE'));
+          reject({ state: 'error', text: message });
           return;
         }
 
@@ -230,17 +231,19 @@ export class _UploaderService {
             // 检查编译是否被取消
             if (this._builderService.cancelled || this.cancelled) {
               this.noticeService.update({
-                title: "编译已取消",
-                text: '编译已取消',
+                title: this.uploadT('BUILD_CANCELLED'),
+                text: this.uploadT('BUILD_CANCELLED'),
                 state: 'warn',
-                setTimeout: 55000
+                setTimeout: 55000,
+                isCancellationNotice: true
               });
-              reject({ state: 'warn', text: '编译已取消' });
+              reject({ state: 'warn', text: this.uploadT('BUILD_CANCELLED') });
               return;
             } else {
               const buildErrorDetails = (error?.fullStdErr || error?.text || error?.message || error || '').toString();
-              this.handleUploadError('编译失败，请检查代码', "编译失败", buildErrorDetails);
-              reject({ state: 'error', text: '编译失败，请检查代码' });
+              const message = this.uploadT('BUILD_FAILED_CHECK_CODE');
+              this.handleUploadError(message, this.uploadT('BUILD_FAILED_TITLE'), buildErrorDetails);
+              reject({ state: 'error', text: message });
               return;
             }
 
@@ -249,8 +252,9 @@ export class _UploaderService {
           // 检查编译是否成功
           if (!this._builderService.passed) {
             this.uploadInProgress = false; // 重置状态
-            this.handleUploadError('编译失败，请检查代码', "编译失败", '编译结果未通过，未检测到可用构建产物');
-            reject({ state: 'error', text: '编译失败，请检查代码' });
+            const message = this.uploadT('BUILD_FAILED_CHECK_CODE');
+            this.handleUploadError(message, this.uploadT('BUILD_FAILED_TITLE'), this.uploadT('BUILD_FAILED_NO_ARTIFACT'));
+            reject({ state: 'error', text: message });
             return;
           }
         }
@@ -259,27 +263,28 @@ export class _UploaderService {
         if (this.cancelled) {
           this.uploadInProgress = false;
           this.noticeService.update({
-            title: this.t('CANCELLED'),
-            text: this.t('CANCELLED'),
+            title: this.uploadT('CANCELLED'),
+            text: this.uploadT('CANCELLED'),
             state: 'warn',
-            setTimeout: 55000
+            setTimeout: 55000,
+            isCancellationNotice: true
           });
           this.workflowService.finishUpload(false, 'Cancelled during build');
-          reject({ state: 'warn', text: this.t('CANCELLED') });
+          reject({ state: 'warn', text: this.uploadT('CANCELLED') });
           return;
         }
 
         // 第二步：编译完成或不需要编译，现在进入上传状态
         if (!this.workflowService.startUpload()) {
           const state = this.workflowService.currentState;
-          let msg = "系统繁忙";
-          if (state === ProcessState.UPLOADING) msg = "上传正在进行中";
-          else if (state === ProcessState.INSTALLING) msg = "依赖安装中";
+          let msg = this.uploadT('BUSY_SYSTEM');
+          if (state === ProcessState.UPLOADING) msg = this.uploadT('BUSY_UPLOADING');
+          else if (state === ProcessState.INSTALLING) msg = this.uploadT('BUSY_INSTALLING');
 
           this.uploadInProgress = false; // 重置上传状态
           this._builderService.isUploading = false; // 确保设置为false
-          this.message.warning(msg + "，请稍后再试");
-          reject({ state: 'warn', text: msg + "，请稍后" });
+          this.message.warning(this.uploadT('BUSY_RETRY_LATER', { message: msg }));
+          reject({ state: 'warn', text: this.uploadT('BUSY_WAIT', { message: msg }) });
           return;
         }
 
@@ -309,7 +314,7 @@ export class _UploaderService {
           : boardJson.uploadParam;
         if (!uploadParam) {
           this.uploadInProgress = false; // 重置上传状态
-          const errMsg = isDebuggerUpload ? '缺少调试探针上传参数(linkUploadParam)，请检查板子配置' : '缺少上传参数，请检查板子配置';
+          const errMsg = isDebuggerUpload ? this.uploadT('MISSING_DEBUGGER_UPLOAD_PARAM') : this.uploadT('MISSING_UPLOAD_PARAM');
           this.handleUploadError(errMsg);
           this.workflowService.finishUpload(false, 'Missing upload parameters');
           reject({ state: 'error', text: errMsg });
@@ -326,7 +331,7 @@ export class _UploaderService {
         console.log('提取的上传标志:', flags);
         console.log('清理后的上传参数:', cleanParam);
 
-        let lastUploadText = `正在上传${boardJson.name}`;
+        let lastUploadText = this.uploadT('UPLOADING_BOARD', { board: boardJson.name });
 
         // 准备上传配置
         const currentProjectPath = this.projectService.currentProjectPath;
@@ -360,9 +365,10 @@ export class _UploaderService {
         } catch (err) {
           this.uploadInProgress = false; // 重置上传状态
           this._builderService.isUploading = false;
-          this.handleUploadError('配置文件写入失败: ' + err.message);
+          const message = this.uploadT('CONFIG_WRITE_FAILED_WITH_MESSAGE', { message: err.message || err });
+          this.handleUploadError(message);
           this.workflowService.finishUpload(false, 'Config write failed');
-          reject({ state: 'error', text: '配置文件写入失败' });
+          reject({ state: 'error', text: this.uploadT('CONFIG_WRITE_FAILED') });
           return;
         }
 
@@ -372,10 +378,10 @@ export class _UploaderService {
 
         console.log("Final upload cmd: ", uploadCmd);
 
-        const title = '上传中';
-        const completeTitle = '上传完成';
-        const errorTitle = '上传失败';
-        const completeText = '上传完成';
+        const title = this.uploadT('UPLOADING_TITLE');
+        const completeTitle = this.uploadT('COMPLETE_TITLE');
+        const errorTitle = this.uploadT('FAILED_TITLE');
+        const completeText = this.uploadT('COMPLETE_TEXT');
         let lastProgress = 0;
 
         let errorText = '';
@@ -389,16 +395,16 @@ export class _UploaderService {
         let syntheticProgressTimer: any = null;
         if (isDebuggerUpload) {
           const syntheticPhases = [
-            { delay: 300,  progress: 3,  text: '正在连接设备...' },
-            { delay: 800,  progress: 8,  text: '正在擦除...' },
-            { delay: 1200, progress: 15, text: '正在擦除...' },
-            { delay: 1800, progress: 20, text: '正在上传...' },
-            { delay: 2500, progress: 35, text: '正在上传...' },
-            { delay: 3500, progress: 50, text: '正在上传...' },
-            { delay: 5000, progress: 65, text: '正在上传...' },
-            { delay: 6500, progress: 78, text: '正在上传...' },
-            { delay: 8000, progress: 88, text: '验证中...' },
-            { delay: 9500, progress: 95, text: '验证中...' },
+            { delay: 300,  progress: 3,  text: this.uploadT('CONNECTING_DEVICE') },
+            { delay: 800,  progress: 8,  text: this.uploadT('ERASING') },
+            { delay: 1200, progress: 15, text: this.uploadT('ERASING') },
+            { delay: 1800, progress: 20, text: this.uploadT('UPLOADING') },
+            { delay: 2500, progress: 35, text: this.uploadT('UPLOADING') },
+            { delay: 3500, progress: 50, text: this.uploadT('UPLOADING') },
+            { delay: 5000, progress: 65, text: this.uploadT('UPLOADING') },
+            { delay: 6500, progress: 78, text: this.uploadT('UPLOADING') },
+            { delay: 8000, progress: 88, text: this.uploadT('VERIFYING') },
+            { delay: 9500, progress: 95, text: this.uploadT('VERIFYING') },
           ];
           const startTime = Date.now();
           syntheticProgressTimer = setInterval(() => {
@@ -447,8 +453,8 @@ export class _UploaderService {
 
               if (!this.cancelled && this.processExitCode !== 0) {
                 errorText = output.signal
-                  ? `上传进程被信号终止: ${output.signal}`
-                  : `上传进程异常退出，退出码: ${this.processExitCode}`;
+                  ? this.uploadT('PROCESS_SIGNAL_TERMINATED', { signal: output.signal })
+                  : this.uploadT('PROCESS_EXITED_WITH_CODE', { code: this.processExitCode });
                 if (!fullErrorText) {
                   fullErrorText = errorText;
                 }
@@ -458,7 +464,7 @@ export class _UploaderService {
             }
 
             if (output.type === 'error') {
-              errorText = output.error || '上传进程启动失败';
+              errorText = output.error || this.uploadT('PROCESS_START_FAILED');
               if (!fullErrorText) {
                 fullErrorText = errorText;
               }
@@ -504,7 +510,7 @@ export class _UploaderService {
                       trimmedLine.toLowerCase().includes('a fatal error occurred') ||
                       trimmedLine.toLowerCase().includes("can't open device")) {
                       fullErrorText += trimmedLine + '\n';
-                      this.handleUploadError(trimmedLine, '上传失败', fullErrorText);
+                      this.handleUploadError(trimmedLine, this.uploadT('FAILED_TITLE'), fullErrorText);
                     }
 
                     if (this.isErrored) {
@@ -561,20 +567,20 @@ export class _UploaderService {
                       // Erasing: 0-15%, Programming: 15-85%, Verifying: 85-99%
                       if (phase === 'erasing') {
                         progressValue = Math.floor(phaseProgress * 0.15);
-                        lastUploadText = '正在擦除...';
+                        lastUploadText = this.uploadT('ERASING');
                       } else if (phase === 'programming') {
                         progressValue = 15 + Math.floor(phaseProgress * 0.70);
-                        lastUploadText = '正在上传...';
+                        lastUploadText = this.uploadT('UPLOADING');
                       } else if (phase === 'verifying') {
                         progressValue = 85 + Math.floor(phaseProgress * 0.14);
-                        lastUploadText = '验证中...';
+                        lastUploadText = this.uploadT('VERIFYING');
                       }
                       // 强制刷新显示（probe-rs 阶段切换时进度可能回到0再上升）
                       lastProgress = Math.min(lastProgress, progressValue - 1);
                     } else if (probeRsFinished) {
                       hasRealProgress = true;
                       progressValue = 100;
-                      lastUploadText = '上传完成';
+                      lastUploadText = this.uploadT('COMPLETE_TEXT');
                       this.uploadCompleted = true;
                     } else if (isESP32Format) {
                       const numericMatch = trimmedLine.match(/(\d+\.\d+)%/);
@@ -692,10 +698,10 @@ export class _UploaderService {
             this.uploadInProgress = false; // 确保重置上传状态
             this._builderService.isUploading = false;
             const fullErrorMessage = (error?.error || error?.stack || error?.message || String(error)).toString();
-            this.handleUploadError(error.message || '上传过程中发生错误', '上传失败', fullErrorMessage);
+            this.handleUploadError(error.message || this.uploadT('PROCESS_ERROR'), this.uploadT('FAILED_TITLE'), fullErrorMessage);
             this.workflowService.finishUpload(false, error.message || 'Upload error');
             this.uploadPromiseReject = null;
-            reject({ state: 'error', text: error.message || '上传失败' });
+            reject({ state: 'error', text: error.message || this.uploadT('FAILED_TITLE') });
           },
           complete: () => {
             if (syntheticProgressTimer) { clearInterval(syntheticProgressTimer); syntheticProgressTimer = null; }
@@ -708,7 +714,7 @@ export class _UploaderService {
             if (!this.cancelled && !this.isErrored && this.processExitCode !== null && this.processExitCode !== 0) {
               this.isErrored = true;
               if (!errorText) {
-                errorText = `上传进程异常退出，退出码: ${this.processExitCode}`;
+                errorText = this.uploadT('PROCESS_EXITED_WITH_CODE', { code: this.processExitCode });
               }
               if (!fullErrorText) {
                 fullErrorText = errorText;
@@ -729,24 +735,25 @@ export class _UploaderService {
               console.warn("上传中断 - 用户取消");
               // 安全更新UI
               this.safeUpdateNotice({
-                title: this.t('CANCELLED'),
-                text: this.t('CANCELLED'),
+                title: this.uploadT('CANCELLED'),
+                text: this.uploadT('CANCELLED'),
                 state: 'warn',
-                setTimeout: 55000
+                setTimeout: 55000,
+                isCancellationNotice: true
               });
               this._builderService.isUploading = false;
               this.workflowService.finishUpload(false, 'Cancelled');
               this.uploadPromiseReject = null;
-              reject({ state: 'warn', text: this.t('CANCELLED') });
+              reject({ state: 'warn', text: this.uploadT('CANCELLED') });
             } else if (this.isErrored) {
               console.log("上传命令完成 - 发生错误");
               console.log("[Uploader][DIAG] errorText =", errorText);
               console.log("[Uploader][DIAG] fullErrorText =", fullErrorText);
               this._builderService.isUploading = false;
-              this.handleUploadError('上传过程中发生错误', '上传失败', fullErrorText || errorText || '上传过程中发生错误');
+              this.handleUploadError(this.uploadT('PROCESS_ERROR'), this.uploadT('FAILED_TITLE'), fullErrorText || errorText || this.uploadT('PROCESS_ERROR'));
               this.workflowService.finishUpload(false, errorText);
               this.uploadPromiseReject = null;
-              reject({ state: 'error', text: errorText });
+              reject({ state: 'error', text: errorText || this.uploadT('PROCESS_ERROR') });
             } else if (this.uploadCompleted) {
               console.log("上传完成");
               // 安全更新UI
@@ -761,7 +768,7 @@ export class _UploaderService {
               this._builderService.isUploading = false;
               this.workflowService.finishUpload(true);
               this.uploadPromiseReject = null;
-              resolve({ state: 'done', text: '上传完成' });
+              resolve({ state: 'done', text: this.uploadT('COMPLETE_TEXT') });
             } else {
               // 这个分支理论上不应该被触发，因为上面已经处理了正常结束的情况
               // 但作为兜底逻辑保留
@@ -770,14 +777,14 @@ export class _UploaderService {
               this.safeUpdateNotice({
                 title: errorTitle,
                 text: lastUploadText,
-                detail: "上传状态异常，请检查日志",
+                detail: this.uploadT('ABNORMAL_STATUS_DETAIL'),
                 state: 'error',
                 setTimeout: 600000
               });
               this._builderService.isUploading = false;
               this.workflowService.finishUpload(false, 'Upload incomplete');
               this.uploadPromiseReject = null;
-              reject({ state: 'error', text: '上传未完成，请检查日志' });
+              reject({ state: 'error', text: this.uploadT('INCOMPLETE_CHECK_LOG') });
             }
           }
         });
@@ -785,10 +792,10 @@ export class _UploaderService {
       } catch (error) {
         this._builderService.isUploading = false; // 确保在异常情况下设置为false
         const fullErrorMessage = (error?.error || error?.stack || error?.message || String(error)).toString();
-        this.handleUploadError(error.message || '上传失败', '上传失败', fullErrorMessage);
+        this.handleUploadError(error.message || this.uploadT('FAILED_TITLE'), this.uploadT('FAILED_TITLE'), fullErrorMessage);
         this.workflowService.finishUpload(false, error.message || 'Upload failed');
         this.uploadPromiseReject = null;
-        reject({ state: 'error', text: error.message || '上传失败' });
+        reject({ state: 'error', text: error.message || this.uploadT('FAILED_TITLE') });
       }
     });
   }
@@ -905,9 +912,10 @@ export class _UploaderService {
 
       if (progressValue === lastProgress && progress.state === 'sending') return;
       lastProgress = progressValue;
+      const isVerifyingFirmware = progress.state === 'stopping';
       this.safeUpdateNotice({
-        title: this.t('UPLOADING_TITLE'),
-        text: progress.text || this.t('UPLOADING_TITLE'),
+        title: isVerifyingFirmware ? progressText : this.t('UPLOADING_TITLE'),
+        text: isVerifyingFirmware ? this.uploadT('PLEASE_WAIT') : (progress.text || this.t('UPLOADING_TITLE')),
         state: 'doing',
         progress: progressValue,
         setTimeout: 0,
@@ -948,6 +956,7 @@ export class _UploaderService {
           text: this.t('CANCELLED'),
           state: 'warn',
           setTimeout: 55000,
+          isCancellationNotice: true,
         });
         this.workflowService.finishUpload(false, 'BLE OTA cancelled');
         throw { state: 'warn', text: this.t('CANCELLED') };
@@ -976,6 +985,10 @@ export class _UploaderService {
     });
   }
 
+  private uploadT(key: string, params?: Record<string, any>): string {
+    return this.translate.instant(`BLOCKLY_EDITOR.UPLOAD.${key}`, params);
+  }
+
   private t(key: string, params?: Record<string, any>): string {
     return this.translate.instant(`BLE_OTA.${key}`, params);
   }
@@ -998,10 +1011,11 @@ export class _UploaderService {
     
     // 立即更新通知状态为已取消
     this.noticeService.update({
-      title: this.t('CANCELLED'),
-      text: this.t('CANCELLED'),
+      title: this.uploadT('CANCELLED'),
+      text: this.uploadT('CANCELLED'),
       state: 'warn',
-      setTimeout: 55000
+      setTimeout: 55000,
+      isCancellationNotice: true
     });
     
     // 如果正在编译，取消编译
@@ -1027,7 +1041,7 @@ export class _UploaderService {
     
     // 立即 reject Promise，使按钮状态快速更新
     if (this.uploadPromiseReject) {
-      this.uploadPromiseReject({ state: 'warn', text: this.t('CANCELLED') });
+      this.uploadPromiseReject({ state: 'warn', text: this.uploadT('CANCELLED') });
       this.uploadPromiseReject = null;
     }
   }
@@ -1044,13 +1058,13 @@ export class _UploaderService {
       // 获取 softdevice hex 文件路径
       const hexPath = await this.projectService.getSoftdeviceHexPath(softdeviceName);
       if (!hexPath) {
-        return { success: false, message: `未找到 ${softdeviceName} 的 hex 文件` };
+        return { success: false, message: this.uploadT('SOFTDEVICE_HEX_NOT_FOUND', { name: softdeviceName }) };
       }
 
       // 获取 board.json 配置
       const boardJson = await this.projectService.getBoardJson();
       if (!boardJson || !boardJson.uploadParam) {
-        return { success: false, message: '未找到上传参数配置' };
+        return { success: false, message: this.uploadT('UPLOAD_PARAM_CONFIG_NOT_FOUND') };
       }
 
       // 获取上传参数模板并替换 hex 文件路径
@@ -1102,14 +1116,14 @@ export class _UploaderService {
 
       console.log('Softdevice 上传命令:', uploadCmd);
 
-      const title = '正在烧录 SoftDevice...';
-      const completeTitle = 'SoftDevice 烧录成功';
-      const errorTitle = 'SoftDevice 烧录失败';
+      const title = this.uploadT('SOFTDEVICE_FLASHING_TITLE');
+      const completeTitle = this.uploadT('SOFTDEVICE_FLASH_SUCCESS_TITLE');
+      const errorTitle = this.uploadT('SOFTDEVICE_FLASH_FAILED_TITLE');
 
       // 显示烧录中通知
       this.noticeService.update({
         title: title,
-        text: `正在初始化...`,
+        text: this.uploadT('INITIALIZING'),
         state: 'doing',
         progress: 0,
         setTimeout: 0
@@ -1130,15 +1144,15 @@ export class _UploaderService {
               if ((output.code ?? 0) !== 0 || output.signal) {
                 hasError = true;
                 errorMessage = output.signal
-                  ? `烧录进程被信号终止: ${output.signal}`
-                  : `烧录进程异常退出，退出码: ${output.code}`;
+                  ? this.uploadT('SOFTDEVICE_PROCESS_SIGNAL_TERMINATED', { signal: output.signal })
+                  : this.uploadT('SOFTDEVICE_PROCESS_EXITED_WITH_CODE', { code: output.code });
               }
               return;
             }
 
             if (output.type === 'error') {
               hasError = true;
-              errorMessage = output.error || '烧录进程启动失败';
+              errorMessage = output.error || this.uploadT('SOFTDEVICE_PROCESS_START_FAILED');
               return;
             }
 
@@ -1156,64 +1170,64 @@ export class _UploaderService {
               // 初始化阶段 (0-10%)
               if (data.includes('CMSIS-DAP: Interface ready') || data.includes('clock speed')) {
                 lastProgress = 5;
-                currentStage = '连接设备...';
+                currentStage = this.uploadT('CONNECTING_DEVICE');
               }
               if (data.includes('SWD IDCODE') || data.includes('nrf51.cpu')) {
                 lastProgress = 10;
-                currentStage = '检测到设备';
+                currentStage = this.uploadT('DEVICE_DETECTED');
               }
 
               // 编程阶段 (10-60%)
               if (data.includes('** Programming Started **')) {
                 lastProgress = 15;
-                currentStage = '开始写入...';
+                currentStage = this.uploadT('START_WRITING');
               }
               if (data.includes('auto erase enabled')) {
                 lastProgress = 20;
-                currentStage = '擦除中...';
+                currentStage = this.uploadT('ERASING');
               }
               if (data.includes('Padding image section')) {
                 lastProgress = 25;
-                currentStage = '准备数据...';
+                currentStage = this.uploadT('PREPARING_DATA');
               }
               if (data.includes('using fast async flash loader')) {
                 lastProgress = 30;
-                currentStage = '快速写入模式';
+                currentStage = this.uploadT('FAST_WRITE_MODE');
               }
               // 写入完成时解析进度
               const writeMatch = data.match(/wrote (\d+) bytes.*in ([\d.]+)s/);
               if (writeMatch) {
                 lastProgress = 55;
-                currentStage = `已写入 ${Math.round(parseInt(writeMatch[1]) / 1024)} KB`;
+                currentStage = this.uploadT('WRITTEN_KB', { size: Math.round(parseInt(writeMatch[1]) / 1024) });
               }
               if (data.includes('** Programming Finished **')) {
                 lastProgress = 60;
-                currentStage = '写入完成';
+                currentStage = this.uploadT('WRITE_COMPLETE');
               }
 
               // 验证阶段 (60-90%)
               if (data.includes('** Verify Started **')) {
                 lastProgress = 65;
-                currentStage = '开始验证...';
+                currentStage = this.uploadT('START_VERIFYING');
               }
               const verifyMatch = data.match(/verified (\d+) bytes/);
               if (verifyMatch) {
                 lastProgress = 85;
-                currentStage = `已验证 ${Math.round(parseInt(verifyMatch[1]) / 1024)} KB`;
+                currentStage = this.uploadT('VERIFIED_KB', { size: Math.round(parseInt(verifyMatch[1]) / 1024) });
               }
               if (data.includes('** Verified OK **')) {
                 lastProgress = 90;
-                currentStage = '验证成功';
+                currentStage = this.uploadT('VERIFY_SUCCESS');
               }
 
               // 完成阶段 (90-100%)
               if (data.includes('** Resetting Target **')) {
                 lastProgress = 95;
-                currentStage = '重置设备...';
+                currentStage = this.uploadT('RESETTING_DEVICE');
               }
               if (data.includes('shutdown command invoked')) {
                 lastProgress = 100;
-                currentStage = '烧录完成';
+                currentStage = this.uploadT('SOFTDEVICE_FLASH_COMPLETE');
                 uploadCompleted = true;
               }
 
@@ -1221,7 +1235,7 @@ export class _UploaderService {
               if (lastProgress > 0) {
                 this.noticeService.update({
                   title: title,
-                  text: currentStage || `正在烧录 ${softdeviceName} SoftDevice...`,
+                  text: currentStage || this.uploadT('SOFTDEVICE_FLASHING_TEXT', { name: softdeviceName }),
                   state: 'doing',
                   progress: lastProgress,
                   setTimeout: 0
@@ -1234,11 +1248,11 @@ export class _UploaderService {
             releaseUploadLock();
             this.noticeService.update({
               title: errorTitle,
-              text: `烧录失败: ${error.message || error}`,
+              text: this.uploadT('SOFTDEVICE_FLASH_FAILED_WITH_MESSAGE', { message: error.message || error }),
               state: 'error',
               setTimeout: 60000
             });
-            resolve({ success: false, message: `烧录失败: ${error.message || error}` });
+            resolve({ success: false, message: this.uploadT('SOFTDEVICE_FLASH_FAILED_WITH_MESSAGE', { message: error.message || error }) });
           },
           complete: () => {
             console.log('Softdevice 烧录命令执行完成, hasError:', hasError, 'uploadCompleted:', uploadCompleted);
@@ -1246,19 +1260,19 @@ export class _UploaderService {
             if (hasError) {
               this.noticeService.update({
                 title: errorTitle,
-                text: errorMessage || 'SoftDevice 烧录失败',
+                text: errorMessage || this.uploadT('SOFTDEVICE_FLASH_FAILED_TITLE'),
                 state: 'error',
                 setTimeout: 60000
               });
-              resolve({ success: false, message: errorMessage || 'Softdevice 烧录失败' });
+              resolve({ success: false, message: errorMessage || this.uploadT('SOFTDEVICE_FLASH_FAILED_TITLE') });
             } else {
               this.noticeService.update({
                 title: completeTitle,
-                text: `${softdeviceName} SoftDevice 烧录成功`,
+                text: this.uploadT('SOFTDEVICE_FLASH_SUCCESS_TEXT', { name: softdeviceName }),
                 state: 'done',
                 setTimeout: 5000
               });
-              resolve({ success: true, message: 'Softdevice 烧录成功' });
+              resolve({ success: true, message: this.uploadT('SOFTDEVICE_FLASH_SUCCESS_SHORT') });
             }
           }
         });
@@ -1267,12 +1281,12 @@ export class _UploaderService {
     } catch (error: any) {
       console.error('烧录 softdevice 失败:', error);
       this.noticeService.update({
-        title: 'SoftDevice 烧录失败',
-        text: `烧录失败: ${error.message || error}`,
+        title: this.uploadT('SOFTDEVICE_FLASH_FAILED_TITLE'),
+        text: this.uploadT('SOFTDEVICE_FLASH_FAILED_WITH_MESSAGE', { message: error.message || error }),
         state: 'error',
         setTimeout: 60000
       });
-      return { success: false, message: `烧录失败: ${error.message || error}` };
+      return { success: false, message: this.uploadT('SOFTDEVICE_FLASH_FAILED_WITH_MESSAGE', { message: error.message || error }) };
     }
   }
 }

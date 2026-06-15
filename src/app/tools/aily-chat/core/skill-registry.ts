@@ -238,21 +238,17 @@ class SkillRegistryImpl {
     const childPath = host.path?.getAilyChildPath?.();
     if (!childPath) return [];
 
-    const indexPath = host.path.join(childPath, 'tools', 'index.json');
-    if (!host.fs.existsSync(indexPath)) return [];
+    const toolsPath = host.path.join(childPath, 'tools');
+    if (!host.fs.existsSync(toolsPath)) return [];
 
     try {
-      const raw = host.fs.readFileSync(indexPath, 'utf-8');
-      const parsed = JSON.parse(raw);
-      const source = parsed?.tools || parsed;
-      const configs = Array.isArray(source) ? source : Object.values(source || {});
-
-      return configs
-        .map((config: any) => {
-          const toolId = config?.id;
-          const childDir = config?.childDir || (toolId ? host.path.join('tools', toolId) : '');
-          return childDir ? host.path.join(childPath, childDir, 'skill') : '';
+      return host.fs.readdirSync(toolsPath)
+        .filter((entry: string) => {
+          const toolPath = host.path.join(toolsPath, entry);
+          return host.fs.isDirectory(toolPath);
         })
+        .sort((left: string, right: string) => left.localeCompare(right))
+        .map((entry: string) => host.path.join(toolsPath, entry, 'skill'))
         .filter((dir: string): dir is string => !!dir && host.fs.existsSync(dir));
     } catch (error) {
       console.warn('[SkillRegistry] Failed to scan child tool skills:', error);
