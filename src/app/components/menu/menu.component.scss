@@ -6,7 +6,7 @@
   background: var(--aily-bg-primary);
   border-radius: 5px;
   position: fixed;
-  z-index: 999;
+  z-index: 1000000;
   flex-direction: column;
   padding: 3px 0;
 
@@ -174,7 +174,7 @@
 .submenu-box {
   min-width: 100px;
   box-shadow: 0 0 5px #111;
-  z-index: 1000;
+  z-index: 1000001;
   
   &.show {
     display: flex;
