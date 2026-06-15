@@ -24,12 +24,19 @@
       position: fixed;
       top: 0;
       left: 0;
-      z-index: 99;
+      z-index: 999999;
       display: flex;
       justify-content: center;
       align-items: center;
       flex-direction: column;
       border-radius: 5px;
+      opacity: 1;
+      transition: opacity 0.2s ease;
+      pointer-events: auto;
+    }
+    .loading-box.loading-box--hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     .loading-box .text {
       color: #fff;
@@ -69,24 +76,23 @@
 </head>
 
 <body spellcheck="false">
-  <app-root class="ddark">
-    <div class="loading-box">
-      <div class="loader">
-        <div class="ball-grid-beat">
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-        </div>
+  <app-root class="ddark"></app-root>
+  <div id="app-loading-box" class="loading-box">
+    <div class="loader">
+      <div class="ball-grid-beat">
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
       </div>
-      <div class="text">Loading...</div>
     </div>
-  </app-root>
+    <div class="text">Loading...</div>
+  </div>
 </body>
 
 </html>
