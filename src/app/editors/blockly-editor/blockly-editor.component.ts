@@ -129,7 +129,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this._builderService.destroy();
     this._uploadService.cancel();
     this._uploadService.destroy();
-    this.electronService.setTitle('aily blockly');
+    this.electronService.setTitle('CYCORE-MCU-DevCloud');
     this.blocklyService.reset();
     this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);
     this.el.nativeElement.removeEventListener('mouseleave', this._onMouseLeaveBound);
@@ -145,7 +145,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     // 加载项目开发框架
     this.devmode = packageJson.devmode || 'arduino'; // 可选项: 'arduino', 'micropython'
 
-    this.electronService.setTitle(`aily blockly - ${packageJson.nickname}`);
+    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name}`);
     // 添加到最近打开的项目
     this.projectService.addRecentlyProject({
       name: packageJson.name,

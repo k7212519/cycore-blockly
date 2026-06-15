@@ -47,7 +47,7 @@ export class ProjectService {
   currentProjectPath$ = this.currentProjectPathSubject.asObservable();
 
   currentPackageData: ProjectPackageData = {
-    name: 'aily blockly',
+    name: '少年芯嵌入式芯片开发云平台',
   };
 
   projectRootPath: string;
@@ -259,7 +259,7 @@ export class ProjectService {
   async close() {
     this.currentProjectPath = '';
     this.currentPackageData = {
-      name: 'aily blockly',
+      name: '少年芯嵌入式芯片开发云平台',
     };
     this.stateSubject.next('default');
     this.uiService.closeTerminal();

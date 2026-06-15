@@ -134,7 +134,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.builderService.cancel();
     this.uploadService.cancel();
 
-    this.electronService.setTitle('aily blockly');
+    this.electronService.setTitle('CYCORE-MCU-DevCloud');
 
     // 清理快捷键监听器
     this.cleanupShortcutListeners();
@@ -160,7 +160,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const packageJson = JSON.parse(this.electronService.readFile(`${projectPath}/package.json`));
-    this.electronService.setTitle(`aily blockly - ${packageJson.name}`);
+    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name}`);
     this.projectService.currentPackageData = packageJson;
     // 添加到最近打开的项目
     this.projectService.addRecentlyProject({ name: packageJson.name, path: projectPath, nickname: packageJson.nickname || packageJson.name });
