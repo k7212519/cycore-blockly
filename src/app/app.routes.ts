@@ -98,11 +98,6 @@ export const routes: Routes = [
         loadComponent: () => import('./tools/serial-monitor/serial-monitor.component').then(m => m.SerialMonitorComponent)
     },
     {
-        path: "aily-chat",
-        canActivate: [authGuard],
-        loadComponent: () => import('./tools/aily-chat/aily-chat.component').then(m => m.AilyChatComponent)
-    },
-    {
         path: "code-viewer",
         canActivate: [authGuard],
         loadComponent: () => import('./editors/blockly-editor/tools/code-viewer/code-viewer.component').then(m => m.CodeViewerComponent)
@@ -121,11 +116,6 @@ export const routes: Routes = [
         path: "graph-editor",
         canActivate: [authGuard],
         loadComponent: () => import('./editors/graph-editor/graph-editor.component').then(m => m.GraphEditorComponent)
-    },
-    {
-        path: "model-store",
-        canActivate: [authGuard],
-        loadComponent: () => import('./tools/model-store/model-store.component').then(m => m.ModelStoreComponent)
     },
     {
         path: "model-deploy",

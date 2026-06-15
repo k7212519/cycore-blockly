@@ -38,34 +38,6 @@ export const APP_LIST: AppItem[] = [
     enabled: true
   },
   {
-    id: 'aily-chat',
-    name: 'MENU.AI',
-    description: 'APP_STORE.AI_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'aily-chat' },
-    icon: 'fa-light fa-star-christmas',
-    more: 'AI',
-    enabled: true
-  },
-  {
-    id: 'model-store',
-    name: 'MENU.MODEL_STORE',
-    description: 'APP_STORE.MODEL_STORE_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'model-store' },
-    icon: 'fa-light fa-microchip-ai',
-    enabled: true
-  },
-  {
-    id: 'cloud-space',
-    name: 'MENU.USER_SPACE',
-    description: 'APP_STORE.CLOUD_SPACE_DESC',
-    action: 'tool-open',
-    data: { type: 'tool', data: 'cloud-space' },
-    icon: 'fa-light fa-cloud',
-    enabled: true
-  },
-  {
     id: 'user-center',
     name: 'MENU.USER_AUTH',
     description: 'APP_STORE.USER_CENTER_DESC',

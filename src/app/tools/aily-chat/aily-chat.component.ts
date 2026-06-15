@@ -66,7 +66,6 @@ import { TodoUpdateService } from './services/todoUpdate.service';
 import { ArduinoLintService } from './services/arduino-lint.service';
 import { BlocklyService } from '../../editors/blockly-editor/services/blockly.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { LoginComponent } from '../../components/login/login.component';
 import { NoticeService } from '../../services/notice.service';
 import { AilyChatSettingsComponent } from './components/settings/settings.component';
 import { OnboardingService } from '../../services/onboarding.service';
@@ -99,7 +98,6 @@ export { ToolCallState };
     FloatingTodoComponent,
     AilyEditsViewerComponent,
     TranslateModule,
-    LoginComponent,
     AilyChatSettingsComponent
   ],
   templateUrl: './aily-chat.component.html',

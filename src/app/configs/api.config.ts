@@ -69,26 +69,6 @@ export function setToolWebUrl(url: string): void {
 export const API = {
   get projectList() { return `${getRegistryUrl()}/-/verdaccio/data/packages`; },
   get projectSearch() { return `${getRegistryUrl()}/-/v1/search`; },
-  // auth  
-  get login() { return `${getServerUrl()}/api/v1/auth/login`; },
-  get register() { return `${getServerUrl()}/api/v1/auth/register`; },
-  get logout() { return `${getServerUrl()}/api/v1/auth/logout`; },
-  get sendEmailCode() { return `${getServerUrl()}/api/v1/auth/send-email-code`; },
-  get loginByEmail() { return `${getServerUrl()}/api/v1/auth/email-code-login`; },
-  get verifyToken() { return `${getServerUrl()}/api/v1/auth/verify`; },
-  get refreshToken() { return `${getServerUrl()}/api/v1/auth/refresh`; },
-  get me() { return `${getServerUrl()}/api/v1/auth/me`; },
-  get changeNickname() { return `${getServerUrl()}/api/v1/auth/me/nickname`; },
-  // invitation
-  get invitationValidateCompile() { return `${getServerUrl()}/api/v1/invitation/validate-compile`; },
-  // github oauth
-  get githubBrowserAuthorize() { return `${getServerUrl()}/api/v1/oauth/github/browser-authorize`; },
-  get githubTokenExchange() { return `${getServerUrl()}/api/v1/oauth/github/token-exchange`; },
-  // wechat oauth
-  get wechatQrcode() { return `${getServerUrl()}/api/v1/oauth/wechat/qrcode`; },
-  get wechatCheck() { return `${getServerUrl()}/api/v1/oauth/wechat/check`; },
-  // sso
-  get ssoGenerate() { return `${getServerUrl()}/api/v1/auth/sso/generate`; },
   // ai
   get startSession() { return `${getServerUrl()}/api/v1/start_session`; },
   get closeSession() { return `${getServerUrl()}/api/v1/close_session`; },
@@ -115,6 +95,4 @@ export const API = {
   // firmware info
   get firmwareInfo() { return `${getServerUrl()}/api/v1/firmware/info`; },
   get downloadFirmware() { return `${getServerUrl()}/api/v1/firmware/download`; },
-  // altcha
-  get altchaChallenge() { return `${getServerUrl()}/api/v1/altcha`; },
 };

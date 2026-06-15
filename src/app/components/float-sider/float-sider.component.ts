@@ -11,7 +11,6 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { UiService } from '../../services/ui.service';
 import { ChatService } from '../../tools/aily-chat/public-api';
 import { ConnectionGraphService } from '../../services/connection-graph.service';
-import { BackgroundAgentService } from '../../services/background-agent.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AuthService } from '../../services/auth.service';
 import { ImageViewerComponent } from '../image-viewer/image-viewer.component';
@@ -44,7 +43,6 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
     private uiService: UiService,
     private chatService: ChatService,
     private connectionGraphService: ConnectionGraphService,
-    private backgroundAgent: BackgroundAgentService,
     private translate: TranslateService,
     private authService: AuthService
   ) { }

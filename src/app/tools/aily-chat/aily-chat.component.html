@@ -235,7 +235,6 @@
     <aily-chat-settings (close)="showSettings = false" (saved)="onSettingsSaved()"></aily-chat-settings>
     }
   </div>
-  <app-login></app-login>
 </ng-template>
 
 @if (menuManager.showHistoryList) {
@@ -252,5 +251,4 @@
 <app-menu class="model-menu" [menuList]="ModelList" [position]="menuManager.modelListPosition" (closeEvent)="menuManager.closeAll()"
   (itemClickEvent)="modelMenuClick($event)"></app-menu>
 }
-
 

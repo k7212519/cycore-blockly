@@ -5,7 +5,6 @@ import { CommonModule } from '@angular/common';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzResizableModule, NzResizeEvent } from 'ng-zorro-antd/resizable';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
-import { AilyChatComponent } from '../tools/aily-chat/aily-chat.component';
 import { TerminalComponent } from '../tools/terminal/terminal.component';
 import { LogComponent } from '../tools/log/log.component';
 import { UiService } from '../services/ui.service';
@@ -23,9 +22,7 @@ import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { filter } from 'rxjs';
 import { ConfigService } from '../services/config.service';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { CloudSpaceComponent } from '../tools/cloud-space/cloud-space.component';
 import { UserCenterComponent } from '../tools/user-center/user-center.component';
-import { ModelStoreComponent } from '../tools/model-store/model-store.component';
 import { OnboardingComponent } from '../components/onboarding/onboarding.component';
 import { OnboardingService } from '../services/onboarding.service';
 
@@ -38,7 +35,6 @@ import { OnboardingService } from '../services/onboarding.service';
     NzLayoutModule,
     NzResizableModule,
     NzTabsModule,
-    AilyChatComponent,
     TerminalComponent,
     LogComponent,
     SerialMonitorComponent,
@@ -50,9 +46,7 @@ import { OnboardingService } from '../services/onboarding.service';
     RouterModule,
     NzToolTipModule,
     NzModalModule,
-    CloudSpaceComponent,
     UserCenterComponent,
-    ModelStoreComponent,
     OnboardingComponent
   ],
   templateUrl: './main-window.component.html',

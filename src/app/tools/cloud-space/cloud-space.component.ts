@@ -10,13 +10,11 @@ import { ProjectService } from '../../services/project.service';
 import { CmdService } from '../../services/cmd.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { AuthService } from '../../services/auth.service';
-import { LoginDialogComponent } from '../../main-window/components/login-dialog/login-dialog.component';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ElectronService } from '../../services/electron.service';
 import { distinctUntilChanged } from 'rxjs/operators';
 import { PlatformService } from "../../services/platform.service";
 import { CrossPlatformCmdService } from "../../services/cross-platform-cmd.service";
-import { LoginComponent } from '../../components/login/login.component';
 
 @Component({
   selector: 'app-cloud-space',
@@ -25,8 +23,7 @@ import { LoginComponent } from '../../components/login/login.component';
     FormsModule,
     CommonModule,
     NzButtonModule,
-    EditorComponent,
-    LoginComponent
+    EditorComponent
   ],
   templateUrl: './cloud-space.component.html',
   styleUrl: './cloud-space.component.scss'

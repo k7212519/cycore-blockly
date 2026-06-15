@@ -1,5 +1,4 @@
 import { Component } from '@angular/core';
-import { LoginComponent } from '../../components/login/login.component';
 import { EditorComponent } from '../cloud-space/editor/editor.component';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { CommonModule } from '@angular/common';
@@ -14,8 +13,7 @@ import { UiService } from '../../services/ui.service';
     FormsModule,
     CommonModule,
     NzButtonModule,
-    EditorComponent,
-    LoginComponent
+    EditorComponent
   ],
   templateUrl: './history-version.component.html',
   styleUrl: './history-version.component.scss'

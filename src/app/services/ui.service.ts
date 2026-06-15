@@ -9,12 +9,14 @@ import { FeedbackDialogComponent } from '../components/feedback-dialog/feedback-
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ProjectSettingDialogComponent } from '../components/project-setting-dialog/project-setting-dialog.component';
 import { HistoryDialogComponent } from '../editors/blockly-editor/components/history-dialog/history-dialog.component';
-import { AuthService } from './auth.service';
+import { EdaAuthService } from '../auth/eda-auth.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class UiService {
+  private readonly disabledCloudTools = new Set(['aily-chat', 'cloud-space', 'model-store']);
+
   // 用来控制窗口和工具的显示和隐藏
   actionSubject = new Subject();
 
@@ -50,7 +52,7 @@ export class UiService {
     private terminalService: TerminalService,
     private router: Router,
     private modal: NzModalService,
-    private authService: AuthService
+    private authService: EdaAuthService
   ) { }
 
 
@@ -76,7 +78,15 @@ export class UiService {
         if (message.data?.action === 'logout') {
           // 处理登出请求
           try {
-            await this.authService.logout();
+            await new Promise<void>((resolve) => {
+              this.authService.logout().subscribe({
+                next: () => resolve(),
+                error: () => {
+                  this.authService.clearLocalSession();
+                  resolve();
+                }
+              });
+            });
             data = { success: true };
           } catch (error) {
             console.error('登出失败:', error);
@@ -128,6 +138,10 @@ export class UiService {
 
   // 如果其它组件/程序要打开工具，调用这个方法
   openTool(name: string) {
+    if (this.disabledCloudTools.has(name)) {
+      console.warn(`Tool "${name}" is disabled in this build.`);
+      return;
+    }
     // if (name == 'terminal') {
     //   this.openTerminal();
     //   return;
@@ -168,8 +182,7 @@ export class UiService {
    * @param options 发送选项，如 { autoSend: true, cover: true }
    */
   openAndSendToChat(text: string, options?: Record<string, any>): void {
-    this.openTool('aily-chat');
-    this.chatMessageSubject.next({ text, options });
+    console.warn('AI assistant is disabled in this build.');
   }
 
   // 判断某个工具是否打开

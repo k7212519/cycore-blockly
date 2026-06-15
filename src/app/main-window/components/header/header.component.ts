@@ -19,9 +19,7 @@ import { UpdateService } from '../../../services/update.service';
 import { Router } from '@angular/router';
 import { ElectronService } from '../../../services/electron.service';
 import { ConfigService } from '../../../services/config.service';
-import { AuthService } from '../../../services/auth.service';
 import { BoardSelectorDialogComponent } from '../board-selector-dialog/board-selector-dialog.component';
-import { LoginDialogComponent } from '../login-dialog/login-dialog.component';
 import { PlatformService } from '../../../services/platform.service';
 // import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { AppItem } from '../../../tools/app-store/app-store.config';
@@ -113,7 +111,6 @@ export class HeaderComponent implements OnDestroy {
     private router: Router,
     private electronService: ElectronService,
     private configService: ConfigService,
-    private authService: AuthService,
     private edaAuthService: EdaAuthService,
     private translate: TranslateService,
     private platformService: PlatformService,
@@ -185,13 +182,6 @@ export class HeaderComponent implements OnDestroy {
 
     this.listenShortcutKeys();
 
-    this.authService.showUser.subscribe(state => {
-      this.showUser = state;
-      // 使用 setTimeout 将变更检测推迟到下一个变更检测周期
-      setTimeout(() => {
-        this.cd.markForCheck();
-      }, 0);
-    })
     if (this.electronService.isElectron) {
       this.checkAndSetDefaultPort();
     }
@@ -743,19 +733,6 @@ export class HeaderComponent implements OnDestroy {
     });
   }
 
-  openLoginDialog() {
-    const modalRef = this.modal.create({
-      nzTitle: null,
-      nzFooter: null,
-      nzClosable: false,
-      nzBodyStyle: {
-        padding: '0',
-      },
-      nzWidth: '350px',
-      nzContent: LoginDialogComponent
-    });
-  }
-
   logout(): void {
     this.edaAuthService.logout().subscribe({
       next: () => this.finishLogout(),
@@ -853,12 +830,6 @@ export class HeaderComponent implements OnDestroy {
 
     // 触发预编译操作：配置变更后自动触发预编译
     this.builderService.triggerPreprocess('config-changed');
-  }
-
-  showUser = false;
-
-  closeUser() {
-    this.showUser = false;
   }
 
 
