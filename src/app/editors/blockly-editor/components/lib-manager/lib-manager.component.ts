@@ -58,6 +58,7 @@ export class LibManagerComponent implements OnDestroy {
   private searchSubject = new Subject<string>();
   private destroy$ = new Subject<void>();
   private searchIndex: AnyOrama | null = null;
+  private installedStateRefreshToken = 0;
 
   constructor(
     private npmService: NpmService,
@@ -73,33 +74,35 @@ export class LibManagerComponent implements OnDestroy {
     private electronService: ElectronService,
     private workflowService: WorkflowService,
     private localLibrarySyncService: LocalLibrarySyncService,
-  ) {
-    this.searchSubject.pipe(
-      debounceTime(200),
-      takeUntil(this.destroy$)
-    ).subscribe(keyword => this.doSearch(keyword));
-  }
+  ) {}
 
   ngOnDestroy() {
+    this.installedStateRefreshToken++;
     this.destroy$.next();
     this.destroy$.complete();
   }
 
-  async ngOnInit() {
+  ngOnInit() {
+    this.searchSubject.pipe(
+      debounceTime(200),
+      takeUntil(this.destroy$)
+    ).subscribe(keyword => this.doSearch(keyword));
+
     // 从 tags.json 加载标签列表，根据当前语言显示本地化名称
     this.tagList = this.buildLocalizedTagList();
     this.displayTagList = this.getRandomTags(10);
 
-    this._libraryList = this.process(this.configService.libraryList);
-    this.libraryList = this.applyLocalization(await this.checkInstalled());
+    this._libraryList = this.process(this.cloneLibraryList(this.configService.libraryList));
+    this.libraryList = this.applyLocalization(this.cloneLibraryList(this._libraryList));
     this.cd.detectChanges();
+    this.scheduleInstalledStateRefresh();
   }
 
   async checkInstalled(libraryList = null) {
     let isNull = false;
     if (libraryList === null) {
       isNull = true;
-      libraryList = JSON.parse(JSON.stringify(this._libraryList));
+      libraryList = this.cloneLibraryList(this._libraryList);
     }
     // 获取已经安装的包，用于在界面上显示"移除"按钮
     let installedLibraries = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
@@ -138,6 +141,48 @@ export class LibManagerComponent implements OnDestroy {
   }
 
   // 处理库列表数据，为显示做准备
+  private cloneLibraryList<T = any>(list: T[] | null | undefined): T[] {
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    return JSON.parse(JSON.stringify(list));
+  }
+
+  private scheduleInstalledStateRefresh() {
+    const refreshToken = ++this.installedStateRefreshToken;
+    const keywordAtSchedule = this.keyword;
+    const runRefresh = () => {
+      if (refreshToken !== this.installedStateRefreshToken) {
+        return;
+      }
+      void this.refreshInstalledState(refreshToken, keywordAtSchedule);
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => window.setTimeout(runRefresh, 0));
+      return;
+    }
+
+    setTimeout(runRefresh, 0);
+  }
+
+  private async refreshInstalledState(refreshToken: number, keywordAtSchedule: string) {
+    try {
+      const libraryList = this.applyLocalization(await this.checkInstalled());
+      if (
+        refreshToken !== this.installedStateRefreshToken ||
+        keywordAtSchedule !== this.keyword
+      ) {
+        return;
+      }
+
+      this.libraryList = libraryList;
+      this.cd.detectChanges();
+    } catch (error) {
+      console.warn('[LibManager] failed to refresh installed library state:', error);
+    }
+  }
+
   process(array) {
     for (let index = 0; index < array.length; index++) {
       const item = array[index];

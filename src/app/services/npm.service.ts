@@ -970,6 +970,55 @@ export interface ResponseModel {
  * @param projectPath 项目路径
  * @returns 类似 npm ls 的数据结构
  */
+const LIBRARY_PACKAGE_PREFIX = '@aily-project/lib-';
+const PACKAGE_SCAN_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'];
+
+function getDeclaredLibraryPackageNames(projectPath: string): string[] {
+  const packageJsonPath = joinPackageScanPath(projectPath, 'package.json');
+  if (!window['fs'].existsSync(packageJsonPath)) {
+    return [];
+  }
+
+  let packageJson: any;
+  try {
+    packageJson = readJsonFileForPackageScan(packageJsonPath, 'package.json');
+  } catch (error) {
+    console.error('[PackageScan] failed to read project package.json:', error);
+    return [];
+  }
+
+  const packageNames = new Set<string>();
+  for (const field of PACKAGE_SCAN_DEPENDENCY_FIELDS) {
+    const dependencies = packageJson?.[field];
+    if (!dependencies || typeof dependencies !== 'object') {
+      continue;
+    }
+
+    for (const packageName of Object.keys(dependencies)) {
+      if (isAilyLibraryPackageName(packageName)) {
+        packageNames.add(packageName);
+      }
+    }
+  }
+
+  return Array.from(packageNames);
+}
+
+function isAilyLibraryPackageName(packageName: string): boolean {
+  return typeof packageName === 'string' && packageName.startsWith(LIBRARY_PACKAGE_PREFIX);
+}
+
+function getPackageInstallPath(projectPath: string, packageName: string): string {
+  return joinPackageScanPath(projectPath, 'node_modules', ...packageName.split('/'));
+}
+
+function joinPackageScanPath(...parts: string[]): string {
+  if (window['path']?.join) {
+    return window['path'].join(...parts);
+  }
+  return parts.join('/');
+}
+
 export async function getInstalledPackagesByFileRead(projectPath: string): Promise<any> {
   const nodeModulesPath = `${projectPath}/node_modules`;
 
@@ -980,7 +1029,11 @@ export async function getInstalledPackagesByFileRead(projectPath: string): Promi
 
   const dependencies = {};
 
-  // 递归扫描 node_modules 目录
+  for (const packageName of getDeclaredLibraryPackageNames(projectPath)) {
+    await scanSinglePackage(getPackageInstallPath(projectPath, packageName), packageName, dependencies);
+  }
+
+  // Scan only node_modules/@aily-project/lib-* as a fallback for undeclared local libraries.
   await scanNodeModulesDirectory(nodeModulesPath, dependencies);
 
   return {
@@ -997,29 +1050,9 @@ export async function getInstalledPackagesByFileRead(projectPath: string): Promi
  */
 export async function scanNodeModulesDirectory(nodeModulesPath: string, dependencies: any): Promise<void> {
   try {
-    const dirs = window['fs'].readDirSync(nodeModulesPath);
-
-    for (const dir of dirs) {
-      // 跳过 .bin 等特殊目录
-      if (dir.name && dir.name.startsWith('.')) {
-        continue;
-      }
-
-      const dirName = dir.name || dir; // 兼容不同的 readDirSync 返回格式
-      const packagePath = `${nodeModulesPath}/${dirName}`;
-
-      // 检查是否是目录
-      if (!window['fs'].isDirectory(packagePath)) {
-        continue;
-      }
-
-      if (dirName.startsWith('@')) {
-        // 处理 scoped packages (如 @aily-project/lib-xxx)
-        await scanScopedPackages(packagePath, dependencies);
-      } else {
-        // 处理普通包
-        await scanSinglePackage(packagePath, dirName, dependencies);
-      }
+    const ailyProjectScopePath = joinPackageScanPath(nodeModulesPath, '@aily-project');
+    if (window['fs'].isDirectory(ailyProjectScopePath)) {
+      await scanScopedPackages(ailyProjectScopePath, dependencies);
     }
   } catch (error) {
     console.error('扫描 node_modules 目录失败:', error);
@@ -1038,6 +1071,9 @@ export async function scanScopedPackages(scopePath: string, dependencies: any): 
 
     for (const dir of scopeDirs) {
       const dirName = dir.name || dir;
+      if (!dirName.startsWith('lib-')) {
+        continue;
+      }
       const packageName = `${scopeName}/${dirName}`;
       const packagePath = `${scopePath}/${dirName}`;
 
@@ -1071,6 +1107,7 @@ export async function scanSinglePackage(packagePath: string, packageName: string
     const toolboxJson = readJsonFileForPackageScan(toolboxJsonPath, 'toolbox.json');
     // 构建包信息
     const packageInfo: any = {
+      name: packageJson.name || packageName,
       version: packageJson.version || '1.0.0',
       description: packageJson.description || '',
       author: packageJson.author || 'unknown',
@@ -1078,13 +1115,6 @@ export async function scanSinglePackage(packagePath: string, packageName: string
       icon: toolboxJson.icon || 'fa-light fa-cube',
       keywords: packageJson.keywords || [],
     };
-
-    // 检查是否有子依赖
-    const subNodeModulesPath = `${packagePath}/node_modules`;
-    if (window['fs'].existsSync(subNodeModulesPath)) {
-      packageInfo.dependencies = {};
-      await scanNodeModulesDirectory(subNodeModulesPath, packageInfo.dependencies);
-    }
 
     dependencies[packageName] = packageInfo;
   } catch (error) {
