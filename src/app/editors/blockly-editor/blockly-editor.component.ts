@@ -331,17 +331,8 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   // 检查是否需要显示新手引导
   private checkBlocklyOnboarding() {
-    const hasSeenOnboarding =
-      this.configService.data.blocklyOnboardingCompleted;
-    if (!hasSeenOnboarding) {
-      // 延迟显示引导，确保 Blockly 工作区已完全渲染
-      setTimeout(() => {
-        this.onboardingService.start(BLOCKLY_ONBOARDING_CONFIG, {
-          onClosed: () => this.onOnboardingClosed(),
-          onCompleted: () => this.onOnboardingClosed(),
-        });
-      }, 500);
-    }
+    // 已根据用户请求移除新手指引提示
+    return;
   }
 
   // 引导关闭或完成时的处理

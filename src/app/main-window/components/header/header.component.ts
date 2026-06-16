@@ -304,6 +304,15 @@ export class HeaderComponent implements OnDestroy {
       // console.log('nRF5配置选项:', nrf5config);
     }
 
+    if (!this.electronService.isElectron) {
+      portList0.push({
+        name: '选择新端口...',
+        icon: 'fa-light fa-plus',
+        action: 'request-web-serial-port'
+      });
+      portList0.push({ sep: true });
+    }
+
     // 添加切换开发板功能
     portList0.push({ sep: true });
     portList0.push({
@@ -317,6 +326,13 @@ export class HeaderComponent implements OnDestroy {
     setTimeout(() => {
       this.cd.detectChanges();
     }, 0);
+  }
+
+  async requestWebSerialPort() {
+    const port = await this.serialService.requestPort();
+    if (port) {
+      await this.getDevicePortList();
+    }
   }
 
   onClick(item, event = null) {
@@ -464,6 +480,9 @@ export class HeaderComponent implements OnDestroy {
         break;
       case 'board-select':
         this.openBoardSelectorDialog();
+        break;
+      case 'request-web-serial-port':
+        await this.requestWebSerialPort();
         break;
       case 'feedback':
         this.uiService.openFeedback();

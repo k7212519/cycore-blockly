@@ -4,6 +4,7 @@ import { EspLoaderService, FlashFile, TerminalHandler } from './esploader.servic
 import { NoticeService } from './notice.service';
 import { LogService } from './log.service';
 import { ActionState } from './ui.service';
+import { SerialService } from './serial.service';
 
 @Injectable({
   providedIn: 'root'
@@ -14,7 +15,8 @@ export class ServerFlashService {
     private projectService: ProjectService,
     private espLoaderService: EspLoaderService,
     private noticeService: NoticeService,
-    private logService: LogService
+    private logService: LogService,
+    private serialService: SerialService
   ) { }
 
   cancel(): void {
@@ -28,7 +30,10 @@ export class ServerFlashService {
       throw new Error('未找到可烧录的服务端编译产物，请先编译项目');
     }
 
-    const serialPort = serialPortInput?.port || serialPortInput;
+    let serialPort = serialPortInput?.port || serialPortInput;
+    if (typeof serialPort === 'string') {
+      serialPort = this.serialService.getBrowserPort(serialPort);
+    }
     if (!serialPort) {
       throw new Error('请先选择串口');
     }

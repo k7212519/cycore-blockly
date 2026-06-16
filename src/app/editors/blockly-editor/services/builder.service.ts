@@ -1214,6 +1214,25 @@ export class _BuilderService {
   }
 
   private async buildOnServer(): Promise<ActionState> {
+    this.clearProgressTimer();
+    let progress = 0;
+    this.progressTimer = setInterval(() => {
+      if (progress < 95) {
+        progress += Math.floor(Math.random() * 5) + 3;
+        if (progress > 95) progress = 95;
+        this.safeUpdateNotice({
+          title: "编译中",
+          text: `服务端正在编译项目... ${progress}%`,
+          state: 'doing',
+          progress: progress,
+          setTimeout: 0,
+          stop: () => {
+            this.cancel();
+          }
+        });
+      }
+    }, 2000);
+
     try {
       this.safeUpdateNotice({
         title: "编译中",
@@ -1229,6 +1248,8 @@ export class _BuilderService {
       const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
       this.lastCode = code;
       const result = await this.projectService.compileServerProject(code);
+      this.clearProgressTimer();
+
       this.logService.update({
         detail: [result.fullStdOut, result.fullStdErr].filter(Boolean).join('\n'),
         state: result.success ? 'done' : 'error'
@@ -1239,6 +1260,7 @@ export class _BuilderService {
         title: result.success ? "编译成功" : "编译失败",
         text: result.text,
         state: result.success ? 'done' : 'error',
+        progress: result.success ? 100 : progress,
         detail: result.fullStdErr || result.fullStdOut || result.text,
         setTimeout: result.success ? 3000 : 600000,
         sendToLog: false
@@ -1252,6 +1274,7 @@ export class _BuilderService {
       this.passed = false;
       return Promise.reject({ state: 'error', text: result.text, detail: result.fullStdErr || result.fullStdOut });
     } catch (error) {
+      this.clearProgressTimer();
       this.passed = false;
       this.workflowService.finishBuild(false, error?.message || '服务端编译失败');
       return Promise.reject({ state: 'error', text: error?.message || '服务端编译失败' });

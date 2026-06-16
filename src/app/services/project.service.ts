@@ -866,6 +866,9 @@ export class ProjectService {
 
   // 获取开发板 SDK 路径
   async getSdkPath() {
+    if (!this.electronService.isElectron) {
+      return "";
+    }
     try {
       const boardPackageJson = await this.getBoardPackageJson();
       if (!boardPackageJson || !boardPackageJson.boardDependencies) {
@@ -1199,6 +1202,9 @@ export class ProjectService {
 
   // 更新ESP32配置菜单项
   async updateEsp32ConfigMenu(boardName: string) {
+    if (!this.electronService.isElectron) {
+      return null;
+    }
     try {
       const boardConfig = await this.getEsp32BoardConfig(boardName);
       // console.log('获取到的ESP32开发板配置:', boardConfig);
@@ -1313,6 +1319,9 @@ export class ProjectService {
 
   // 更新STM32配置菜单项
   async updateStm32ConfigMenu(boardName: string) {
+    if (!this.electronService.isElectron) {
+      return null;
+    }
     try {
       const boardConfig = await this.getStm32BoardConfig(boardName);
 
@@ -1432,6 +1441,9 @@ export class ProjectService {
 
   // 更新nRF5配置菜单项
   async updateNrf5ConfigMenu(boardName: string) {
+    if (!this.electronService.isElectron) {
+      return null;
+    }
     try {
       const boardConfig = await this.getNrf5BoardConfig(boardName);
 

@@ -111,6 +111,21 @@ export class _ProjectService {
       return { success: false, result: { state: 'warn', text: msg + '，请稍后' } };
     }
 
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+      if (progress < 95) {
+        progress += Math.floor(Math.random() * 5) + 3;
+        if (progress > 95) progress = 95;
+        this.noticeService.update({
+          title: '编译中',
+          text: `服务端正在编译项目... ${progress}%`,
+          state: 'doing',
+          progress: progress,
+          setTimeout: 0
+        });
+      }
+    }, 2000);
+
     try {
       await this.saveAllDirty();
       this.noticeService.update({
@@ -121,6 +136,8 @@ export class _ProjectService {
         setTimeout: 0
       });
       const result = await this.projectService.compileServerProject();
+      clearInterval(progressInterval);
+      
       this.logService.update({
         detail: [result.fullStdOut, result.fullStdErr].filter(Boolean).join('\n'),
         state: result.success ? 'done' : 'error'
@@ -130,11 +147,13 @@ export class _ProjectService {
         title: result.success ? '编译成功' : '编译失败',
         text: result.text,
         state: result.success ? 'done' : 'error',
+        progress: result.success ? 100 : progress,
         detail: result.fullStdErr || result.fullStdOut || result.text,
         setTimeout: result.success ? 3000 : 600000
       });
       return { success: result.success, result: { state: result.success ? 'done' : 'error', text: result.text, fullStdErr: result.fullStdErr } };
     } catch (error: any) {
+      clearInterval(progressInterval);
       const text = error?.message || '服务端编译失败';
       this.workflowService.finishBuild(false, text);
       this.noticeService.update({ title: '编译失败', text, detail: text, state: 'error', setTimeout: 600000 });
