@@ -37,6 +37,7 @@ export class NpmService {
 
   isInstalling = false;
   private boardDependencyInstallProgress?: BoardDependencyInstallProgress;
+  private boardDepsInstallPromise?: Promise<void>;
 
   private getNpmErrorMessage(error: any): string {
     return (error?.message || String(error)).replace(/^Error invoking remote method 'npm-run': Error:\s*/i, '');
@@ -243,26 +244,35 @@ export class NpmService {
   }
 
   async installBoardDeps() {
-    this.isInstalling = true;
-    const installStateStarted = this.workflowService.startInstall();
-
-    try {
-      const boardPackageJson = await this.prjService.getBoardPackageJson() || {};
-      // console.log("boardPackageJson: ", boardPackageJson);
-      await this.installBoardDependencies(boardPackageJson, false);
-      if (installStateStarted && this.workflowService.currentState === ProcessState.INSTALLING) {
-        this.workflowService.finishInstall(true);
-      }
-    } catch (error) {
-      const errorMessage = this.getNpmErrorMessage(error);
-      if (installStateStarted && this.workflowService.currentState === ProcessState.INSTALLING) {
-        this.workflowService.finishInstall(false, errorMessage);
-      }
-      throw error;
-    } finally {
-      this.isInstalling = false;
-      this.boardDependencyInstallProgress = undefined;
+    if (this.boardDepsInstallPromise) {
+      return this.boardDepsInstallPromise;
     }
+
+    this.boardDepsInstallPromise = (async () => {
+      this.isInstalling = true;
+      const installStateStarted = this.workflowService.startInstall();
+
+      try {
+        const boardPackageJson = await this.prjService.getBoardPackageJson() || {};
+        // console.log("boardPackageJson: ", boardPackageJson);
+        await this.installBoardDependencies(boardPackageJson, false);
+        if (installStateStarted && this.workflowService.currentState === ProcessState.INSTALLING) {
+          this.workflowService.finishInstall(true);
+        }
+      } catch (error) {
+        const errorMessage = this.getNpmErrorMessage(error);
+        if (installStateStarted && this.workflowService.currentState === ProcessState.INSTALLING) {
+          this.workflowService.finishInstall(false, errorMessage);
+        }
+        throw error;
+      } finally {
+        this.isInstalling = false;
+        this.boardDependencyInstallProgress = undefined;
+        this.boardDepsInstallPromise = undefined;
+      }
+    })();
+
+    return this.boardDepsInstallPromise;
   }
 
   boardDependenciesChanged = false;
@@ -315,6 +325,33 @@ export class NpmService {
     } catch {
       return false;
     }
+  }
+
+  getMissingBoardDependencies(packageJson: any): string[] {
+    const appDataPath = window['path'].getAppDataPath();
+    const boardDependencies = packageJson?.boardDependencies || {};
+    const missingDependencies: string[] = [];
+
+    for (const [key, version] of Object.entries(boardDependencies)) {
+      const declaredVersion = String(version);
+      const depPathPackageJson = `${appDataPath}/node_modules/${key}/package.json`;
+
+      if (!window['path'].isExists(depPathPackageJson)) {
+        missingDependencies.push(`${key}@${declaredVersion}`);
+        continue;
+      }
+
+      try {
+        const depPackageJson = JSON.parse(window['fs'].readFileSync(depPathPackageJson));
+        if (!this.depVersionSatisfiesDecl(depPackageJson.version, declaredVersion)) {
+          missingDependencies.push(`${key}@${declaredVersion} (installed ${depPackageJson.version || 'unknown'})`);
+        }
+      } catch {
+        missingDependencies.push(`${key}@${declaredVersion}`);
+      }
+    }
+
+    return missingDependencies;
   }
 
   // 安装开发板依赖
@@ -427,14 +464,15 @@ export class NpmService {
       }
     } catch (error) {
       const errorMessage = this.getNpmErrorMessage(error);
-      console.error('安装开发板依赖时出错:', error);
+      console.error(error);
       this.traceToAppLog('DEPS_ERROR', { error: errorMessage });
       // this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED') });
       this.noticeService.update({ 
         title: this.translate.instant('NPM.DEPENDENCY_INSTALL_FAILED_TITLE'), 
         text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED'), 
         detail: errorMessage,
-        state: 'error'
+        state: 'error',
+        sendToLog: false
       });
       if (manageInstallState && this.workflowService.currentState === ProcessState.INSTALLING) {
         this.workflowService.finishInstall(false, errorMessage);

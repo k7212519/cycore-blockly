@@ -50,4 +50,5 @@ export interface NoticeOptions {
   sendToLog?: boolean,
   closable?: boolean,
   icon?: string,
+  isCancellationNotice?: boolean,
 }

@@ -610,6 +610,7 @@ const { initLogger, registerLoggerHandlers } = require("./logger");
 const { registerToolsHandlers } = require("./tools");
 const { registerNotificationHandlers } = require("./notification");
 const { registerProbeRsHandlers } = require("./probe-rs");
+const { registerBleHandlers, registerWebBluetoothChooser } = require("./ble");
 
 let mainWindow;
 let userConf;
@@ -975,9 +976,18 @@ function installChildEnv(childPath, options) {
   }
 
   function extract7zPackage(z7Path, archivePath, targetPath, keyword, validateComplete) {
-    const archiveVersion = extractVersion(path.basename(archivePath), keyword);
     const installedVersion = readInstalledVersion(targetPath);
     const isComplete = validateComplete(targetPath);
+
+    if (!archivePath || !fs.existsSync(archivePath)) {
+      if (isComplete) {
+        return true;
+      }
+      console.error(`未找到 ${keyword} 压缩包: ${archivePath}`);
+      return false;
+    }
+
+    const archiveVersion = extractVersion(path.basename(archivePath), keyword);
 
     if (isComplete) {
       if (!installedVersion && archiveVersion) {
@@ -991,14 +1001,6 @@ function installChildEnv(childPath, options) {
     } else if (fs.existsSync(targetPath)) {
       console.warn(`${keyword} 安装不完整，准备重新解压: ${targetPath}`);
       removeInstallDir(targetPath);
-    }
-
-    if (!archivePath || !fs.existsSync(archivePath)) {
-      if (isComplete) {
-        return true;
-      }
-      console.error(`未找到 ${keyword} 压缩包: ${archivePath}`);
-      return false;
     }
 
     try {
@@ -1050,7 +1052,9 @@ function installChildEnv(childPath, options) {
 
   for (const pkg of packages) {
     const targetPath = path.join(childPath, pkg.name);
-    const archivePath = findLatestVersionFile(sourceDir, pkg.name);
+    const archivePath =
+      findLatestVersionFile(sourceDir, pkg.name) ||
+      findLatestVersionFile(path.join(childPath, platformDir), pkg.name);
     if (z7Path) {
       extract7zPackage(z7Path, archivePath, targetPath, pkg.name, validators[pkg.name]);
     } else {
@@ -1214,6 +1218,16 @@ function appendPathSegment(pathValue, segment) {
   return `${pathValue}${path.delimiter}${segment}`;
 }
 
+function normalizeWindowsPathValue(value) {
+  if (!isWin32 || !value || typeof value !== 'string') {
+    return value;
+  }
+
+  let normalized = value.trim().replace(/\//g, '\\');
+  normalized = normalized.replace(/^([a-zA-Z]):(?!\\)/, '$1:\\');
+  return normalized;
+}
+
 // child 工具解压完成后再注入 PATH 与相关环境变量
 function applyChildToolEnv(childPath) {
   const nodeBinPath = path.join(childPath, isDarwin ? "node/bin" : "node");
@@ -1224,8 +1238,8 @@ function applyChildToolEnv(childPath) {
   }
 
   if (isWin32) {
-    const systemRoot = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
-    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+    const systemRoot = normalizeWindowsPathValue(process.env.SystemRoot || process.env.windir || 'C:\\Windows');
+    const programFiles = normalizeWindowsPathValue(process.env.ProgramFiles || 'C:\\Program Files');
     const systemPaths = [
       path.join(systemRoot, 'System32'),
       path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0'),
@@ -1235,6 +1249,9 @@ function applyChildToolEnv(childPath) {
     systemPaths.forEach((sysPath) => {
       customPath = appendPathSegment(customPath, sysPath);
     });
+    process.env.SystemRoot = systemRoot;
+    process.env.windir = normalizeWindowsPathValue(process.env.windir || systemRoot);
+    process.env.ComSpec = normalizeWindowsPathValue(process.env.ComSpec || path.join(systemRoot, 'System32', 'cmd.exe'));
   } else if (isDarwin) {
     ['/bin', '/usr/bin'].forEach((sysPath) => {
       customPath = appendPathSegment(customPath, sysPath);
@@ -1277,9 +1294,17 @@ function runInstallEnv(childPath) {
 
 // 环境变量加载
 function loadEnv() {
-  const childPath = serve
+  let childPath = serve
     ? path.join(__dirname, "..", "child")
     : path.join(process.resourcesPath, "child");
+
+  if (!fs.existsSync(childPath)) {
+    const devChildPath = path.join(__dirname, "..", "child");
+    if (fs.existsSync(devChildPath)) {
+      console.warn(`child 工具目录不存在，回退到开发目录: ${childPath} -> ${devChildPath}`);
+      childPath = devChildPath;
+    }
+  }
 
   // 读取config.json文件
   const configPath = path.join(__dirname, 'config', "config.json");
@@ -1472,7 +1497,8 @@ function loadEnv() {
 
   process.env.AILY_PROJECT_PATH = conf["project_path"];
 
-  if (serve) {
+  // macOS 生产/开发均走异步自解压，完成后再次覆盖 child 环境变量；Windows 生产包由 NSIS 预解压
+  if (isDarwin || serve) {
     applyChildToolEnv(childPath);
     setImmediate(() => runInstallEnv(childPath));
   } else {
@@ -1612,6 +1638,7 @@ function createWindow() {
       nodeIntegration: true,
       webSecurity: false,
       preload: path.join(__dirname, "preload.js"),
+      enableBlinkFeatures: 'WebBluetooth',
       // 启用 Web Serial API 支持
       // enableBlinkFeatures: 'Serial',
       // 禁用后台节流和页面可见性，避免在后台时停止渲染
@@ -1619,6 +1646,8 @@ function createWindow() {
       pageVisibility: true,
     },
   });
+
+  registerWebBluetoothChooser(mainWindow);
 
   mainWindow.setBounds(winState.state);
 
@@ -1747,6 +1776,7 @@ function createWindow() {
   registerToolsHandlers(mainWindow);
   registerNotificationHandlers(mainWindow);
   registerProbeRsHandlers(mainWindow);
+  registerBleHandlers();
 
   // 检查是否有待处理的OAuth回调
   // 注意：这里不再使用 setTimeout 自动发送，而是等待 renderer-ready 事件
@@ -2090,6 +2120,14 @@ function normalizePortPath(value) {
   return typeof value === 'string' ? value.toLowerCase().replace(/[\\/]/g, '') : '';
 }
 
+function isAllowedWebDevicePermission(permission) {
+  return permission === 'serial' || permission === 'bluetooth' || permission === 'bluetoothScanning';
+}
+
+function isAllowedWebDeviceType(deviceType) {
+  return deviceType === 'serial' || deviceType === 'bluetooth' || deviceType === 'bluetoothLE';
+}
+
 app.on('web-contents-created', (event, contents) => {
   contents.session.on('select-serial-port', (event, portList, webContents, callback) => {
     event.preventDefault();
@@ -2120,17 +2158,15 @@ app.on('web-contents-created', (event, contents) => {
   });
 
   contents.session.setPermissionCheckHandler((wc, permission) => {
-    if (permission === 'serial') {
-      return true;
-    }
-    return false;
+    return isAllowedWebDevicePermission(permission);
+  });
+
+  contents.session.setPermissionRequestHandler((wc, permission, callback) => {
+    callback(isAllowedWebDevicePermission(permission));
   });
 
   contents.session.setDevicePermissionHandler((details) => {
-    if (details.deviceType === 'serial') {
-      return true;
-    }
-    return false;
+    return isAllowedWebDeviceType(details.deviceType);
   });
 });
 

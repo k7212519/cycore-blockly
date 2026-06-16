@@ -67,6 +67,7 @@ export class ProjectService {
 
   private projectActivationSubject = new Subject<ProjectActivationEvent>();
   projectActivation$ = this.projectActivationSubject.asObservable();
+  private projectOpenTask: { path: string; promise: Promise<void> } | null = null;
 
   currentPackageData: ProjectPackageData = {
     name: 'aily blockly',
@@ -82,6 +83,11 @@ export class ProjectService {
   set currentProjectPath(path: string) {
     this.currentProjectPathSubject.next(path);
   }
+
+  get isProjectOpening(): boolean {
+    return !!this.projectOpenTask || this.stateSubject.value === 'loading';
+  }
+
   currentBoardConfig: any;
   isBoardSwitchInProgress = false;
   isPackageJsonBoardWatcherActive = false;
@@ -266,6 +272,25 @@ export class ProjectService {
 
   // 打开项目
   async projectOpen(projectPath = this.currentProjectPath, options: ProjectOpenOptions = {}) {
+    if (this.projectOpenTask) {
+      if (this.isSameProjectPath(this.projectOpenTask.path, projectPath)) {
+        return this.projectOpenTask.promise;
+      }
+      await this.projectOpenTask.promise;
+    }
+
+    const promise = this.projectOpenInternal(projectPath, options);
+    this.projectOpenTask = { path: projectPath, promise };
+    try {
+      await promise;
+    } finally {
+      if (this.projectOpenTask?.promise === promise) {
+        this.projectOpenTask = null;
+      }
+    }
+  }
+
+  private async projectOpenInternal(projectPath = this.currentProjectPath, options: ProjectOpenOptions = {}): Promise<void> {
     const previousProjectPath = this.currentProjectPath;
     const activationReason = options.reason || (this.isSameProjectPath(previousProjectPath, projectPath) ? 'reload' : 'open');
     await this.close();
@@ -273,7 +298,8 @@ export class ProjectService {
     // 判断路径是否存在
     if (!this.electronService.exists(projectPath)) {
       this.removeRecentlyProject({ path: projectPath })
-      return this.message.error(this.translate.instant('PROJECT.PATH_NOT_EXIST'));
+      this.message.error(this.translate.instant('PROJECT.PATH_NOT_EXIST'));
+      return;
     }
 
     if (this.electronService.isElectron && window['projectLock']) {
@@ -315,7 +341,7 @@ export class ProjectService {
     const abiIsExist = window['path'].isExists(projectPath + '/project.abi');
     if (abiIsExist) {
       // 打开blockly编辑器
-      this.router.navigate(['/main/blockly-editor'], {
+      await this.router.navigate(['/main/blockly-editor'], {
         queryParams: {
           path: projectPath
         },
@@ -323,17 +349,58 @@ export class ProjectService {
       });
     } else {
       // 打开代码编辑器
-      this.router.navigate(['/main/code-editor'], {
+      await this.router.navigate(['/main/code-editor'], {
         queryParams: {
           path: projectPath
         },
         replaceUrl: true
       });
     }
+
+    await this.waitForProjectOpenCompletion(projectPath);
+  }
+
+  private waitForProjectOpenCompletion(projectPath: string): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      let subscription: { unsubscribe: () => void } | null = null;
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        subscription?.unsubscribe();
+        resolve();
+      };
+      const timeoutId = setTimeout(() => {
+        finish();
+        console.warn('[ProjectService] project open completion timed out:', projectPath);
+      }, 60000);
+
+      subscription = this.stateSubject.subscribe((state) => {
+        if (state !== 'loaded' && state !== 'error') {
+          return;
+        }
+        finish();
+      });
+
+      if (settled) {
+        subscription.unsubscribe();
+      }
+    });
   }
 
   // 保存项目
   save(path = this.currentProjectPath) {
+    if (this.isProjectOpening) {
+      return Promise.resolve({
+        success: false,
+        error: 'project is loading',
+        path,
+      });
+    }
+
     return new Promise<{ success: boolean; error?: string; path?: string }>((resolve) => {
       this.stateSubject.next('saving');
       this.actionService.dispatch('project-save', { path }, async result => {
@@ -1827,6 +1894,7 @@ export class ProjectService {
           nickname: currentPackageJson.nickname, // 保留昵称
           author: currentPackageJson.author, // 保留作者
           description: currentPackageJson.description, // 保留描述
+          ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }), // 保留云端项目ID
           dependencies: {
             // 从模板获取新的开发板依赖和基础库
             ...templatePackageJson.dependencies,
@@ -1838,7 +1906,6 @@ export class ProjectService {
           },
           // 不保留其他自定义配置
           // ...(currentPackageJson.projectConfig && { projectConfig: currentPackageJson.projectConfig }),
-          // ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }),
         };
 
         // 写入新的package.json

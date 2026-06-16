@@ -59,6 +59,14 @@ child/aily-builder*
 
 aily-todos/*.json
 docs/performance-optimization.md
+
+# Playwright E2E
+/renderer
+/test-results
+/playwright-report
+/e2e/logs
+/out-tsc/e2e
+/e2e/.artifacts
 /child/rg.exe
 /child/probe-rs
 /child/tools/*/node_modules/*
