@@ -209,6 +209,7 @@
     "marked-highlight": "^2.2.1",
     "mermaid": "^11.9.0",
     "monaco-editor": "^0.52.2",
+    "mp4box": "^2.3.0",
     "ng-zorro-antd": "^19.0.1",
     "ngx-x-markdown": "^0.0.2",
     "penpal": "^7.0.6",
