@@ -1245,10 +1245,14 @@ export class _BuilderService {
       });
 
       if (result.success) {
+        this.passed = true;
+        this.currentProjectPath = this.projectService.currentProjectPath;
         return { state: 'done', text: result.text };
       }
+      this.passed = false;
       return Promise.reject({ state: 'error', text: result.text, detail: result.fullStdErr || result.fullStdOut });
     } catch (error) {
+      this.passed = false;
       this.workflowService.finishBuild(false, error?.message || '服务端编译失败');
       return Promise.reject({ state: 'error', text: error?.message || '服务端编译失败' });
     }

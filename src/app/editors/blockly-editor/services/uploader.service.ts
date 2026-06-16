@@ -14,6 +14,7 @@ import { ActionService } from "../../../services/action.service";
 import { arduinoGenerator } from "../components/blockly/generators/arduino/arduino";
 import { BlocklyService } from "./blockly.service";
 import { WorkflowService, ProcessState } from '../../../services/workflow.service';
+import { ServerFlashService } from "../../../services/server-flash.service";
 
 @Injectable()
 export class _UploaderService {
@@ -31,7 +32,8 @@ export class _UploaderService {
     private serialMonitorService: SerialMonitorService,
     private actionService: ActionService,
     private blocklyService: BlocklyService,
-    private workflowService: WorkflowService
+    private workflowService: WorkflowService,
+    private serverFlashService: ServerFlashService
   ) { }
 
   uploadInProgress = false;
@@ -182,6 +184,16 @@ export class _UploaderService {
 
         // 第一步：检查是否需要编译
         const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
+        if (this.projectService.isServerProject) {
+          try {
+            const result = await this.uploadServerProject(capturedSerialPort, code);
+            resolve(result);
+          } catch (error: any) {
+            reject(error);
+          }
+          return;
+        }
+
         const buildPath = await this.projectService.getBuildPath();
         const needsBuild = !this._builderService.passed || 
                           code !== this._builderService.lastCode || 
@@ -641,6 +653,63 @@ export class _UploaderService {
     });
   }
 
+  private async uploadServerProject(capturedSerialPort: any, code: string): Promise<ActionState> {
+    let uploadStarted = false;
+    try {
+      const needsBuild = !this._builderService.passed
+        || code !== this._builderService.lastCode
+        || this.projectService.currentProjectPath !== this._builderService.currentProjectPath
+        || !this.projectService.lastServerCompileResult?.flashFiles?.length;
+
+      if (needsBuild) {
+        await this._builderService.build();
+      }
+
+      if (!this._builderService.passed || !this.projectService.lastServerCompileResult?.flashFiles?.length) {
+        throw new Error('编译结果未通过，未检测到可用构建产物');
+      }
+
+      if (this.cancelled) {
+        throw { state: 'warn', text: '上传已取消' };
+      }
+
+      if (!this.workflowService.startUpload()) {
+        const state = this.workflowService.currentState;
+        let msg = "系统繁忙";
+        if (state === ProcessState.UPLOADING) msg = "上传正在进行中";
+        else if (state === ProcessState.INSTALLING) msg = "依赖安装中";
+        throw { state: 'warn', text: msg + "，请稍后" };
+      }
+
+      uploadStarted = true;
+      this._builderService.isUploading = true;
+      const result = await this.serverFlashService.flashLastCompile(capturedSerialPort);
+      this.workflowService.finishUpload(true);
+      return result;
+    } catch (error: any) {
+      const state = error?.state || 'error';
+      const text = error?.text || error?.message || '上传失败';
+      if (state === 'warn') {
+        this.noticeService.update({
+          title: text.includes('取消') ? '上传已取消' : '上传未完成',
+          text,
+          state: 'warn',
+          setTimeout: 55000
+        });
+      } else {
+        this.handleUploadError(text, text.includes('编译') ? '编译失败' : '上传失败', error?.detail || error?.message || text);
+      }
+      if (uploadStarted) {
+        this.workflowService.finishUpload(false, text);
+      }
+      throw { state, text };
+    } finally {
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+      this.uploadPromiseReject = null;
+    }
+  }
+
   /**
    * 从上传参数中提取标志
    * @param uploadParam 上传参数字符串或对象
@@ -699,6 +768,9 @@ export class _UploaderService {
     this.cancelled = true;
     this.uploadInProgress = false;
     this._builderService.isUploading = false;
+    if (this.projectService.isServerProject) {
+      this.serverFlashService.cancel();
+    }
     
     // 立即更新通知状态为已取消
     this.noticeService.update({
@@ -974,4 +1046,3 @@ export class _UploaderService {
     }
   }
 }
-

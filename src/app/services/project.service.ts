@@ -74,6 +74,15 @@ export interface ServerCompileResult {
   fullStdOut: string;
   fullStdErr: string;
   artifactPath?: string;
+  artifactId?: string;
+  flashFiles?: ServerFlashFile[];
+}
+
+export interface ServerFlashFile {
+  address: number;
+  fileName: string;
+  url: string;
+  size?: number;
 }
 
 @Injectable({
@@ -95,6 +104,7 @@ export class ProjectService {
   currentPackageData: ProjectPackageData = {
     name: '少年芯嵌入式芯片开发云平台',
   };
+  lastServerCompileResult: ServerCompileResult | null = null;
 
   projectRootPath: string;
 
@@ -742,10 +752,16 @@ export class ProjectService {
     );
   }
 
-  async compileServerProject(code: string, projectId = this.currentProjectId): Promise<ServerCompileResult> {
-    return this.unwrap<ServerCompileResult>(
+  async compileServerProject(code?: string, projectId = this.currentProjectId): Promise<ServerCompileResult> {
+    const result = await this.unwrap<ServerCompileResult>(
       this.http.post<ApiResult<ServerCompileResult>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/compile`, { code })
     );
+    this.lastServerCompileResult = result;
+    return result;
+  }
+
+  async downloadServerArtifactFile(file: ServerFlashFile): Promise<ArrayBuffer> {
+    return firstValueFrom(this.http.get(file.url, { responseType: 'arraybuffer' }));
   }
 
   private async unwrap<T>(request: any): Promise<T> {
