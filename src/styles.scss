@@ -73,6 +73,37 @@ img {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
+.project-lock-conflict-modal {
+  .ant-modal-content {
+    background: var(--aily-bg-elevated) !important;
+    border: 1px solid var(--aily-border-input);
+    box-shadow: var(--aily-shadow-lg) !important;
+  }
+
+  .ant-modal-header,
+  .ant-modal-footer {
+    background: transparent;
+    border-color: var(--aily-border-secondary);
+  }
+
+  .ant-modal-title,
+  .ant-modal-body {
+    color: var(--aily-text-primary);
+  }
+
+  .ant-modal-body {
+    line-height: 1.6;
+  }
+
+  .ant-modal-close {
+    color: var(--aily-text-hint);
+
+    &:hover {
+      color: var(--aily-text-primary);
+    }
+  }
+}
+
 nz-modal-container {
   overflow: hidden !important;
 }
