@@ -73,7 +73,15 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngOnInit(): void {
     this.activatedRoute.queryParams.subscribe((params) => {
-      if (params['path']) {
+      if (params['projectId']) {
+        console.log('project id', params['projectId']);
+        try {
+          this.loadServerProject(params['projectId']);
+        } catch (error) {
+          console.error('加载项目失败', error);
+          this.message.error('加载项目失败，请检查项目文件是否完整');
+        }
+      } else if (params['path']) {
         console.log('project path', params['path']);
         try {
           this._projectService.currentProjectPath = params['path'];
@@ -85,7 +93,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
           this.message.error('加载项目失败，请检查项目文件是否完整');
         }
       } else {
-        this.message.error('没有找到项目路径');
+        this.message.error('没有找到项目');
       }
     });
 
@@ -253,6 +261,61 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       .catch((err) => {
         console.error('install board dependencies error', err);
       });
+  }
+
+  async loadServerProject(projectId: string) {
+    this.projectService.currentProjectId = projectId;
+    const projectPath = this.projectService.serverProjectPath(projectId);
+    this._projectService.currentProjectPath = projectPath;
+
+    const projectInfo = await this.projectService.getServerProject(projectId);
+    const packageJson = projectInfo.packageJson || {};
+    this.devmode = packageJson.devmode || 'arduino';
+    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
+
+    this._projectService.currentPackageData = packageJson;
+    this.projectService.currentPackageData = packageJson;
+    window['packageJson'] = packageJson;
+    window['projectService'] = this.projectService;
+
+    this.uiService.updateFooterState({
+      state: 'doing',
+      text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BOARD_CONFIG'),
+    });
+    const boardJson = await this.projectService.getBoardJson();
+    this.projectService.currentBoardConfig = boardJson;
+    this.blocklyService.boardConfig = boardJson;
+    window['boardConfig'] = boardJson;
+
+    this.uiService.updateFooterState({
+      state: 'doing',
+      text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BLOCKLY_LIB'),
+    });
+    const dependencies = packageJson.dependencies || {};
+    const libraryModuleList = Object.keys(dependencies).filter(name => name.startsWith('@aily-project/'));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    for (const libPackageName of libraryModuleList) {
+      this.uiService.updateFooterState({
+        state: 'doing',
+        text: this.translate.instant('BLOCKLY_EDITOR.LOADING_LIB', { name: libPackageName }),
+      });
+      await this.blocklyService.loadLibrary(libPackageName, projectPath);
+    }
+
+    this.uiService.updateFooterState({
+      state: 'doing',
+      text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BLOCKLY_PROGRAM'),
+    });
+    const jsonData = await this.projectService.getServerBlockly(projectId);
+    this.blocklyService.loadAbiJson(jsonData);
+    this._projectService.markSavedSnapshot(jsonData);
+
+    this.uiService.updateFooterState({
+      state: 'done',
+      text: this.translate.instant('BLOCKLY_EDITOR.PROJECT_LOAD_SUCCESS'),
+    });
+    this.projectService.stateSubject.next('loaded');
+    this.checkBlocklyOnboarding();
   }
 
   openProjectManager(event?: MouseEvent) {

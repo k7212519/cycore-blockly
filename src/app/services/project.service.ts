@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Subject } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 import { UiService } from './ui.service';
 import { ElectronService } from './electron.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
@@ -18,6 +19,7 @@ import { NewProjectData } from '../pages/project-new/project-new.component';
 import { WorkflowService } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
+import { API } from '../configs/api.config';
 
 interface ProjectPackageData {
   name: string;
@@ -30,6 +32,48 @@ interface ProjectPackageData {
   type?: string;
   framework?: string;
   cloudId?: string; // 云端项目ID
+}
+
+interface ApiResult<T> {
+  code: number;
+  message: string;
+  data: T;
+}
+
+export interface ServerBoardInfo {
+  name: string;
+  nickname: string;
+  version: string;
+  img?: string;
+  description?: string;
+  url?: string;
+  brand?: string;
+  type?: string;
+  mode?: string[];
+  state?: string;
+  boardDirectory?: string;
+}
+
+export interface ServerProjectInfo {
+  projectId: string;
+  name: string;
+  editor: 'blockly' | 'code' | string;
+  packageJson: any;
+}
+
+export interface ServerFileNode {
+  name: string;
+  path: string;
+  directory: boolean;
+  children?: ServerFileNode[];
+}
+
+export interface ServerCompileResult {
+  success: boolean;
+  text: string;
+  fullStdOut: string;
+  fullStdErr: string;
+  artifactPath?: string;
 }
 
 @Injectable({
@@ -45,6 +89,8 @@ export class ProjectService {
   // 当前项目路径的订阅源
   private currentProjectPathSubject = new BehaviorSubject<string>('');
   currentProjectPath$ = this.currentProjectPathSubject.asObservable();
+  private currentProjectIdSubject = new BehaviorSubject<string>('');
+  currentProjectId$ = this.currentProjectIdSubject.asObservable();
 
   currentPackageData: ProjectPackageData = {
     name: '少年芯嵌入式芯片开发云平台',
@@ -59,6 +105,25 @@ export class ProjectService {
 
   set currentProjectPath(path: string) {
     this.currentProjectPathSubject.next(path);
+  }
+
+  get currentProjectId(): string {
+    return this.currentProjectIdSubject.value;
+  }
+
+  set currentProjectId(projectId: string) {
+    this.currentProjectIdSubject.next(projectId || '');
+    if (projectId) {
+      this.currentProjectPathSubject.next(this.serverProjectPath(projectId));
+    }
+  }
+
+  get isServerProject(): boolean {
+    return !!this.currentProjectId;
+  }
+
+  serverProjectPath(projectId = this.currentProjectId): string {
+    return projectId ? `server-project:${projectId}` : '';
   }
   currentBoardConfig: any;
   // STM32选择开发板时定义引脚使用
@@ -76,7 +141,8 @@ export class ProjectService {
     private platformService: PlatformService,
     private workflowService: WorkflowService,
     private translate: TranslateService,
-    private noticeService: NoticeService
+    private noticeService: NoticeService,
+    private http: HttpClient
   ) {
   }
 
@@ -127,6 +193,12 @@ export class ProjectService {
   // 新建项目
   async projectNew(newProjectData: NewProjectData) {
     try {
+      this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
+      const created = await this.createServerProject(newProjectData.name, newProjectData.board.name);
+      this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
+      await this.projectOpenById(created.projectId);
+      return;
+
       const separator = this.platformService.getPlatformSeparator();
       // console.log('newProjectData: ', newProjectData);
       const appDataPath = window['path'].getAppDataPath();
@@ -173,6 +245,13 @@ export class ProjectService {
 
   // 打开项目
   async projectOpen(projectPath = this.currentProjectPath) {
+    if (!this.electronService.isElectron || projectPath?.startsWith?.('server-project:')) {
+      const projectId = projectPath?.startsWith?.('server-project:')
+        ? projectPath.replace('server-project:', '')
+        : (projectPath || this.currentProjectId);
+      return this.projectOpenById(projectId);
+    }
+
     await this.close();
     await new Promise(resolve => setTimeout(resolve, 100));
     // 判断路径是否存在
@@ -205,13 +284,33 @@ export class ProjectService {
     }
   }
 
+  async projectOpenById(projectId: string) {
+    if (!projectId) {
+      this.message.error('项目 ID 为空');
+      return;
+    }
+    await this.close(false);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    this.stateSubject.next('loading');
+    const projectInfo = await this.getServerProject(projectId);
+    this.currentProjectId = projectId;
+    this.currentPackageData = projectInfo.packageJson || { name: projectInfo.name };
+    const editorRoute = projectInfo.editor === 'code' ? '/main/code-editor' : '/main/blockly-editor';
+    this.router.navigate([editorRoute], {
+      queryParams: { projectId },
+      replaceUrl: true
+    });
+  }
+
   // 保存项目
   save(path = this.currentProjectPath) {
     return new Promise<{ success: boolean; error?: string; path?: string }>((resolve) => {
       this.stateSubject.next('saving');
       this.actionService.dispatch('project-save', { path }, async result => {
         if (result.success) {
-          await this.copyPackageJsonToTemp(path);
+          if (!this.isServerProject) {
+            await this.copyPackageJsonToTemp(path);
+          }
           this.currentPackageData = await this.getPackageJson();
           this.stateSubject.next('saved');
           resolve({ success: true, path });
@@ -256,15 +355,18 @@ export class ProjectService {
     this.addRecentlyProject({ name: this.currentPackageData.name, path: path, nickname: this.currentPackageData.nickname || this.currentPackageData.name });
   }
 
-  async close() {
+  async close(navigate = true) {
     this.currentProjectPath = '';
+    this.currentProjectId = '';
     this.currentPackageData = {
       name: '少年芯嵌入式芯片开发云平台',
     };
     this.stateSubject.next('default');
     this.uiService.closeTerminal();
     // this.currentProjectPath = (await window['env'].get("AILY_PROJECT_PATH")).replace('%HOMEPATH%\\Documents', window['path'].getUserDocuments());
-    this.router.navigate(['/main/guide'], { replaceUrl: true });
+    if (navigate) {
+      this.router.navigate(['/main/guide'], { replaceUrl: true });
+    }
   }
 
   // 通过ConfigService存储最近打开的项目
@@ -314,6 +416,10 @@ export class ProjectService {
 
   // 获取当前项目的package.json
   async getPackageJson() {
+    if (this.currentProjectId) {
+      const projectInfo = await this.getServerProject(this.currentProjectId);
+      return projectInfo.packageJson;
+    }
     if (!this.currentProjectPath) {
       return null;
     }
@@ -327,6 +433,9 @@ export class ProjectService {
    * - 若不存在，则将主项目的 package.json 复制到 temp 文件夹
    */
   async syncPackageJsonWithTemp(projectPath: string): Promise<void> {
+    if (this.isServerProject || projectPath?.startsWith?.('server-project:')) {
+      return;
+    }
     const mainPackagePath = window['path'].join(projectPath, 'package.json');
     const tempDir = window['path'].join(projectPath, '.temp');
     const tempPackagePath = window['path'].join(tempDir, 'package.json');
@@ -432,6 +541,10 @@ export class ProjectService {
   }
 
   async setPackageJson(data: any) {
+    if (this.currentProjectId) {
+      this.currentPackageData = data;
+      return;
+    }
     if (!this.currentProjectPath) {
       throw new Error('当前项目路径未设置');
     }
@@ -580,9 +693,75 @@ export class ProjectService {
     return Object.keys(prjPackageJson.dependencies).find(dep => dep.startsWith('@aily-project/board-'));
   }
 
+  async loadServerBoards(): Promise<ServerBoardInfo[]> {
+    return this.unwrap<ServerBoardInfo[]>(this.http.get<ApiResult<ServerBoardInfo[]>>(API.serverProjectBoards));
+  }
+
+  async createServerProject(name: string, boardName: string): Promise<{ projectId: string; name: string; editor: string; boardName: string }> {
+    return this.unwrap(this.http.post<ApiResult<{ projectId: string; name: string; editor: string; boardName: string }>>(
+      API.serverProjects,
+      { name, boardName }
+    ));
+  }
+
+  async getServerProject(projectId = this.currentProjectId): Promise<ServerProjectInfo> {
+    return this.unwrap<ServerProjectInfo>(this.http.get<ApiResult<ServerProjectInfo>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`));
+  }
+
+  async getServerBlockly(projectId = this.currentProjectId): Promise<any> {
+    const result = await this.unwrap<{ workspace: any }>(
+      this.http.get<ApiResult<{ workspace: any }>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/blockly`)
+    );
+    return result?.workspace || {};
+  }
+
+  async saveServerBlockly(workspace: any, projectId = this.currentProjectId): Promise<void> {
+    await this.unwrap<void>(
+      this.http.put<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/blockly`, { workspace })
+    );
+  }
+
+  async getServerFileTree(projectId = this.currentProjectId): Promise<ServerFileNode[]> {
+    return this.unwrap<ServerFileNode[]>(
+      this.http.get<ApiResult<ServerFileNode[]>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/files/tree`)
+    );
+  }
+
+  async readServerFile(path: string, projectId = this.currentProjectId): Promise<string> {
+    const result = await this.unwrap<{ path: string; content: string }>(
+      this.http.get<ApiResult<{ path: string; content: string }>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/files?path=${encodeURIComponent(path)}`
+      )
+    );
+    return result?.content || '';
+  }
+
+  async saveServerFile(path: string, content: string, projectId = this.currentProjectId): Promise<void> {
+    await this.unwrap<void>(
+      this.http.put<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/files`, { path, content })
+    );
+  }
+
+  async compileServerProject(code: string, projectId = this.currentProjectId): Promise<ServerCompileResult> {
+    return this.unwrap<ServerCompileResult>(
+      this.http.post<ApiResult<ServerCompileResult>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/compile`, { code })
+    );
+  }
+
+  private async unwrap<T>(request: any): Promise<T> {
+    const response = await firstValueFrom(request) as ApiResult<T>;
+    if (!response || response.code !== 200) {
+      throw new Error(response?.message || '服务端请求失败');
+    }
+    return response.data;
+  }
+
   // 获取开发板模块的package.json
   async getBoardPackageJson() {
     const boardModule = await this.getBoardModule();
+    if (this.currentProjectId) {
+      return JSON.parse(await this.readServerFile(`node_modules/${boardModule}/package.json`));
+    }
     const boardPackageJsonPath = `${this.currentProjectPath}/node_modules/${boardModule}/package.json`;
     return JSON.parse(this.electronService.readFile(boardPackageJsonPath));
   }
@@ -592,6 +771,9 @@ export class ProjectService {
     const boardModule = await this.getBoardModule();
     if (!boardModule) {
       throw new Error('未找到开发板模块');
+    }
+    if (this.currentProjectId) {
+      return JSON.parse(await this.readServerFile(`node_modules/${boardModule}/board.json`));
     }
     const boardJsonPath = `${this.currentProjectPath}/node_modules/${boardModule}/board.json`;
     if (!window['fs'].existsSync(boardJsonPath)) {

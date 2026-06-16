@@ -232,7 +232,8 @@
             "NEXT": "Next",
             "PREV": "Previous",
             "CREATE": "Create Project",
-            "CREATING": "Creating"
+            "CREATING": "Creating",
+            "CANCEL_CREATE": "Cancel"
         },
         "WARNINGS": {
             "BETA_VERSION": "Beta version, unverified, use with caution",

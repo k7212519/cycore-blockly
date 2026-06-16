@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, OnInit } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CollectionViewer, DataSource, SelectionChange } from '@angular/cdk/collections';
 import { FlatTreeControl } from '@angular/cdk/tree';
 import { SelectionModel } from '@angular/cdk/collections';
@@ -302,7 +302,7 @@ class DynamicFileDataSource implements DataSource<FlatFileNode> {
   templateUrl: './file-tree.component.html',
   styleUrl: './file-tree.component.scss'
 })
-export class FileTreeComponent implements OnInit {
+export class FileTreeComponent implements OnInit, OnChanges {
 
   @Input() rootPath: string;
   @Input() selectedFile;
@@ -359,6 +359,12 @@ export class FileTreeComponent implements OnInit {
     this.loadRootPath();
   }
 
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['rootPath'] && !changes['rootPath'].firstChange && this.rootPath) {
+      this.loadRootPath();
+    }
+  }
+
   ngAfterViewInit() {
     setTimeout(() => {
       const files = this.dataSource.getCurrentData();
@@ -369,10 +375,16 @@ export class FileTreeComponent implements OnInit {
     }, 0);
   }
 
-  loadRootPath(path = this.rootPath): void {
+  async loadRootPath(path = this.rootPath): Promise<void> {
     // 保存当前展开状态
     if (this.dataSource) {
       this.dataSource.saveExpandedState();
+    }
+
+    if (typeof path === 'string' && path.startsWith('server-project:')) {
+      this.isLoading = true;
+      await this.fileService.loadServerTree();
+      this.isLoading = false;
     }
 
     const files = this.fileService.readDir(path);

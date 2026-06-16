@@ -6,6 +6,10 @@ let _cachedToolWebUrl: string | null = null;
 
 // 从 process.env 读取初始值（如果可用）
 function getInitialServerUrl(): string {
+  const edaApiBaseUrl = (window as any).__EDA_API_BASE_URL__;
+  if (edaApiBaseUrl) {
+    return String(edaApiBaseUrl).replace(/\/$/, '');
+  }
   return (typeof process !== 'undefined' && window['env'].get("AILY_API_SERVER")) 
     ? window['env'].get("AILY_API_SERVER")
     : 'https://api.aily.pro';
@@ -29,6 +33,11 @@ function getServerUrl(): string {
     return _cachedServerUrl;
   }
   return getInitialServerUrl();
+}
+
+function getLocalApiServerUrl(): string {
+  const edaApiBaseUrl = (window as any).__EDA_API_BASE_URL__;
+  return edaApiBaseUrl ? String(edaApiBaseUrl).replace(/\/$/, '') : '';
 }
 
 function getRegistryUrl(): string {
@@ -85,6 +94,9 @@ export const API = {
   get cloudSync() { return `${getServerUrl()}/api/v1/cloud/sync`; },
   get cloudProjects() { return `${getServerUrl()}/api/v1/cloud/projects`; },
   get cloudPublicProjects() { return `${getServerUrl()}/api/v1/cloud/projects/public`; },
+  // server-side local projects
+  get serverProjects() { return `${getLocalApiServerUrl()}/api/projects`; },
+  get serverProjectBoards() { return `${getLocalApiServerUrl()}/api/projects/boards`; },
   // feedback
   get feedback() { return `${getServerUrl()}/api/v1/feedback/submit`; },
   get feedbackImageUpload() { return `${getServerUrl()}/api/v1/feedback/upload-image`; },

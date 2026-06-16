@@ -4,6 +4,7 @@ import * as Blockly from 'blockly';
 import { processI18n, processJsonVar, processStaticFilePath, processToolboxI18n } from '../components/blockly/abf';
 import { TranslateService } from '@ngx-translate/core';
 import { ElectronService } from '../../../services/electron.service';
+import { ProjectService } from '../../../services/project.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
 
@@ -72,13 +73,17 @@ export class BlocklyService {
 
   constructor(
     private translateService: TranslateService,
-    private electronService: ElectronService
+    private electronService: ElectronService,
+    private projectService: ProjectService
   ) {
     (window as any).__ailyBlockDefinitionsMap = this.blockDefinitionsMap;
   }
 
   // 加载blockly的json数据
   loadAbiJson(jsonData) {
+    if (!jsonData?.blocks?.blocks) {
+      return;
+    }
     jsonData.blocks.blocks.forEach(block => {
       const ailyIcons = this.iconsMap.get(block.type);
       if (ailyIcons) block.icons = ailyIcons;
@@ -88,6 +93,11 @@ export class BlocklyService {
 
   // 通过node_modules加载库
   async loadLibrary(libPackageName, projectPath) {
+    if (this.projectService.isServerProject) {
+      await this.loadServerLibrary(libPackageName);
+      return;
+    }
+
     // 统一路径分隔符，确保在Windows上使用反斜杠
     // const normalizedProjectPath = projectPath.replace(/\//g, '\\');
     // const libPackagePath = normalizedProjectPath + '\\node_modules\\' + libPackageName.replace(/\//g, '\\');
@@ -155,6 +165,62 @@ export class BlocklyService {
       }
     } catch (error) {
       console.error('加载库失败:', libPackageName, error);
+    }
+  }
+
+  private async loadServerLibrary(libPackageName: string) {
+    const libraryKey = `server:${this.projectService.currentProjectId}:${libPackageName}`;
+    if (this.loadedLibraries.has(libraryKey)) {
+      return;
+    }
+
+    try {
+      const packagePath = `node_modules/${libPackageName}`;
+      const blockContent = await this.tryReadServerFile(`${packagePath}/block.json`);
+      if (!blockContent) {
+        return;
+      }
+
+      let blocks = JSON.parse(blockContent);
+      let i18nData = null;
+      const i18nContent = await this.tryReadServerFile(`${packagePath}/i18n/${this.translateService.currentLang}.json`);
+      if (i18nContent) {
+        i18nData = JSON.parse(i18nContent);
+        (window as any).__BLOCKLY_LIB_I18N__ = (window as any).__BLOCKLY_LIB_I18N__ || {};
+        (window as any).__BLOCKLY_LIB_I18N__[libPackageName] = i18nData;
+        blocks = processI18n(blocks, i18nData);
+      }
+
+      let generatorLoadSuccess = true;
+      const generatorContent = await this.tryReadServerFile(`${packagePath}/generator.js`);
+      if (generatorContent) {
+        generatorLoadSuccess = await this.loadLibGeneratorFromSource(libraryKey, generatorContent);
+      }
+
+      this.loadLibBlocks(blocks, null);
+
+      const toolboxContent = await this.tryReadServerFile(`${packagePath}/toolbox.json`);
+      if (toolboxContent) {
+        let toolbox = JSON.parse(toolboxContent);
+        if (i18nData) {
+          toolbox = processToolboxI18n(toolbox, i18nData);
+        }
+        this.loadLibToolbox(toolbox);
+      }
+
+      if (generatorLoadSuccess) {
+        this.loadedLibraries.add(libraryKey);
+      }
+    } catch (error) {
+      console.error('加载服务端库失败:', libPackageName, error);
+    }
+  }
+
+  private async tryReadServerFile(path: string): Promise<string | null> {
+    try {
+      return await this.projectService.readServerFile(path);
+    } catch {
+      return null;
     }
   }
 
@@ -241,6 +307,37 @@ export class BlocklyService {
 
       script.onerror = (error: any) => {
         console.error(`Generator loading failed: ${filePath}`, error);
+        resolve(false);
+      };
+
+      document.getElementsByTagName('head')[0].appendChild(script);
+    });
+  }
+
+  private loadLibGeneratorFromSource(sourceKey: string, source: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (this.loadedGenerators.has(sourceKey)) {
+        resolve(true);
+        return;
+      }
+
+      const blockTypesBefore = this.getRegisteredGenerators();
+      const script = document.createElement('script');
+      script.type = 'text/javascript';
+      const objectUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+      script.src = objectUrl;
+      script.setAttribute('data-generator-path', sourceKey);
+
+      script.onload = () => {
+        const blockTypesAfter = this.getRegisteredGenerators();
+        const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
+        this.loadedGenerators.set(sourceKey, new Set(newBlockTypes));
+        URL.revokeObjectURL(objectUrl);
+        resolve(true);
+      };
+
+      script.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
         resolve(false);
       };
 

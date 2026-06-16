@@ -232,7 +232,8 @@
             "NEXT": "下一步",
             "PREV": "上一步",
             "CREATE": "创建项目",
-            "CREATING": "正在创建"
+            "CREATING": "正在创建",
+            "CANCEL_CREATE": "取消创建"
         },
         "WARNINGS": {
             "BETA_VERSION": "内测版本，未经验证，谨慎使用",

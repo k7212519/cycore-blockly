@@ -183,7 +183,8 @@
             "NEXT": "次へ",
             "PREV": "前へ",
             "CREATE": "プロジェクトを作成",
-            "CREATING": "作成中"
+            "CREATING": "作成中",
+            "CANCEL_CREATE": "キャンセル"
         },
         "WARNINGS": {
             "BETA_VERSION": "ベータ版、未検証、注意して使用",

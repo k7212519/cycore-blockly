@@ -4,6 +4,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { DeleteDialogComponent } from '../components/delete-dialog/delete-dialog.component';
 import { PlatformService } from '../../../services/platform.service';
+import { ProjectService, ServerFileNode } from '../../../services/project.service';
 
 // 文件节点接口
 interface FileNode {
@@ -26,15 +27,23 @@ export class FileService {
     nodes: FileNode[],
     operation: 'copy' | 'cut' | null
   } = { nodes: [], operation: null };
+  private serverTreeCache = new Map<string, NzTreeNodeOptions[]>();
 
   constructor(
     private message: NzMessageService,
     private modal: NzModalService,
-    private platformService: PlatformService
+    private platformService: PlatformService,
+    private projectService: ProjectService
   ) { }
 
 
   readDir(path: string): NzTreeNodeOptions[] {
+    if (this.isServerPath(path)) {
+      return this.serverTreeCache.get('') || [];
+    }
+    if (this.projectService.isServerProject) {
+      return this.serverTreeCache.get(this.normalizeServerPath(path)) || [];
+    }
     const separator = this.platformService.getPlatformSeparator();
     let entries = window['fs'].readDirSync(path);
     let result = [];
@@ -59,6 +68,41 @@ export class FileService {
     }
     result = dirs.concat(files);
     return result;
+  }
+
+  async loadServerTree(): Promise<void> {
+    const tree = await this.projectService.getServerFileTree();
+    this.serverTreeCache.clear();
+    this.indexServerTree('', tree);
+  }
+
+  private indexServerTree(parentPath: string, nodes: ServerFileNode[]): void {
+    const items = (nodes || []).map(node => ({
+      title: node.name,
+      key: node.path,
+      path: node.path,
+      isLeaf: !node.directory,
+      expanded: false,
+      selectable: true
+    } as NzTreeNodeOptions));
+
+    const dirs = items.filter(item => !item.isLeaf);
+    const files = items.filter(item => item.isLeaf);
+    this.serverTreeCache.set(parentPath, dirs.concat(files));
+
+    for (const node of nodes || []) {
+      if (node.directory) {
+        this.indexServerTree(node.path, node.children || []);
+      }
+    }
+  }
+
+  private isServerPath(path: string): boolean {
+    return typeof path === 'string' && path.startsWith('server-project:');
+  }
+
+  private normalizeServerPath(path: string): string {
+    return (path || '').replace(/^server-project:[^/]+\/?/, '').replace(/^\/+/, '');
   }
 
   readFile(path: string): string {

@@ -94,7 +94,15 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this._ProjectService.registerCodeEditor(this);
 
     this.activatedRoute.queryParams.subscribe(params => {
-      if (params['path']) {
+      if (params['projectId']) {
+        console.log('project id', params['projectId']);
+        try {
+          this.loadServerProject(params['projectId']);
+        } catch (error) {
+          console.error('加载项目失败', error);
+          this.message.error('加载项目失败，请检查项目文件是否完整');
+        }
+      } else if (params['path']) {
         console.log('project path', params['path']);
         try {
           this.loadProject(params['path']);
@@ -103,7 +111,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
           this.message.error('加载项目失败，请检查项目文件是否完整');
         }
       } else {
-        this.message.error('没有找到项目路径');
+        this.message.error('没有找到项目');
       }
     });
 
@@ -179,6 +187,16 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     //   });
   }
 
+  async loadServerProject(projectId: string) {
+    this.projectService.currentProjectId = projectId;
+    const projectInfo = await this.projectService.getServerProject(projectId);
+    const packageJson = projectInfo.packageJson || {};
+    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
+    this.projectService.currentPackageData = packageJson;
+    this.projectService.stateSubject.next('loaded');
+    this.loaded = true;
+  }
+
   // 从文件树选择文件时触发
   async selectedFileChange(file: any) {
     // 先保存当前标签页的状态
@@ -193,7 +211,9 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       this.selectedIndex = existingFileIndex;
     } else {
       // 否则新建标签页
-      const content = window['fs'].readFileSync(filePath);
+      const content = this.projectService.isServerProject
+        ? await this.projectService.readServerFile(filePath)
+        : window['fs'].readFileSync(filePath);
       const newFile: OpenedFile = {
         path: filePath,
         title: file.title,
@@ -288,7 +308,11 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   // 保存文件
   async saveFile(index: number): Promise<void> {
     const file = this.openedFiles[index];
-    window['fs'].writeFileSync(file.path, file.content);
+    if (this.projectService.isServerProject) {
+      await this.projectService.saveServerFile(file.path, file.content);
+    } else {
+      window['fs'].writeFileSync(file.path, file.content);
+    }
     file.isDirty = false;
   }
 
@@ -401,6 +425,10 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     console.log('收到打开文件请求:', event);
 
     // 检查文件是否存在
+    if (this.projectService.isServerProject) {
+      this.message.warning('服务端项目暂不支持跨文件跳转');
+      return;
+    }
     if (!this.electronService.exists(event.filePath)) {
       this.message.error(`文件不存在: ${event.filePath}`);
       return;

@@ -183,7 +183,8 @@
             "NEXT": "Suivant",
             "PREV": "Précédent",
             "CREATE": "Créer Projet",
-            "CREATING": "Création en cours"
+            "CREATING": "Création en cours",
+            "CANCEL_CREATE": "Annuler"
         },
         "WARNINGS": {
             "BETA_VERSION": "Version bêta, non vérifiée, utilisez avec prudence",

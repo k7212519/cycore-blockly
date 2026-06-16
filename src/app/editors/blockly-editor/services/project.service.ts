@@ -4,6 +4,7 @@ import { ActionService } from '../../../services/action.service';
 import { HistoryService } from './history.service';
 import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
 import { ElectronService } from '../../../services/electron.service';
+import { ProjectService as AppProjectService } from '../../../services/project.service';
 
 
 @Injectable({
@@ -13,13 +14,15 @@ export class _ProjectService {
 
   currentProjectPath;
   currentPackageData;
+  private savedServerJson = '';
   private initialized = false; // 防止重复初始化
 
   constructor(
     private blocklyService: BlocklyService,
     private actionService: ActionService,
     private historyService: HistoryService,
-    private electronService: ElectronService
+    private electronService: ElectronService,
+    private appProjectService: AppProjectService
   ) { }
 
   init() {
@@ -57,10 +60,17 @@ export class _ProjectService {
 
   }
 
+  markSavedSnapshot(jsonData: any) {
+    this.savedServerJson = JSON.stringify(jsonData || {});
+  }
+
   hasUnsavedChanges(): boolean {
     try {
       // 获取当前工作区的 JSON 数据
       const currentWorkspaceJson = this.blocklyService.getWorkspaceJson();
+      if (this.appProjectService.isServerProject) {
+        return JSON.stringify(currentWorkspaceJson) !== this.savedServerJson;
+      }
 
       // 读取并解析已保存的 JSON 数据
       const savedJsonStr = window['fs'].readFileSync(`${this.currentProjectPath}/project.abi`, 'utf8');
@@ -81,6 +91,11 @@ export class _ProjectService {
 
   async save(path: string, createHistory: boolean = true) {
     const jsonData = this.blocklyService.getWorkspaceJson();
+    if (this.appProjectService.isServerProject) {
+      await this.appProjectService.saveServerBlockly(jsonData);
+      this.savedServerJson = JSON.stringify(jsonData);
+      return;
+    }
     window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData, null, 2));
     
     if (createHistory && this.currentProjectPath) {

@@ -106,6 +106,10 @@ export class _BuilderService {
         console.log('项目正在加载中，跳过依赖预处理');
         return;
       }
+      if (this.projectService.isServerProject) {
+        console.log('服务端项目跳过前端预处理');
+        return;
+      }
 
       // 互斥条件1：AI操作期间不触发自动预编译，但标记需要延迟执行
       if (this.blocklyService.aiWaiting) {
@@ -658,6 +662,14 @@ export class _BuilderService {
     this.currentProgress = 0; // 重置进度
     this.hasReceivedRealProgress = false; // 重置进度标记
 
+    if (this.projectService.isServerProject) {
+      try {
+        return await this.buildOnServer();
+      } finally {
+        this.clearProgressTimer();
+      }
+    }
+
     return new Promise<ActionState>(async (resolve, reject) => {
       // 保存 reject 函数，以便在 cancel 时使用
       this.buildPromiseReject = reject;
@@ -1199,6 +1211,47 @@ export class _BuilderService {
         reject({ state: 'error', text: error.message });
       }
     });
+  }
+
+  private async buildOnServer(): Promise<ActionState> {
+    try {
+      this.safeUpdateNotice({
+        title: "编译中",
+        text: "服务端正在编译项目",
+        state: 'doing',
+        progress: 0,
+        setTimeout: 0,
+        stop: () => {
+          this.cancel();
+        }
+      });
+
+      const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
+      this.lastCode = code;
+      const result = await this.projectService.compileServerProject(code);
+      this.logService.update({
+        detail: [result.fullStdOut, result.fullStdErr].filter(Boolean).join('\n'),
+        state: result.success ? 'done' : 'error'
+      });
+
+      this.workflowService.finishBuild(result.success, result.text);
+      this.safeUpdateNotice({
+        title: result.success ? "编译成功" : "编译失败",
+        text: result.text,
+        state: result.success ? 'done' : 'error',
+        detail: result.fullStdErr || result.fullStdOut || result.text,
+        setTimeout: result.success ? 3000 : 600000,
+        sendToLog: false
+      });
+
+      if (result.success) {
+        return { state: 'done', text: result.text };
+      }
+      return Promise.reject({ state: 'error', text: result.text, detail: result.fullStdErr || result.fullStdOut });
+    } catch (error) {
+      this.workflowService.finishBuild(false, error?.message || '服务端编译失败');
+      return Promise.reject({ state: 'error', text: error?.message || '服务端编译失败' });
+    }
   }
 
   /**
