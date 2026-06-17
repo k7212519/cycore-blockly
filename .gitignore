@@ -64,6 +64,7 @@ docs/performance-optimization.md
 /renderer
 /test-results
 /playwright-report
+/e2e/logs
 /out-tsc/e2e
 /e2e/.artifacts
 /child/rg.exe

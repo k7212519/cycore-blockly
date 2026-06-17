@@ -14,7 +14,7 @@ import { STM32_CONFIG_MENU } from '../configs/stm32.config';
 import { NRF5_CONFIG_MENU } from '../configs/nrf5.config';
 import { ActionService } from './action.service';
 import { PlatformService } from './platform.service';
-import { NewProjectData } from '../pages/project-new/project-new.component';
+import type { NewProjectData } from '../types/project-new';
 import { WorkflowService } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';

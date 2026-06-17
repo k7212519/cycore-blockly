@@ -24,8 +24,8 @@ import {
   AILY_LOCAL_LIBRARY_SOURCES_KEY,
   LocalLibrarySyncService,
 } from '../../../../services/local-library-sync.service';
-import { createLibrarySearchIndex, searchLibraries } from '../../../../utils/fuzzy-search.utils';
-import type { AnyOrama } from '@orama/orama';
+import { LibManagerService } from './lib-manager.service';
+import type { PackageInfo } from './lib-manager.service';
 
 @Component({
   selector: 'app-lib-manager',
@@ -57,7 +57,10 @@ export class LibManagerComponent implements OnDestroy {
 
   private searchSubject = new Subject<string>();
   private destroy$ = new Subject<void>();
-  private searchIndex: AnyOrama | null = null;
+  private installedStateRefreshToken = 0;
+  private initialDataLoadToken = 0;
+  private searchRequestToken = 0;
+  private isDestroyed = false;
 
   constructor(
     private npmService: NpmService,
@@ -73,82 +76,137 @@ export class LibManagerComponent implements OnDestroy {
     private electronService: ElectronService,
     private workflowService: WorkflowService,
     private localLibrarySyncService: LocalLibrarySyncService,
-  ) {
-    this.searchSubject.pipe(
-      debounceTime(200),
-      takeUntil(this.destroy$)
-    ).subscribe(keyword => this.doSearch(keyword));
-  }
+    private libManagerService: LibManagerService,
+  ) {}
 
   ngOnDestroy() {
+    this.isDestroyed = true;
+    this.initialDataLoadToken++;
+    this.searchRequestToken++;
+    this.installedStateRefreshToken++;
     this.destroy$.next();
     this.destroy$.complete();
   }
 
-  async ngOnInit() {
-    // 从 tags.json 加载标签列表，根据当前语言显示本地化名称
-    this.tagList = this.buildLocalizedTagList();
-    this.displayTagList = this.getRandomTags(10);
+  ngOnInit() {
+    this.searchSubject.pipe(
+      debounceTime(200),
+      takeUntil(this.destroy$)
+    ).subscribe(keyword => this.doSearch(keyword));
 
-    this._libraryList = this.process(this.configService.libraryList);
-    this.libraryList = this.applyLocalization(await this.checkInstalled());
+    // Defer list preparation so the panel can render first.
+    this.applyCachedInitialState();
+    void this.initializeLibraryData();
+  }
+
+  private applyCachedInitialState() {
+    const cachedState = this.libManagerService.getCachedInitialState(
+      this.configService.libraryList,
+      this.configService.tagList,
+      this.translate.currentLang || 'en',
+    );
+
+    if (!cachedState) {
+      return;
+    }
+
+    this.tagList = cachedState.tagList;
+    this.displayTagList = cachedState.displayTagList;
+    this._libraryList = cachedState.baseLibraryList;
+    this.libraryList = this.applyLibraryOperationStates(cachedState.libraryList);
     this.cd.detectChanges();
   }
 
-  async checkInstalled(libraryList = null) {
-    let isNull = false;
-    if (libraryList === null) {
-      isNull = true;
-      libraryList = JSON.parse(JSON.stringify(this._libraryList));
-    }
-    // 获取已经安装的包，用于在界面上显示"移除"按钮
-    let installedLibraries = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-    installedLibraries = installedLibraries.map(item => {
-      item['state'] = 'installed';
-      item['fulltext'] = `installed${item.name}${item.nickname}${item.keywords}${item.description}${item.brand}`.replace(/\s|aily|blockly/gi, '').toLowerCase();
-      return item;
-    });
+  private async initializeLibraryData() {
+    const loadToken = ++this.initialDataLoadToken;
+    let loadedAnyChunk = false;
 
-    // console.log('所有库列表：', libraryList);
-    // console.log('已安装的库列表：', installedLibraries);
-    // 遍历installedLibraries, 如果this.libraryList存在name相同的库，则将installedLibraries中的库合并到this.libraryList中
-    libraryList.forEach(lib => {
-      const installedLib = installedLibraries.find(installed => installed.name === lib.name);
-      if (installedLib) {
-        Object.assign(lib, installedLib);
-      } else {
-        lib.state = 'default'; // 如果没有安装，则设置状态为默认
-      }
-    });
-
-    // 将只存在于installedLibraries中但不在libraryList中的库添加到libraryList中
-    if (isNull) {
-      installedLibraries.forEach(installedLib => {
-        const existsInLibraryList = libraryList.find(lib => lib.name === installedLib.name);
-        if (!existsInLibraryList) {
-          // 为新添加的库设置默认属性
-          installedLib['versionList'] = [installedLib.version];
-          libraryList.push(installedLib);
+    try {
+      for await (const state of this.libManagerService.buildInitialStateChunks(
+        this.configService.libraryList,
+        this.configService.tagList,
+        this.translate.currentLang || 'en',
+      )) {
+        if (this.isDestroyed || loadToken !== this.initialDataLoadToken) {
+          return;
         }
-      });
-    }
 
-    // console.log('合并后的库列表：', libraryList);
-    return this.applyLibraryOperationStates(libraryList);
+        loadedAnyChunk = true;
+        this.tagList = state.tagList;
+        this.displayTagList = state.displayTagList;
+        this._libraryList = state.baseLibraryList;
+
+        if (!this.keyword) {
+          this.libraryList = this.applyLibraryOperationStates(state.libraryList);
+          this.cd.detectChanges();
+        }
+      }
+
+      if (this.keyword) {
+        void this.doSearch(this.keyword);
+        return;
+      }
+
+      if (loadedAnyChunk) {
+        this.scheduleInstalledStateRefresh();
+      }
+    } catch (error) {
+      console.warn('[LibManager] failed to initialize library data:', error);
+    }
   }
 
-  // 处理库列表数据，为显示做准备
-  process(array) {
-    for (let index = 0; index < array.length; index++) {
-      const item = array[index];
-      // 为版本选择做准备
-      item['versionList'] = [item.version];
-      // 为状态做准备
-      item['state'] = 'default'; // default, installed, installing, uninstalling
-      // 为全文搜索做准备
-      item['fulltext'] = `${item.name}${item.nickname}${item.keywords}${item.tags}${item.description}${item.brand}`.replace(/\s|aily|blockly|ailyproject/gi, '').toLowerCase();
+  async checkInstalled(libraryList: PackageInfo[] | null = null) {
+    const includeInstalledOnlyLibraries = libraryList === null;
+    const targetLibraryList = libraryList === null
+      ? this.libManagerService.cloneLibraryList<PackageInfo>(this._libraryList)
+      : libraryList;
+    const installedLibraryList = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+
+    return this.applyLibraryOperationStates(
+      this.libManagerService.mergeInstalledLibraries(
+        targetLibraryList,
+        installedLibraryList,
+        includeInstalledOnlyLibraries,
+      ),
+    );
+  }
+
+  private scheduleInstalledStateRefresh() {
+    const refreshToken = ++this.installedStateRefreshToken;
+    const keywordAtSchedule = this.keyword;
+    const runRefresh = () => {
+      if (refreshToken !== this.installedStateRefreshToken) {
+        return;
+      }
+      void this.refreshInstalledState(refreshToken, keywordAtSchedule);
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => window.setTimeout(runRefresh, 0));
+      return;
     }
-    return array;
+
+    setTimeout(runRefresh, 0);
+  }
+
+  private async refreshInstalledState(refreshToken: number, keywordAtSchedule: string) {
+    try {
+      const libraryList = this.libManagerService.applyLocalization(
+        await this.checkInstalled(),
+        this.translate.currentLang,
+      );
+      if (
+        refreshToken !== this.installedStateRefreshToken ||
+        keywordAtSchedule !== this.keyword
+      ) {
+        return;
+      }
+
+      this.libraryList = libraryList;
+      this.cd.detectChanges();
+    } catch (error) {
+      console.warn('[LibManager] failed to refresh installed library state:', error);
+    }
   }
 
   async search(keyword = this.keyword) {
@@ -157,59 +215,54 @@ export class LibManagerComponent implements OnDestroy {
   }
 
   private async doSearch(keyword: string) {
+    const searchToken = ++this.searchRequestToken;
+    const isCurrentSearch = () => (
+      !this.isDestroyed &&
+      searchToken === this.searchRequestToken &&
+      keyword === this.keyword
+    );
+
     if (!keyword) {
-      this.libraryList = this.applyLocalization(await this.checkInstalled());
+      const libraryList = this.libManagerService.applyLocalization(
+        await this.checkInstalled(),
+        this.translate.currentLang,
+      );
+
+      if (!isCurrentSearch()) {
+        return;
+      }
+
+      this.libraryList = libraryList;
       this.cd.detectChanges();
       return;
     }
 
     const keywordLower = keyword.toLowerCase();
-    let libraryList = await this.checkInstalled();
+    const libraryList = await this.checkInstalled();
 
-    // 特殊标签搜索（installed / lib-core 等）保持精确子串匹配
+    if (!isCurrentSearch()) {
+      return;
+    }
+
     if (keywordLower === 'installed' || keywordLower === 'lib-core') {
-      const stripped = keywordLower.replace(/\s/g, '');
-      const matchedItems = libraryList
-        .filter(item => item.fulltext.indexOf(stripped) !== -1);
-      this.libraryList = this.applyLocalization(matchedItems);
+      const matchedItems = this.libManagerService.filterByFulltext(libraryList, keywordLower);
+      this.libraryList = this.libManagerService.applyLocalization(matchedItems, this.translate.currentLang);
       this.cd.detectChanges();
       return;
     }
 
-    // 使用 Orama 进行模糊搜索
-    const localizedList = this.applyLocalization(libraryList);
-    this.searchIndex = createLibrarySearchIndex(localizedList);
-    const matchedNames = searchLibraries(this.searchIndex, keyword);
+    const results = await this.libManagerService.searchLibraryList(
+      libraryList,
+      keyword,
+      this.translate.currentLang,
+    );
 
-    // 按 Orama 返回的顺序（相关度排序）还原库对象
-    const nameIndexMap = new Map<string, number>();
-    matchedNames.forEach((name, i) => nameIndexMap.set(name, i));
-
-    const results = localizedList
-      .filter(lib => nameIndexMap.has(lib.name))
-      .sort((a, b) => (nameIndexMap.get(a.name) ?? 0) - (nameIndexMap.get(b.name) ?? 0));
+    if (!isCurrentSearch()) {
+      return;
+    }
 
     this.libraryList = results;
     this.cd.detectChanges();
-  }
-
-  private getRandomTags(count: number): { key: string; label: string }[] {
-    if (this.tagList.length <= count) return [...this.tagList];
-    const shuffled = [...this.tagList].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
-  }
-
-  private buildLocalizedTagList(): { key: string; label: string }[] {
-    const tagsData = this.configService.tagList;
-    if (!tagsData?.tags || !Array.isArray(tagsData.tags)) {
-      return [];
-    }
-    const lang = this.translate.currentLang || 'en';
-    const localizedMap = tagsData[`tags_${lang}`] || tagsData['tags_en'] || {};
-    return tagsData.tags.map((key: string) => ({
-      key,
-      label: localizedMap[key] || key
-    }));
   }
 
   back() {
@@ -384,7 +437,10 @@ export class LibManagerComponent implements OnDestroy {
   }
 
   private async refreshCurrentLibraryList() {
-    this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
+    this.libraryList = this.libManagerService.applyLocalization(
+      await this.checkInstalled(this.libraryList),
+      this.translate.currentLang,
+    );
     this.cd.detectChanges();
   }
 
@@ -498,15 +554,6 @@ export class LibManagerComponent implements OnDestroy {
     });
   }
 
-  private applyLocalization(list: any[]) {
-    const lang = this.translate.currentLang;
-    for (const lib of list) {
-      lib._nickname = (lang && lib[`nickname_${lang}`]) || lib.nickname || '';
-      lib._description = (lang && lib[`description_${lang}`]) || lib.description || '';
-    }
-    return list;
-  }
-
   openExample(packageName) {
     this.electronService.openNewInStance('/main/playground/s/' + packageName.replace('@aily-project/', ''))
   }
@@ -613,7 +660,10 @@ export class LibManagerComponent implements OnDestroy {
       this.localLibrarySyncService.start(this.projectService.currentProjectPath);
 
       // 重新检查已安装的库
-      this.libraryList = this.applyLocalization(await this.checkInstalled());
+      this.libraryList = this.libManagerService.applyLocalization(
+        await this.checkInstalled(),
+        this.translate.currentLang,
+      );
 
       this.message.success(`${this.translate.instant('LIB_MANAGER.IMPORTED')}`);
     } catch (error) {
@@ -633,37 +683,6 @@ export class LibManagerComponent implements OnDestroy {
   openUrl(url: string) {
     this.electronService.openUrl(url);
   }
-}
-
-interface PackageInfo {
-  "name": string,
-  "nickname": string,
-  "scope"?: string,
-  "description"?: string,
-  "version"?: string,
-  "versionList"?: string[],
-  "keywords"?: string[],
-  "date"?: string,
-  "author"?: {
-    "name"?: string
-  },
-  icon?: string,
-  "publisher"?: any,
-  "maintainers"?: any[],
-  "links"?: any,
-  "brand"?: string,
-  compatibility?: {
-    core?: string[],
-    [key: string]: any
-  },
-  "fulltext"?: string,
-  url?: string,
-  tested: boolean,
-  state: 'default' | 'installed' | 'installing' | 'uninstalling' | 'error',
-  example?: string,
-  _nickname?: string,
-  _description?: string,
-  [key: string]: any
 }
 
 type LibraryOperationType = 'install' | 'uninstall';

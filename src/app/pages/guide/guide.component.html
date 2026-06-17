@@ -92,11 +92,13 @@
       <div>{{'GUIDE.SPONSORS' | translate}}</div>
       <div class="desc-scroll"><span>{{'GUIDE.SPONSORS_DESC' | translate}}</span></div>
       @if (sponsors.length > 0) {
-      <div id="sponsor-splide" class="splide sponsor-carousel">
-        <div class="splide__track">
-          <ul class="splide__list">
-            @for (sponsor of sponsors; track $index) {
-            <li class="splide__slide">
+      <div class="sponsor-carousel" [class.is-static]="sponsorPages.length <= 1">
+        <div class="sponsor-page-track" [class.no-transition]="!sponsorPageTransitionEnabled"
+          [style.transform]="'translateX(-' + (sponsorPageIndex * 100) + '%)'">
+          @for (page of sponsorRenderPages; track $index) {
+          <div class="sponsor-page" [attr.aria-hidden]="$index >= sponsorPages.length ? 'true' : null">
+            @for (sponsor of page; track $index) {
+            <div class="sponsor-slide">
               <div class="sponsor-item" (click)="sponsor.url && openUrl(sponsor.url)">
                 @if (sponsor.img) {
                 <div class="ccenter img-box">
@@ -110,9 +112,10 @@
                 <div class="sponsor-name">{{ sponsor.company }}</div>
                 }
               </div>
-            </li>
+            </div>
             }
-          </ul>
+          </div>
+          }
         </div>
       </div>
       }

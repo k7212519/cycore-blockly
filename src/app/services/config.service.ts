@@ -36,11 +36,11 @@ export class ConfigService {
            (this.libraryDict && Object.keys(this.libraryDict).length > 0);
     
     if (!ready) {
-      console.log('[ConfigService] isDataReady=false', {
-        _isDataReady: this._isDataReady,
-        boardDictSize: Object.keys(this.boardDict || {}).length,
-        libraryDictSize: Object.keys(this.libraryDict || {}).length
-      });
+      //console.log('[ConfigService] isDataReady=false', {
+      //   _isDataReady: this._isDataReady,
+      //   boardDictSize: Object.keys(this.boardDict || {}).length,
+      //   libraryDictSize: Object.keys(this.libraryDict || {}).length
+      // });
     }
     
     return ready;
@@ -104,14 +104,14 @@ export class ConfigService {
 
   async init() {
     if (!this.electronService.isElectron) {
-      console.log('[ConfigService] 非Electron环境，跳过数据加载，直接标记就绪');
+      //console.log('[ConfigService] 非Electron环境，跳过数据加载，直接标记就绪');
       // 非 Electron 环境下，跳过 loading 状态（没有数据源）
       this._isDataReady = true;
       return;
     }
-    console.log('[ConfigService] 开始初始化...');
+    //console.log('[ConfigService] 开始初始化...');
     await this.load();
-    console.log('[ConfigService] 初始化完成, isDataReady=', this.isDataReady);
+    //console.log('[ConfigService] 初始化完成, isDataReady=', this.isDataReady);
   }
 
   get_lang_filename(lang: string) {
@@ -128,7 +128,7 @@ export class ConfigService {
   }
 
   async load() {
-    console.log('[ConfigService] load() 开始执行...');
+    //console.log('[ConfigService] load() 开始执行...');
     let defaultConfigFilePath = window['path'].getElectronPath();
     let defaultConfigFile = window['fs'].readFileSync(`${defaultConfigFilePath}/config/config.json`);
     this.data = await JSON.parse(defaultConfigFile);
@@ -220,7 +220,7 @@ export class ConfigService {
     this.boardList.forEach(board => {
       this.boardDict[board.name] = board;
     });
-    console.log(`[ConfigService] boardDict创建完成，共 ${Object.keys(this.boardDict).length} 个开发板`);
+    // console.log(`[ConfigService] boardDict创建完成，共 ${Object.keys(this.boardDict).length} 个开发板`);
   }
 
   private async loadAndCacheLibraryList(configFilePath: string): Promise<void> {
@@ -250,7 +250,7 @@ export class ConfigService {
     this.libraryList.forEach(library => {
       this.libraryDict[library.name] = library;
     });
-    console.log(`[ConfigService] libraryDict创建完成，共 ${Object.keys(this.libraryDict).length} 个库`);
+    // console.log(`[ConfigService] libraryDict创建完成，共 ${Object.keys(this.libraryDict).length} 个库`);
   }
 
   async save() {
@@ -571,7 +571,7 @@ export class ConfigService {
       const latestBoardList = await this.fetchBoardListOrThrow();
       this.boardList = latestBoardList;
       this.electronService.writeFile(localPath, JSON.stringify(latestBoardList));
-      console.log('[ConfigService] 已使用线上最新 boards.json 覆盖本地缓存');
+      //console.log('[ConfigService] 已使用线上最新 boards.json 覆盖本地缓存');
     } catch (remoteError) {
       this.boardList = [];
       const message = this.getBoardReloadFailureMessage(remoteError, originalError);
@@ -634,7 +634,7 @@ export class ConfigService {
       const latestLibraryList = await this.fetchLibraryListOrThrow();
       this.libraryList = latestLibraryList;
       this.electronService.writeFile(localPath, JSON.stringify(latestLibraryList));
-      console.log('[ConfigService] 已使用线上最新 libraries.json 覆盖本地缓存');
+      //console.log('[ConfigService] 已使用线上最新 libraries.json 覆盖本地缓存');
     } catch (remoteError) {
       this.libraryList = [];
       const message = this.getLibraryReloadFailureMessage(remoteError, originalError);
@@ -686,7 +686,7 @@ export class ConfigService {
       await this.reloadTagListFromRemote(localPath, error);
     }
 
-    console.log('[ConfigService] tagList加载完成:', this.tagList?.tags?.length || 0, '个标签');
+    //console.log('[ConfigService] tagList加载完成:', this.tagList?.tags?.length || 0, '个标签');
   }
 
   private async fetchTagList(): Promise<any> {
@@ -704,7 +704,7 @@ export class ConfigService {
       if (latestTagList) {
         this.tagList = latestTagList;
         this.electronService.writeFile(localPath, JSON.stringify(latestTagList));
-        console.log('[ConfigService] 已使用线上最新 tags.json 覆盖本地缓存');
+        //console.log('[ConfigService] 已使用线上最新 tags.json 覆盖本地缓存');
       }
     } catch (remoteError) {
       this.tagList = {};
@@ -727,11 +727,11 @@ export class ConfigService {
   async loadHardwareIndexForAI(): Promise<void> {
     // 避免重复加载
     if (this._hardwareIndexLoaded) {
-      console.log('[ConfigService] 硬件索引已加载，跳过');
+      //console.log('[ConfigService] 硬件索引已加载，跳过');
       return;
     }
 
-    console.log('[ConfigService] 开始加载 AI 硬件索引...');
+    //console.log('[ConfigService] 开始加载 AI 硬件索引...');
     const configFilePath = window['path'].getAppDataPath();
     
     await Promise.all([
@@ -740,7 +740,7 @@ export class ConfigService {
     ]);
     
     this._hardwareIndexLoaded = true;
-    console.log('[ConfigService] AI 硬件索引加载完成, boardIndex:', this.boardIndex?.length, 'libraryIndex:', this.libraryIndex?.length);
+    //console.log('[ConfigService] AI 硬件索引加载完成, boardIndex:', this.boardIndex?.length, 'libraryIndex:', this.libraryIndex?.length);
   }
 
   /**
@@ -757,14 +757,14 @@ export class ConfigService {
       // 优先从本地缓存读取
       if (this.electronService.exists(localPath)) {
         this.boardIndex = this.parseBoardIndex(this.electronService.readFile(localPath));
-        console.log('[ConfigService] 本地 boardIndex 加载成功, 数量:', this.boardIndex?.length || 0);
+        //console.log('[ConfigService] 本地 boardIndex 加载成功, 数量:', this.boardIndex?.length || 0);
       }
       // 从远程加载最新数据
       const boardIndex = await this.loadBoardIndex();
       if (boardIndex.length > 0) {
         this.boardIndex = boardIndex;
         this.writeBoardIndexCache(localPath, boardIndex);
-        console.log('[ConfigService] 远程 boardIndex 加载成功并缓存, 数量:', boardIndex.length);
+        //console.log('[ConfigService] 远程 boardIndex 加载成功并缓存, 数量:', boardIndex.length);
       }
     } catch (error) {
       console.error('[ConfigService] boards-index.json 加载失败，尝试从线上恢复:', error);
@@ -774,27 +774,27 @@ export class ConfigService {
 
   private async loadAndCacheLibraryIndex(configFilePath: string): Promise<void> {
     const localPath = `${configFilePath}/libraries-index.json`;
-    console.log('[ConfigService] 检查 libraries-index.json 路径:', localPath);
+    //console.log('[ConfigService] 检查 libraries-index.json 路径:', localPath);
 
     try {
       // 优先从本地缓存读取
       if (this.electronService.exists(localPath)) {
         const fileContent = this.electronService.readFile(localPath);
-        console.log('[ConfigService] 本地 libraries-index.json 文件大小:', fileContent?.length || 0, '字节');
+        //console.log('[ConfigService] 本地 libraries-index.json 文件大小:', fileContent?.length || 0, '字节');
         this.libraryIndex = this.parseLibraryIndex(fileContent);
-        console.log('[ConfigService] 本地 libraryIndex 加载成功, 数量:', this.libraryIndex?.length || 0);
+        //console.log('[ConfigService] 本地 libraryIndex 加载成功, 数量:', this.libraryIndex?.length || 0);
 
         if (this.libraryIndex.length > 0) {
           const sample = this.libraryIndex[0];
-          console.log('[ConfigService] libraryIndex 示例数据:', {
-            name: sample.name,
-            displayName: sample.displayName,
-            category: sample.category,
-            hasNewFormat: !!(sample.displayName && sample.category && sample.supportedCores)
-          });
+          //console.log('[ConfigService] libraryIndex 示例数据:', {
+          //   name: sample.name,
+          //   displayName: sample.displayName,
+          //   category: sample.category,
+          //   hasNewFormat: !!(sample.displayName && sample.category && sample.supportedCores)
+          // });
         }
       } else {
-        console.log('[ConfigService] 本地 libraries-index.json 不存在');
+        //console.log('[ConfigService] 本地 libraries-index.json 不存在');
       }
 
       // 从远程加载最新数据
@@ -802,7 +802,7 @@ export class ConfigService {
       if (libraryIndex.length > 0) {
         this.libraryIndex = libraryIndex;
         this.writeLibraryIndexCache(localPath, libraryIndex);
-        console.log('[ConfigService] 远程 libraryIndex 加载成功并缓存, 数量:', libraryIndex.length);
+        //console.log('[ConfigService] 远程 libraryIndex 加载成功并缓存, 数量:', libraryIndex.length);
       }
     } catch (error) {
       console.error('[ConfigService] libraries-index.json 加载失败，尝试从线上恢复:', error);
@@ -851,7 +851,7 @@ export class ConfigService {
       const latestBoardIndex = await this.fetchBoardIndexOrThrow();
       this.boardIndex = latestBoardIndex;
       this.writeBoardIndexCache(localPath, latestBoardIndex);
-      console.log('[ConfigService] 已使用线上最新 boards-index.json 覆盖本地缓存');
+      //console.log('[ConfigService] 已使用线上最新 boards-index.json 覆盖本地缓存');
     } catch (remoteError) {
       this.boardIndex = [];
       const message = this.getBoardIndexReloadFailureMessage(remoteError, originalError);
@@ -865,7 +865,7 @@ export class ConfigService {
       const latestLibraryIndex = await this.fetchLibraryIndexOrThrow();
       this.libraryIndex = latestLibraryIndex;
       this.writeLibraryIndexCache(localPath, latestLibraryIndex);
-      console.log('[ConfigService] 已使用线上最新 libraries-index.json 覆盖本地缓存');
+      //console.log('[ConfigService] 已使用线上最新 libraries-index.json 覆盖本地缓存');
     } catch (remoteError) {
       this.libraryIndex = [];
       const message = this.getLibraryIndexReloadFailureMessage(remoteError, originalError);

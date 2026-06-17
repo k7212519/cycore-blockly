@@ -27,6 +27,36 @@ function uniqueNonEmpty(items) {
   return result;
 }
 
+function normalizeWindowsPathValue(value) {
+  if (!isWin32 || !value || typeof value !== 'string') {
+    return value;
+  }
+
+  let normalized = value.trim().replace(/\//g, '\\');
+  normalized = normalized.replace(/^([a-zA-Z]):(?!\\)/, '$1:\\');
+  return normalized;
+}
+
+function getProcessPathValue() {
+  return process.env.PATH || process.env.Path || '';
+}
+
+function getWindowsRootsFromPath() {
+  if (!isWin32) {
+    return [];
+  }
+
+  const roots = [];
+  for (const entry of getProcessPathValue().split(path.delimiter)) {
+    const normalized = normalizeWindowsPathValue(entry);
+    const match = normalized.match(/^([a-zA-Z]:\\Windows)(?:\\System32(?:\\WindowsPowerShell\\v1\.0)?|\\Sysnative)?$/i);
+    if (match) {
+      roots.push(match[1]);
+    }
+  }
+  return roots;
+}
+
 function fileExists(filePath) {
   try {
     return !!filePath && fs.existsSync(filePath);
@@ -59,13 +89,14 @@ function getWindowsShellCandidates() {
   }
 
   const windowsRoots = uniqueNonEmpty([
-    process.env.SystemRoot,
-    process.env.windir,
+    normalizeWindowsPathValue(process.env.SystemRoot),
+    normalizeWindowsPathValue(process.env.windir),
+    ...getWindowsRootsFromPath(),
     'C:\\Windows'
   ]);
   const programFilesRoots = uniqueNonEmpty([
-    process.env.ProgramFiles,
-    process.env['ProgramFiles(x86)'],
+    normalizeWindowsPathValue(process.env.ProgramFiles),
+    normalizeWindowsPathValue(process.env['ProgramFiles(x86)']),
     'C:\\Program Files'
   ]);
 
@@ -95,7 +126,7 @@ function getWindowsShellCandidates() {
   candidates.push({
     kind: 'cmd',
     source: 'ComSpec',
-    path: process.env.ComSpec
+    path: normalizeWindowsPathValue(process.env.ComSpec)
   });
 
   for (const root of windowsRoots) {
@@ -206,6 +237,13 @@ function formatSpawnError(error, entry) {
 
 function buildCommandEnv(extraEnv = {}) {
   const env = { ...process.env, ...extraEnv };
+  if (isWin32) {
+    const systemRoot = normalizeWindowsPathValue(env.SystemRoot || env.windir || 'C:\\Windows');
+    env.SystemRoot = systemRoot;
+    env.windir = env.windir || systemRoot;
+    env.ComSpec = normalizeWindowsPathValue(env.ComSpec || path.join(systemRoot, 'System32', 'cmd.exe'));
+    env.PATH = env.PATH || env.Path || getProcessPathValue();
+  }
   if (isDarwin) {
     const zdotdir = path.join(os.tmpdir(), 'aily-blockly-zsh');
     try {

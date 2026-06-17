@@ -48,6 +48,8 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     private boundEvents: Blockly.browserEvents.Data[] = [];    /** References to UI elements */
     private editorCanvas: HTMLCanvasElement | null = null;
     private editorContext: CanvasRenderingContext2D | null = null;
+    private blockPreviewCanvas: HTMLCanvasElement | null = null;
+    private blockPreviewContext: CanvasRenderingContext2D | null = null;
     private blockDisplayImage: SVGImageElement | null = null;    /** Stateful variables */
     private pointerIsDown = false;
     private valToPaintWith?: number;
@@ -55,9 +57,12 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     private lastPaintedCol: number = -1;
     private pendingUpdates: Set<string> = new Set();
     private updateTimer: number | null = null;
+    private skipNextEditorRender = false;
     buttonOptions: Buttons;
     pixelSize: number;
     pixelColours: { empty: string; filled: string };
+    private emptyColour: RgbColour;
+    private filledColour: RgbColour;
     fieldHeight?: number;
 
     /**
@@ -75,6 +80,8 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         // this.CURSOR = 'default';
         this.buttonOptions = { ...DEFAULT_BUTTONS, ...config?.buttons };
         this.pixelColours = { ...DEFAULT_PIXEL_COLOURS, ...config?.colours };
+        this.emptyColour = this.hexToRgb(this.pixelColours.empty);
+        this.filledColour = this.hexToRgb(this.pixelColours.filled);
         
         // 生成更加唯一的ID，包含更多随机性和时间戳
         this.fieldId = 'field_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9) + '_' + Math.floor(Math.random() * 1000000);
@@ -214,7 +221,11 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
             this.rerenderSourceBlockAfterResize();
         }
 
-        this.renderCanvasEditor();
+        if (this.skipNextEditorRender) {
+            this.skipNextEditorRender = false;
+        } else {
+            this.renderCanvasEditor();
+        }
         this.updateBlockDisplayImage();
         this.updateControlsFromValue();
     }
@@ -669,6 +680,8 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         // 清理DOM引用
         this.editorCanvas = null;
         this.editorContext = null;
+        this.blockPreviewCanvas = null;
+        this.blockPreviewContext = null;
         this.blockDisplayImage = null;
         this.widthInput = null;
         this.heightInput = null;
@@ -940,46 +953,64 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      * 更新block显示的图片
      */
     private updateBlockDisplayImage() {
-        if (!this.blockDisplayImage) return;
+        this.updateBlockDisplayImageFast();
+    }
+
+    /**
+     * 使用复用的离屏canvas生成block预览图。
+     */
+    private updateBlockDisplayImageFast() {
+        if (!this.blockDisplayImage || this.imgWidth <= 0 || this.imgHeight <= 0) return;
 
         const bitmap = this.getValue();
         if (!bitmap) return;
 
-        // 创建canvas来生成图片数据
-        const canvas = document.createElement('canvas');
-        canvas.width = this.imgWidth;
-        canvas.height = this.imgHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+        const ctx = this.getBlockPreviewContext();
+        const canvas = this.blockPreviewCanvas;
+        if (!ctx || !canvas) return;
 
-        // 绘制bitmap到canvas
         const imageData = ctx.createImageData(this.imgWidth, this.imgHeight);
+        const data = imageData.data;
+        const filled = this.filledColour;
+        const empty = this.emptyColour;
+
         for (let r = 0; r < this.imgHeight; r++) {
+            const row = bitmap[r];
             for (let c = 0; c < this.imgWidth; c++) {
                 const pixelIndex = (r * this.imgWidth + c) * 4;
-                const isOn = bitmap[r][c];
-                if (isOn) {
-                    // 转换颜色字符串为RGB值
-                    const color = this.hexToRgb(this.pixelColours.filled);
-                    imageData.data[pixelIndex] = color.r;     // R
-                    imageData.data[pixelIndex + 1] = color.g; // G
-                    imageData.data[pixelIndex + 2] = color.b; // B
-                } else {
-                    const color = this.hexToRgb(this.pixelColours.empty);
-                    imageData.data[pixelIndex] = color.r;     // R
-                    imageData.data[pixelIndex + 1] = color.g; // G
-                    imageData.data[pixelIndex + 2] = color.b; // B
-                }
-                imageData.data[pixelIndex + 3] = 255; // A
+                const color = row[c] ? filled : empty;
+                data[pixelIndex] = color.r;
+                data[pixelIndex + 1] = color.g;
+                data[pixelIndex + 2] = color.b;
+                data[pixelIndex + 3] = 255;
             }
         }
 
         ctx.putImageData(imageData, 0, 0);
-
-        // 将canvas转换为data URL并设置到SVG image元素
-        const dataUrl = canvas.toDataURL();
+        const dataUrl = canvas.toDataURL('image/png');
         this.blockDisplayImage.setAttribute('href', dataUrl);
         this.blockDisplayImage.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dataUrl);
+    }
+
+    private getBlockPreviewContext() {
+        if (!this.blockPreviewCanvas) {
+            this.blockPreviewCanvas = document.createElement('canvas');
+        }
+
+        if (
+            this.blockPreviewCanvas.width !== this.imgWidth ||
+            this.blockPreviewCanvas.height !== this.imgHeight
+        ) {
+            this.blockPreviewCanvas.width = this.imgWidth;
+            this.blockPreviewCanvas.height = this.imgHeight;
+            this.blockPreviewContext = null;
+        }
+
+        if (!this.blockPreviewContext) {
+            this.blockPreviewContext = this.blockPreviewCanvas.getContext('2d');
+        }
+
+        return this.blockPreviewContext;
     }
 
     /**
@@ -1006,6 +1037,24 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
                     this.editorContext.strokeRect(x + 0.5, y + 0.5, this.pixelSize, this.pixelSize);
                 }
             }
+        }
+    }
+
+    /**
+     * 绘制单个编辑器像素。
+     */
+    private paintEditorPixel(row: number, column: number, value: number) {
+        if (!this.editorContext) return;
+
+        const x = column * this.pixelSize;
+        const y = row * this.pixelSize;
+        this.editorContext.fillStyle = value ? this.pixelColours.filled : this.pixelColours.empty;
+        this.editorContext.fillRect(x, y, this.pixelSize, this.pixelSize);
+
+        if (this.pixelSize >= 5) {
+            this.editorContext.strokeStyle = '#4f4f4f';
+            this.editorContext.lineWidth = 1;
+            this.editorContext.strokeRect(x + 0.5, y + 0.5, this.pixelSize, this.pixelSize);
         }
     }
 
@@ -1101,6 +1150,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         // 立即更新数据
         currentValue[r][c] = newValue;
+        this.paintEditorPixel(r, c, newValue);
     }
 
     /**
@@ -1118,15 +1168,8 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         const applyUpdates = () => {
             const currentValue = this.getValue();
             if (currentValue) {
+                this.skipNextEditorRender = true;
                 this.setValue(this.cloneBitmap(currentValue), false);
-
-                // 立即更新canvas显示
-                if (this.editorCanvas && this.editorContext) {
-                    this.renderCanvasEditor();
-                }
-
-                // 更新block上的图片显示
-                this.updateBlockDisplayImage();
             }
 
             this.pendingUpdates.clear();
@@ -1150,6 +1193,11 @@ interface Buttons {
 interface PixelColours {
     readonly empty: string;
     readonly filled: string;
+}
+interface RgbColour {
+    readonly r: number;
+    readonly g: number;
+    readonly b: number;
 }
 
 export interface FieldBitmapFromJsonConfig extends Blockly.FieldConfig {

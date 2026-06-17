@@ -28,7 +28,12 @@ function runAngularBuild(): void {
     env: { ...process.env, NODE_ENV: 'production' },
   });
   if (result.status !== 0) {
-    throw new Error(`[e2e] ng build 失败，退出码 ${result.status}`);
+    const detail = result.error
+      ? `错误：${result.error.message}`
+      : result.signal
+        ? `信号：${result.signal}`
+        : `退出码：${result.status}`;
+    throw new Error(`[e2e] ng build 失败，${detail}`);
   }
 }
 
@@ -46,6 +51,12 @@ export default function globalSetup(): void {
 
   if (skipBuild && existsSync(RENDERER_DIR)) {
     console.log('[e2e] E2E_SKIP_BUILD=1 且 renderer/ 已存在，跳过构建。');
+    return;
+  }
+
+  if (skipBuild && existsSync(BUILD_OUTPUT)) {
+    console.log('[e2e] E2E_SKIP_BUILD=1 且已有 dist 构建产物，跳过构建并暂存 renderer/。');
+    stageRenderer();
     return;
   }
 

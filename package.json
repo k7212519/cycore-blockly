@@ -1,7 +1,7 @@
 {
   "name": "aily-blockly",
   "productName": "aily blockly",
-  "version": "0.9.58",
+  "version": "0.9.59",
   "author": "coloz",
   "description": "aily blockly dev",
   "main": "electron/main.js",
@@ -156,11 +156,11 @@
     "build:global": "node ./scripts/build-electron.js --flavor global",
     "build:mac": "ng build --base-href ./ && electron-builder --mac --arm64 --x64",
     "build:mac:universal": "ng build --base-href ./ && electron-builder --mac --universal",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:fast": "cross-env E2E_SKIP_BUILD=1 playwright test",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e": "node ./scripts/run-e2e.mjs test",
+    "test:e2e:ui": "node ./scripts/run-e2e.mjs ui",
+    "test:e2e:headed": "node ./scripts/run-e2e.mjs headed",
+    "test:e2e:fast": "node ./scripts/run-e2e.mjs fast",
+    "test:e2e:report": "node ./scripts/run-e2e.mjs report"
   },
   "private": true,
   "dependencies": {
@@ -182,7 +182,6 @@
     "@ngx-translate/core": "^16.0.3",
     "@orama/orama": "^3.1.18",
     "@orama/tokenizers": "^3.1.18",
-    "@splidejs/splide": "^4.1.4",
     "@tanstack/angular-virtual": "^4.0.6",
     "@types/uuid": "^10.0.0",
     "@xterm/addon-clipboard": "^0.1.0",
@@ -210,6 +209,7 @@
     "marked-highlight": "^2.2.1",
     "mermaid": "^11.9.0",
     "monaco-editor": "^0.52.2",
+    "mp4box": "^2.3.0",
     "ng-zorro-antd": "^19.0.1",
     "ngx-x-markdown": "^0.0.2",
     "penpal": "^7.0.6",

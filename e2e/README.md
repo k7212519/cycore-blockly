@@ -78,9 +78,16 @@ $env:AILY_E2E_ALL_BOARDS = '1'
 npm run test:e2e:fast -- full-flow.spec.ts
 ```
 
+macOS / Linux 下使用 `VAR=value` 前缀或 `export`：
+
+```bash
+AILY_E2E_FULLFLOW=1 AILY_E2E_BOARD_KEYWORD='uno r4' npm run test:e2e:fast -- full-flow.spec.ts
+AILY_E2E_ALL_BOARDS=1 npm run test:e2e:fast -- full-flow.spec.ts
+```
+
 > 说明：当前未覆盖「上传(upload)」流程，因为它需要连接真实外设，不便在 CI/本地稳定运行。
 
-> 全流程用例启动前会清空并重建 `%LOCALAPPDATA%\aily-project`（例如 Windows 下的 `C:\Users\<user>\AppData\Local\aily-project`），因此会删除已安装的开发板包、编译器与 SDK 缓存；每次创建并编译开发板前还会清理 `aily-builder` 的 `project` 与 `cache` 目录，避免不同架构开发板复用错误的预编译对象。随后使用页面生成的默认项目名，并在默认目录 `~/Documents/aily-project/<name>` 创建项目，测试结束后清理该项目目录。全开发板用例耗时很长，每个开发板会使用独立 Electron 实例隔离运行；单个开发板失败后会继续验证后续开发板，并在最后汇总失败清单。
+> 全流程用例启动前会清空并重建应用数据目录（Windows 默认 `C:\Users\<user>\AppData\Local\aily-project`，macOS 默认 `~/Library/aily-project`），因此会删除已安装的开发板包、编译器与 SDK 缓存；每次创建并编译开发板前还会清理 `aily-builder` 的 `project` 与 `cache` 目录，避免不同架构开发板复用错误的预编译对象。随后使用页面生成的默认项目名，并在默认目录 `~/Documents/aily-project/<name>` 创建项目，测试结束后清理该项目目录。全开发板用例耗时很长，每个开发板会使用独立 Electron 实例隔离运行；单个开发板失败后会继续验证后续开发板，并在最后汇总失败清单。
 
 ## 备注
 
