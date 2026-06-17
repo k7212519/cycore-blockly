@@ -47,7 +47,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   devmode;
 
   get developerMode() {
-    return this.configService.data.devmode;
+    return this.configService.isDevMode;
   }
 
   constructor(

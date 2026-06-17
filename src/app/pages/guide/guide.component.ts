@@ -98,7 +98,4 @@ export class GuideComponent {
   //   }, 12000)
   // }
 
-  openFeedback() {
-    this.uiService.openFeedback();
-  }
 }

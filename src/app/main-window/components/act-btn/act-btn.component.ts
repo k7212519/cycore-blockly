@@ -12,6 +12,7 @@ export class ActBtnComponent {
   @Input() icon: string;
   @Input() color: string = '#FFF';
   @Input() state: 'default' | 'doing' | 'done' | 'error' | 'warn' = 'default';
+  @Input() noBorder: boolean = false;
 
   @Output() stateChange = new EventEmitter<'default' | 'doing' | 'done' | 'error' | 'warn'>();
 

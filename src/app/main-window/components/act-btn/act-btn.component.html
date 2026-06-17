@@ -2,7 +2,7 @@
     @switch(state){
     @case('default'){
     <div class="ccenter default">
-        <div class="qq ccenter" [ngStyle]="{'color': color,'border-color': color}">
+        <div class="qq ccenter" [ngClass]="{'no-border': noBorder}" [ngStyle]="{'color': color,'border-color': color}">
             <i class="{{icon}}"></i>
         </div>
     </div>
@@ -10,7 +10,9 @@
     @case('doing'){
     <div class="lloading ccenter">
         <div class="icon ccenter" [ngStyle]="{'color': color}">
-            <i class="{{icon}}"></i>
+            @if (icon && !icon.includes('fa-play')) {
+                <i class="{{icon}}"></i>
+            }
         </div>
         <div class="qq qq2 ccenter" [ngStyle]="{'color': color}">
             <i class="fa-regular fa-spinner-third"></i>
@@ -28,14 +30,14 @@
     }
     @case('error'){
     <div class="ccenter">
-        <div class="qq ccenter" [ngStyle]="{'border-color': 'red'}">
+        <div class="qq ccenter" [ngClass]="{'no-border': noBorder}" [ngStyle]="{'border-color': 'red'}">
             <i class="fa-light fa-xmark"></i>
         </div>
     </div>
     }
     @case('warn'){
     <div class="ccenter">
-        <div class="qq ccenter" [ngStyle]="{'border-color': '#f0b506'}">
+        <div class="qq ccenter" [ngClass]="{'no-border': noBorder}" [ngStyle]="{'border-color': '#f0b506'}">
             <i class="fa-regular fa-exclamation"></i>
         </div>
     </div>

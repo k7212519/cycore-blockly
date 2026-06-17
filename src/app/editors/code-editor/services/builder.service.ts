@@ -195,7 +195,7 @@ export class BuilderService {
 
               let shouldCopy = true;
               if (window['path'].isExists(targetPath)) {
-                if (this.configService.data.devmode || false) {
+                if (this.configService.isDevMode) {
                   await this.crossPlatformCmdService.removeItem(targetPath, true, true);
                 } else {
                   // 非开发模式下，仍然记录为已复制，避免被清理
@@ -231,7 +231,7 @@ export class BuilderService {
                     let shouldCopy = true;
                     // Delete target directory if it exists
                     if (window['path'].isExists(targetPath)) {
-                      if (this.configService.data.devmode || false) {
+                      if (this.configService.isDevMode) {
                         await this.crossPlatformCmdService.removeItem(targetPath, true, true);
                       } else {
                         // 如果不是debug模式，仍然记录但跳过复制

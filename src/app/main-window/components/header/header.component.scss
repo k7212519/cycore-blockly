@@ -143,6 +143,16 @@ $header-inner-height: 46px;
     backdrop-filter: saturate(180%) blur(18px);
     box-shadow: none;
 
+    &.upload-toolbox {
+      width: 42px;
+      padding: 0;
+      justify-content: center;
+
+      .zone {
+        margin-left: 0;
+      }
+    }
+
     .zone {
       gap: 1px;
       margin-left: 3px;
@@ -160,14 +170,20 @@ $header-inner-height: 46px;
       width: 36px;
       height: 36px;
       border-radius: 11px;
+      opacity: 0.7;
       transition:
-        color 160ms ease;
+        color 160ms ease,
+        opacity 160ms ease;
 
-      ::ng-deep i {
+      ::ng-deep .act-btn {
         transition: transform 160ms ease;
       }
 
-      &:hover ::ng-deep i {
+      &:hover {
+        opacity: 1;
+      }
+
+      &:hover ::ng-deep .act-btn {
         transform: scale(1.1);
       }
     }

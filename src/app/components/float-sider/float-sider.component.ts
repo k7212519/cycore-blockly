@@ -241,9 +241,6 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
     }
   }
 
-  openFeedback() {
-    this.uiService.openFeedback();
-  }
 
   openHistory() {
     this.uiService.openHistory();

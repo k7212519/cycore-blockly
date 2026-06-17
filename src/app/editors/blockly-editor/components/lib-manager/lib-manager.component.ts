@@ -504,14 +504,6 @@ export class LibManagerComponent {
     }
   }
 
-  help() {
-    this.electronService.openUrl('https://github.com/ailyProject/aily-blockly-libraries/blob/main/readme.md');
-  }
-
-  report() {
-    this.electronService.openUrl('https://github.com/ailyProject/aily-blockly-libraries/issues');
-  }
-
   openUrl(url: string) {
     this.electronService.openUrl(url);
   }

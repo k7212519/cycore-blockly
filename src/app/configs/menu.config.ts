@@ -28,7 +28,7 @@ export let HEADER_BTNS: IMenuItem[] = [
     data: { type: 'cmd', data: 'compile' },
     icon: 'fa-regular fa-check',
     type: 'act-btn',
-    color: '#006adc',
+    color: '#a5a5a5',
     state: 'default',
     router: ['/main/blockly-editor', '/main/code-editor']
   },
@@ -37,9 +37,9 @@ export let HEADER_BTNS: IMenuItem[] = [
     text: 'F6',
     action: 'upload',
     data: { type: 'cmd', data: 'upload' },
-    icon: 'fa-regular fa-play',
+    icon: 'fa-solid fa-play',
     type: 'act-btn',
-    color: '#009600',
+    color: '#30d158',
     state: 'default',
     router: ['/main/blockly-editor', '/main/code-editor']
   },

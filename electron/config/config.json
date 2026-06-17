@@ -50,7 +50,10 @@
     "warnings": "error"
   },
   "platform": "win32",
-  "devmode": false,
+  "devmode": {
+    "enabled": false,
+    "autoSave": true
+  },
   "blockly": {
     "renderer": "thrasos"
   }

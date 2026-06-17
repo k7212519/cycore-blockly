@@ -90,7 +90,7 @@ export class HeaderComponent implements OnDestroy {
   currentUrl = null;
 
   get isDevMode() {
-    return isDevMode()
+    return this.configService.isDevMode;
   }
 
   // 从 AppStoreService 获取要显示在 header 上的 apps

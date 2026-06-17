@@ -41,6 +41,17 @@ export class ConfigService {
     return ready;
   }
 
+  /**
+   * 检查是否处于开发者模式
+   */
+  get isDevMode(): boolean {
+    const devmode = this.data?.devmode;
+    if (typeof devmode === 'object' && devmode !== null) {
+      return !!devmode.enabled;
+    }
+    return !!devmode;
+  }
+
   constructor(
     private http: HttpClient,
     private electronService: ElectronService,
@@ -168,6 +179,14 @@ export class ConfigService {
 
     // 合并用户配置和默认配置
     this.data = { ...this.data, ...userConfData };
+
+    // 规范化 devmode
+    if (typeof this.data.devmode === 'boolean') {
+      this.data.devmode = { enabled: this.data.devmode, autoSave: true };
+    } else if (!this.data.devmode) {
+      this.data.devmode = { enabled: false, autoSave: true };
+    }
+
     this.configReloaded$.next();
 
     // 使用Electron检测到的最优区域覆盖配置

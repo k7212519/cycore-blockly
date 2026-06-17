@@ -20,10 +20,23 @@
   }
   <div class="null-box drag" (dblclick)="maximize()"></div>
   <div class="project-box ccenter">{{ projectData.nickname || projectData.name}}</div>
+  @for (btn of headerBtns; track $index) {
+  @if(btn.action === 'upload' && showInRouter(btn)){
+  <div class="toolbox upload-toolbox">
+    <div class="zone ccenter">
+      <app-act-btn [icon]="btn.icon" [color]="btn.color" [(state)]="btn.state" nz-tooltip
+        nzTooltipTitle="{{ btn.name | translate}}({{btn.text}})" (click)="onClick(btn,$event)" [attr.data-action]="btn.action"
+        [noBorder]="true">
+      </app-act-btn>
+    </div>
+  </div>
+  }
+  }
+
   <div class="toolbox">
     <div class="zone ccenter">
       @for (btn of headerBtns; track $index) {
-      @if(showInRouter(btn)){
+      @if(btn.action === 'compile' && showInRouter(btn)){
       <app-act-btn [icon]="btn.icon" [color]="btn.color" [(state)]="btn.state" nz-tooltip
         nzTooltipTitle="{{ btn.name | translate}}({{btn.text}})" (click)="onClick(btn,$event)" [attr.data-action]="btn.action">
       </app-act-btn>

@@ -207,7 +207,7 @@ export class _BuilderService {
           appDataPath,
           za7Path: this.platformService.za7,
           ailyBuilderPath,
-          devmode: this.configService.data.devmode || false,
+          devmode: this.configService.isDevMode,
           partitionFilePath: this.electronService.pathJoin(currentProjectPath, 'partitions.csv')
         };
 
@@ -485,7 +485,7 @@ export class _BuilderService {
       appDataPath,
       za7Path: this.platformService.za7,
       ailyBuilderPath,
-      devmode: this.configService.data.devmode || false,
+      devmode: this.configService.isDevMode,
       partitionFilePath: this.electronService.pathJoin(currentProjectPath, 'partitions.csv')
     };
 
