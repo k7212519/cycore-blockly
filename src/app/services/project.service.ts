@@ -85,6 +85,10 @@ export interface ServerFlashFile {
   size?: number;
 }
 
+export interface ServerProjectUploadOptions {
+  menuItems: any[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -552,6 +556,14 @@ export class ProjectService {
 
   async setPackageJson(data: any) {
     if (this.currentProjectId) {
+      const currentPackageJson = await this.getPackageJson();
+      if (JSON.stringify(currentPackageJson) === JSON.stringify(data)) {
+        return;
+      }
+      if (currentPackageJson) {
+        data = { ...currentPackageJson, ...data };
+      }
+      await this.saveServerFile('package.json', JSON.stringify(data, null, 2));
       this.currentPackageData = data;
       return;
     }
@@ -716,6 +728,12 @@ export class ProjectService {
 
   async getServerProject(projectId = this.currentProjectId): Promise<ServerProjectInfo> {
     return this.unwrap<ServerProjectInfo>(this.http.get<ApiResult<ServerProjectInfo>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`));
+  }
+
+  async getServerProjectUploadOptions(projectId = this.currentProjectId): Promise<ServerProjectUploadOptions> {
+    return this.unwrap<ServerProjectUploadOptions>(
+      this.http.get<ApiResult<ServerProjectUploadOptions>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/upload-options`)
+    );
   }
 
   async getServerBlockly(projectId = this.currentProjectId): Promise<any> {
@@ -943,6 +961,7 @@ export class ProjectService {
         uploadSpeed: this.extractMenuOptions(boardConfig, 'UploadSpeed'),
         uploadMode: this.extractMenuOptions(boardConfig, 'UploadMode'),
         flashMode: this.extractMenuOptions(boardConfig, 'FlashMode'),
+        flashFreq: this.extractMenuOptions(boardConfig, 'FlashFreq'),
         flashSize: this.extractMenuOptions(boardConfig, 'FlashSize'),
         partitionScheme: this.extractMenuOptions(boardConfig, 'PartitionScheme'),
         cdcOnBoot: this.extractMenuOptions(boardConfig, 'CDCOnBoot'),
@@ -1203,7 +1222,16 @@ export class ProjectService {
   // 更新ESP32配置菜单项
   async updateEsp32ConfigMenu(boardName: string) {
     if (!this.electronService.isElectron) {
-      return null;
+      if (!this.currentProjectId) {
+        return null;
+      }
+      try {
+        const options = await this.getServerProjectUploadOptions();
+        return options?.menuItems || null;
+      } catch (error) {
+        console.error('获取服务端ESP32配置菜单失败:', error);
+        return null;
+      }
     }
     try {
       const boardConfig = await this.getEsp32BoardConfig(boardName);
@@ -1260,6 +1288,16 @@ export class ProjectService {
             menuItem.children.forEach((child: any) => {
               child.check = false;
               if (this.compareConfigs(child.data, currentProjectConfig.FlashMode)) {
+                child.check = true;
+              }
+            });
+          }
+        } else if (menuItem.name === 'ESP32.FLASH_FREQ' && boardConfig.flashFreq) {
+          menuItem.children = boardConfig.flashFreq;
+          if (currentProjectConfig.FlashFreq) {
+            menuItem.children.forEach((child: any) => {
+              child.check = false;
+              if (this.compareConfigs(child.data, currentProjectConfig.FlashFreq)) {
                 child.check = true;
               }
             });

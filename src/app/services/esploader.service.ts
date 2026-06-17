@@ -24,6 +24,8 @@ export interface FlashFile {
 export interface FlashOptions {
   fileArray: FlashFile[];
   flashSize?: string;
+  flashMode?: string;
+  flashFreq?: string;
   eraseAll?: boolean;
   compress?: boolean;
   reportProgress?: FlashProgressCallback;
@@ -119,7 +121,8 @@ export class EspLoaderService {
   async initializeWithPort(
     serialPort: any,
     baudrate: number = 115200,
-    terminalHandler?: TerminalHandler
+    terminalHandler?: TerminalHandler,
+    beforeReset: 'default_reset' | 'usb_reset' | 'no_reset' | 'no_reset_no_sync' = 'default_reset'
   ): Promise<boolean> {
     try {
       this.serialPort = serialPort;
@@ -137,7 +140,7 @@ export class EspLoaderService {
       });
 
       // 初始化设备并获取芯片信息
-      const chip = await this.esploader.main();
+      const chip = await this.esploader.main(beforeReset);
       console.log('设备初始化成功，芯片类型:', chip);
       
       return true;
@@ -189,8 +192,8 @@ export class EspLoaderService {
       const flashOptions = {
         fileArray: options.fileArray,
         flashSize: options.flashSize || 'keep',
-        flashMode: 'dio',
-        flashFreq: '80m',
+        flashMode: options.flashMode || 'keep',
+        flashFreq: options.flashFreq || 'keep',
         eraseAll: options.eraseAll || false,
         compress: options.compress !== false,
         reportProgress: (fileIndex: number, written: number, total: number) => {
@@ -241,6 +244,19 @@ export class EspLoaderService {
       await this.delay(delayMs);
     } catch (error) {
       console.error('重启设备失败:', error);
+    }
+  }
+
+  async after(mode: 'hard_reset' | 'soft_reset' | 'no_reset' | 'no_reset_stub' = 'hard_reset'): Promise<void> {
+    if (!this.esploader || mode === 'no_reset') {
+      return;
+    }
+
+    try {
+      await this.esploader.after(mode);
+    } catch (error) {
+      console.warn('执行烧录后复位失败，尝试普通重置:', error);
+      await this.resetDevice(1000);
     }
   }
 

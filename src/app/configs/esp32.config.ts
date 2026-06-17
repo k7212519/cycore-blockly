@@ -17,9 +17,21 @@ export let ESP32_CONFIG_MENU: IMenuItem[] = [
         children: []
     },
     {
+        name: 'ESP32.AFTER_UPLOAD',
+        data: {},
+        icon: "fa-light fa-rotate-right",
+        children: []
+    },
+    {
         name: 'ESP32.FLASH_MODE',
         data: {},
         icon: 'fa-light fa-tablet-rugged',
+        children: []
+    },
+    {
+        name: 'ESP32.FLASH_FREQ',
+        data: {},
+        icon: 'fa-light fa-wave-square',
         children: []
     },
     {
@@ -44,6 +56,18 @@ export let ESP32_CONFIG_MENU: IMenuItem[] = [
         name: 'ESP32.PSRAM',
         data: {},
         icon: "fa-light fa-memory",
+        children: []
+    },
+    {
+        name: 'ESP32.ERASE_FLASH',
+        data: {},
+        icon: "fa-light fa-eraser",
+        children: []
+    },
+    {
+        name: 'ESP32.COMPRESS_UPLOAD',
+        data: {},
+        icon: "fa-light fa-file-zipper",
         children: []
     }
 ]

@@ -233,7 +233,7 @@ export class HeaderComponent implements OnDestroy {
         this.portListPosition = { x: 40, y: 40 };
       }
     }
-    let boardname = this.currentBoard.replace(' 2560', ' ').replace(' R3', '');
+    let boardname = (this.currentBoard || '').replace(' 2560', ' ').replace(' R3', '');
     this.boardKeywords = [boardname];
     this.getDevicePortList();
     this.showPortList = true;
@@ -268,42 +268,6 @@ export class HeaderComponent implements OnDestroy {
       ];
     }
 
-    // 添加ESP32相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('esp32') > -1) {
-      let temp = this.projectService.currentBoardConfig['type'].split(':');
-      let board = temp[temp.length - 1];
-      let esp32config = await this.projectService.updateEsp32ConfigMenu(board);
-      if (esp32config) {
-        portList0 = portList0.concat(esp32config)
-      }
-      // console.log('ESP32配置选项:', esp32config);
-    }
-
-    // 添加STM32相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('stm32') > -1 &&
-      this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
-      let temp = this.projectService.currentBoardConfig['type'].split(':');
-      let board = temp[temp.length - 1];
-      // console.log('STM32开发板标识:', board);
-      let stm32config = await this.projectService.updateStm32ConfigMenu(board);
-      if (stm32config) {
-        portList0 = portList0.concat(stm32config)
-      }
-      // console.log('STM32配置选项:', stm32config);
-    }
-
-    // 添加nRF5相关配置选项
-    if (this.projectService.currentBoardConfig['core'].indexOf('nRF5') > -1) {
-      let temp = this.projectService.currentBoardConfig['type'].split(':');
-      let board = temp[temp.length - 1];
-      // console.log('nRF5开发板标识:', board);
-      let nrf5config = await this.projectService.updateNrf5ConfigMenu(board);
-      if (nrf5config) {
-        portList0 = portList0.concat(nrf5config)
-      }
-      // console.log('nRF5配置选项:', nrf5config);
-    }
-
     if (!this.electronService.isElectron) {
       portList0.push({
         name: '选择新端口...',
@@ -311,6 +275,63 @@ export class HeaderComponent implements OnDestroy {
         action: 'request-web-serial-port'
       });
       portList0.push({ sep: true });
+    }
+
+    if (!this.electronService.isElectron && this.projectService.isServerProject) {
+      try {
+        const esp32config = await this.projectService.updateEsp32ConfigMenu('');
+        if (esp32config?.length) {
+          portList0 = portList0.concat(esp32config);
+        }
+      } catch (error) {
+        console.warn('获取服务端烧录配置菜单失败:', error);
+      }
+    } else {
+      let boardConfig = this.projectService.currentBoardConfig;
+      if (!boardConfig && this.projectService.isServerProject) {
+        try {
+          boardConfig = await this.projectService.getBoardJson();
+          this.projectService.currentBoardConfig = boardConfig;
+        } catch (error) {
+          console.warn('获取当前开发板配置失败:', error);
+        }
+      }
+
+      // 添加ESP32相关配置选项
+      if (boardConfig?.['core']?.indexOf('esp32') > -1) {
+        let temp = boardConfig['type'].split(':');
+        let board = temp[temp.length - 1];
+        let esp32config = await this.projectService.updateEsp32ConfigMenu(board);
+        if (esp32config) {
+          portList0 = portList0.concat(esp32config)
+        }
+        // console.log('ESP32配置选项:', esp32config);
+      }
+
+      // 添加STM32相关配置选项
+      if (boardConfig?.['core']?.indexOf('stm32') > -1 &&
+        boardConfig?.['description']?.indexOf('Series') > -1) {
+        let temp = boardConfig['type'].split(':');
+        let board = temp[temp.length - 1];
+        // console.log('STM32开发板标识:', board);
+        let stm32config = await this.projectService.updateStm32ConfigMenu(board);
+        if (stm32config) {
+          portList0 = portList0.concat(stm32config)
+        }
+        // console.log('STM32配置选项:', stm32config);
+      }
+
+      // 添加nRF5相关配置选项
+      if (boardConfig?.['core']?.indexOf('nRF5') > -1) {
+        let temp = boardConfig['type'].split(':');
+        let board = temp[temp.length - 1];
+        // console.log('nRF5开发板标识:', board);
+        let nrf5config = await this.projectService.updateNrf5ConfigMenu(board);
+        if (nrf5config) {
+          portList0 = portList0.concat(nrf5config)
+        }
+        // console.log('nRF5配置选项:', nrf5config);
+      }
     }
 
     // 添加切换开发板功能
@@ -823,10 +844,10 @@ export class HeaderComponent implements OnDestroy {
     // }
 
     packageJson['projectConfig'][subItem.key] = subItem.data;
-    this.projectService.setPackageJson(packageJson);
+    await this.projectService.setPackageJson(packageJson);
     // 判断是否是STM32，是则更新项目配置
-    if (this.projectService.currentBoardConfig['core'].indexOf('stm32') > -1 &&
-      this.projectService.currentBoardConfig['description'].indexOf('Series') > -1) {
+    if (this.projectService.currentBoardConfig?.['core']?.indexOf('stm32') > -1 &&
+      this.projectService.currentBoardConfig?.['description']?.indexOf('Series') > -1) {
       // 如果subItem包含pnum variant字段，则调用比较函数
       if (subItem.key === 'pnum' && subItem.extra?.build.variant) {
         let newPinConfig = subItem;
@@ -835,7 +856,7 @@ export class HeaderComponent implements OnDestroy {
     }
 
     // 判断是否是nRF5的softdevice选择，如果是则直接烧录softdevice
-    if (this.projectService.currentBoardConfig['core']?.indexOf('nRF5') > -1 &&
+    if (this.projectService.currentBoardConfig?.['core']?.indexOf('nRF5') > -1 &&
       subItem.key === 'softdevice') {
       // 检查串口是否已选择
       if (!this.serialService.currentPort) {

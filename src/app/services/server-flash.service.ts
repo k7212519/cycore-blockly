@@ -56,6 +56,7 @@ export class ServerFlashService {
       });
     }
 
+    const uploadConfig = await this.getUploadConfig();
     const totalBytes = fileArray.reduce((sum, item) => sum + item.data.length, 0);
     const terminalHandler: TerminalHandler = {
       write: text => this.logService.update({ detail: text }),
@@ -65,14 +66,19 @@ export class ServerFlashService {
 
     this.noticeService.update({
       title: '上传中',
-      text: '正在连接开发板',
+      text: `正在连接开发板 (${uploadConfig.baudRate})`,
       state: 'doing',
       progress: 5,
       setTimeout: 0,
       stop: () => this.cancel()
     });
 
-    const initialized = await this.espLoaderService.initializeWithPort(serialPort, 921600, terminalHandler);
+    const initialized = await this.espLoaderService.initializeWithPort(
+      serialPort,
+      uploadConfig.baudRate,
+      terminalHandler,
+      uploadConfig.beforeReset
+    );
     if (!initialized) {
       throw new Error('连接开发板失败，请确认串口权限和开发板状态');
     }
@@ -80,8 +86,11 @@ export class ServerFlashService {
     try {
       await this.espLoaderService.flash({
         fileArray,
-        flashSize: 'keep',
-        compress: true,
+        flashSize: uploadConfig.flashSize,
+        flashMode: uploadConfig.flashMode,
+        flashFreq: uploadConfig.flashFreq,
+        eraseAll: uploadConfig.eraseAll,
+        compress: uploadConfig.compress,
         reportProgress: (fileIndex, written) => {
           const completedBefore = fileArray
             .slice(0, fileIndex)
@@ -99,7 +108,7 @@ export class ServerFlashService {
           });
         }
       });
-      await this.espLoaderService.resetDevice(1000);
+      await this.espLoaderService.after(uploadConfig.afterReset);
       this.noticeService.update({
         title: '上传完成',
         text: '上传完成',
@@ -113,6 +122,71 @@ export class ServerFlashService {
     }
   }
 
+  private async getUploadConfig(): Promise<BrowserUploadConfig> {
+    const packageJson = await this.projectService.getPackageJson();
+    const projectConfig = packageJson?.projectConfig || {};
+
+    return {
+      baudRate: this.toNumber(projectConfig.UploadSpeed, 921600),
+      beforeReset: this.toBeforeReset(projectConfig.UploadMode || projectConfig.BeforeReset),
+      afterReset: this.toAfterReset(projectConfig.AfterReset),
+      flashMode: this.toFlashMode(projectConfig.FlashMode),
+      flashFreq: this.toFlashFreq(projectConfig.FlashFreq),
+      flashSize: this.toFlashSize(projectConfig.FlashSize),
+      eraseAll: this.toBoolean(projectConfig.EraseFlash, false),
+      compress: this.toBoolean(projectConfig.CompressUpload, true)
+    };
+  }
+
+  private toNumber(value: any, fallback: number): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  private toBeforeReset(value: any): BrowserUploadConfig['beforeReset'] {
+    const normalized = String(value || 'default_reset');
+    if (['default_reset', 'usb_reset', 'no_reset', 'no_reset_no_sync'].includes(normalized)) {
+      return normalized as BrowserUploadConfig['beforeReset'];
+    }
+    return 'default_reset';
+  }
+
+  private toAfterReset(value: any): BrowserUploadConfig['afterReset'] {
+    const normalized = String(value || 'hard_reset');
+    if (['hard_reset', 'soft_reset', 'no_reset', 'no_reset_stub'].includes(normalized)) {
+      return normalized as BrowserUploadConfig['afterReset'];
+    }
+    return 'hard_reset';
+  }
+
+  private toFlashMode(value: any): string {
+    const normalized = String(value || 'keep').toLowerCase();
+    return ['keep', 'qio', 'qout', 'dio', 'dout'].includes(normalized) ? normalized : 'keep';
+  }
+
+  private toFlashFreq(value: any): string {
+    const normalized = String(value || 'keep').toLowerCase().replace('mhz', 'm');
+    return ['keep', '40m', '26m', '20m', '80m'].includes(normalized) ? normalized : 'keep';
+  }
+
+  private toFlashSize(value: any): string {
+    const normalized = String(value || 'keep').toUpperCase();
+    if (normalized === 'KEEP') {
+      return 'keep';
+    }
+    return ['1MB', '2MB', '4MB', '8MB', '16MB'].includes(normalized) ? normalized : 'keep';
+  }
+
+  private toBoolean(value: any, fallback: boolean): boolean {
+    if (value === undefined || value === null || value === '') {
+      return fallback;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return ['1', 'true', 'yes', 'on', 'enable', 'enabled'].includes(String(value).toLowerCase());
+  }
+
   private arrayBufferToBinaryString(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     const chunkSize = 0x8000;
@@ -123,4 +197,15 @@ export class ServerFlashService {
     }
     return result;
   }
+}
+
+interface BrowserUploadConfig {
+  baudRate: number;
+  beforeReset: 'default_reset' | 'usb_reset' | 'no_reset' | 'no_reset_no_sync';
+  afterReset: 'hard_reset' | 'soft_reset' | 'no_reset' | 'no_reset_stub';
+  flashMode: string;
+  flashFreq: string;
+  flashSize: string;
+  eraseAll: boolean;
+  compress: boolean;
 }
