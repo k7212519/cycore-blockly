@@ -22,6 +22,23 @@ const DEFAULT_BUTTONS: Buttons = {
     upload: true,
     clear: true,
 };
+const ERASER_RADIUS = 1;
+const PAINT_CURSOR = createSvgCursor(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M18 2.5 21.5 6 10.8 16.7l-4.5 1 1-4.5L18 2.5Z" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="1.5" stroke-linejoin="round"/><path d="m5.6 18.1 5.2-1.4L7.5 22H3l2.6-3.9Z" fill="#363d80" stroke="#1a1a1a" stroke-width="1.2" stroke-linejoin="round"/></svg>`,
+    5,
+    21,
+    'crosshair',
+);
+const ERASER_CURSOR = createSvgCursor(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(-45 12 12)"><rect x="4" y="8" width="16" height="9" rx="2" fill="#f5f5f5" stroke="#1a1a1a" stroke-width="1.5"/><path d="M12 8v9" stroke="#1a1a1a" stroke-width="1.2"/><rect x="5.5" y="9.5" width="5" height="6" rx="1" fill="#ff8da1"/></g></svg>`,
+    12,
+    12,
+    'cell',
+);
+
+function createSvgCursor(svg: string, hotX: number, hotY: number, fallback: string) {
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hotX} ${hotY}, ${fallback}`;
+}
 /**
  * Field for inputting a small bitmap image.
  * Includes a grid of clickable pixels that's exported as a bitmap.
@@ -325,6 +342,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         );
         this.editorCanvas = document.createElement('canvas');
         this.editorCanvas.className = 'bitmapCanvas-u8g2';
+        this.setCanvasCursor(false);
         canvasContainer.appendChild(this.editorCanvas);
         dropdownEditor.appendChild(canvasContainer);
 
@@ -750,6 +768,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         this.pointerIsDown = true;
         this.valToPaintWith = pointerEvent.button === 2 ? 0 : 1;
+        this.setCanvasCursor(this.valToPaintWith === 0);
         this.lastPaintedRow = row;
         this.lastPaintedCol = col;
         this.drawLine(row, col, row, col);
@@ -802,6 +821,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         this.pointerIsDown = false;
         this.valToPaintWith = undefined;
+        this.setCanvasCursor(false);
         this.lastPaintedRow = -1;
         this.lastPaintedCol = -1;
     }
@@ -947,6 +967,11 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     private stopCanvasEvent(e: Event) {
         e.preventDefault();
         e.stopPropagation();
+    }
+
+    private setCanvasCursor(isErasing: boolean) {
+        if (!this.editorCanvas) return;
+        this.editorCanvas.style.cursor = isErasing ? ERASER_CURSOR : PAINT_CURSOR;
     }
 
     /**
@@ -1107,11 +1132,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
 
         while (true) {
             // 绘制当前点
-            if (r >= 0 && r < this.imgHeight && c >= 0 && c < this.imgWidth) {
-                if (this.getPixel(r, c) !== this.valToPaintWith) {
-                    this.setPixelBatch(r, c, this.valToPaintWith);
-                }
-            }
+            this.paintAt(r, c);
 
             // 如果到达终点，退出循环
             if (r === r1 && c === c1) break;
@@ -1137,6 +1158,22 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      * @param c Column number  
      * @param newValue New pixel value
      */
+    private paintAt(row: number, column: number) {
+        if (this.valToPaintWith === undefined) return;
+
+        const radius = this.valToPaintWith === 0 ? ERASER_RADIUS : 0;
+        for (let r = row - radius; r <= row + radius; r++) {
+            for (let c = column - radius; c <= column + radius; c++) {
+                if (r < 0 || r >= this.imgHeight || c < 0 || c >= this.imgWidth) {
+                    continue;
+                }
+                if (this.getPixel(r, c) !== this.valToPaintWith) {
+                    this.setPixelBatch(r, c, this.valToPaintWith);
+                }
+            }
+        }
+    }
+
     private setPixelBatch(r: number, c: number, newValue: number) {
         const currentValue = this.getValue();
         if (!currentValue) return;
@@ -1278,7 +1315,7 @@ Blockly.Css.register(`
 .bitmapCanvas-u8g2 {
     background: #151515;
   display: block;
-  cursor: crosshair;
+  cursor: ${PAINT_CURSOR};
     image-rendering: pixelated;
     touch-action: none;
 }
