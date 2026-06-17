@@ -20,7 +20,6 @@
                 <nz-tabset [nzSize]="'small'" [(nzSelectedIndex)]="selectedTabIndex"
                   (nzSelectChange)="onTabChange($event.index)">
                   <nz-tab nzTitle="日志"></nz-tab>
-                  <nz-tab nzTitle="终端"></nz-tab>
                 </nz-tabset>
                 <div class="tool-btns">
                   @if(selectedTabIndex === 0) {
@@ -39,9 +38,6 @@
               <div class="content">
                 <div class="component-container" [ngStyle]="{'z-index': selectedTabIndex === 0 ? 100 : -1}">
                   <app-log #logComponent></app-log>
-                </div>
-                <div class="component-container" [ngStyle]="{'z-index': selectedTabIndex === 1 ? 100 : -1}">
-                  <app-terminal #terminalComponent></app-terminal>
                 </div>
               </div>
             </div>

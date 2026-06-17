@@ -49,9 +49,6 @@ export class FooterComponent {
       case 'log-open':
         this.uiService.turnBottomSider('log');
         break;
-      case 'terminal-open':
-        this.uiService.turnBottomSider('terminal');
-        break;
       default:
         console.log('未处理的操作:', item.action);
         break;
@@ -62,8 +59,6 @@ export class FooterComponent {
     switch (item.action) {
       case 'log-open':
         return this.uiService.terminalIsOpen && this.uiService.currentBottomTab === 'log';
-      case 'terminal-open':
-        return this.uiService.terminalIsOpen && this.uiService.currentBottomTab === 'terminal';
       default:
         return false;
     }

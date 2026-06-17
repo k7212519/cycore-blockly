@@ -3,7 +3,6 @@
 import { Injectable } from '@angular/core';
 import { filter, Observable, Subject } from 'rxjs';
 import { ElectronService } from './electron.service';
-import { TerminalService } from '../tools/terminal/terminal.service';
 import { NavigationEnd, Router } from '@angular/router';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ProjectSettingDialogComponent } from '../components/project-setting-dialog/project-setting-dialog.component';
@@ -48,7 +47,6 @@ export class UiService {
 
   constructor(
     private electronService: ElectronService,
-    private terminalService: TerminalService,
     private router: Router,
     private modal: NzModalService,
     private authService: EdaAuthService
@@ -218,12 +216,7 @@ export class UiService {
       if (this.isMainWindow) {
         this.actionSubject.next({ action: 'open', type: 'bottom-sider', data });
         this.terminalIsOpen = true;
-        const intervalId = setInterval(() => {
-          if (this.terminalService.currentPid) {
-            clearInterval(intervalId);
-            resolve({ pid: this.terminalService.currentPid });
-          }
-        }, 100);
+        resolve({ pid: 0 });
       } else {
         // 其它窗口调用
         let { pid } = await window['iWindow'].send({ to: 'main', data: { action: 'open-terminal' } });

@@ -5,7 +5,6 @@ import { CommonModule } from '@angular/common';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzResizableModule, NzResizeEvent } from 'ng-zorro-antd/resizable';
 import { NzTabsModule } from 'ng-zorro-antd/tabs';
-import { TerminalComponent } from '../tools/terminal/terminal.component';
 import { LogComponent } from '../tools/log/log.component';
 import { UiService } from '../services/ui.service';
 import { SerialMonitorComponent } from '../tools/serial-monitor/serial-monitor.component';
@@ -34,7 +33,6 @@ import { OnboardingService } from '../services/onboarding.service';
     NzLayoutModule,
     NzResizableModule,
     NzTabsModule,
-    TerminalComponent,
     LogComponent,
     SerialMonitorComponent,
     CodeViewerComponent,
@@ -53,7 +51,6 @@ import { OnboardingService } from '../services/onboarding.service';
 })
 export class MainWindowComponent {
   @ViewChild('logComponent') logComponent!: LogComponent;
-  @ViewChild('terminalComponent') terminalComponent!: TerminalComponent;
 
   showRbox = false;
   showBbox = false;
@@ -224,9 +221,6 @@ export class MainWindowComponent {
     if (index === 0) {
       this.terminalTab = 'log';
       this.uiService.currentBottomTab = 'log';
-    } else if (index === 1) {
-      this.terminalTab = 'terminal';
-      this.uiService.currentBottomTab = 'terminal';
     }
   }
 
@@ -242,9 +236,6 @@ export class MainWindowComponent {
     if (this.selectedTabIndex === 0) {
       // 清空日志
       this.logComponent?.clear();
-    } else if (this.selectedTabIndex === 1) {
-      // 清空终端
-      this.terminalComponent?.clear();
     }
   }
 

@@ -157,11 +157,5 @@ export let FOOTER_BTNS: IMenuItem[] = [
     text: '日志',
     action: 'log-open',
     icon: 'fa-light fa-square-list',
-  },
-  {
-    name: 'MENU.TERMINAL',
-    text: '终端',
-    action: 'terminal-open',
-    icon: 'fa-light fa-square-terminal',
   }
 ]
