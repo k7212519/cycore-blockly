@@ -52,7 +52,7 @@
         justify-content: center;
         gap: 15px;
         width: 100%;
-        padding: 15px;
+        padding: 15px 15px 58px;
 
         .lib-item {
             width: 100%;
@@ -105,9 +105,19 @@
                     height: 36px;
                     width: 36px;
                     margin-right: 10px;
+                    border-radius: 10px;
+                    background: rgba(255, 255, 255, 0.04);
+                    color: #d7f3ff;
 
                     i {
                         font-size: 24px;
+                    }
+
+                    .library-svg-icon {
+                        width: 34px;
+                        height: 34px;
+                        display: block;
+                        filter: drop-shadow(0 4px 10px rgba(103, 232, 249, 0.12));
                     }
                 }
             }
@@ -142,6 +152,16 @@
         }
     }
 
+    .pagination {
+        position: sticky;
+        bottom: 0;
+        display: flex;
+        justify-content: center;
+        padding: 10px 0;
+        background: #1f1f1f;
+        border-top: 1px solid #333;
+        z-index: 10;
+    }
 
 }
 

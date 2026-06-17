@@ -120,8 +120,7 @@ export class ConfigService {
           web: 'https://aily.pro',
           tool_web: 'https://tool.aily.pro',
           npm_registry: 'https://registry.diandeng.tech',
-          resource: 'https://blockly.diandeng.tech',
-          updater: ''
+          resource: 'https://blockly.diandeng.tech'
         },
         eu: {
           name: 'Europe',
@@ -129,8 +128,7 @@ export class ConfigService {
           web: 'https://aily.pro',
           tool_web: 'https://tool.aily.pro',
           npm_registry: 'https://registry.aily.pro',
-          resource: 'https://rs1.aily.pro',
-          updater: ''
+          resource: 'https://rs1.aily.pro'
         }
       },
       compile: {
@@ -325,13 +323,6 @@ export class ConfigService {
    */
   getCurrentApiServer(): string {
     return this.getCurrentRegionConfig()?.api_server || '';
-  }
-
-  /**
-   * 获取当前区域的Updater URL
-   */
-  getCurrentUpdaterUrl(): string {
-    return this.getCurrentRegionConfig()?.updater || '';
   }
 
   /**
@@ -1069,7 +1060,6 @@ interface AppConfig {
       tool_web: string;
       npm_registry: string;
       resource: string;
-      updater: string;
     }
   };
 

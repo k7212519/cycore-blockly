@@ -88,11 +88,6 @@ export const routes: Routes = [
         loadComponent: () => import('./windows/settings/settings.component').then(m => m.SettingsComponent)
     },
     {
-        path: "about",
-        canActivate: [authGuard],
-        loadComponent: () => import('./windows/about/about.component').then(m => m.AboutComponent)
-    },
-    {
         path: "serial-monitor",
         canActivate: [authGuard],
         loadComponent: () => import('./tools/serial-monitor/serial-monitor.component').then(m => m.SerialMonitorComponent)

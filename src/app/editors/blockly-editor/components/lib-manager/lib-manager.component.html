@@ -33,9 +33,11 @@
             <!-- <button nz-button nzType="default" nzDanger nzSize="small" style="margin-right: 10px;" (click)="report()">
                 <i class="fa-light fa-bug"></i>{{'LIB_MANAGER.REPORT_ISSUE' | translate}}
             </button> -->
+            @if (!projectService.isServerProject) {
             <button nz-button nzType="primary" nzSize="small" (click)="importLib()">
                 <i class="fa-light fa-plus"></i>{{'LIB_MANAGER.IMPORT_LIBRARY' | translate}}
             </button>
+            }
         </div>
     </div>
     <div class="lib-list">
@@ -51,10 +53,18 @@
             </div>
             <div class="desc ellipsis">
                 <div class="icon ccenter">
-                    @if(lib.icon==''){
-                    <i class="fa-light fa-cube"></i>
-                    }@else{
+                    @if(lib.icon){
                     <i class="{{lib.icon}}"></i>
+                    }@else{
+                    <svg class="library-svg-icon" viewBox="0 0 40 40" aria-hidden="true">
+                        <rect x="7" y="8" width="26" height="24" rx="6" fill="#67e8f9" opacity="0.12" />
+                        <path d="M14 13.5h10.5A3.5 3.5 0 0 1 28 17v11.5H15.5A3.5 3.5 0 0 1 12 25V15.5a2 2 0 0 1 2-2Z"
+                            fill="none" stroke="#67e8f9" stroke-width="2" stroke-linejoin="round" />
+                        <path d="M17 18h7M17 22h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                            opacity="0.9" />
+                        <path d="M28 17h2.5M28 22h2.5M28 27h2.5M9.5 17H12M9.5 22H12M9.5 27H12"
+                            stroke="#8b5cf6" stroke-width="1.6" stroke-linecap="round" opacity="0.85" />
+                    </svg>
                     }
                 </div>
                 {{lib._description}}
@@ -119,4 +129,10 @@
         </div>
         }
     </div>
+    @if (projectService.isServerProject) {
+    <div class="pagination">
+        <nz-pagination [(nzPageIndex)]="pageIndex" [nzPageSize]="pageSize" [nzTotal]="total"
+            (nzPageIndexChange)="onPageChange($event)"></nz-pagination>
+    </div>
+    }
 </div>

@@ -85,13 +85,6 @@ export let HEADER_MENU: IMenuItem[] = [
     router: ['/main/blockly-editor', '/main/code-editor']
   },
   {
-    name: 'MENU.OPEN_IN_EXPLORER',
-    action: 'project-open-by-explorer',
-    data: { type: 'other', action: 'openByExplorer', data: 'project' },
-    icon: 'fa-light fa-browser',
-    router: ['/main/blockly-editor', '/main/code-editor']
-  },
-  {
     name: 'MENU.PROJECT_CLOSE',
     action: 'project-close',
     data: { type: 'cmd', data: 'close' },
@@ -113,11 +106,6 @@ export let HEADER_MENU: IMenuItem[] = [
     icon: 'fa-light fa-gear',
   },
   {
-    name: 'MENU.UPDATE',
-    action: 'check-update',
-    icon: 'fa-light fa-cloud-arrow-down',
-  },
-  {
     sep: true,
   },
   {
@@ -126,35 +114,12 @@ export let HEADER_MENU: IMenuItem[] = [
     icon: 'fa-light fa-album-collection',
   },
   {
-    name: 'MENU.FEEDBACK',
-    action: 'feedback',
-    icon: 'fa-light fa-messages-question',
-  },
-  {
-    name: 'MENU.GITHUB',
-    action: 'browser-open',
-    data: { type: 'other', action: 'openByBrowser', url: 'https://github.com/ailyProject/aily-blockly' },
-    icon: 'fa-brands fa-github-alt',
-  },
-  {
-    name: 'MENU.ABOUT',
-    action: 'browser-open',
-    data: { type: 'other', action: 'openByBrowser', url: 'https://aily.pro' },
-    icon: 'fa-light fa-globe-pointer',
-  },
-  {
     sep: true,
   },
   {
     name: 'MENU.LOGOUT',
     action: 'user-logout',
     icon: 'fa-light fa-arrow-right-from-bracket',
-  },
-  {
-    name: 'MENU.EXIT',
-    action: 'app-exit',
-    data: { type: 'other', action: 'exitApp' },
-    icon: 'fa-light fa-xmark',
   },
 ];
 

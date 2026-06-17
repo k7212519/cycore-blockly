@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { ElectronService } from './electron.service';
+import { Subject } from 'rxjs';
 
 // export const BOARD_NAME: Record<string, string> = {
 //   'VID_303A&PID_1001': 'XIAO ESP32S3'
@@ -16,15 +17,34 @@ import { ElectronService } from './electron.service';
 })
 export class SerialService {
 
+  private _currentPort: any = null;
+
   // 编译上传时，通过这里获取串口
-  currentPort: any = null;
+  get currentPort(): any {
+    return this._currentPort;
+  }
+
+  set currentPort(port: any) {
+    this._currentPort = port;
+    this.rememberSelectedBrowserPort(port);
+    this.portChangedSubject.next();
+  }
 
   // 保存浏览器环境中的 SerialPort 映射
   browserPortsMap = new Map<string, any>();
+  private disconnectedBrowserPorts = new WeakSet<any>();
+  private browserSerialEventsInitialized = false;
+  private lastSelectedBrowserPort: any = null;
+  private lastSelectedBrowserPortName = '';
+  private lastSelectedBrowserPortInfo = '';
+  private portChangedSubject = new Subject<void>();
+  portsChanged$ = this.portChangedSubject.asObservable();
 
   constructor(
     private electronService: ElectronService
-  ) { }
+  ) {
+    this.ensureBrowserSerialEvents();
+  }
 
   getBrowserPort(name: string): any {
     return this.browserPortsMap.get(name);
@@ -39,17 +59,8 @@ export class SerialService {
       }
       const port = await navigator['serial'].requestPort();
       if (port) {
-        let name = '';
-        for (const [k, v] of this.browserPortsMap.entries()) {
-          if (v === port) {
-            name = k;
-            break;
-          }
-        }
-        if (!name) {
-          name = `串口 ${this.browserPortsMap.size + 1}`;
-          this.browserPortsMap.set(name, port);
-        }
+        this.disconnectedBrowserPorts.delete(port);
+        const name = this.registerBrowserPort(port);
         this.currentPort = name;
         return port;
       }
@@ -105,22 +116,150 @@ export class SerialService {
         if (!navigator['serial']) {
           return [];
         }
+        this.ensureBrowserSerialEvents();
         const ports = await navigator['serial'].getPorts();
-        const serialList: PortItem[] = ports.map((port, index) => {
-          const name = `串口 ${index + 1}`;
-          this.browserPortsMap.set(name, port);
-          return {
-            port: port,
-            name: name,
-            text: `已授权设备 ${index + 1}`,
-            type: 'serial',
-            icon: 'fa-light fa-usb-drive'
-          };
-        });
+        this.removeUnavailableBrowserPorts(ports);
+        const serialList: PortItem[] = ports
+          .filter(port => !this.disconnectedBrowserPorts.has(port))
+          .map((port) => {
+            const name = this.registerBrowserPort(port);
+            return {
+              port: port,
+              name: name,
+              text: `已授权设备 ${name.replace('串口 ', '')}`,
+              type: 'serial',
+              icon: 'fa-light fa-usb-drive'
+            };
+          });
         return serialList;
       } catch (error) {
         console.error('获取 Web Serial 串口失败:', error);
         return [];
+      }
+    }
+  }
+
+  private ensureBrowserSerialEvents(): void {
+    if (this.browserSerialEventsInitialized || this.electronService.isElectron) {
+      return;
+    }
+    if (typeof navigator === 'undefined' || !navigator['serial']?.addEventListener) {
+      return;
+    }
+
+    this.browserSerialEventsInitialized = true;
+    navigator['serial'].addEventListener('disconnect', (event: any) => {
+      this.handleBrowserPortDisconnect(event?.target);
+    });
+    navigator['serial'].addEventListener('connect', (event: any) => {
+      this.handleBrowserPortConnect(event?.target);
+    });
+  }
+
+  private handleBrowserPortDisconnect(port: any): void {
+    if (!port) {
+      return;
+    }
+
+    const name = this.findBrowserPortName(port);
+    if (name) {
+      this.lastSelectedBrowserPort = port;
+      this.lastSelectedBrowserPortName = name;
+      this.lastSelectedBrowserPortInfo = this.getBrowserPortInfoKey(port);
+      this.browserPortsMap.delete(name);
+      if (this._currentPort === name) {
+        this._currentPort = null;
+      }
+    }
+    this.disconnectedBrowserPorts.add(port);
+    this.portChangedSubject.next();
+  }
+
+  private handleBrowserPortConnect(port: any): void {
+    if (!port) {
+      return;
+    }
+
+    this.disconnectedBrowserPorts.delete(port);
+    const infoKey = this.getBrowserPortInfoKey(port);
+    const isLastSelectedPort = port === this.lastSelectedBrowserPort
+      || (!!infoKey && infoKey === this.lastSelectedBrowserPortInfo);
+    const name = this.registerBrowserPort(
+      port,
+      isLastSelectedPort ? this.lastSelectedBrowserPortName : ''
+    );
+    if (isLastSelectedPort) {
+      this._currentPort = name;
+      this.rememberSelectedBrowserPort(name);
+    }
+    this.portChangedSubject.next();
+  }
+
+  private registerBrowserPort(port: any, preferredName = ''): string {
+    const existingName = this.findBrowserPortName(port);
+    if (existingName) {
+      return existingName;
+    }
+
+    let name = preferredName && !this.browserPortsMap.has(preferredName)
+      ? preferredName
+      : this.allocateBrowserPortName();
+    this.browserPortsMap.set(name, port);
+    return name;
+  }
+
+  private allocateBrowserPortName(): string {
+    let index = 1;
+    let name = `串口 ${index}`;
+    while (this.browserPortsMap.has(name)) {
+      index++;
+      name = `串口 ${index}`;
+    }
+    return name;
+  }
+
+  private findBrowserPortName(port: any): string {
+    for (const [name, currentPort] of this.browserPortsMap.entries()) {
+      if (currentPort === port) {
+        return name;
+      }
+    }
+    return '';
+  }
+
+  private rememberSelectedBrowserPort(portName: any): void {
+    if (this.electronService.isElectron || typeof portName !== 'string') {
+      return;
+    }
+    const port = this.browserPortsMap.get(portName);
+    if (!port) {
+      return;
+    }
+    this.lastSelectedBrowserPort = port;
+    this.lastSelectedBrowserPortName = portName;
+    this.lastSelectedBrowserPortInfo = this.getBrowserPortInfoKey(port);
+  }
+
+  private getBrowserPortInfoKey(port: any): string {
+    try {
+      const info = port?.getInfo?.() || {};
+      const vendorId = info.usbVendorId ?? '';
+      const productId = info.usbProductId ?? '';
+      return vendorId || productId ? `${vendorId}:${productId}` : '';
+    } catch {
+      return '';
+    }
+  }
+
+  private removeUnavailableBrowserPorts(availablePorts: any[]): void {
+    const available = new Set(availablePorts);
+    for (const [name, port] of Array.from(this.browserPortsMap.entries())) {
+      if (!available.has(port) || this.disconnectedBrowserPorts.has(port)) {
+        this.browserPortsMap.delete(name);
+        if (this._currentPort === name) {
+          this._currentPort = null;
+          this.portChangedSubject.next();
+        }
       }
     }
   }
@@ -134,4 +273,3 @@ export interface PortItem {
   icon?: string,
   disabled?: boolean
 }
-

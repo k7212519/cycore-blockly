@@ -108,6 +108,14 @@ export class ServerFlashService {
           });
         }
       });
+      this.noticeService.update({
+        title: '上传中',
+        text: '正在重启开发板',
+        state: 'doing',
+        progress: 99,
+        setTimeout: 0,
+        stop: () => this.cancel()
+      });
       await this.espLoaderService.after(uploadConfig.afterReset);
       this.noticeService.update({
         title: '上传完成',

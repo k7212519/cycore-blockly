@@ -238,10 +238,15 @@ export class EspLoaderService {
     }
 
     try {
+      // DTR 控制 IO0，RTS 控制 EN。烧录后需要保证 IO0 释放，再给 EN 一个低脉冲，
+      // 否则部分 ESP32-S3 开发板会停留在下载模式，表现为烧录完成但程序不运行。
       await this.transport.setDTR(false);
       await this.delay(100);
-      await this.transport.setDTR(true);
+      await this.transport.setRTS(true);
+      await this.delay(100);
+      await this.transport.setRTS(false);
       await this.delay(delayMs);
+      await this.transport.setDTR(false);
     } catch (error) {
       console.error('重启设备失败:', error);
     }
@@ -254,6 +259,9 @@ export class EspLoaderService {
 
     try {
       await this.esploader.after(mode);
+      if (mode === 'hard_reset') {
+        await this.resetDevice(1000);
+      }
     } catch (error) {
       console.warn('执行烧录后复位失败，尝试普通重置:', error);
       await this.resetDevice(1000);

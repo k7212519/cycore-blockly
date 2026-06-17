@@ -97,6 +97,7 @@ export const API = {
   // server-side local projects
   get serverProjects() { return `${getLocalApiServerUrl()}/api/projects`; },
   get serverProjectBoards() { return `${getLocalApiServerUrl()}/api/projects/boards`; },
+  get serverProjectLibraries() { return `${getLocalApiServerUrl()}/api/projects/libraries`; },
   // feedback
   get feedback() { return `${getServerUrl()}/api/v1/feedback/submit`; },
   get feedbackImageUpload() { return `${getServerUrl()}/api/v1/feedback/upload-image`; },

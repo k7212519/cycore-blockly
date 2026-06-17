@@ -89,6 +89,17 @@ export interface ServerProjectUploadOptions {
   menuItems: any[];
 }
 
+export interface ServerProjectLibraries {
+  libraries: any[];
+}
+
+export interface ServerLibraryPage<T> {
+  records: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -719,6 +730,18 @@ export class ProjectService {
     return this.unwrap<ServerBoardInfo[]>(this.http.get<ApiResult<ServerBoardInfo[]>>(API.serverProjectBoards));
   }
 
+  async loadServerLibraries(keyword = '', page = 1, pageSize = 24): Promise<ServerLibraryPage<any>> {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    if (keyword) {
+      params.set('keyword', keyword);
+    }
+    return this.unwrap<ServerLibraryPage<any>>(
+      this.http.get<ApiResult<ServerLibraryPage<any>>>(`${API.serverProjectLibraries}?${params.toString()}`)
+    );
+  }
+
   async createServerProject(name: string, boardName: string): Promise<{ projectId: string; name: string; editor: string; boardName: string }> {
     return this.unwrap(this.http.post<ApiResult<{ projectId: string; name: string; editor: string; boardName: string }>>(
       API.serverProjects,
@@ -734,6 +757,28 @@ export class ProjectService {
     return this.unwrap<ServerProjectUploadOptions>(
       this.http.get<ApiResult<ServerProjectUploadOptions>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/upload-options`)
     );
+  }
+
+  async getServerProjectLibraries(projectId = this.currentProjectId): Promise<any[]> {
+    const result = await this.unwrap<ServerProjectLibraries>(
+      this.http.get<ApiResult<ServerProjectLibraries>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/libraries`)
+    );
+    return result?.libraries || [];
+  }
+
+  async installServerProjectLibrary(name: string, projectId = this.currentProjectId): Promise<any[]> {
+    const result = await this.unwrap<ServerProjectLibraries>(
+      this.http.post<ApiResult<ServerProjectLibraries>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/libraries`, { name })
+    );
+    return result?.libraries || [];
+  }
+
+  async removeServerProjectLibrary(name: string, projectId = this.currentProjectId): Promise<any[]> {
+    const encodedName = this.encodeLibraryNameForPath(name);
+    const result = await this.unwrap<ServerProjectLibraries>(
+      this.http.delete<ApiResult<ServerProjectLibraries>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/libraries/${encodedName}`)
+    );
+    return result?.libraries || [];
   }
 
   async getServerBlockly(projectId = this.currentProjectId): Promise<any> {
@@ -788,6 +833,13 @@ export class ProjectService {
       throw new Error(response?.message || '服务端请求失败');
     }
     return response.data;
+  }
+
+  private encodeLibraryNameForPath(name: string): string {
+    return btoa(unescape(encodeURIComponent(name)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
   }
 
   // 获取开发板模块的package.json

@@ -605,6 +605,9 @@ export class NpmService {
   }
 
   async getAllInstalledLibraries(path: string) {
+    if (this.prjService.isServerProject) {
+      return await this.prjService.getServerProjectLibraries();
+    }
     // let data = JSON.parse(await window['npm'].run({ cmd: `npm ls --all --json --prefix "${path}"` }));
     let data = await getInstalledPackagesByFileRead(path);
     // console.log("getInstalledPackagesByFileRead:", data);
@@ -816,4 +819,3 @@ export async function scanSinglePackage(packagePath: string, packageName: string
     console.error(`扫描包 ${packageName} 失败:`, error);
   }
 }
-

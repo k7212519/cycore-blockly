@@ -14,7 +14,6 @@ import { ProjectService } from '../services/project.service';
 import { SimplebarAngularModule } from 'simplebar-angular';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { AppStoreComponent } from '../tools/app-store/app-store.component';
-import { UpdateService } from '../services/update.service';
 import { NzModalModule, NzModalService } from 'ng-zorro-antd/modal';
 import { NpmService } from '../services/npm.service';
 import { SimulatorComponent } from '../tools/simulator/simulator.component';
@@ -84,7 +83,6 @@ export class MainWindowComponent {
     private projectService: ProjectService,
     private message: NzMessageService,
     private cd: ChangeDetectorRef,
-    private updateService: UpdateService,
     private npmService: NpmService,
     private router: Router,
     private configService: ConfigService,
@@ -95,7 +93,6 @@ export class MainWindowComponent {
   ngOnInit(): void {
     this.uiService.init();
     this.projectService.init();
-    this.updateService.init();
     this.npmService.init();
     // 重置 footer 状态
     this.uiService.updateFooterState({ text: '', timeout: 0 });

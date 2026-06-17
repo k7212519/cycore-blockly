@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzTagModule } from 'ng-zorro-antd/tag';
+import { NzPaginationModule } from 'ng-zorro-antd/pagination';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { NpmService } from '../../../../services/npm.service';
 import { ConfigService } from '../../../../services/config.service';
@@ -30,6 +31,7 @@ import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd
     NzToolTipModule,
     NzSelectModule,
     NzTagModule,
+    NzPaginationModule,
     TranslateModule
   ],
   templateUrl: './lib-manager.component.html',
@@ -47,11 +49,14 @@ export class LibManagerComponent {
   tagListRandom;
 
   loading = false;
+  pageIndex = 1;
+  pageSize = 24;
+  total = 0;
 
   constructor(
     private npmService: NpmService,
     private configService: ConfigService,
-    private projectService: ProjectService,
+    public projectService: ProjectService,
     private blocklyService: BlocklyService,
     private message: NzMessageService,
     private cd: ChangeDetectorRef,
@@ -77,8 +82,12 @@ export class LibManagerComponent {
       this.translate.instant('LIB_MANAGER.IOT'),
     ];
 
-    this._libraryList = this.process(this.configService.libraryList);
-    this.libraryList = this.applyLocalization(await this.checkInstalled());
+    if (this.projectService.isServerProject) {
+      await this.loadServerLibraryPage();
+    } else {
+      this._libraryList = this.process(this.configService.libraryList || []);
+      this.libraryList = this.applyLocalization(await this.checkInstalled());
+    }
     this.cd.detectChanges();
   }
 
@@ -133,13 +142,18 @@ export class LibManagerComponent {
       // 为状态做准备
       item['state'] = 'default'; // default, installed, installing, uninstalling
       // 为全文搜索做准备
-      item['fulltext'] = `${item.name}${item.nickname}${item.keywords}${item.description}${item.brand}`.replace(/\s/g, '').toLowerCase();
+      item['fulltext'] = `${item.name || ''}${item.nickname || ''}${JSON.stringify(item.keywords || [])}${item.description || ''}${item.brand || ''}${JSON.stringify(item.tags || [])}`.replace(/\s/g, '').toLowerCase();
     }
     return array;
   }
 
   async search(keyword = this.keyword) {
     this.keyword = keyword;
+    if (this.projectService.isServerProject) {
+      this.pageIndex = 1;
+      await this.loadServerLibraryPage();
+      return;
+    }
     if (keyword) {
       keyword = keyword.replace(/\s/g, '').toLowerCase();
 
@@ -164,6 +178,33 @@ export class LibManagerComponent {
     }
   }
 
+  async onPageChange(pageIndex: number) {
+    this.pageIndex = pageIndex;
+    if (this.projectService.isServerProject) {
+      await this.loadServerLibraryPage();
+    }
+  }
+
+  private async loadServerLibraryPage() {
+    const normalizedKeyword = (this.keyword || '').replace(/\s/g, '').toLowerCase();
+    if (normalizedKeyword === 'installed') {
+      const installedLibraries = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+      this.total = installedLibraries.length;
+      this._libraryList = this.process(installedLibraries || []);
+      this.libraryList = this.applyLocalization(await this.checkInstalled());
+      this.cd.detectChanges();
+      return;
+    }
+
+    const page = await this.projectService.loadServerLibraries(this.keyword || '', this.pageIndex, this.pageSize);
+    this.total = page?.total || 0;
+    this.pageIndex = page?.page || this.pageIndex;
+    this.pageSize = page?.pageSize || this.pageSize;
+    this._libraryList = this.process(page?.records || []);
+    this.libraryList = this.applyLocalization(await this.checkInstalled());
+    this.cd.detectChanges();
+  }
+
   back() {
     this.close.emit();
   }
@@ -186,8 +227,8 @@ export class LibManagerComponent {
     //   return;
     // }
     // 处理 core 字符串，去掉第一个以 ':' 分割的部分
-    const boardCore = this.projectService.currentBoardConfig.core.split(':').slice(1).join(':');
-    if (!await this.checkCompatibility(lib.compatibility.core, boardCore)) {
+    const boardCore = (this.projectService.currentBoardConfig?.core || '').split(':').slice(1).join(':');
+    if (!await this.checkCompatibility(lib.compatibility?.core, boardCore)) {
       return;
     }
     // console.log('当前项目路径：', this.projectService.currentProjectPath);
@@ -200,6 +241,20 @@ export class LibManagerComponent {
     this.message.loading(`${lib.nickname} ${this.translate.instant('LIB_MANAGER.INSTALLING')}...`);
     this.output = '';
     try {
+      if (this.projectService.isServerProject) {
+        await this.projectService.installServerProjectLibrary(lib.name);
+        this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
+        this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.INSTALLED')}`);
+        let packageList_new = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+        const newPackages = packageList_new.filter(pkg => !packageList_old.some(oldPkg => oldPkg.name === pkg.name && oldPkg.version === pkg.version));
+        for (const pkg of newPackages) {
+          await this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
+        }
+        this.isInstalling = false;
+        this.workflowService.finishInstall(true);
+        return;
+      }
+
       const { code } = await this.cmdService.runAsync(`npm install ${lib.name}@${lib.version}`, this.projectService.currentProjectPath);
 
       if (code !== 0) {
@@ -230,12 +285,25 @@ export class LibManagerComponent {
 
   async removeLib(lib) {
     // 移除库前，应先检查项目代码是否使用了该库，如果使用了，应提示用户
-    if (this.checkLibUsage(lib)) {
+    if (await this.checkLibUsage(lib)) {
       this.message.warning(this.translate.instant('LIB_MANAGER.LIB_IN_USE'), { nzDuration: 5000 });
       return;
     }
     lib.state = 'uninstalling';
     this.message.loading(`${lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLING')}...`);
+    if (this.projectService.isServerProject) {
+      try {
+        await this.blocklyService.removeServerLibrary(lib.name);
+        await this.projectService.removeServerProjectLibrary(lib.name);
+        this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
+        this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLED')}`);
+      } catch (error: any) {
+        lib.state = 'error';
+        this.message.error(`${lib._nickname || lib.nickname} 卸载失败: ${error?.message || error}`);
+      }
+      return;
+    }
+
     // 使用pathJoin处理路径，正确处理包含'/'的包名（如@aily-project/test）
     const libPackagePath = this.electronService.pathJoin(
       this.projectService.currentProjectPath,
@@ -251,12 +319,21 @@ export class LibManagerComponent {
   }
 
 
-  checkLibUsage(lib) {
+  async checkLibUsage(lib) {
     // 检查项目代码是否使用了该库
+    let blocksData: any[] = [];
+    if (this.projectService.isServerProject) {
+      try {
+        blocksData = JSON.parse(await this.projectService.readServerFile(`node_modules/${lib.name}/block.json`));
+      } catch {
+        return false;
+      }
+    } else {
     const separator = this.platformService.getPlatformSeparator();
     const libPackagePath = this.projectService.currentProjectPath + `${separator}node_modules${separator}` + lib.name;
     const libBlockPath = libPackagePath + `${separator}block.json`;
-    const blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
+      blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
+    }
     const abiJson = JSON.stringify(this.blocklyService.getWorkspaceJson());
     for (let index = 0; index < blocksData.length; index++) {
       const element = blocksData[index];
@@ -362,6 +439,9 @@ export class LibManagerComponent {
   }
 
   async importLib() {
+    if (this.projectService.isServerProject) {
+      return;
+    }
     try {
       // 弹出文件夹选择对话框
       const folderPath = await window['ipcRenderer'].invoke('select-folder', {

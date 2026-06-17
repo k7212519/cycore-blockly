@@ -237,6 +237,32 @@ export class BlocklyService {
     this.removeLibrary(libPackagePath);
   }
 
+  async removeServerLibrary(libPackageName: string) {
+    const libraryKey = `server:${this.projectService.currentProjectId}:${libPackageName}`;
+    if (!this.loadedLibraries.has(libraryKey)) {
+      return;
+    }
+
+    const packagePath = `node_modules/${libPackageName}`;
+    const blockContent = await this.tryReadServerFile(`${packagePath}/block.json`);
+    if (blockContent) {
+      this.removeLibBlocks(JSON.parse(blockContent));
+    }
+
+    const toolboxContent = await this.tryReadServerFile(`${packagePath}/toolbox.json`);
+    if (toolboxContent) {
+      let toolbox = JSON.parse(toolboxContent);
+      const i18nContent = await this.tryReadServerFile(`${packagePath}/i18n/${this.translateService.currentLang}.json`);
+      if (i18nContent) {
+        toolbox = processToolboxI18n(toolbox, JSON.parse(i18nContent));
+      }
+      this.removeLibToolbox(toolbox);
+    }
+
+    this.removeLibGenerator(libraryKey);
+    this.loadedLibraries.delete(libraryKey);
+  }
+
   loadLibBlocks(blocks, libStaticPath) {
     for (let index = 0; index < blocks.length; index++) {
       let block = blocks[index];

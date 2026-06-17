@@ -27,7 +27,6 @@ declare global {
       env: any;
       npm: any;
       cmd: any;
-      updater: any;
       mcp: any;
       versions: () => any;
     };

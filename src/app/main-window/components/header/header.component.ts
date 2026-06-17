@@ -1,8 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, ElementRef, isDevMode, OnDestroy, ViewChild, viewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, isDevMode, OnDestroy } from '@angular/core';
 import { HEADER_BTNS, HEADER_MENU } from '../../../configs/menu.config';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
-import { FormsModule } from '@angular/forms';
 import { ProjectService } from '../../../services/project.service';
 import { UiService } from '../../../services/ui.service';
 import { BuilderService } from '../../../services/builder.service';
@@ -15,7 +14,6 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { UnsaveDialogComponent } from '../unsave-dialog/unsave-dialog.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { UpdateService } from '../../../services/update.service';
 import { Router } from '@angular/router';
 import { ElectronService } from '../../../services/electron.service';
 import { ConfigService } from '../../../services/config.service';
@@ -25,6 +23,7 @@ import { PlatformService } from '../../../services/platform.service';
 import { AppItem } from '../../../tools/app-store/app-store.config';
 import { APP_LIST } from '../../../configs/tool.config';
 import { EdaAuthService } from '../../../auth/eda-auth.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-header',
@@ -61,6 +60,7 @@ export class HeaderComponent implements OnDestroy {
   private unsubscribeFullScreenChanged?: () => void;
   private unsubscribeMaximizeChanged?: () => void;
   private unsubscribeCloseRequest?: () => void;
+  private serialPortsChangedSubscription?: Subscription;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
 
   get projectData() {
@@ -107,7 +107,6 @@ export class HeaderComponent implements OnDestroy {
     private cd: ChangeDetectorRef,
     private message: NzMessageService,
     private modal: NzModalService,
-    private updateService: UpdateService,
     private router: Router,
     private electronService: ElectronService,
     private configService: ConfigService,
@@ -182,9 +181,16 @@ export class HeaderComponent implements OnDestroy {
 
     this.listenShortcutKeys();
 
-    if (this.electronService.isElectron) {
-      this.checkAndSetDefaultPort();
-    }
+    this.serialPortsChangedSubscription = this.serialService.portsChanged$.subscribe(async () => {
+      if (this.showPortList) {
+        await this.getDevicePortList();
+      }
+      setTimeout(() => {
+        this.cd.detectChanges();
+      }, 0);
+    });
+
+    this.checkAndSetDefaultPort();
   }
 
   // 检查串口列表并设置默认串口
@@ -399,8 +405,6 @@ export class HeaderComponent implements OnDestroy {
     }
   }
 
-  updateSubscription: any = null;
-
   async process(item: IMenuItem, event = null) {
     switch (item.action) {
       case 'project-new':
@@ -432,9 +436,6 @@ export class HeaderComponent implements OnDestroy {
           if (!canContinue) return;
         }
         this.projectService.close();
-        break;
-      case 'project-open-by-explorer':
-        window['other'].openByExplorer(this.projectService.currentProjectPath);
         break;
       case 'tool-open':
         this.uiService.turnTool(item.data);
@@ -471,24 +472,6 @@ export class HeaderComponent implements OnDestroy {
       case 'settings-open':
         this.uiService.openWindow(item.data);
         break;
-      case 'check-update':
-        this.updateService.clearSkipVersions();
-        if (!this.updateSubscription) {
-          this.updateSubscription = this.updateService.updateStatus.subscribe((status) => {
-            // console.log('更新状态:', status);
-            if (status === 'not-available') {
-              this.message.info('当前已是最新版本');
-            }
-          });
-        }
-        this.updateService.checkForUpdates();
-        break;
-      case 'browser-open':
-        this.electronService.openUrl(item.data.url);
-        break;
-      case 'app-exit':
-        this.close();
-        break;
       case 'user-logout':
         this.logout();
         break;
@@ -504,9 +487,6 @@ export class HeaderComponent implements OnDestroy {
         break;
       case 'request-web-serial-port':
         await this.requestWebSerialPort();
-        break;
-      case 'feedback':
-        this.uiService.openFeedback();
         break;
       default:
         console.log('未处理的操作:', item.action);
@@ -563,12 +543,8 @@ export class HeaderComponent implements OnDestroy {
         this.unsubscribeCloseRequest();
       }
     }
-  }
-
-  async close() {
-    const canClose = await this.checkUnsavedChanges('close');
-    if (canClose) {
-      window['iWindow'].close();
+    if (this.serialPortsChangedSubscription) {
+      this.serialPortsChangedSubscription.unsubscribe();
     }
   }
 
