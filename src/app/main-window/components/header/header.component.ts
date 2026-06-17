@@ -29,6 +29,19 @@ import { AppStoreService } from '../../../tools/app-store/app-store.service';
 import { Subscription } from 'rxjs';
 import { BleOtaDeviceItem, UploaderBleService } from '../../../services/uploader-ble.service';
 import { ToolI18nService } from '../../../services/tool-i18n.service';
+import { CmdOutput, CmdService } from '../../../services/cmd.service';
+
+interface NetworkOtaTarget {
+  id: string;
+  name?: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  uploadPath: string;
+  ssl?: boolean;
+  timeoutMs?: number;
+}
 
 @Component({
   selector: 'app-header',
@@ -64,6 +77,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
   private bleDevicesSubscription?: Subscription;
   private appStoreSubscription?: Subscription;
   private blePortListRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private networkOtaDiscoveredTargets: NetworkOtaTarget[] = [];
+  private networkOtaScanInProgress = false;
+  private networkOtaScanCancelled = false;
+  private networkOtaScanStreamId: string | null = null;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
   private selectDebounceTimer: ReturnType<typeof setTimeout> | null = null; // 防抖计时器
   private lastSelectedSubItemKey: string | null = null; // 上次选择子菜单项的key（用于判断重复选择）
@@ -81,7 +98,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   get currentPort() {
-    if (this.serialService.currentPortInfo?.type === 'ble') {
+    if (this.serialService.currentPortInfo?.type === 'ble'
+      || this.serialService.currentPortInfo?.type === 'network-ota') {
       return this.serialService.currentPortInfo?.text || this.serialService.currentPort;
     }
     return this.serialService.currentPort;
@@ -121,7 +139,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
     private uploaderBleService: UploaderBleService,
     private ngZone: NgZone,
     private appStoreService: AppStoreService,
-    private toolI18n: ToolI18nService
+    private toolI18n: ToolI18nService,
+    private cmdService: CmdService
   ) { }
 
   ngOnInit(): void {
@@ -370,6 +389,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (this.uploaderBleService.isScanning() || this.uploaderBleService.hasActiveRequest()) {
       this.uploaderBleService.cancelScan();
     }
+    if (this.networkOtaScanInProgress && this.networkOtaScanStreamId) {
+      this.networkOtaScanCancelled = true;
+      this.cmdService.kill(this.networkOtaScanStreamId);
+      this.networkOtaScanStreamId = null;
+      this.networkOtaScanInProgress = false;
+    }
     this.showPortList = false;
     // this.cd.detectChanges();
   }
@@ -399,6 +424,16 @@ export class HeaderComponent implements OnInit, OnDestroy {
       }
     }
 
+    if (item.type === 'network-ota') {
+      const target = this.normalizeNetworkOtaTarget(item.extra?.target);
+      if (!target) {
+        this.message.error(this.translate.instant('NETWORK_OTA.INVALID_HOST'));
+        return;
+      }
+      this.selectNetworkOtaTarget(target);
+      return;
+    }
+
     this.serialService.currentPort = item.name;
     this.serialService.currentPortInfo = {
       name: item.name,
@@ -420,6 +455,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     let core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase();
     const isEsp32Core = this.isEsp32Core(core);
     const canShowBleOtaPorts = await this.canShowBleOtaPorts(core);
+    const canShowNetworkOtaPorts = await this.canShowNetworkOtaPorts(core);
 
     if (canShowBleOtaPorts) {
       const bleItems = this.uploaderBleService.getPortMenuItems(this.serialService.currentPort);
@@ -429,6 +465,17 @@ export class HeaderComponent implements OnInit, OnDestroy {
           portList0.push({ sep: true });
         }
         portList0 = portList0.concat(bleItems);
+        hasSelectablePort = true;
+      }
+    }
+
+    if (canShowNetworkOtaPorts) {
+      const networkOtaItems = await this.getNetworkOtaPortMenuItems(this.serialService.currentPort);
+      if (networkOtaItems.length > 0) {
+        if (portList0.length > 0) {
+          portList0.push({ sep: true });
+        }
+        portList0 = portList0.concat(networkOtaItems);
         hasSelectablePort = true;
       }
     }
@@ -505,6 +552,100 @@ export class HeaderComponent implements OnInit, OnDestroy {
     return this.isEsp32Core(core) && await this.hasProjectDependency('@aily-project/lib-bleota');
   }
 
+  private async canShowNetworkOtaPorts(core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase()): Promise<boolean> {
+    return this.isEsp32Core(core) && await this.hasProjectDependency('@aily-project/lib-wifiota');
+  }
+
+  private async getNetworkOtaPortMenuItems(currentPort?: string): Promise<IMenuItem[]> {
+    const savedTargets = await this.getNetworkOtaTargets();
+    const targets = this.mergeNetworkOtaTargets(savedTargets, this.networkOtaDiscoveredTargets);
+    const items: IMenuItem[] = [{
+      name: this.translate.instant(this.networkOtaScanInProgress ? 'NETWORK_OTA.SEARCHING_DEVICE' : 'NETWORK_OTA.SEARCH_DEVICE'),
+      action: 'network-ota-scan',
+      type: 'network-ota-action',
+      icon: this.networkOtaScanInProgress ? 'fa-light fa-spinner fa-spin' : 'fa-light fa-magnifying-glass',
+      disabled: this.networkOtaScanInProgress,
+    }];
+
+    for (const target of targets) {
+      items.push({
+        name: target.name || this.translate.instant('NETWORK_OTA.DEFAULT_TARGET_NAME'),
+        text: `${target.host}:${target.port}`,
+        type: 'network-ota',
+        icon: 'fa-light fa-wifi',
+        current: currentPort === target.id,
+        extra: { target },
+      });
+    }
+
+    return items;
+  }
+
+  private mergeNetworkOtaTargets(...targetGroups: NetworkOtaTarget[][]): NetworkOtaTarget[] {
+    const targetMap = new Map<string, NetworkOtaTarget>();
+
+    for (const targetGroup of targetGroups) {
+      for (const target of targetGroup || []) {
+        const normalized = this.normalizeNetworkOtaTarget(target);
+        if (!normalized) continue;
+
+        const key = `${normalized.host}:${normalized.port}:${normalized.uploadPath}`;
+        if (!targetMap.has(key)) {
+          targetMap.set(key, normalized);
+        }
+      }
+    }
+
+    return Array.from(targetMap.values());
+  }
+
+  private async getNetworkOtaTargets(): Promise<NetworkOtaTarget[]> {
+    try {
+      const packageJson = await this.projectService.getPackageJson();
+      const targets = packageJson?.projectConfig?.networkOtaTargets;
+      if (!Array.isArray(targets)) return [];
+
+      return targets
+        .map((target: any) => this.normalizeNetworkOtaTarget(target))
+        .filter((target: NetworkOtaTarget | null): target is NetworkOtaTarget => !!target);
+    } catch (error) {
+      console.warn('读取 WiFi OTA 目标失败:', error);
+      return [];
+    }
+  }
+
+  private normalizeNetworkOtaTarget(target: any): NetworkOtaTarget | null {
+    const host = (target?.host || '').toString().trim();
+    const port = Number(target?.port || 65280);
+    const uploadPath = (target?.uploadPath || '/sketch').toString().trim();
+    if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return null;
+
+    const normalizedUploadPath = uploadPath.startsWith('/') ? uploadPath : `/${uploadPath}`;
+    return {
+      id: target?.id || `network-ota:${host}:${port}:${normalizedUploadPath}`,
+      name: (target?.name || '').toString().trim(),
+      host,
+      port,
+      username: (target?.username || 'arduino').toString(),
+      password: (target?.password || 'password').toString(),
+      uploadPath: normalizedUploadPath,
+      ssl: !!target?.ssl,
+      timeoutMs: Math.max(1000, Number(target?.timeoutMs || 60000)),
+    };
+  }
+
+  private selectNetworkOtaTarget(target: NetworkOtaTarget): void {
+    this.serialService.currentPort = target.id;
+    this.serialService.currentPortInfo = {
+      name: target.id,
+      text: target.name || `${target.host}:${target.port}`,
+      type: 'network-ota',
+      icon: 'fa-light fa-wifi',
+      extra: { target },
+    };
+    this.closePortList();
+  }
+
   private async hasProjectDependency(dependencyName: string): Promise<boolean> {
     try {
       const packageJson = await this.projectService.getPackageJson();
@@ -512,6 +653,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
         ...(packageJson?.dependencies || {}),
         ...(packageJson?.devDependencies || {}),
         ...(packageJson?.optionalDependencies || {}),
+        ...(packageJson?.peerDependencies || {}),
       };
 
       return Object.prototype.hasOwnProperty.call(dependencies, dependencyName);
@@ -606,6 +748,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
         break;
       case 'ble-scan':
         this.startBleScan();
+        break;
+      case 'network-ota-scan':
+        this.startNetworkOtaMdnsSearch();
         break;
       // case 'terminal':
       //   this.uiService.turnTerminal(item.data);
@@ -718,6 +863,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (this.blePortListRefreshTimer) {
       clearTimeout(this.blePortListRefreshTimer);
       this.blePortListRefreshTimer = null;
+    }
+    if (this.networkOtaScanStreamId) {
+      this.networkOtaScanCancelled = true;
+      this.cmdService.kill(this.networkOtaScanStreamId);
+      this.networkOtaScanStreamId = null;
     }
     if (this.electronService.isElectron) {
       // 取消窗口全屏状态变化监听
@@ -1057,6 +1207,110 @@ export class HeaderComponent implements OnInit, OnDestroy {
       extra: { deviceId: device.id },
     };
     this.closePortList();
+  }
+
+  private async startNetworkOtaMdnsSearch() {
+    if (this.networkOtaScanInProgress) return;
+    if (!await this.canShowNetworkOtaPorts()) {
+      return;
+    }
+
+    this.networkOtaScanInProgress = true;
+    this.networkOtaScanCancelled = false;
+    this.networkOtaDiscoveredTargets = [];
+    if (this.showPortList) {
+      this.getDevicePortList(true);
+    }
+
+    const searchScriptPath = window['path'].join(window['path'].getAilyChildPath(), 'scripts', 'network-ota-mdns-search.js');
+    const searchCmd = `node "${searchScriptPath}" --timeout 4000`;
+    let outputText = '';
+    let errorText = '';
+    let exitCode = 0;
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        this.cmdService.run(searchCmd, null, false, true).subscribe({
+          next: (output: CmdOutput) => {
+            this.networkOtaScanStreamId = output.streamId;
+            if (output.data) {
+              outputText += output.data;
+            }
+
+            if (output.type === 'error') {
+              errorText = output.error || this.translate.instant('NETWORK_OTA.SEARCH_FAILED');
+              exitCode = 1;
+              return;
+            }
+
+            if (output.type === 'close') {
+              exitCode = output.code ?? (output.signal ? 1 : 0);
+              if (exitCode !== 0 && !errorText) {
+                errorText = output.stderr || output.stdout || this.translate.instant('NETWORK_OTA.SEARCH_FAILED');
+              }
+            }
+          },
+          error: reject,
+          complete: () => resolve(),
+        });
+      });
+
+      if (this.networkOtaScanCancelled) {
+        return;
+      }
+
+      if (exitCode !== 0) {
+        throw new Error(errorText || this.translate.instant('NETWORK_OTA.SEARCH_FAILED'));
+      }
+
+      const discoveredTargets = this.parseNetworkOtaMdnsResult(outputText);
+      this.networkOtaDiscoveredTargets = discoveredTargets;
+
+      if (discoveredTargets.length > 0) {
+        this.message.success(this.translate.instant('NETWORK_OTA.SEARCH_DONE', { count: discoveredTargets.length }));
+      } else {
+        this.message.warning(this.translate.instant('NETWORK_OTA.SEARCH_EMPTY'));
+      }
+    } catch (error) {
+      if (!this.networkOtaScanCancelled) {
+        this.message.error(error?.message || this.translate.instant('NETWORK_OTA.SEARCH_FAILED'));
+      }
+    } finally {
+      this.networkOtaScanInProgress = false;
+      this.networkOtaScanStreamId = null;
+      if (this.showPortList) {
+        this.getDevicePortList(true);
+      }
+    }
+  }
+
+  private parseNetworkOtaMdnsResult(outputText: string): NetworkOtaTarget[] {
+    const resultLine = String(outputText || '')
+      .split(/\r\n|\n|\r/)
+      .map(line => line.trim())
+      .reverse()
+      .find(line => line.startsWith('[network-ota-mdns:result]'));
+
+    if (!resultLine) {
+      return [];
+    }
+
+    const rawJson = resultLine.slice('[network-ota-mdns:result]'.length).trim();
+    let targets: any[] = [];
+    try {
+      targets = JSON.parse(rawJson);
+    } catch (error) {
+      console.warn('Parse WiFi OTA mDNS result failed:', error);
+      return [];
+    }
+
+    if (!Array.isArray(targets)) {
+      return [];
+    }
+
+    return targets
+      .map(target => this.normalizeNetworkOtaTarget(target))
+      .filter((target: NetworkOtaTarget | null): target is NetworkOtaTarget => !!target);
   }
 
   // 选择子菜单项-修改编译上传配置

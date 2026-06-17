@@ -18,6 +18,18 @@ import { WorkflowService, ProcessState } from '../../../services/workflow.servic
 import { BleOtaProgress, UploaderBleService } from '../../../services/uploader-ble.service';
 import { AppDataResourceLockService } from '../../../services/appdata-resource-lock.service';
 
+interface NetworkOtaUploadTarget {
+  id?: string;
+  name?: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  uploadPath: string;
+  ssl?: boolean;
+  timeoutMs?: number;
+}
+
 @Injectable()
 export class _UploaderService {
   private translate = inject(TranslateService);
@@ -189,6 +201,15 @@ export class _UploaderService {
           return;
         }
 
+        if (capturedPortInfo?.type === 'network-ota' && !await this.canUseWifiOta()) {
+          this.uploadInProgress = false;
+          this._builderService.isUploading = false;
+          const message = this.networkT('MISSING_DEPENDENCY');
+          this.handleUploadError(message, this.networkT('UPLOAD_FAILED_TITLE'), message);
+          reject({ state: 'error', text: message });
+          return;
+        }
+
         if (capturedPortInfo?.type === 'ble') {
           try {
             await this.uploaderBleService.authorizeDevice(capturedSerialPort, progress => {
@@ -296,6 +317,18 @@ export class _UploaderService {
         if (capturedPortInfo?.type === 'ble') {
           try {
             const result = await this.uploadByBle(buildPath, capturedPortInfo, boardJson?.name);
+            this.uploadPromiseReject = null;
+            resolve(result);
+          } catch (error) {
+            this.uploadPromiseReject = null;
+            reject(error);
+          }
+          return;
+        }
+
+        if (capturedPortInfo?.type === 'network-ota') {
+          try {
+            const result = await this.uploadByNetworkOta(buildPath, capturedPortInfo, boardJson?.name);
             this.uploadPromiseReject = null;
             resolve(result);
           } catch (error) {
@@ -848,6 +881,259 @@ export class _UploaderService {
     return { flags, cleanParam };
   }
 
+  private async uploadByNetworkOta(buildPath: string, portInfo: any, boardName = ''): Promise<ActionState> {
+    let target: NetworkOtaUploadTarget;
+    try {
+      target = this.getNetworkOtaTarget(portInfo);
+    } catch (error) {
+      const message = error?.message || this.networkT('UPLOAD_FAILED_FALLBACK');
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+      this.handleUploadError(message, this.networkT('UPLOAD_FAILED_TITLE'), message);
+      this.workflowService.finishUpload(false, message);
+      throw { state: 'error', text: message };
+    }
+
+    const firmwarePath = this.uploaderBleService.findFirmwareFile(buildPath);
+    if (!firmwarePath) {
+      const message = this.networkT('NO_FIRMWARE');
+      this.logNetworkOtaUpload(this.networkT('LOG_ERROR', { message }), 'error');
+      this.logNetworkOtaUpload(this.networkT('LOG_BUILD_PATH', { path: buildPath }), 'error');
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+      this.handleUploadError(message, this.networkT('UPLOAD_FAILED_TITLE'), this.networkT('LOG_BUILD_PATH', { path: buildPath }));
+      this.workflowService.finishUpload(false, 'WiFi OTA firmware not found');
+      throw { state: 'error', text: message };
+    }
+
+    const firmwareStats = window['fs'].statSync(firmwarePath);
+    const firmwareSize = Number(firmwareStats?.size || 0);
+    const firmwareName = window['path'].basename(firmwarePath);
+    const targetName = target.name || boardName || `${target.host}:${target.port}`;
+
+    this.logNetworkOtaUpload(this.networkT('LOG_PREPARE_UPLOAD', { target: targetName }));
+    this.logNetworkOtaUpload(this.networkT('LOG_FIRMWARE_FILE', { path: firmwarePath }));
+    this.logNetworkOtaUpload(this.networkT('LOG_FIRMWARE_SIZE', { size: this.formatBytes(firmwareSize) }));
+
+    const currentProjectPath = this.projectService.currentProjectPath;
+    const tempPath = window['path'].join(currentProjectPath, '.temp');
+    if (!window['fs'].existsSync(tempPath)) {
+      window['fs'].mkdirSync(tempPath, { recursive: true });
+    }
+
+    const uploadConfig = {
+      firmwarePath,
+      host: target.host,
+      port: target.port,
+      username: target.username,
+      password: target.password,
+      uploadPath: target.uploadPath,
+      ssl: !!target.ssl,
+      timeoutMs: target.timeoutMs || 60000,
+    };
+
+    const configFilePath = window['path'].join(tempPath, 'network-ota-upload-config.json');
+    try {
+      await window['fs'].writeFileSync(configFilePath, JSON.stringify(uploadConfig, null, 2));
+    } catch (err) {
+      this.uploadInProgress = false;
+      this._builderService.isUploading = false;
+      const message = this.uploadT('CONFIG_WRITE_FAILED_WITH_MESSAGE', { message: err.message || err });
+      this.handleUploadError(message);
+      this.workflowService.finishUpload(false, 'WiFi OTA config write failed');
+      throw { state: 'error', text: this.uploadT('CONFIG_WRITE_FAILED') };
+    }
+
+    const uploadScriptPath = window['path'].join(window['path'].getAilyChildPath(), 'scripts', 'network-ota-upload.js');
+    const uploadCmd = `node "${uploadScriptPath}" "${configFilePath}"`;
+    const title = this.networkT('UPLOADING_TITLE');
+    let lastProgress = 0;
+    let errorText = '';
+    let fullErrorText = '';
+    let completed = false;
+    let processExitCode: number | null = null;
+    let bufferData = '';
+
+    this.uploadInProgress = true;
+    this.uploadCompleted = false;
+    this.noticeService.update({
+      title,
+      text: this.networkT('PREPARING', { target: targetName || firmwareName }),
+      state: 'doing',
+      progress: 0,
+      setTimeout: 0,
+      stop: () => { this.cancel(); }
+    });
+
+    return new Promise<ActionState>((resolve, reject) => {
+      const handleLine = (line: string) => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || this.cancelled) return;
+
+        const progressMatch = trimmedLine.match(/^\[network-ota:progress\]\s+(\d+)(?:\s+(.*))?$/);
+        if (progressMatch) {
+          const progressValue = Math.max(0, Math.min(100, Number(progressMatch[1] || 0)));
+          const progressText = progressMatch[2] || this.networkT('UPLOADING_FALLBACK');
+          if (progressValue >= lastProgress || progressValue === 100) {
+            lastProgress = progressValue;
+            this.safeUpdateNotice({
+              title,
+              text: progressText,
+              state: 'doing',
+              progress: progressValue,
+              setTimeout: 0,
+              stop: () => { this.cancel(); },
+            });
+          }
+          this.logNetworkOtaUpload(`${progressText} ${progressValue}%`);
+          return;
+        }
+
+        if (trimmedLine === '[network-ota:done]') {
+          completed = true;
+          this.uploadCompleted = true;
+          return;
+        }
+
+        const errorMatch = trimmedLine.match(/^\[network-ota:error\]\s*(.*)$/);
+        if (errorMatch) {
+          errorText = errorMatch[1] || this.networkT('UPLOAD_FAILED_FALLBACK');
+          fullErrorText += `${errorText}\n`;
+          this.isErrored = true;
+          this.logNetworkOtaUpload(errorText, 'error');
+          return;
+        }
+
+        if (/error|failed|timed out|http\s+[45]\d\d/i.test(trimmedLine)) {
+          errorText = trimmedLine;
+          fullErrorText += `${trimmedLine}\n`;
+          this.isErrored = true;
+          this.logNetworkOtaUpload(trimmedLine, 'error');
+          return;
+        }
+
+        this.logNetworkOtaUpload(trimmedLine);
+      };
+
+      void this.appDataResourceLock.runShared('upload:network-ota', () => new Promise<void>((releaseUploadLock) => {
+        if (this.cancelled) {
+          releaseUploadLock();
+          return;
+        }
+
+        this.cmdService.run(uploadCmd, null, false).subscribe({
+          next: (output: CmdOutput) => {
+            this.streamId = output.streamId;
+
+            if (output.type === 'close') {
+              processExitCode = output.code ?? (output.signal ? 1 : 0);
+              if (!this.cancelled && processExitCode !== 0) {
+                errorText = output.signal
+                  ? this.uploadT('PROCESS_SIGNAL_TERMINATED', { signal: output.signal })
+                  : this.uploadT('PROCESS_EXITED_WITH_CODE', { code: processExitCode });
+                if (!fullErrorText) {
+                  fullErrorText = output.stderr || output.stdout || errorText;
+                }
+                this.isErrored = true;
+              }
+              return;
+            }
+
+            if (output.type === 'error') {
+              errorText = output.error || this.uploadT('PROCESS_START_FAILED');
+              if (!fullErrorText) {
+                fullErrorText = errorText;
+              }
+              this.isErrored = true;
+              return;
+            }
+
+            if (this.cancelled && this['shouldKillImmediately'] && this.streamId) {
+              this.cmdService.kill(this.streamId);
+              this['shouldKillImmediately'] = false;
+              return;
+            }
+
+            if (this.cancelled) return;
+
+            if (output.data) {
+              const lines = (bufferData + output.data).split(/\r\n|\n|\r/);
+              bufferData = lines.pop() || '';
+              lines.forEach(handleLine);
+            }
+          },
+          error: (error: any) => {
+            releaseUploadLock();
+            this.uploadInProgress = false;
+            this._builderService.isUploading = false;
+            const fullErrorMessage = (error?.error || error?.stack || error?.message || String(error)).toString();
+            this.handleUploadError(error.message || this.networkT('UPLOAD_FAILED_FALLBACK'), this.networkT('UPLOAD_FAILED_TITLE'), fullErrorMessage);
+            this.workflowService.finishUpload(false, error.message || 'WiFi OTA upload error');
+            reject({ state: 'error', text: error.message || this.networkT('UPLOAD_FAILED_FALLBACK') });
+          },
+          complete: () => {
+            releaseUploadLock();
+            if (bufferData.trim()) {
+              handleLine(bufferData);
+              bufferData = '';
+            }
+
+            this.uploadInProgress = false;
+
+            if (this.cancelled) {
+              this.logNetworkOtaUpload(this.networkT('LOG_UPLOAD_CANCELLED'), 'warn');
+              this.safeUpdateNotice({
+                title: this.networkT('CANCELLED'),
+                text: this.networkT('CANCELLED'),
+                state: 'warn',
+                setTimeout: 55000,
+                isCancellationNotice: true,
+              });
+              this._builderService.isUploading = false;
+              this.workflowService.finishUpload(false, 'WiFi OTA cancelled');
+              reject({ state: 'warn', text: this.networkT('CANCELLED') });
+              return;
+            }
+
+            if (!completed && !this.isErrored && (processExitCode === null || processExitCode === 0)) {
+              completed = true;
+            }
+
+            if (this.isErrored) {
+              const message = errorText || this.networkT('UPLOAD_FAILED_FALLBACK');
+              this._builderService.isUploading = false;
+              this.handleUploadError(message, this.networkT('UPLOAD_FAILED_TITLE'), fullErrorText || message);
+              this.workflowService.finishUpload(false, message);
+              reject({ state: 'error', text: message });
+              return;
+            }
+
+            if (completed) {
+              this.uploadCompleted = true;
+              this._builderService.isUploading = false;
+              this.workflowService.finishUpload(true);
+              this.logNetworkOtaUpload(this.networkT('LOG_UPLOAD_DONE', { size: this.formatBytes(firmwareSize) }), 'done');
+              this.safeUpdateNotice({
+                title: this.networkT('UPLOAD_DONE_TITLE'),
+                text: this.networkT('UPLOAD_DONE_TEXT', { size: this.formatBytes(firmwareSize) }),
+                state: 'done',
+                setTimeout: 55000,
+              });
+              resolve({ state: 'done', text: this.networkT('UPLOAD_DONE_SHORT') });
+              return;
+            }
+
+            const message = this.networkT('UPLOAD_FAILED_FALLBACK');
+            this._builderService.isUploading = false;
+            this.handleUploadError(message, this.networkT('UPLOAD_FAILED_TITLE'), fullErrorText || message);
+            this.workflowService.finishUpload(false, message);
+            reject({ state: 'error', text: message });
+          }
+        });
+      }));
+    });
+  }
+
   private async uploadByBle(buildPath: string, portInfo: any, boardName = ''): Promise<ActionState> {
     const firmwarePath = this.uploaderBleService.findFirmwareFile(buildPath);
     if (!firmwarePath) {
@@ -978,6 +1264,65 @@ export class _UploaderService {
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
   }
 
+  private getNetworkOtaTarget(portInfo: any): NetworkOtaUploadTarget {
+    const source = portInfo?.extra?.target || portInfo?.extra || {};
+    const host = (source.host || portInfo?.name || '').toString().trim();
+    const port = Number(source.port || 65280);
+    const uploadPath = (source.uploadPath || '/sketch').toString().trim();
+
+    if (!host) {
+      throw new Error(this.networkT('INVALID_HOST'));
+    }
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(this.networkT('INVALID_PORT'));
+    }
+
+    return {
+      id: source.id || portInfo?.name,
+      name: source.name || portInfo?.text || '',
+      host,
+      port,
+      username: (source.username || 'arduino').toString(),
+      password: (source.password || 'password').toString(),
+      uploadPath: uploadPath.startsWith('/') ? uploadPath : `/${uploadPath}`,
+      ssl: !!source.ssl,
+      timeoutMs: Math.max(1000, Number(source.timeoutMs || 60000)),
+    };
+  }
+
+  private async hasProjectDependency(dependencyName: string): Promise<boolean> {
+    try {
+      const packageJson = await this.projectService.getPackageJson();
+      const dependencies = {
+        ...(packageJson?.dependencies || {}),
+        ...(packageJson?.devDependencies || {}),
+        ...(packageJson?.optionalDependencies || {}),
+        ...(packageJson?.peerDependencies || {}),
+      };
+
+      return Object.prototype.hasOwnProperty.call(dependencies, dependencyName);
+    } catch (error) {
+      console.warn('读取项目依赖失败:', error);
+      return false;
+    }
+  }
+
+  private async canUseWifiOta(): Promise<boolean> {
+    const core = (this.projectService.currentBoardConfig?.['core'] || '').toLowerCase();
+    return this.isEsp32Core(core) && await this.hasProjectDependency('@aily-project/lib-wifiota');
+  }
+
+  private isEsp32Core(core: string): boolean {
+    return core === 'esp32' || core.startsWith('esp32:');
+  }
+
+  private logNetworkOtaUpload(detail: string, state?: string) {
+    this.logService.update({
+      detail: `[WiFi OTA] ${detail}`,
+      state,
+    });
+  }
+
   private logBleUpload(detail: string, state?: string) {
     this.logService.update({
       detail: `[BLE OTA] ${detail}`,
@@ -991,6 +1336,10 @@ export class _UploaderService {
 
   private t(key: string, params?: Record<string, any>): string {
     return this.translate.instant(`BLE_OTA.${key}`, params);
+  }
+
+  private networkT(key: string, params?: Record<string, any>): string {
+    return this.translate.instant(`NETWORK_OTA.${key}`, params);
   }
 
   /**
