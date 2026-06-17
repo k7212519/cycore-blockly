@@ -1227,7 +1227,7 @@ export class BlocklyService {
         const blockTypesAfter = this.getRegisteredGenerators();
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
         this.loadedGenerators.set(filePath, new Set(newBlockTypes));
-        console.log(`Generator loaded from ${filePath}, registered blocks:`, newBlockTypes);
+        // console.log(`Generator loaded from ${filePath}, registered blocks:`, newBlockTypes);
         resolve(true);
       };
 

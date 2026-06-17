@@ -274,7 +274,7 @@ export class SettingsComponent implements OnDestroy {
   }
 
   async ngOnInit() {
-    await this.configService.init();
+    // await this.configService.init();
   }
 
   async ngAfterViewInit() {

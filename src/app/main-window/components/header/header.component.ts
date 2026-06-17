@@ -136,7 +136,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   async ngAfterViewInit() {
     this.bleDevicesSubscription = this.uploaderBleService.scanStateChanged.subscribe((state) => {
-      console.log('[BLE:header] scan state changed', state);
+      //console.log('[BLE:header] scan state changed', state);
       this.ngZone.run(() => {
         this.scheduleBlePortListRefresh();
       });
@@ -308,7 +308,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
    */
   private detectProbes(generation: number, portList: IMenuItem[], skipDetect: boolean) {
 
-    console.log('detectProbes');
+    // console.log('detectProbes');
 
     if (!skipDetect) {
       if (this.cachedDebuggerItems.length > 0) {
@@ -423,7 +423,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
     if (canShowBleOtaPorts) {
       const bleItems = this.uploaderBleService.getPortMenuItems(this.serialService.currentPort);
-      console.log('[BLE:header] getDevicePortList BLE items', bleItems.length, bleItems);
+      //console.log('[BLE:header] getDevicePortList BLE items', bleItems.length, bleItems);
       if (bleItems.length > 0) {
         if (portList0.length > 0) {
           portList0.push({ sep: true });
@@ -1015,10 +1015,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log('[BLE:header] start scan clicked');
+    //console.log('[BLE:header] start scan clicked');
     this.getDevicePortList(true);
     this.uploaderBleService.beginScan().then((device: BleOtaDeviceItem) => {
-      console.log('[BLE:header] scan selected device', device);
+      //console.log('[BLE:header] scan selected device', device);
       this.selectBleDevice(device);
       if (this.showPortList) {
         this.getDevicePortList(true);
@@ -1041,7 +1041,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.blePortListRefreshTimer = setTimeout(() => {
       this.blePortListRefreshTimer = null;
       if (this.showPortList) {
-        console.log('[BLE:header] refresh port list after BLE state change');
+        //console.log('[BLE:header] refresh port list after BLE state change');
         this.getDevicePortList(true);
       }
     }, 100);
@@ -1061,8 +1061,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // 选择子菜单项-修改编译上传配置
   async selectSubItem(subItem: IMenuItem) {
-    console.log('选择子菜单项:', subItem);
-
+    // console.log('选择子菜单项:', subItem);
     if (this.lastSelectedSubItemKey === (subItem.key + '_' + subItem.name)) {
       return;
     }
@@ -1171,7 +1170,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   async openBoardSelectorDialog() {
     // 获取开发板列表
     let boardList = await this.configService.loadBoardList();
-    console.log(boardList);
+    // console.log(boardList);
 
     // 显示开发板选择对话框
     const modalRef = this.modal.create({

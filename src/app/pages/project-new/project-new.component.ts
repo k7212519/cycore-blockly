@@ -24,6 +24,7 @@ import { debounceTime, takeUntil } from 'rxjs/operators';
 import { createBoardSearchIndex, searchBoards } from '../../utils/fuzzy-search.utils';
 import type { AnyOrama } from '@orama/orama';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import type { NewProjectData } from '../../types/project-new';
 
 @Component({
   selector: 'app-project-new',
@@ -126,8 +127,7 @@ export class ProjectNewComponent implements OnDestroy {
 
     // 切换标题
     // this.electronService.setTitle('PROJECT_NEW.TITLE');
-
-    await this.configService.init();
+    // await this.configService.init();
 
     // 先处理开发板列表数据
     let processedBoardList = this.process(this.configService.boardList);
@@ -557,17 +557,6 @@ export interface BoardInfo {
   "brand": string,
   "type"?: string, // 开发板类型/核心架构 (如 esp32:esp32, arduino:avr, etc)
   "mode"?: string[]
-}
-
-export interface NewProjectData {
-  name: string,
-  path: string,
-  board: {
-    name: string,
-    nickname: string,
-    version: string
-  },
-  devmode?: string
 }
 
 interface CloudProjectTemplate {
