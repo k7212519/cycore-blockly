@@ -23,10 +23,11 @@ blockly-main {
     cursor: pointer;
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
-        rgba(50, 50, 50, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+        var(--glass-bg);
+    border: 1px solid var(--glass-border);
     border-radius: 0 0 18px 18px;
-    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-soft);
     z-index: 99;
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     backdrop-filter: saturate(180%) blur(18px);
@@ -34,4 +35,10 @@ blockly-main {
     &:hover {
         color: #2a74ff;
     }
+}
+
+:host-context(.llight) .lib-mangager-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-top-color: var(--border-color);
+    box-shadow: 0 -10px 24px rgba(42, 62, 92, 0.08);
 }

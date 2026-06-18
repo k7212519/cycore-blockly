@@ -8,8 +8,8 @@
 .aily-task-action-viewer {
     border-radius: 8px;
     padding: 12px 16px;
-    background-color: #2d2d2d;
-    border: 1px solid #404040;
+    background-color: var(--surface-elevated);
+    border: 1px solid var(--control-bg);
     color: #e0e0e0;
     margin: 8px 0;
     width: 100%;
@@ -72,7 +72,7 @@
     min-width: 0;
     font-size: 13px;
     line-height: 1.5;
-    color: #ccc;
+    color: var(--text-secondary);
     padding-top: 2px;
     word-break: break-all;
     overflow-wrap: anywhere;
@@ -105,7 +105,7 @@
 
     &.primary {
         background-color: #1890ff;
-        color: #fff;
+        color: var(--text-primary);
         
         &:hover {
             background-color: #40a9ff;
@@ -117,27 +117,27 @@
     }
 
     &.secondary {
-        background-color: #404040;
+        background-color: var(--control-bg);
         color: #e0e0e0;
         border: 1px solid #555;
 
         &:hover {
-            background-color: #4a4a4a;
-            border-color: #666;
+            background-color: var(--border-strong);
+            border-color: var(--text-tertiary);
         }
 
         &:active {
-            background-color: #383838;
+            background-color: var(--control-bg);
         }
     }
 
     &.ghost {
         background-color: transparent;
-        color: #999;
+        color: var(--text-tertiary);
         padding: 6px 8px;
 
         &:hover {
-            color: #ccc;
+            color: var(--text-secondary);
             background-color: rgba(255, 255, 255, 0.05);
         }
 

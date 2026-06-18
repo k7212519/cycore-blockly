@@ -1,11 +1,11 @@
 .aily-mermaid-viewer {
   border-radius: 5px;
-  background-color: #3a3a3a;
+  background-color: var(--control-bg);
   max-height: 500px;
   overflow: auto;
 
   &:hover {
-    background-color: #3f3f3f;
+    background-color: var(--surface-raised);
   }
 
   // 错误卡片
@@ -18,7 +18,7 @@
       gap: 8px;
 
       .error-text {
-        color: #999;
+        color: var(--text-tertiary);
       }
     }
   }
@@ -47,7 +47,7 @@
       }
 
       .loading-text {
-        color: #888;
+        color: var(--text-tertiary);
         font-size: 13px;
       }
     }
@@ -94,7 +94,7 @@
         }
 
         .label-container {
-          fill: #333 !important;
+          fill: var(--border-strong) !important;
         }
       }
     }
@@ -154,7 +154,7 @@
 
       .hint {
         background-color: rgba(0, 0, 0, 0.6);
-        color: #ccc;
+        color: var(--text-secondary);
         padding: 6px 12px;
         border-radius: 4px;
         font-size: 12px;

@@ -5,6 +5,7 @@ import { ElectronService } from './services/electron.service';
 import { ConfigService } from './services/config.service';
 import { TranslationService } from './services/translation.service';
 import { EdaAuthService } from './auth/eda-auth.service';
+import { ThemeService } from './services/theme.service';
 
 // 声明 electronAPI 类型
 declare const window: any;
@@ -23,6 +24,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private configService = inject(ConfigService);
   private translationService = inject(TranslationService);
   private edaAuthService = inject(EdaAuthService);
+  private themeService = inject(ThemeService);
   private router = inject(Router);
 
   private exampleListListener: (() => void) | null = null;
@@ -30,6 +32,7 @@ export class AppComponent implements OnInit, OnDestroy {
   async ngOnInit() {
     await this.electronService.init();
     await this.configService.init();
+    this.themeService.initialize();
     await this.translationService.init();
     await this.edaAuthService.initialize();
 

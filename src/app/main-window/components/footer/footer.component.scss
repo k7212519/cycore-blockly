@@ -6,8 +6,8 @@ $footer-inner-height: 28px;
   justify-content: flex-start;
   align-items: center;
   height: $footer-height;
-  background: #222;
-  border-top: 2px solid #222427;
+  background: var(--app-bg);
+  border-top: 2px solid var(--border-color);
   position: relative;
 }
 
@@ -16,12 +16,12 @@ $footer-inner-height: 28px;
   height: $footer-inner-height;
 
   &:hover {
-    background: #3b3d40;
+    background: var(--hover-bg);
   }
 
   &.active {
     background: #007acc;
-    color: #ffffff;
+    color: #fff;
   }
 }
 

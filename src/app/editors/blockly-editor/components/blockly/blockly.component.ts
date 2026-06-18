@@ -8,30 +8,12 @@ import { TranslateService } from '@ngx-translate/core';
 import * as zhHans from 'blockly/msg/zh-hans';
 import * as zhHant from 'blockly/msg/zh-hant';
 import * as en from 'blockly/msg/en';
-import * as ja from 'blockly/msg/ja';
-import * as ko from 'blockly/msg/ko';
-import * as de from 'blockly/msg/de';
-import * as fr from 'blockly/msg/fr';
-import * as es from 'blockly/msg/es';
-import * as pt from 'blockly/msg/pt';
-import * as ru from 'blockly/msg/ru';
-import * as ar from 'blockly/msg/ar';
 
 // 语言代码到 Blockly 语言包的映射
 const BLOCKLY_LOCALES: { [key: string]: any } = {
   'zh_cn': zhHans,
   'zh_hk': zhHant,
-  'zh-hans': zhHans,
-  'zh-hant': zhHant,
   'en': en,
-  'ja': ja,
-  'ko': ko,
-  'de': de,
-  'fr': fr,
-  'es': es,
-  'pt': pt,
-  'ru': ru,
-  'ar': ar,
 };
 // import {
 //   ContinuousToolbox,
@@ -74,7 +56,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ConfigService } from '../../../../services/config.service';
 import { NoticeService } from '../../../../services/notice.service';
 import { Minimap } from '@blockly/workspace-minimap';
-import { DarkTheme } from './theme.config';
+import { DarkTheme, LightTheme } from './theme.config';
+import { ThemeService } from '../../../../services/theme.service';
 
 class RoundedVerticalFlyout extends (Blockly as any).VerticalFlyout {
   constructor(workspaceOptions: any) {
@@ -353,8 +336,10 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     private bitmapUploadService: BitmapUploadService,
     private noticeService: NoticeService,
     private translateService: TranslateService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private themeService: ThemeService,
   ) {
+    this.applyTheme(this.themeService.currentTheme);
     // Initialize GlobalServiceManager with BitmapUploadService
     const globalServiceManager = GlobalServiceManager.getInstance();
     globalServiceManager.setBitmapUploadService(this.bitmapUploadService);
@@ -366,10 +351,27 @@ export class BlocklyComponent implements OnInit, OnDestroy {
         this.updateBlocklyLocale(event.lang);
       });
 
+    this.themeService.theme$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((theme) => this.applyTheme(theme));
+
     // 订阅配置重载，实时应用 flyoutAutoClose 等 blockly 配置
     this.configService.configReloaded$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.applyFlyoutAutoClose());
+  }
+
+  private applyTheme(theme: 'dark' | 'light'): void {
+    const isLight = theme === 'light';
+    this.options.theme = isLight ? LightTheme : DarkTheme;
+    this.options.grid.colour = isLight ? 'transparent' : '#393939';
+    this.options.grid.length = isLight ? 0 : 2;
+
+    if (this.workspace) {
+      this.workspace.setTheme(this.options.theme);
+      this.workspace.getGrid()?.setLength(this.options.grid.length);
+      Blockly.svgResize(this.workspace);
+    }
   }
 
   ngOnInit(): void {

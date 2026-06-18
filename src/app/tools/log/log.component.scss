@@ -12,8 +12,8 @@
   right: 0;
   bottom: 0;
   overflow-x: hidden;
-  background-color: rgba(0, 0, 0, 0.95);
-  color: #fff;
+  background-color: var(--surface-base);
+  color: var(--text-primary);
 
   overflow-y: auto;
 
@@ -34,11 +34,11 @@
     align-items: flex-start;
     padding-left: 10px;
     cursor: pointer;
-    color: #a5a5a5;
-    border-left: 5px solid #3f3f3f;
+    color: var(--text-secondary);
+    border-left: 5px solid var(--surface-raised);
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.2);
+      background-color: var(--hover-bg);
     }
 
     &.error {
@@ -74,7 +74,7 @@
     }
 
     .text {
-      color: #eee;
+      color: var(--text-primary);
       flex: 1;
       min-width: 0;
       word-wrap: break-word;
@@ -97,15 +97,15 @@
   }
 
   &::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
+    background: transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--scrollbar-thumb);
     border-radius: 4px;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.5);
+      background: var(--text-tertiary);
     }
   }
 }
@@ -117,7 +117,7 @@
 //   width: 100%;
 //   height: 100%;
 //   background-color: rgba(0, 0, 0, 0.95);
-//   color: #fff;
+//   color: var(--text-primary);
 
 //   .item {
 //     min-height: 24px;
@@ -127,8 +127,8 @@
 //     padding-left: 10px; // margin-bottom: 10px;
 //     cursor: pointer;
 //     margin-bottom: 3px;
-//     color: #a5a5a5;
-//     border-left: 5px solid #3f3f3f;
+//     color: var(--text-secondary);
+//     border-left: 5px solid var(--surface-raised);
 
 //     &.error {
 //       border-left: 5px solid #940b0d;
@@ -162,7 +162,7 @@
 //     }
 
 //     .text {
-//       color: #eee;
+//       color: var(--text-primary);
 //     }
 
 //     .btns {

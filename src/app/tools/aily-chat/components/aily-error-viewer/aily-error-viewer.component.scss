@@ -1,8 +1,8 @@
 .aily-error-viewer {
     border-radius: 5px;
     padding: 5px 10px;
-    background-color: #3a3a3a;
-    color: #ccc;
+    background-color: var(--control-bg);
+    color: var(--text-secondary);
     overflow: hidden;
     display: flex;
 }

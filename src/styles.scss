@@ -1,10 +1,64 @@
+:root,
+.ddark {
+  --app-bg: #222;
+  --canvas-bg: #262626;
+  --surface-base: #323437;
+  --surface-subtle: #242424;
+  --surface-elevated: #2b2d30;
+  --surface-raised: #3e4243;
+  --control-bg: #363636;
+  --hover-bg: #3a3c3f;
+  --selected-bg: #405e8d;
+  --border-color: #222427;
+  --border-strong: #43494b;
+  --text-primary: rgba(255, 255, 255, 0.94);
+  --text-secondary: rgba(255, 255, 255, 0.68);
+  --text-tertiary: rgba(255, 255, 255, 0.46);
+  --text-disabled: rgba(255, 255, 255, 0.32);
+  --glass-bg: rgba(34, 34, 34, 0.78);
+  --glass-highlight: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --overlay-hover: rgba(255, 255, 255, 0.09);
+  --shadow-soft: 0 18px 42px rgba(0, 0, 0, 0.22);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --accent: #348ce9;
+}
+
+:root[data-theme='light'],
+.llight {
+  --app-bg: #eef1f5;
+  --canvas-bg: #ffffff;
+  --surface-base: #f7f8fa;
+  --surface-subtle: #e8ecf1;
+  --surface-elevated: #f5f7fa;
+  --surface-raised: #ffffff;
+  --control-bg: #ffffff;
+  --hover-bg: #e8edf4;
+  --selected-bg: #dce9fb;
+  --border-color: #d9dee7;
+  --border-strong: #cbd2dc;
+  --text-primary: #172033;
+  --text-secondary: rgba(23, 32, 51, 0.68);
+  --text-tertiary: rgba(23, 32, 51, 0.48);
+  --text-disabled: rgba(23, 32, 51, 0.34);
+  --glass-bg: rgba(255, 255, 255, 0.82);
+  --glass-highlight: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(44, 62, 86, 0.14);
+  --overlay-hover: rgba(40, 76, 122, 0.08);
+  --shadow-soft: 0 18px 42px rgba(42, 62, 92, 0.14);
+  --scrollbar-thumb: rgba(55, 70, 92, 0.26);
+  --accent: #287bec;
+}
+
+html,
 body {
   width: 100vw;
   height: 100vh;
   margin: 0;
   font-family: "MiSans Regular", "FiraCode Regular" !important;
   overflow: hidden;
-  background-color: #222 !important;
+  color: var(--text-primary);
+  background-color: var(--app-bg) !important;
   user-select: none;
 }
 
@@ -21,7 +75,7 @@ textarea {
 .loading-box {
   width: 100vw;
   height: 100vh;
-  background: #222;
+  background: var(--app-bg);
   position: fixed;
   top: 0;
   left: 0;
@@ -33,7 +87,7 @@ textarea {
   border-radius: 5px;
 
   .text {
-    color: #fff;
+    color: var(--text-primary);
     margin-left: 12px;
     margin-top: 5px;
     font-size: 18px;
@@ -102,7 +156,7 @@ nz-option-container {
 }
 
 .llight {
-  background-color: #f2f3f5;
+  background-color: var(--app-bg);
 }
 
 .ddark {
@@ -112,11 +166,11 @@ nz-option-container {
 
 .sscroll {
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .bborder {
-  border: 1px solid #505050;
+  border: 1px solid var(--border-strong);
 }
 
 .vsfont {
@@ -165,5 +219,43 @@ nz-sider {
 .blocklyWidgetDiv {
   .blocklyHtmlInput {
     color: #333;
+  }
+}
+
+app-root {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  color: var(--text-primary);
+  background: var(--app-bg);
+}
+
+:root[data-theme='light'] {
+  input,
+  textarea,
+  select {
+    color: var(--text-primary);
+  }
+
+  .ant-empty-description,
+  .ant-form-item-label > label,
+  .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked),
+  .ant-tabs-tab-btn,
+  .ant-tree,
+  .ant-list,
+  .ant-card {
+    color: var(--text-secondary);
+  }
+
+  .ant-modal-mask {
+    background: rgba(31, 42, 58, 0.28);
+  }
+
+  .ant-message-notice-content,
+  .ant-dropdown-menu,
+  .ant-select-dropdown,
+  .ant-picker-dropdown,
+  .ant-popover-inner {
+    box-shadow: var(--shadow-soft);
   }
 }

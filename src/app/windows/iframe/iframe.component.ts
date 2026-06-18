@@ -19,6 +19,8 @@ import { CommonModule } from '@angular/common';
 import { WindowMessenger, connect, Connection } from 'penpal';
 import { UiService } from '../../services/ui.service';
 import { TranslateService } from '@ngx-translate/core';
+import { Subject, takeUntil } from 'rxjs';
+import { ThemeService } from '../../services/theme.service';
 
 /** iframe IPC 统一载荷（规范：docs/iframe-ipc-spec.md） */
 export interface IframeIpcPayload<T = unknown> {
@@ -86,6 +88,8 @@ export class IframeComponent implements OnInit, OnDestroy {
   private connectionGraphIpcCleanup: (() => void) | null = null;
   /** 待响应的保存请求：messageId -> resolve */
   private pendingSaveResolvers = new Map<string, (result: { success: boolean }) => void>();
+  private currentUrl = '';
+  private destroy$ = new Subject<void>();
 
   constructor(
     @Optional() @Inject(NZ_MODAL_DATA) public data: IframeModalData | null,
@@ -97,7 +101,15 @@ export class IframeComponent implements OnInit, OnDestroy {
     private ngZone: NgZone,
     private uiService: UiService,
     private translate: TranslateService,
+    private themeService: ThemeService,
   ) {
+    this.themeService.theme$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.currentUrl) {
+          this.applyUrl(this.currentUrl);
+        }
+      });
     if (this.data) {
       if (this.data.url) {
         this.applyUrl(this.data.url);
@@ -151,9 +163,11 @@ export class IframeComponent implements OnInit, OnDestroy {
    * 统一应用 URL：设置 iframeSrc、allowedOrigins、isConnectionGraphWindow
    */
   private applyUrl(url: string): void {
-    this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+    this.currentUrl = url;
+    const themedUrl = this.applyThemeParam(url);
+    this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(themedUrl);
     try {
-      this.allowedOrigins = [new URL(url).origin];
+      this.allowedOrigins = [new URL(themedUrl).origin];
     } catch {
       this.allowedOrigins = ['*'];
     }
@@ -162,6 +176,19 @@ export class IframeComponent implements OnInit, OnDestroy {
     }
     if (url.includes('component-viewer')) {
       this.isComponentViewerWindow = true;
+    }
+  }
+
+  private applyThemeParam(url: string): string {
+    if (!url.includes('tool.aily.pro') && !url.includes('localhost:4201')) {
+      return url;
+    }
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.set('theme', this.themeService.currentTheme);
+      return parsed.toString();
+    } catch {
+      return url;
     }
   }
 
@@ -448,6 +475,8 @@ export class IframeComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
     if (this.connectionGraphIpcCleanup) {
       this.connectionGraphIpcCleanup();
       this.connectionGraphIpcCleanup = null;
@@ -482,7 +511,7 @@ export class IframeComponent implements OnInit, OnDestroy {
           data.componentConfigs || currentPayload?.componentConfigs || {},
         components: data.components || [],
         connections: data.connections || [],
-        theme: data.theme || currentPayload?.theme || 'dark',
+        theme: data.theme || currentPayload?.theme || this.themeService.currentTheme,
       };
       this.iframeData = newPayload;
       await this.pushDataToRemote();

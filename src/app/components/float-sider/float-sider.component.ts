@@ -16,6 +16,7 @@ import { AuthService } from '../../services/auth.service';
 import { ImageViewerComponent } from '../image-viewer/image-viewer.component';
 import { MermaidComponent } from '../../tools/aily-chat/components/aily-mermaid-viewer/mermaid/mermaid.component';
 import mermaid from 'mermaid';
+import { ThemeService } from '../../services/theme.service';
 @Component({
   selector: 'app-float-sider',
   imports: [
@@ -44,7 +45,8 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
     private chatService: ChatService,
     private connectionGraphService: ConnectionGraphService,
     private translate: TranslateService,
-    private authService: AuthService
+    private authService: AuthService,
+    private themeService: ThemeService,
   ) { }
 
   private requireLogin(): boolean {
@@ -122,7 +124,7 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
       // });
       this.uiService.openWindow({
         title: this.translate.instant('FLOAT_SIDER.PINMAP'),
-        path: `iframe?url=${encodeURIComponent('https://tool.aily.pro/component-viewer?type=json&theme=dark&lang=' + this.translate.currentLang)}`,
+        path: `iframe?url=${encodeURIComponent(`https://tool.aily.pro/component-viewer?type=json&theme=${this.themeService.currentTheme}&lang=${this.translate.currentLang}`)}`,
         // path: `iframe?url=${encodeURIComponent('http://localhost:4201/component-viewer?type=json&theme=dark&lang=' + this.translate.currentLang)}`,
         data: this.electronService.readFile(pinmapJsonPath),
         width: 800,
@@ -206,7 +208,10 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
         this.message.warning(this.translate.instant('FLOAT_SIDER.ARCH_EMPTY'));
         return;
       }
-      mermaid.initialize({ theme: 'dark', startOnLoad: false });
+      mermaid.initialize({
+        theme: this.themeService.isLight ? 'default' : 'dark',
+        startOnLoad: false,
+      });
       const diagramId = `mermaid-arch-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const result = await mermaid.render(diagramId, code);
       const svg = typeof result === 'object' && result?.svg ? result.svg : typeof result === 'string' ? result : '';
@@ -257,7 +262,7 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
       return;
     }
 
-    let windowUrl = 'https://tool.aily.pro/connection-graph?type=json&theme=dark&lang=' + this.translate.currentLang;
+    let windowUrl = `https://tool.aily.pro/connection-graph?type=json&theme=${this.themeService.currentTheme}&lang=${this.translate.currentLang}`;
     // let windowUrl = 'http://localhost:4201/connection-graph?type=json&theme=dark&lang=' + this.translate.currentLang;
 
     this.uiService.openWindow({

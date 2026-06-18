@@ -9,6 +9,7 @@ import { codeToHtml } from 'shiki';
 import { Observable, from, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { ConfigService } from '../../../services/config.service';
+import { ThemeService } from '../../../services/theme.service';
 
 /**
  * 库/开发板验证回调事件
@@ -56,7 +57,8 @@ export class MarkdownPipe implements PipeTransform {
   private static componentCounter = 0;
   constructor(
     private sanitizer: DomSanitizer,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private themeService: ThemeService,
   ) {
     this.marked = new Marked(
       markedHighlight({
@@ -90,7 +92,7 @@ export class MarkdownPipe implements PipeTransform {
 
             const html = await codeToHtml(code, {
               lang: normalizedLang,
-              theme: 'github-dark'
+              theme: this.themeService.isLight ? 'github-light' : 'github-dark'
             });
             return html;
           } catch (error) {

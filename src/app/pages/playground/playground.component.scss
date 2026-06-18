@@ -1,21 +1,26 @@
 .lib-manager-box {
     position: absolute;
-    background: #1f1f1f;
+    background: var(--app-bg);
     width: 100%;
     min-height: 100%;
     top: 0;
     left: 0;
     z-index: 99;
+    box-sizing: border-box;
+    padding-top: var(--floating-header-safe-top, 74px);
 
     .header {
-        height: 40px;
+        min-height: 56px;
         display: flex;
         align-items: center;
-        border-bottom: 1px solid #333;
+        padding: 8px 18px;
+        border-bottom: 1px solid var(--border-color);
         position: sticky;
         top: 0;
         z-index: 99;
-        background: #222;
+        background: var(--glass-bg);
+        -webkit-backdrop-filter: saturate(180%) blur(18px);
+        backdrop-filter: saturate(180%) blur(18px);
 
         .btns {
             position: absolute;
@@ -30,20 +35,34 @@
             width: 40px;
             font-size: 19px;
             flex-shrink: 0;
+            border-radius: 50%;
+
+            &:hover {
+                background: var(--hover-bg);
+            }
         }
 
         nz-input-group {
-            width: 160px;
+            width: min(260px, 28vw);
+            height: 38px;
             flex-shrink: 0;
             margin: 0 15px 0 10px;
+            border-radius: 999px;
         }
     }
 }
 
 .tag-list {
+    display: flex;
+    gap: 6px;
     white-space: nowrap;
 
     nz-tag {
+        height: 34px;
+        line-height: 32px;
+        padding: 0 14px;
+        margin: 0;
+        border-radius: 999px;
         cursor: pointer;
     }
 }

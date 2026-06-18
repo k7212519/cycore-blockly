@@ -1,9 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { SerialMonitorService } from '../../serial-monitor.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { FormsModule } from '@angular/forms';
 import { NzCodeEditorModule } from 'ng-zorro-antd/code-editor';
+import { Subject, takeUntil } from 'rxjs';
+import { ThemeService } from '../../../../services/theme.service';
 
 @Component({
   selector: 'app-quick-send-editor',
@@ -15,7 +17,7 @@ import { NzCodeEditorModule } from 'ng-zorro-antd/code-editor';
   templateUrl: './quick-send-editor.component.html',
   styleUrl: './quick-send-editor.component.scss'
 })
-export class QuickSendEditorComponent {
+export class QuickSendEditorComponent implements OnDestroy {
 
   options: any = {
     language: 'json',
@@ -25,14 +27,29 @@ export class QuickSendEditorComponent {
   }
 
   code = '';
+  private destroy$ = new Subject<void>();
 
   constructor(
     private serialMonitorService: SerialMonitorService,
-    private message: NzMessageService
-  ) { }
+    private message: NzMessageService,
+    private themeService: ThemeService,
+  ) {
+    this.themeService.theme$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((theme) => {
+        const monacoTheme = theme === 'light' ? 'vs' : 'vs-dark';
+        this.options = { ...this.options, theme: monacoTheme };
+        (window as any).monaco?.editor?.setTheme(monacoTheme);
+      });
+  }
 
   ngOnInit() {
     this.code = JSON.stringify(this.serialMonitorService.quickSendList, null, 2)
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   save() {

@@ -48,7 +48,7 @@
             cursor: pointer;
 
             &:hover {
-                color: #FFF;
+                color: var(--text-primary);
             }
         }
     }
@@ -57,7 +57,7 @@
 .content {
     position: absolute;
     top: 32px;
-    background-color: #333;
+    background-color: var(--border-strong);
     height: calc(100% - 32px);
     width: 100%;
 }

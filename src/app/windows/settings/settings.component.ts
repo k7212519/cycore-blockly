@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { FormsModule } from '@angular/forms';
@@ -11,6 +11,7 @@ import { SimplebarAngularModule } from 'simplebar-angular';
 import { TranslateModule } from '@ngx-translate/core';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ThemeMode, ThemeService } from '../../services/theme.service';
 
 @Component({
   selector: 'app-settings',
@@ -27,7 +28,7 @@ import { ActivatedRoute, Router } from '@angular/router';
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
 })
-export class SettingsComponent {
+export class SettingsComponent implements OnDestroy {
   @ViewChild('scrollContainer', { static: false }) scrollContainer: ElementRef;
 
   activeSection = 'SETTINGS.SECTIONS.BASIC'; // 当前活动的部分
@@ -66,6 +67,9 @@ export class SettingsComponent {
   }
 
   private returnUrl = '';
+  selectedTheme: ThemeMode = 'dark';
+  private originalTheme: ThemeMode = 'dark';
+  private themeCommitted = false;
 
   constructor(
     private uiService: UiService,
@@ -73,12 +77,19 @@ export class SettingsComponent {
     private configService: ConfigService,
     private route: ActivatedRoute,
     private router: Router,
+    private themeService: ThemeService,
   ) {
   }
 
   async ngOnInit() {
     this.returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || '';
     await this.configService.init();
+    this.originalTheme = this.themeService.currentTheme;
+    this.selectedTheme = this.originalTheme;
+  }
+
+  previewTheme(theme: ThemeMode) {
+    this.selectedTheme = this.themeService.preview(theme);
   }
 
   selectLang(lang) {
@@ -129,14 +140,22 @@ export class SettingsComponent {
   }
 
   cancel() {
+    this.themeService.restore(this.originalTheme);
+    this.themeCommitted = true;
     this.closeOrReturn();
   }
 
-  apply() {
-    // 保存到config.json，如有需要立即加载的，再加载
-    this.configService.save();
+  async apply() {
+    await this.themeService.confirm(this.selectedTheme);
+    this.themeCommitted = true;
     // 保存完毕后关闭窗口或回到进入设置前的页面
     this.closeOrReturn();
+  }
+
+  ngOnDestroy(): void {
+    if (!this.themeCommitted) {
+      this.themeService.restore(this.originalTheme);
+    }
   }
 
   private closeOrReturn() {

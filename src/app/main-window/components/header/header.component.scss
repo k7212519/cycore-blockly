@@ -49,11 +49,11 @@ $header-inner-height: 46px;
     margin: 10px 6px 10px 6px;
     padding: 2px;
     gap: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055)),
-      rgba(34, 34, 34, 0.78);
+      var(--glass-bg);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     backdrop-filter: saturate(180%) blur(18px);
   }
@@ -69,7 +69,7 @@ $header-inner-height: 46px;
     border-radius: 999px;
     outline: none;
     overflow: hidden;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-secondary);
     background: transparent;
     font: inherit;
     font-size: 12px;
@@ -108,9 +108,9 @@ $header-inner-height: 46px;
     &:hover,
     &:focus-visible {
       width: 106px;
-      color: #fff;
-      background: rgba(255, 255, 255, 0.09);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+      color: var(--text-primary);
+      background: var(--overlay-hover);
+      box-shadow: inset 0 0 0 1px var(--glass-border);
     }
 
     &:hover i,
@@ -131,13 +131,13 @@ $header-inner-height: 46px;
     min-width: 76px;
     gap: 7px;
     padding: 0 15px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     outline: none;
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--text-primary);
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055)),
-      rgba(34, 34, 34, 0.78);
+      var(--glass-bg);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     backdrop-filter: saturate(180%) blur(18px);
     box-shadow: none;
@@ -163,11 +163,11 @@ $header-inner-height: 46px;
 
     &:hover,
     &.active {
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.14);
+      color: var(--text-primary);
+      border-color: var(--glass-border);
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055)),
-        rgba(34, 34, 34, 0.78);
+        var(--glass-bg);
       box-shadow: none;
     }
 
@@ -189,13 +189,13 @@ $header-inner-height: 46px;
     padding: 0 13px;
     gap: 8px;
     flex: 0 1 auto;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     outline: none;
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--text-secondary);
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055)),
-      rgba(34, 34, 34, 0.78);
+      var(--glass-bg);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     backdrop-filter: saturate(180%) blur(18px);
     font: inherit;
@@ -225,7 +225,7 @@ $header-inner-height: 46px;
 
     .serial-port {
       max-width: 72px;
-      color: rgba(255, 255, 255, 0.54);
+      color: var(--text-tertiary);
     }
 
     i {
@@ -235,11 +235,11 @@ $header-inner-height: 46px;
     }
 
     &:hover {
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.18);
+      color: var(--text-primary);
+      border-color: var(--glass-border);
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07)),
-        rgba(38, 38, 38, 0.82);
+        var(--glass-bg);
     }
 
     &:hover i {
@@ -271,11 +271,11 @@ $header-inner-height: 46px;
     height: 42px;
     margin: 10px 12px 10px 0;
     padding: 2px 4px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--glass-border);
     border-radius: 999px;
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.055)),
-      rgba(34, 34, 34, 0.78);
+      var(--glass-bg);
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     backdrop-filter: saturate(180%) blur(18px);
     box-shadow: none;
@@ -346,7 +346,7 @@ $header-inner-height: 46px;
       }
 
       &.selected {
-        color: #fff;
+        color: var(--text-primary);
         background: transparent;
       }
 
@@ -365,7 +365,7 @@ $header-inner-height: 46px;
     height: $header-inner-height;
     flex-direction: column;
     border-radius: 8px;
-    color: #a5a5a5;
+    color: var(--text-secondary);
     opacity: 0.7;
     font-size: 19px;
     margin-right: 8px;
@@ -386,7 +386,7 @@ $header-inner-height: 46px;
     }
 
     &.selected {
-      color: #fff;
+      color: var(--text-primary);
       opacity: 1;
     }
   }
@@ -401,7 +401,7 @@ app-menu {
   top: 3px;
   right: -3px;
   font-size: 10px;
-  color: #fff;
+  color: var(--text-primary);
   background: red;
   border-radius: 10px;
   height: 12px;

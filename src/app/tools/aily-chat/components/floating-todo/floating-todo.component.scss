@@ -188,12 +188,12 @@
             
             &.priority-high {
               background: var(--vscode-charts-red, #f85149);
-              color: white;
+              color: var(--text-primary);
             }
             
             &.priority-medium {
               background: var(--vscode-charts-orange, #ff8c00);
-              color: white;
+              color: var(--text-primary);
             }
             
             &.priority-low {

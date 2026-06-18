@@ -1,5 +1,5 @@
 .dialog-box {
-  background: #2d2d2d;
+  background: var(--surface-elevated);
   border-radius: 5px;
   margin: 5px 0;
   position: relative;
@@ -16,7 +16,7 @@
   border-radius: 5px;
   margin: 5px 0;
   padding: 5px 10px;
-  background-color: #2d2d2d;
+  background-color: var(--surface-elevated);
   border-left: 3px solid #6366f1;
   overflow: hidden;
 }
@@ -28,7 +28,7 @@
   padding: 0;
   cursor: pointer;
   font-size: 13px;
-  color: #ccc;
+  color: var(--text-secondary);
   user-select: none;
   transition: background 0.2s;
 
@@ -60,7 +60,7 @@
 .subagent-fold-arrow {
   margin-left: auto;
   font-size: 10px;
-  color: #888;
+  color: var(--text-tertiary);
   transition: transform 0.2s;
 
   &.expanded {
@@ -92,9 +92,9 @@
 
 .username {
   padding: 3px 6px;
-  border-bottom: 1px solid #444;
+  border-bottom: 1px solid var(--border-strong);
   font-size: 14px;
-  color: #888;
+  color: var(--text-tertiary);
   display: flex;
   align-items: center;
 
@@ -113,7 +113,7 @@
 // .restore-checkpoint-text {
 //   font-size: 12px;
 //   margin: 0 auto;
-//   color: #888;
+//   color: var(--text-tertiary);
 //   cursor: pointer;
 //   user-select: none;
 //   pointer-events: none;
@@ -133,7 +133,7 @@
 //   }
 
 //   &:hover {
-//     color: #ccc;
+//     color: var(--text-secondary);
 //   }
 
 //   /* 左侧线条 */
@@ -182,7 +182,7 @@
   width: 100%;
   
   font-size: 12px;
-  color: #888;
+  color: var(--text-tertiary);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -198,7 +198,7 @@
   }
 
   &:hover {
-    color: #ccc;
+    color: var(--text-secondary);
     &::before, &::after {
       background-image: linear-gradient(var(--line-dir), #ccc, transparent);
     }
@@ -229,7 +229,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    color: #aaa;
+    color: var(--text-secondary);
     font-size: 14px;
 
     .thinking-text {
@@ -245,7 +245,7 @@
         width: 4px;
         height: 4px;
         border-radius: 50%;
-        background-color: #888;
+        background-color: var(--text-tertiary);
         animation: wave-bounce 1.4s ease-in-out infinite both;
       }
       .dot:nth-child(1) { animation-delay: 0s; }
@@ -283,7 +283,7 @@
           font-family: 'Font Awesome 6 Pro';
           font-weight: 300;
           font-size: 10px;
-          color: #888;
+          color: var(--text-tertiary);
           margin-left: auto;
           transition: transform 0.2s;
         }
@@ -302,7 +302,7 @@
         padding: 6px 8px;
         font-size: 12px;
         line-height: 1.5;
-        color: #999;
+        color: var(--text-tertiary);
         background: rgba(0, 0, 0, 0.15);
         border-radius: 3px;
         max-height: 200px;
@@ -327,7 +327,7 @@
       }
 
       li > code {
-        background: #514e4e;
+        background: var(--surface-raised);
         border-radius: 2px;
         padding: 0 2px;
         word-break: break-word;
@@ -360,15 +360,15 @@
       th,
       td {
         padding: 10px 12px;
-        border: 1px solid #444;
+        border: 1px solid var(--border-strong);
       }
       
       th {
-        color: #ffffff;
+        color: var(--text-primary);
       }
       
       td {
-        color: #ffffff;
+        color: var(--text-primary);
       }
 
       blockquote {
@@ -404,13 +404,13 @@
   justify-content: center;
   border-radius: 4px;
   cursor: pointer;
-  color: #888;
+  color: var(--text-tertiary);
   font-size: 13px;
   transition: background 0.15s, color 0.15s;
 
   &:hover {
     background: rgba(255, 255, 255, 0.1);
-    color: #ccc;
+    color: var(--text-secondary);
   }
 
   &.active {
@@ -460,7 +460,7 @@
 .click-to-edit-hint {
   text-align: center;
   font-size: 11px;
-  color: #666;
+  color: var(--text-tertiary);
   padding: 2px 0 4px;
   user-select: none;
 }
@@ -472,7 +472,7 @@
   margin: 10px 0 5px;
   padding: 5px;
   border-radius: 5px;
-  background: #292929;
+  background: var(--surface-subtle);
 
   .resource-list {
     display: flex;
@@ -489,7 +489,7 @@
       border: 1px solid #666;
 
       &:hover {
-        background-color: #444;
+        background-color: var(--border-strong);
       }
 
       &.block-item {
@@ -507,13 +507,13 @@
 
       .resource-name {
         margin: 0 5px;
-        color: #fff;
+        color: var(--text-primary);
       }
 
       .res-remove-btn {
         cursor: pointer;
         font-size: 12px;
-        color: #ccc;
+        color: var(--text-secondary);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -521,7 +521,7 @@
         height: 16px;
 
         &:hover {
-          color: #fff;
+          color: var(--text-primary);
         }
       }
     }
@@ -558,14 +558,14 @@
       width: 28px;
       height: 28px;
       font-size: 14px;
-      color: #eee;
+      color: var(--text-primary);
       padding-top: 1px;
       border-radius: 5px;
       cursor: pointer;
 
       &:hover {
-        color: #fff;
-        background: #3f3f3f;
+        color: var(--text-primary);
+        background: var(--surface-raised);
       }
     }
 
@@ -582,7 +582,7 @@
     .edit-cancel-btn {
       position: absolute;
       right: 32px;
-      color: #888;
+      color: var(--text-tertiary);
 
       &:hover {
         color: #e06c75;
@@ -605,14 +605,14 @@
       height: 28px;
       z-index: 0;
       pointer-events: none;
-      background: #3f3f3f;
+      background: var(--surface-raised);
     }
 
     .edit-btn2 {
       width: 28px;
       height: 28px;
       font-size: 14px;
-      color: #ccc;
+      color: var(--text-secondary);
       padding-top: 1px;
       border-radius: 5px;
       z-index: 999;
@@ -622,7 +622,7 @@
       justify-content: center;
 
       &:hover {
-        color: #fff;
+        color: var(--text-primary);
       }
     }
   }

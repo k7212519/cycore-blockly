@@ -6,7 +6,7 @@
   height: calc(100% - 2px);
   display: flex;
   flex-direction: column;
-  background-color: #323437;
+  background-color: var(--surface-base);
   z-index: 1000;
 }
 

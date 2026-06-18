@@ -15,12 +15,12 @@
   transform: translate(57px);
   // transform: translate(0px);
   transition: all 0.3s;
-  background: #3a3c3f;
+  background: var(--hover-bg);
   width: 50px;
   z-index: 99999;
   border-radius: 5px;
   padding: 5px 0 0 0;
-  box-shadow: 0 0 5px #333;
+  box-shadow: 0 0 5px var(--border-strong);
   display: flex;
   align-items: center;
   flex-direction: column;
@@ -30,7 +30,7 @@
     width: 40px;
     height: 40px;
     cursor: pointer;
-    background: #333;
+    background: var(--border-strong);
     margin-bottom: 5px;
     border-radius: 5px;
     font-size: 18px;

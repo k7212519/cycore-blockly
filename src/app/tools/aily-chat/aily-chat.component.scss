@@ -67,7 +67,7 @@
     padding: 5px;
     border-radius: 5px;
     position: relative;
-    background: #292929;
+    background: var(--surface-subtle);
 
     .textarea-wrapper {
       position: relative;
@@ -92,7 +92,7 @@
       left: 0;
       min-width: 200px;
       max-width: 300px;
-      background: #3a3a3a;
+      background: var(--control-bg);
       border: 1px solid #555;
       border-radius: 6px;
       padding: 4px;
@@ -153,13 +153,13 @@
         width: 28px;
         height: 28px;
         font-size: 14px;
-        color: #eee;
+        color: var(--text-primary);
         padding-top: 1px;
         border-radius: 5px;
 
         &:hover {
-          color: #fff;
-          background: #3f3f3f;
+          color: var(--text-primary);
+          background: var(--surface-raised);
         }
 
         &.actived {
@@ -229,7 +229,7 @@ nz-resize-handle {
   }
 
   .text {
-    color: #999;
+    color: var(--text-tertiary);
     text-align: center;
     padding-right: 10px;
   }
@@ -251,21 +251,21 @@ nz-resize-handle {
   height: 28px;
   z-index: 0;
   pointer-events: none;
-  background: #3f3f3f;
+  background: var(--surface-raised);
 }
 
 .btn2 {
   width: 28px;
   height: 28px;
   font-size: 14px;
-  color: #ccc;
+  color: var(--text-secondary);
   padding-top: 1px;
   border-radius: 5px;
   z-index: 999;
   cursor: pointer;
 
   &:hover {
-    color: #fff;
+    color: var(--text-primary);
   }
 }
 
@@ -284,7 +284,7 @@ nz-resize-handle {
     border: 1px solid #666;
 
     &:hover {
-      background-color: #444;
+      background-color: var(--border-strong);
     }
 
     &.block-item {
@@ -302,13 +302,13 @@ nz-resize-handle {
 
     .resource-name {
       margin: 0 5px;
-      color: #fff;
+      color: var(--text-primary);
     }
 
     .btn {
       cursor: pointer;
       font-size: 12px;
-      color: #ccc;
+      color: var(--text-secondary);
     }
   }
 }
@@ -392,12 +392,12 @@ nz-resize-handle {
     }
 
     .x-mermaid-placeholder {
-      background-color: #3a3a3a !important;
+      background-color: var(--control-bg) !important;
     }
 
     .x-mermaid-diagram {
       border-radius: 5px;
-      background-color: #3a3a3a;
+      background-color: var(--control-bg);
       max-height: 500px;
       overflow: auto;
       scrollbar-width: thin !important;

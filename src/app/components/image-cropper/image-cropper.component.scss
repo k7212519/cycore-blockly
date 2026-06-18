@@ -1,7 +1,7 @@
 .image-cropper-container {
   position: relative;
   overflow: hidden;
-  background-color: #1e1e1e;
+  background-color: var(--app-bg);
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
@@ -16,7 +16,7 @@
 
   .hint-text {
     margin-top: 10px;
-    color: #888;
+    color: var(--text-tertiary);
     font-size: 12px;
   }
 }

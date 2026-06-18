@@ -23,7 +23,7 @@
     height: 24px;
     min-width: 15px;
     flex-shrink: 0;
-    background-color: #333;
+    background-color: var(--border-strong);
     padding: 0 6px;
     margin-right: 10px;
     border-radius: 5px;
@@ -54,7 +54,7 @@
     }
 
     &:hover {
-        background-color: #444;
+        background-color: var(--border-strong);
     }
 }
 
@@ -68,7 +68,7 @@
     padding-top: 2px;
 
     &:hover {
-        color: #fff;
+        color: var(--text-primary);
     }
 }
 

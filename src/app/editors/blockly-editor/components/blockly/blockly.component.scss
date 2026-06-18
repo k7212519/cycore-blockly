@@ -18,17 +18,17 @@
             height: calc(100% - var(--floating-header-safe-top, 74px) - 24px) !important;
             background:
                 linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
-                rgba(50, 50, 50, 0.88);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+                var(--glass-bg);
+            border: 1px solid var(--glass-border);
             border-radius: 18px;
             padding: 8px 0 54px;
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-backdrop-filter: saturate(180%) blur(18px);
             backdrop-filter: saturate(180%) blur(18px);
-            box-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+            box-shadow: var(--shadow-soft);
             scrollbar-width: thin !important;
-            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+            scrollbar-color: var(--scrollbar-thumb) transparent;
 
             .blocklyTreeIcon {
                 width: 16px;
@@ -58,17 +58,17 @@
                     padding: 0 6px !important;
                     border-radius: 12px;
                     border: none !important;
-                    color: rgba(255, 255, 255, 0.76);
+                    color: var(--text-secondary);
 
                     &:hover {
-                        background: rgba(255, 255, 255, 0.06);
-                        color: rgba(255, 255, 255, 0.96);
+                        background: var(--overlay-hover);
+                        color: var(--text-primary);
                     }
                 }
 
                 .blocklyTreeSelected {
-                    background: rgba(146, 146, 146, 0.72) !important;
-                    color: #fff;
+                    background: var(--selected-bg) !important;
+                    color: var(--text-primary);
                 }
 
                 .blocklyTreeRowContentContainer {
@@ -116,7 +116,7 @@
                     }
 
                     &:hover .search-box {
-                        background: rgba(255, 255, 255, 0.14);
+                        background: var(--hover-bg);
                         border-color: transparent;
                         box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
                     }
@@ -136,7 +136,7 @@
             }
 
             .blocklyTreeIcon {
-                background: rgba(255, 255, 255, 0.85);
+                background: var(--text-primary);
                 mask: url('../../../../../../public/imgs/chevron-right.svg') no-repeat center center;
                 mask-size: contain;
                 transition: transform 0.3s ease;
@@ -148,7 +148,7 @@
         }
 
         .blocklyFlyoutLabelText {
-            fill: #ccc;
+            fill: var(--text-secondary);
         }
 
         .blocklyFlyout {
@@ -157,12 +157,12 @@
         }
 
         .blocklyFlyoutBackground {
-            stroke: rgba(255, 255, 255, 0.1);
+            stroke: var(--glass-border);
             stroke-width: 1px;
         }
 
         .blocklyTextInputBubble .blocklyTextarea {
-            background-color: #444;
+            background-color: var(--control-bg);
         }
 
         .search-box {
@@ -172,9 +172,9 @@
             width: 100%;
             box-sizing: border-box;
             height: 30px;
-            color: rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.09);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            background: var(--control-bg);
+            border: 1px solid var(--glass-border);
             outline: none;
             transition:
                 background 160ms ease,
@@ -182,7 +182,7 @@
                 box-shadow 160ms ease;
 
             &:focus {
-                background: rgba(255, 255, 255, 0.12);
+                background: var(--hover-bg);
                 border-color: rgba(104, 184, 255, 0.48);
             }
         }
@@ -204,11 +204,39 @@
             top: var(--floating-header-safe-top, 74px);
 
             .blocklyMainBackground {
-                fill: rgb(43, 43, 43) !important;
+                fill: var(--canvas-bg) !important;
             }
         }
     }
 
+}
+
+:host-context(.llight) .blocklyBox {
+    ::ng-deep {
+        .blocklyToolboxDiv {
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 248, 251, 0.72)),
+                var(--glass-bg);
+
+            .blocklyToolboxCategory {
+                .blocklyTreeSelected {
+                    color: #1458a5 !important;
+                }
+            }
+        }
+
+        .blocklyFlyout {
+            filter: drop-shadow(0 18px 34px rgba(42, 62, 92, 0.16));
+        }
+
+        .blocklyFlyoutLabelText {
+            fill: #344054;
+        }
+
+        .blocklyScrollbarHandle {
+            fill: #6f7d91;
+        }
+    }
 }
 
 :host-context(.ddark) .blocklyBox {
@@ -216,17 +244,17 @@
         .blocklyToolboxDiv {
             .blocklyToolboxCategory {
                 .blocklyTreeRow {
-                    color: #fff;
+                    color: var(--text-primary);
 
                     &:hover {
-                        color: #fff;
+                        color: var(--text-primary);
                     }
                 }
 
                 .blocklyTreeLabel,
                 .tbc-icon-box,
                 .inner-icon {
-                    color: #fff;
+                    color: var(--text-primary);
                 }
             }
 

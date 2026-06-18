@@ -9,9 +9,9 @@
 
   .search-input {
     width: 100%;
-    background: #3a3c3f;
+    background: var(--hover-bg);
     border: 1px solid #555;
-    color: #ddd;
+    color: var(--text-secondary);
     padding: 5px 10px;
     border-radius: 4px;
 
@@ -21,7 +21,7 @@
     }
 
     &::placeholder {
-      color: #888;
+      color: var(--text-tertiary);
     }
   }
 }
@@ -31,7 +31,7 @@
   overflow-y: auto;
   border: 1px solid #555;
   border-radius: 4px;
-  background: #222;
+  background: var(--app-bg);
   max-height: 300px;
 
   .empty-list {
@@ -40,7 +40,7 @@
     align-items: center;
     justify-content: center;
     padding: 40px 20px;
-    color: #888;
+    color: var(--text-tertiary);
     gap: 10px;
 
     i {
@@ -53,7 +53,7 @@
     align-items: center;
     padding: 10px;
     height: 60px;
-    border-bottom: 1px solid #3a3c3f;
+    border-bottom: 1px solid var(--hover-bg);
     cursor: pointer;
     position: relative;
 
@@ -63,7 +63,7 @@
     }
 
     &:hover:not(.disabled) {
-      background: #3a3c3f;
+      background: var(--hover-bg);
     }
 
     &.selected {
@@ -92,18 +92,18 @@
 
       .board-name {
         font-weight: 500;
-        color: #ddd;
+        color: var(--text-secondary);
         font-size: 14px;
       }
 
       .board-desc {
         font-size: 12px;
-        color: #999;
+        color: var(--text-tertiary);
       }
 
       .board-brand {
         font-size: 11px;
-        color: #666;
+        color: var(--text-tertiary);
       }
     }
 

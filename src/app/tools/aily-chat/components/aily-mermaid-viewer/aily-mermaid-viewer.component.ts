@@ -4,6 +4,8 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import mermaid from 'mermaid';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { MermaidComponent } from './mermaid/mermaid.component';
+import { Subject, takeUntil } from 'rxjs';
+import { ThemeService } from '../../../../services/theme.service';
 
 export interface AilyMermaidData {
   type: 'aily-mermaid';
@@ -38,6 +40,7 @@ export class AilyMermaidViewerComponent implements OnInit, OnDestroy, OnChanges 
   private renderRetryCount = 0;
   private readonly MAX_RETRY = 3;
   private retryTimer: any = null;
+  private destroy$ = new Subject<void>();
 
   // 全屏相关属性
   isFullscreen = false;
@@ -58,8 +61,18 @@ export class AilyMermaidViewerComponent implements OnInit, OnDestroy, OnChanges 
 
   constructor(
     private sanitizer: DomSanitizer,
-    private modal: NzModalService
-  ) { }
+    private modal: NzModalService,
+    private themeService: ThemeService,
+  ) {
+    this.themeService.theme$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.initializeMermaid();
+        if (this.data) {
+          this.processData();
+        }
+      });
+  }
 
   ngOnInit() {
     this.initializeMermaid();
@@ -67,6 +80,8 @@ export class AilyMermaidViewerComponent implements OnInit, OnDestroy, OnChanges 
   }
 
   ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
     // 清理资源
     if (this.isFullscreen) {
       document.body.style.overflow = '';
@@ -97,7 +112,7 @@ export class AilyMermaidViewerComponent implements OnInit, OnDestroy, OnChanges 
   private initializeMermaid(): void {
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'dark',
+      theme: this.themeService.isLight ? 'default' : 'dark',
       securityLevel: 'loose',
       fontFamily: 'MiSans, sans-serif',
       htmlLabels: true,

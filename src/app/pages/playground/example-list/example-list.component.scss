@@ -13,8 +13,9 @@
     .example-item {
         width: 280px;
         height: 280px;
-        background: #2b2b2b;
-        border-radius: 5px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
         padding: 10px;
         position: relative;
         display: flex;
@@ -23,7 +24,9 @@
         transition: all 0.3s;
 
         &:hover {
-            background: #3a3a3a;
+            background: var(--surface-raised);
+            border-color: var(--border-strong);
+            box-shadow: var(--shadow-soft);
         }
 
         .img-box {
@@ -82,7 +85,7 @@
             display: flex;
 
             >div {
-                color: #c9c9c9;
+                color: var(--text-secondary);
                 margin-right: 15px;
             }
         }
@@ -90,7 +93,7 @@
         .text {
             margin-top: 10px;
             font-size: 14px;
-            color: #ccc;
+            color: var(--text-secondary);
             height: 86px;
             white-space: normal;
             overflow: hidden;
@@ -106,7 +109,7 @@
             align-items: center;
             margin-top: 10px;
             font-size: 12px;
-            color: #aaa;
+            color: var(--text-secondary);
 
             .btns {
                 display: flex;
@@ -123,17 +126,17 @@
             //         justify-content: center;
 
             //         &:hover {
-            //             color: #fff;
-            //             border-color: #fff;
+            //             color: var(--text-primary);
+            //             border-color: var(--text-primary);
             //         }
             //     }
             // }
 
             .doc-btn {
-                color: #ccc;
+                color: var(--text-secondary);
 
                 &:hover {
-                    color: #fff;
+                    color: var(--text-primary);
                 }
             }
 

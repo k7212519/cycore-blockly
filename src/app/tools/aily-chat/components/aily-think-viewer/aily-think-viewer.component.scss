@@ -5,8 +5,8 @@
 .aily-think-viewer {
     border-radius: 5px;
     padding: 5px 10px;
-    background-color: #3a3a3a;
-    color: #ccc;
+    background-color: var(--control-bg);
+    color: var(--text-secondary);
     overflow: hidden;
 
     .think-header {
@@ -46,13 +46,13 @@
 
             .think-label {
                 font-size: 13px;
-                color: #ccc;
+                color: var(--text-secondary);
             }
         }
 
         .think-toggle {
             font-size: 10px;
-            color: #888;
+            color: var(--text-tertiary);
         }
     }
 
@@ -61,7 +61,7 @@
         margin: 5px -10px 0 0;
         font-size: 12px;
         line-height: 1.6;
-        color: #999;
+        color: var(--text-tertiary);
         max-height: 200px;
         overflow-y: auto;
         white-space: pre-wrap;

@@ -10,6 +10,7 @@ import { BlocklyService } from '../../services/blockly.service';
 import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { BlockCodeMapping } from '../../components/blockly/generators/arduino/arduino';
+import { ThemeService } from '../../../../services/theme.service';
 
 @Component({
   selector: 'app-code-viewer',
@@ -48,7 +49,16 @@ export class CodeViewerComponent implements OnDestroy {
     private blocklyService: BlocklyService,
     private uiService: UiService,
     private router: Router,
-  ) { }
+    private themeService: ThemeService,
+  ) {
+    this.themeService.theme$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((theme) => {
+        const monacoTheme = theme === 'light' ? 'vs' : 'vs-dark';
+        this.options = { ...this.options, theme: monacoTheme };
+        (window as any).monaco?.editor?.setTheme(monacoTheme);
+      });
+  }
 
   ngOnInit() {
     this.currentUrl = this.router.url;

@@ -4,7 +4,7 @@
   height: 100%;
   padding: 0 10px;
   overflow: hidden;
-  background: #1e1f22;
+  background: var(--app-bg);
 
   .app-store-header {
     display: flex;
@@ -12,7 +12,7 @@
     align-items: center;
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #3a3c3f;
+    border-bottom: 1px solid var(--hover-bg);
 
     .header-info {
       .info-text {
@@ -26,18 +26,18 @@
       align-items: center;
       gap: 6px;
       padding: 6px 12px;
-      border: 1px solid #3a3c3f;
+      border: 1px solid var(--hover-bg);
       border-radius: 4px;
       background: transparent;
-      color: #a5a5a5;
+      color: var(--text-secondary);
       cursor: pointer;
       font-size: 12px;
       transition: all 0.2s;
 
       &:hover {
-        background: #3a3c3f;
+        background: var(--hover-bg);
         border-color: #4a8cca;
-        color: #fff;
+        color: var(--text-primary);
       }
     }
   }
@@ -105,8 +105,8 @@
     &.other-zone {
       flex: 1;
       overflow-y: auto;
-      background: #2b2d30;
-      border: 1px solid #3a3c3f;
+      background: var(--surface-elevated);
+      border: 1px solid var(--hover-bg);
       align-content: flex-start;
     }
 
@@ -119,14 +119,14 @@
       width: 50px;
       height: 50px;
       border-radius: 8px;
-      background: #2b2d30;
-      border: 1px solid #3a3c3f;
+      background: var(--surface-elevated);
+      border: 1px solid var(--hover-bg);
       cursor: grab;
       transition: all 0.2s;
 
       &:hover {
         border-color: #4a8cca;
-        background: #3a3c3f;
+        background: var(--hover-bg);
       }
 
       &:active {
@@ -139,13 +139,13 @@
       }
 
       &.empty-slot {
-        border: 1px dashed #4a4a4a;
+        border: 1px dashed var(--border-strong);
         background: transparent;
         cursor: default;
 
         &:hover {
           background: transparent;
-          border-color: #4a4a4a;
+          border-color: var(--border-strong);
         }
 
         .empty-icon {
@@ -154,7 +154,7 @@
           justify-content: center;
           width: 24px;
           height: 24px;
-          color: #4a4a4a;
+          color: var(--border-strong);
           font-size: 14px;
         }
 
@@ -171,7 +171,7 @@
         width: 38px;
         height: 38px;
         border-radius: 8px;
-        color: #a5a5a5;
+        color: var(--text-secondary);
         font-size: 20px;
         transition: color 0.2s;
 
@@ -182,14 +182,14 @@
           padding: 1px 4px;
           border-radius: 4px;
           background: #e34c4c;
-          color: #fff;
+          color: var(--text-primary);
           font-size: 8px;
           font-weight: bold;
         }
       }
 
       &:hover .app-icon {
-        color: #fff;
+        color: var(--text-primary);
       }
 
       .app-name {

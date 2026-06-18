@@ -27,7 +27,7 @@
 }
 
 nz-tabset {
-    background: #242424;
+    background: var(--surface-subtle);
     width: 100%;
 
     ::ng-deep {
@@ -45,7 +45,7 @@ nz-tabset {
             box-shadow: 0 0 1px #555;
 
             button {
-                color: #a5a5a5;
+                color: var(--text-secondary);
             }
         }
 
@@ -54,10 +54,10 @@ nz-tabset {
         }
 
         .ant-tabs-tab-active {
-            background: #222222 !important;
+            background: var(--app-bg) !important;
 
             button {
-                color: #fff !important;
+                color: var(--text-primary) !important;
             }
         }
     }
@@ -66,7 +66,7 @@ nz-tabset {
         ::ng-deep {
             // button {
             //     padding: 0 !important;
-            //     color: #a5a5a5;
+            //     color: var(--text-secondary);
             // }
 
             .ant-tabs-nav-more {

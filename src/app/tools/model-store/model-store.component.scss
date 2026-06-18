@@ -13,7 +13,7 @@
         cursor: pointer;
 
         &:hover {
-            color: #ffffff;
+            color: var(--text-primary);
         }
     }
 
@@ -35,8 +35,8 @@
     // margin: 15px 10px 0 10px;
     padding: 10px;
     font-size: 14px;
-    color: #fff;
-    border-bottom: 1px solid #444;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-strong);
     position: relative;
 
     .search-btn {
@@ -57,8 +57,8 @@
         align-items: center;
 
         .tags {
-            background: #363636;
-            border: 1px solid #434343;
+            background: var(--control-bg);
+            border: 1px solid var(--border-strong);
             height: 32px;
             display: flex;
             align-items: center;
@@ -70,7 +70,7 @@
                 cursor: pointer;
 
                 &:hover {
-                    background: #505050;
+                    background: var(--border-strong);
                 }
 
                 &:last-child {
@@ -84,19 +84,19 @@
             display: flex;
             align-items: center;
             padding-left: 5px;
-            background: #363636;
-            border: 1px solid #434343;
+            background: var(--control-bg);
+            border: 1px solid var(--border-strong);
             border-radius: 3px;
             overflow: hidden;
 
 
             input {
-                background: #363636;
-                border: 1px solid #434343;
+                background: var(--control-bg);
+                border: 1px solid var(--border-strong);
                 height: 28px;
                 border: none;
                 outline: none;
-                color: #fff;
+                color: var(--text-primary);
                 flex-grow: 1;
             }
 
@@ -128,7 +128,7 @@
 .item {
     display: flex;
     padding: 5px;
-    background: #3e3e3e;
+    background: var(--surface-raised);
     border-radius: 5px;
     overflow: hidden;
     position: relative;
@@ -138,7 +138,7 @@
     transition: all 0.3s;
 
     &:hover {
-        background: #494949;
+        background: var(--surface-raised);
 
         .btns {
             display: flex;
@@ -167,7 +167,7 @@
             .title {
                 font-size: 14px;
                 font-weight: bold;
-                color: #fff;
+                color: var(--text-primary);
                 position: absolute;
                 left: 0;
                 bottom: 0;
@@ -186,7 +186,7 @@
 
             .text {
                 font-size: 12px;
-                color: #ccc;
+                color: var(--text-secondary);
                 display: -webkit-box;
                 -webkit-line-clamp: 5;
                 line-clamp: 5;
@@ -216,7 +216,7 @@
         button {
             background: transparent;
             border: none;
-            color: #fff;
+            color: var(--text-primary);
             padding: 5px 10px;
             cursor: pointer;
             display: flex;
@@ -259,7 +259,7 @@
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #888;
+    color: var(--text-tertiary);
     border-radius: 5px;
     width: 100%;
 
@@ -280,7 +280,7 @@
     padding: 5px 0;
     align-items: center;
     justify-content: center;
-    background: #2e2e2e;
+    background: var(--surface-elevated);
     position: absolute;
     bottom: 0;
 }

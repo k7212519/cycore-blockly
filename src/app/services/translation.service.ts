@@ -15,7 +15,8 @@ export interface Locale {
   providedIn: 'root'
 })
 export class TranslationService {
-  languageList;
+  private readonly supportedLanguages = ['zh_cn', 'zh_hk', 'en'];
+  languageList: Locale[] = [];
 
   // 记录已加载的语言
   private loadedLanguages: Set<string> = new Set();
@@ -49,11 +50,13 @@ export class TranslationService {
   }
 
   async getLanguageList() {
-    // 从public\i18n\i18n.json中获取语言列表
-    this.languageList = await lastValueFrom(
+    const languages = await lastValueFrom(
       this.http.get('i18n/i18n.json', {
         responseType: 'json',
       }),
+    ) as Locale[];
+    this.languageList = languages.filter(language =>
+      this.supportedLanguages.includes(language.code)
     );
     return this.languageList;
   }
@@ -75,10 +78,11 @@ export class TranslationService {
 
   getSystemLanguage(): string {
     const language = navigator.language || (navigator.languages && navigator.languages[0]);
-    return language.toLowerCase().replace('-', '_');
+    return this.normalizeLanguage(language);
   }
 
   async setLanguage(lang: string) {
+    lang = this.normalizeLanguage(lang);
     // 检查该语言是否已加载
     if (!this.loadedLanguages.has(lang)) {
       // 如果未加载，先加载语言数据
@@ -95,6 +99,19 @@ export class TranslationService {
   }
 
   getSelectedLanguage() {
-    return this.configService.data?.selectedLanguage || this.translate.getDefaultLang();
+    return this.normalizeLanguage(
+      this.configService.data?.selectedLanguage || this.translate.getDefaultLang()
+    );
+  }
+
+  private normalizeLanguage(lang?: string): string {
+    const normalized = (lang || '').toLowerCase().replace('-', '_');
+    if (normalized === 'zh_hk' || normalized === 'zh_tw' || normalized === 'zh_hant') {
+      return 'zh_hk';
+    }
+    if (normalized === 'en' || normalized.startsWith('en_')) {
+      return 'en';
+    }
+    return 'zh_cn';
   }
 }

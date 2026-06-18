@@ -23,7 +23,7 @@
 .onboarding-tooltip {
   position: absolute;
   width: 280px;
-  background: #1e1e1e;
+  background: var(--app-bg);
   border-radius: 12px;
   border: 1px solid #3b82f6;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
@@ -44,13 +44,13 @@
   .tooltip-title {
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: var(--text-primary);
     margin-bottom: 8px;
   }
 
   .tooltip-desc {
     font-size: 14px;
-    color: #aaa;
+    color: var(--text-secondary);
     line-height: 1.5;
     margin-bottom: 16px;
   }
@@ -63,14 +63,14 @@
     .btn-skip {
       background: transparent;
       border: none;
-      color: #888;
+      color: var(--text-tertiary);
       font-size: 13px;
       cursor: pointer;
       padding: 8px 0;
       transition: color 0.2s;
 
       &:hover {
-        color: #fff;
+        color: var(--text-primary);
       }
     }
 
@@ -80,9 +80,9 @@
     }
 
     .btn-prev {
-      background: #333;
+      background: var(--border-strong);
       border: 1px solid #555;
-      color: #ccc;
+      color: var(--text-secondary);
       padding: 8px 16px;
       border-radius: 6px;
       font-size: 13px;
@@ -90,15 +90,15 @@
       transition: all 0.2s;
 
       &:hover {
-        background: #444;
-        border-color: #666;
+        background: var(--border-strong);
+        border-color: var(--text-tertiary);
       }
     }
 
     .btn-next {
       background: #3b82f6;
       border: none;
-      color: #fff;
+      color: var(--text-primary);
       padding: 8px 20px;
       border-radius: 6px;
       font-size: 13px;
@@ -117,7 +117,7 @@
     position: absolute;
     width: 12px;
     height: 12px;
-    background: #1e1e1e;
+    background: var(--app-bg);
     border: 1px solid #3b82f6;
     transform: rotate(45deg);
 

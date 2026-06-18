@@ -1,13 +1,13 @@
 .aily-board-viewer {
   border-radius: 5px;
   padding: 5px 10px;
-  background-color: #3a3a3a;
-  color: #ccc;
+  background-color: var(--control-bg);
+  color: var(--text-secondary);
   container-type: inline-size; // 启用容器查询
   min-height: 60px;
 
   &:hover {
-    background-color: #3f3f3f;
+    background-color: var(--surface-raised);
   }
 }
 
@@ -33,7 +33,7 @@
     }
 
     .loading-text {
-      color: #888;
+      color: var(--text-tertiary);
       font-size: 13px;
     }
   }
@@ -48,7 +48,7 @@
 
   .error-content {
     .error-text {
-      color: #999;
+      color: var(--text-tertiary);
       font-size: 13px;
     }
   }
@@ -81,7 +81,7 @@
     }
 
     .text{
-      color: #999;
+      color: var(--text-tertiary);
     }
   }
 

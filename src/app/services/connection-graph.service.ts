@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { ElectronService } from './electron.service';
 import { ProjectService } from './project.service';
+import { ThemeService } from './theme.service';
 
 // =====================================================
 // 数据类型定义（与 connection-graph 子页面共享）
@@ -402,7 +403,8 @@ export class ConnectionGraphService {
 
   constructor(
     private electronService: ElectronService,
-    private projectService: ProjectService
+    private projectService: ProjectService,
+    private themeService: ThemeService,
   ) {
     // 监听子窗口请求保存连线图数据
     this.setupIpcListeners();
@@ -1308,7 +1310,7 @@ export class ConnectionGraphService {
           componentConfigs,
           components: data.components,
           connections: data.connections,
-          theme: 'dark',
+          theme: this.themeService.currentTheme,
         };
         
         window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-updated', data: payload });
@@ -1571,7 +1573,7 @@ export class ConnectionGraphService {
         componentConfigs,
         components: data.components,
         connections: data.connections,
-        theme: 'dark',
+        theme: this.themeService.currentTheme,
       };
       await this._iframeApi.receiveData(payload);
       return true;

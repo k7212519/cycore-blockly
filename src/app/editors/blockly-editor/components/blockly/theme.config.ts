@@ -23,3 +23,20 @@ export const DarkTheme = Blockly.Theme.defineTheme('dark', {
     // replacementGlowOpacity?: number;
   },
 });
+
+export const LightTheme = Blockly.Theme.defineTheme('light', {
+  name: 'light',
+  base: Blockly.Themes.Classic,
+  startHats: true,
+  componentStyles: {
+    workspaceBackgroundColour: '#ffffff',
+    flyoutBackgroundColour: '#ffffff',
+    flyoutForegroundColour: '#263247',
+    scrollbarColour: '#6f7d91',
+    scrollbarOpacity: 0.22,
+    insertionMarkerColour: '#287bec',
+    insertionMarkerOpacity: 0.3,
+    markerColour: '#287bec',
+    cursorColour: '#287bec',
+  },
+});

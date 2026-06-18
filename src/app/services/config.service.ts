@@ -59,6 +59,9 @@ export class ConfigService {
   ) { }
 
   async init() {
+    if (this._isDataReady) {
+      return;
+    }
     if (!this.electronService.isElectron) {
       console.log('[ConfigService] 非Electron环境，从远程加载基础数据');
       this.data = this.createBrowserDefaultConfig();
@@ -99,22 +102,20 @@ export class ConfigService {
   }
 
   get_lang_filename(lang: string) {
-    if (!lang) lang = 'zh_cn';
-    else if(lang.toLowerCase() == 'zh-cn' || lang.toLowerCase() == 'zh_cn') lang = 'zh_cn';
-    else if(lang.toLowerCase() == 'zh-hk' || lang.toLowerCase() == 'zh_hk') lang = 'zh_hk';
-    else if(lang.startsWith('en_') || lang.startsWith('en-')) lang = 'en';
-    else if(lang.startsWith('fr_') || lang.startsWith('fr-')) lang = 'fr';
-    else if(lang.startsWith('de_') || lang.startsWith('de-')) lang = 'de';
-    else if(lang.startsWith('pt_') || lang.startsWith('pt-')) lang = 'pt';
-    else lang = lang.toLowerCase();
-
-    return lang;
+    const normalized = (lang || '').toLowerCase().replace('-', '_');
+    if (normalized === 'zh_hk' || normalized === 'zh_tw' || normalized === 'zh_hant') {
+      return 'zh_hk';
+    }
+    if (normalized === 'en' || normalized.startsWith('en_')) {
+      return 'en';
+    }
+    return 'zh_cn';
   }
 
   private createBrowserDefaultConfig(): AppConfig {
     return {
       lang: 'zh_CN',
-      theme: 'default',
+      theme: 'dark',
       font: 'default',
       platform: 'web',
       appdata_path: {
@@ -1049,7 +1050,7 @@ interface AppConfig {
   lang: string;
 
   /** UI主题 */
-  theme: string;
+  theme: 'dark' | 'light' | 'default';
 
   /** 字体设置 */
   font: string;

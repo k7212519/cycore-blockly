@@ -21,11 +21,11 @@
 
   .time {
     flex-shrink: 0;
-    color: #888;
+    color: var(--text-tertiary);
   }
 
   .dir {
-    color: #888;
+    color: var(--text-tertiary);
     background-color: rgba(51, 51, 51, 0.6);
     display: flex;
     justify-content: center;
@@ -38,7 +38,7 @@
 
     &.tx {
       background-color: #4e6694 !important;
-      color: #999;
+      color: var(--text-tertiary);
     }
 
     &.sys {
@@ -74,7 +74,7 @@
       width: 14px;
       height: 20px;
       background: rgba(255, 140, 0, 0.3);
-      color: #fff;
+      color: var(--text-primary);
       margin: 0 2px;
       border-radius: 5px;
     }

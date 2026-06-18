@@ -1,5 +1,5 @@
 @mixin guide-dark-theme {
-  --guide-page-bg: #222;
+  --guide-page-bg: var(--app-bg);
   --guide-card: rgba(34, 34, 34, 0.18);
   --guide-card-hover: rgba(42, 45, 51, 0.42);
   --guide-border: rgba(255, 255, 255, 0.075);

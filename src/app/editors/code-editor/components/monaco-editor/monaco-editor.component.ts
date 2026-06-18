@@ -1,8 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, Output, SimpleChanges, ViewChild, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzCodeEditorModule, NzCodeEditorComponent } from 'ng-zorro-antd/code-editor';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { Subject, takeUntil } from 'rxjs';
+import { ThemeService } from '../../../../services/theme.service';
 
 @Component({
   selector: 'app-monaco-editor',
@@ -14,7 +16,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
   templateUrl: './monaco-editor.component.html',
   styleUrl: './monaco-editor.component.scss'
 })
-export class MonacoEditorComponent {
+export class MonacoEditorComponent implements OnDestroy {
 
   @ViewChild(NzCodeEditorComponent) codeEditor: NzCodeEditorComponent;
 
@@ -35,11 +37,17 @@ export class MonacoEditorComponent {
   @Input() librariesPath: string;
 
   private disposables: any[] = [];
+  private destroy$ = new Subject<void>();
   public monacoInstance: any;
 
   constructor(
-    private message: NzMessageService
-  ) { }
+    private message: NzMessageService,
+    private themeService: ThemeService,
+  ) {
+    this.themeService.theme$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((theme) => this.applyTheme(theme));
+  }
 
   ngOnInit() {
   }
@@ -52,6 +60,8 @@ export class MonacoEditorComponent {
 
   ngOnDestroy() {
     this.disposables.forEach(d => d.dispose());
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   onCodeChange(newCode: string): void {
@@ -66,6 +76,12 @@ export class MonacoEditorComponent {
       // 添加自定义右键菜单项
       this.setupContextMenu(editor);
     }
+  }
+
+  private applyTheme(theme: 'dark' | 'light'): void {
+    const monacoTheme = theme === 'light' ? 'vs' : 'vs-dark';
+    this.options = { ...this.options, theme: monacoTheme };
+    (window as any).monaco?.editor?.setTheme(monacoTheme);
   }
 
   /**
