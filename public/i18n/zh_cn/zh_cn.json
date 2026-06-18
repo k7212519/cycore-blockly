@@ -5,6 +5,7 @@
         "PROJECT_OPEN": "项目列表",
         "PROJECT_SAVE": "保存项目",
         "PROJECT_SAVE_AS": "导出到本地",
+        "EXPORT_BLOCKS_SVG": "导出积木图（SVG）",
         "PROJECT_CLOSE": "关闭项目",
         "BUILD": "编译",
         "RUN": "烧录",
@@ -619,7 +620,11 @@
         "LOADING_BLOCKLY_LIB": "正在加载Blockly库",
         "LOADING_LIB": "正在加载{{name}}",
         "LOADING_BLOCKLY_PROGRAM": "正在加载Blockly程序",
-        "PROJECT_LOAD_SUCCESS": "项目加载成功"
+        "PROJECT_LOAD_SUCCESS": "项目加载成功",
+        "EXPORT_SVG_SUCCESS": "积木图已导出：{{fileName}}",
+        "EXPORT_SVG_FAILED": "积木图导出失败",
+        "EXPORT_SVG_EMPTY": "工作区中没有可导出的积木",
+        "EXPORT_SVG_RESOURCE_FAILED": "无法将资源内联到 SVG：{{resource}}"
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "正在加载示例...",

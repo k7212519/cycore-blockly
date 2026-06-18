@@ -25,6 +25,7 @@ import { APP_LIST } from '../../../configs/tool.config';
 import { EdaAuthService } from '../../../auth/eda-auth.service';
 import { Subscription } from 'rxjs';
 import { ThemeService } from '../../../services/theme.service';
+import { ActionService } from '../../../services/action.service';
 
 @Component({
   selector: 'app-header',
@@ -129,6 +130,7 @@ export class HeaderComponent implements OnDestroy {
     private translate: TranslateService,
     private platformService: PlatformService,
     private themeService: ThemeService,
+    private actionService: ActionService,
     // private appStoreService: AppStoreService
   ) { }
 
@@ -458,6 +460,27 @@ export class HeaderComponent implements OnDestroy {
         if (path) {
           this.projectService.saveAs(path);
         }
+        break;
+      case 'blockly-svg-export':
+        this.actionService.dispatch(
+          'blockly-svg-export',
+          {},
+          (feedback) => {
+            if (feedback.success) {
+              this.message.success(
+                this.translate.instant('BLOCKLY_EDITOR.EXPORT_SVG_SUCCESS', {
+                  fileName: feedback.data?.fileName || '',
+                }),
+              );
+            } else {
+              this.message.error(
+                feedback.error ||
+                this.translate.instant('BLOCKLY_EDITOR.EXPORT_SVG_FAILED'),
+              );
+            }
+          },
+          60000,
+        );
         break;
       case 'project-close':
         if (this.isLoaded()) { // 只在已加载项目时检查

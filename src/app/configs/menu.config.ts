@@ -85,6 +85,12 @@ export let HEADER_MENU: IMenuItem[] = [
     router: ['/main/blockly-editor', '/main/code-editor']
   },
   {
+    name: 'MENU.EXPORT_BLOCKS_SVG',
+    action: 'blockly-svg-export',
+    icon: 'fa-light fa-file-image',
+    router: ['/main/blockly-editor']
+  },
+  {
     name: 'MENU.PROJECT_CLOSE',
     action: 'project-close',
     data: { type: 'cmd', data: 'close' },

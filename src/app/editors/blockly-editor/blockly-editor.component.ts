@@ -22,6 +22,8 @@ import { OnboardingService } from '../../services/onboarding.service';
 import { BLOCKLY_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 import { NoticeService } from '../../services/notice.service';
 import { FloatSiderComponent } from '../../components/float-sider/float-sider.component';
+import { ActionService } from '../../services/action.service';
+import { BlocklySvgExportService } from './services/blockly-svg-export.service';
 
 @Component({
   selector: 'app-blockly-editor',
@@ -43,6 +45,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   private _onMouseMoveBound = this._onMouseMove.bind(this);
   private _onMouseLeaveBound = this._onMouseLeave.bind(this);
+  private unregisterSvgExportAction?: () => void;
 
   devmode;
 
@@ -69,9 +72,17 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     private noticeService: NoticeService,
     private el: ElementRef,
     private ngZone: NgZone,
+    private actionService: ActionService,
+    private blocklySvgExportService: BlocklySvgExportService,
   ) { }
 
   ngOnInit(): void {
+    this.unregisterSvgExportAction = this.actionService.listen(
+      'blockly-svg-export',
+      () => this.blocklySvgExportService.exportAndDownload(),
+      'blockly-svg-export-handler',
+    );
+
     this.activatedRoute.queryParams.subscribe((params) => {
       if (params['projectId']) {
         console.log('project id', params['projectId']);
@@ -138,6 +149,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this._builderService.destroy();
     this._uploadService.cancel();
     this._uploadService.destroy();
+    this.unregisterSvgExportAction?.();
     this.electronService.setTitle('CYCORE-MCU-DevCloud');
     this.blocklyService.reset();
     this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);

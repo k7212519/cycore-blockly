@@ -1,49 +1,43 @@
 import * as Blockly from 'blockly';
-import { Field } from 'blockly';
-type PuzzleTab = Blockly.blockRendering.PuzzleTab;
+
 const svgPaths = Blockly.utils.svgPaths;
-const isDynamicShape = (Blockly.constants as any).isDynamicShape;
 
 type BlockSvg = Blockly.BlockSvg;
 type RenderInfo = Blockly.thrasos.RenderInfo;
-const Types = Blockly.blockRendering.Types;
-type InlineInput = Blockly.blockRendering.InlineInput;
+type Row = Blockly.blockRendering.Row;
+type Notch = Blockly.blockRendering.Notch;
 
 export class Drawer extends Blockly.blockRendering.Drawer {
   constructor(block: BlockSvg, info: RenderInfo) {
     super(block, info);
   }
 
-  // override drawLeft_() {
-  //   // const outputConnection: any = this.info_.outputConnection;
-  //   // this.positionOutputConnection_();
-  //   //
-  //   // if (outputConnection) {
-  //   //   const tabBottom =
-  //   //     outputConnection.connectionOffsetY + outputConnection.height;
-  //   //   const pathUp = isDynamicShape(outputConnection.shape)
-  //   //     ? outputConnection.shape.pathUp(outputConnection.height)
-  //   //     : (outputConnection.shape as PuzzleTab).pathUp;
-  //   //
-  //   //   // Draw a line up to the bottom of the tab.
-  //   //   this.outlinePath_ += svgPaths.lineOnAxis('V', tabBottom) + pathUp;
-  //   // }
-  //   // // Close off the path.  This draws a vertical line up to the start of the
-  //   // // block's path, which may be either a rounded or a sharp corner.
-  //   // this.outlinePath_ += 'z';
-  //   super.drawLeft_();
-  // }
+  protected override drawStatementInput_(row: Row): void {
+    const input = row.getLastInput();
+    if (!input) {
+      return;
+    }
 
-  // override drawInternals_() {
-  //   for (let i = 0, row; (row = this.info_.rows[i]); i++) {
-  //     for (let j = 0, elem; (elem = row.elements[j]); j++) {
-  //       if (Types.isInlineInput(elem)) {
-  //         this.drawInlineInput_(elem as InlineInput);
-  //       } else if (Types.isIcon(elem) || Types.isField(elem)) {
-  //         this.layoutField_(elem as Field | any);
-  //       }
-  //     }
-  //   }
-  // }
+    const notch = input.shape as Notch;
+    const notchLeft = input.xPos + input.notchOffset;
+    const notchRight = notchLeft + notch.width;
+    const innerCorner = this.constants_.INSIDE_CORNERS;
+    const innerHeight = row.height - 2 * innerCorner.height;
 
+    this.outlinePath_ +=
+      svgPaths.lineOnAxis('H', notchRight) +
+      notch.pathRight +
+      svgPaths.lineOnAxis(
+        'h',
+        -(input.notchOffset - innerCorner.width),
+      ) +
+      innerCorner.pathTop +
+      svgPaths.lineOnAxis('v', innerHeight) +
+      innerCorner.pathBottom +
+      svgPaths.lineOnAxis('H', notchLeft) +
+      notch.pathLeft +
+      svgPaths.lineOnAxis('H', row.xPos + row.width);
+
+    this.positionStatementInputConnection_(row);
+  }
 }

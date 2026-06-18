@@ -6,6 +6,41 @@ export class ConstantProvider extends Blockly.blockRendering.ConstantProvider {
 
   constructor() {
     super();
+    this.STATEMENT_BOTTOM_SPACER = -this.NOTCH_HEIGHT;
+  }
+
+  protected override makeNotch(): Blockly.blockRendering.Notch {
+    const makeRoundedPath = (direction: 1 | -1) =>
+      svgPaths.curve('c', [
+        svgPaths.point(direction * this.NOTCH_WIDTH * 0.22, 0),
+        svgPaths.point(
+          direction * this.NOTCH_WIDTH * 0.28,
+          this.NOTCH_HEIGHT,
+        ),
+        svgPaths.point(
+          direction * this.NOTCH_WIDTH * 0.5,
+          this.NOTCH_HEIGHT,
+        ),
+      ]) +
+      svgPaths.curve('c', [
+        svgPaths.point(direction * this.NOTCH_WIDTH * 0.22, 0),
+        svgPaths.point(
+          direction * this.NOTCH_WIDTH * 0.28,
+          -this.NOTCH_HEIGHT,
+        ),
+        svgPaths.point(
+          direction * this.NOTCH_WIDTH * 0.5,
+          -this.NOTCH_HEIGHT,
+        ),
+      ]);
+
+    return {
+      type: this.SHAPES['NOTCH'],
+      width: this.NOTCH_WIDTH,
+      height: this.NOTCH_HEIGHT,
+      pathLeft: makeRoundedPath(1),
+      pathRight: makeRoundedPath(-1),
+    };
   }
 
   override makeStartHat(): Blockly.blockRendering.StartHat {

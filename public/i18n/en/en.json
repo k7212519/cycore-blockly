@@ -5,6 +5,7 @@
         "PROJECT_OPEN": "Project List",
         "PROJECT_SAVE": "Save Project",
         "PROJECT_SAVE_AS": "Export to Local",
+        "EXPORT_BLOCKS_SVG": "Export Blocks as SVG",
         "PROJECT_CLOSE": "Close Project",
         "BUILD": "Build",
         "RUN": "Upload",
@@ -619,7 +620,11 @@
         "LOADING_BLOCKLY_LIB": "Loading Blockly libraries",
         "LOADING_LIB": "Loading {{name}}",
         "LOADING_BLOCKLY_PROGRAM": "Loading Blockly program",
-        "PROJECT_LOAD_SUCCESS": "Project loaded successfully"
+        "PROJECT_LOAD_SUCCESS": "Project loaded successfully",
+        "EXPORT_SVG_SUCCESS": "Blocks exported: {{fileName}}",
+        "EXPORT_SVG_FAILED": "Failed to export blocks",
+        "EXPORT_SVG_EMPTY": "There are no blocks to export",
+        "EXPORT_SVG_RESOURCE_FAILED": "Unable to embed resource in SVG: {{resource}}"
     },
     "PLAYGROUND": {
         "LOADING_EXAMPLE": "Loading example...",
