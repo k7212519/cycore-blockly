@@ -219,6 +219,12 @@ export class LibManagerComponent {
   output = '';
   isInstalling = false;
 
+  private removeTaskMessage(taskMessage?: { messageId?: string }) {
+    if (taskMessage?.messageId) {
+      this.message.remove(taskMessage.messageId);
+    }
+  }
+
   async installLib(lib) {
     // 检查库兼容性
     // console.log('当前开发板内核：', this.projectService.currentBoardConfig.core.replace('aily:', ''));
@@ -237,8 +243,6 @@ export class LibManagerComponent {
     let packageList_old = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
     // console.log('当前已安装的库列表：', packageList_old);
 
-    lib.state = 'installing';
-    this.message.loading(`${lib.nickname} ${this.translate.instant('LIB_MANAGER.INSTALLING')}...`);
     this.output = '';
     try {
       if (this.projectService.isServerProject) {
@@ -289,8 +293,7 @@ export class LibManagerComponent {
       this.message.warning(this.translate.instant('LIB_MANAGER.LIB_IN_USE'), { nzDuration: 5000 });
       return;
     }
-    lib.state = 'uninstalling';
-    this.message.loading(`${lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLING')}...`);
+    this.isInstalling = true;
     if (this.projectService.isServerProject) {
       try {
         await this.blocklyService.removeServerLibrary(lib.name);
@@ -300,6 +303,8 @@ export class LibManagerComponent {
       } catch (error: any) {
         lib.state = 'error';
         this.message.error(`${lib._nickname || lib.nickname} 卸载失败: ${error?.message || error}`);
+      } finally {
+        this.isInstalling = false;
       }
       return;
     }
@@ -310,12 +315,19 @@ export class LibManagerComponent {
       'node_modules',
       ...lib.name.split('/')
     );
-    this.blocklyService.removeLibrary(libPackagePath);
-    this.output = '';
-    await this.cmdService.runAsync(`npm uninstall ${lib.name}`, this.projectService.currentProjectPath);
-    this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
-    // lib.state = 'default';
-    this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLED')}`);
+    try {
+      this.blocklyService.removeLibrary(libPackagePath);
+      this.output = '';
+      await this.cmdService.runAsync(`npm uninstall ${lib.name}`, this.projectService.currentProjectPath);
+      this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
+      // lib.state = 'default';
+      this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLED')}`);
+    } catch (error: any) {
+      lib.state = 'error';
+      this.message.error(`${lib._nickname || lib.nickname} 卸载失败: ${error?.message || error}`);
+    } finally {
+      this.isInstalling = false;
+    }
   }
 
 
@@ -442,6 +454,7 @@ export class LibManagerComponent {
     if (this.projectService.isServerProject) {
       return;
     }
+    let importingMessage: { messageId?: string } | undefined;
     try {
       // 弹出文件夹选择对话框
       const folderPath = await window['ipcRenderer'].invoke('select-folder', {
@@ -465,7 +478,10 @@ export class LibManagerComponent {
         return;
       }
 
-      this.message.loading(`${this.translate.instant('LIB_MANAGER.IMPORTING')}...`);
+      importingMessage = this.message.loading(
+        `${this.translate.instant('LIB_MANAGER.IMPORTING')}...`,
+        { nzDuration: 0 }
+      );
 
       // 获取安装前的库列表
       let packageList_old = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
@@ -484,6 +500,7 @@ export class LibManagerComponent {
       // 重新检查已安装的库
       this.libraryList = this.applyLocalization(await this.checkInstalled());
 
+      this.removeTaskMessage(importingMessage);
       this.message.success(`${this.translate.instant('LIB_MANAGER.IMPORTED')}`);
 
       // 获取安装后的库列表并加载新增的库
@@ -500,6 +517,7 @@ export class LibManagerComponent {
       }
     } catch (error) {
       console.error('导入库失败：', error);
+      this.removeTaskMessage(importingMessage);
       this.message.error(`${this.translate.instant('LIB_MANAGER.IMPORT_FAILED')}: ${error.message || error}`);
     }
   }

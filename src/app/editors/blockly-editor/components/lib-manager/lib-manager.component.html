@@ -93,21 +93,16 @@
                     <button nz-button nzType="text" nzSize="small" [disabled]="true">
                         {{ 'LIB_MANAGER.INSTALLED_TEXT' | translate }}
                     </button>
-                    <button nz-button nzType="default" nzDanger nzSize="small" (click)="removeLib(lib)">
+                    <button nz-button nzType="default" nzDanger nzSize="small" [disabled]="isInstalling"
+                        (click)="removeLib(lib)">
                         {{'LIB_MANAGER.REMOVE' | translate }}
                     </button>
                     }@else if(lib.state=='uninstalling'){
                     <button nz-button nzType="default" nzDanger nzSize="small" [disabled]="true">
-                        <div class="icon lloading ccenter">
-                            <i class="fa-duotone fa-solid fa-loader"></i>
-                        </div>
                         {{'LIB_MANAGER.REMOVE' | translate }}
                     </button>
                     }@else if(lib.state=='installing'){
                     <button nz-button nzType="primary" nzSize="small" [disabled]="true">
-                        <div class="icon lloading ccenter">
-                            <i class="fa-duotone fa-solid fa-loader"></i>
-                        </div>
                         {{'LIB_MANAGER.INSTALL' | translate }}
                     </button>
                     }@else{

@@ -1,5 +1,9 @@
 @use "../project-new/project-new.component.scss";
 
+:host ::ng-deep app-sub-window .header.darwin {
+  padding-left: 0;
+}
+
 .type-btn {
   height: 48px;
   display: flex;
@@ -44,23 +48,6 @@
   }
 }
 
-// .theme-selector {
-//   display: flex;
-//   align-items: center;
-//   margin-bottom: 10px;
-
-//   .btn {
-//     width: 100px;
-//     height: 30px;
-//     flex-direction: column;
-//     font-size: 12px;
-//     i {
-//       font-size: 30px;
-//       margin-bottom: 3px;
-//     }
-//   }
-// }
-
 .instructions {
   height: 40px;
   margin-bottom: 10px;
@@ -81,44 +68,6 @@ textarea {
 
 .registry {
   height: 100%;
-}
-
-.serach-box {
-  height: 40px;
-  margin-bottom: 10px;
-}
-
-.board-list {
-  height: 400px;
-  border-radius: 2px;
-  padding: 0 5px 0 10px;
-  position: relative;
-  overflow: auto;
-  background: #363636;
-  border: 1px solid #434343;
-  margin-bottom: 19px;
-
-  .board-item {
-    border-bottom: 1px solid #43494b;
-    display: flex;
-    align-items: center;
-    padding: 4px 0;
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    .version {
-      margin-left: 5px;
-      color: #868686;
-    }
-
-    .btns {
-      position: absolute;
-      right: 10px;
-      display: flex;
-    }
-  }
 }
 
 .right {
@@ -167,14 +116,6 @@ ngx-simplebar {
     color: #999;
     font-size: 12px;
   }
-
-  .search-box {
-    position: relative;
-    i {
-      position: absolute;
-      right: 5px;
-    }
-  }
 }
 
 .item {
@@ -198,30 +139,6 @@ ngx-simplebar {
     }
   }
 
-  nz-select {
-    width: 350px !important;
-    margin-left: 0;
-
-    ::ng-deep {
-      nz-select-top-control {
-        border-radius: 2px;
-      }
-    }
-  }
-}
-
-.region-flag {
-  margin-right: 6px;
-  font-size: 16px;
-}
-
-.region-buttons {
-  display: flex;
-  flex-wrap: wrap;
-
-  button {
-    margin-right: -1px;
-  }
 }
 
 [disabled] {

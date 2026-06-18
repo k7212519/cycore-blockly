@@ -15,13 +15,9 @@
       <ngx-simplebar class="right" #scrollContainer [options]="options" (scroll)="onScroll()">
         <div class="right-inner-container">
           <!-- 基础设置 -->
-          <div id="SETTINGS.SECTIONS.BASIC" class="section" style="padding-bottom: 100px;">
+          <div id="SETTINGS.SECTIONS.BASIC" class="section">
             <h2 class="section-title">{{ 'SETTINGS.SECTIONS.BASIC' | translate }}</h2>
             <div class="right-inner">
-              <div class="item">
-                <div>{{ 'SETTINGS.FIELDS.PROJECT_FOLDER' | translate }}:</div>
-                <input nz-input [(ngModel)]="configData.project_path" [disabled]="true" />
-              </div>
               <div class="item">
                 <div>{{ 'SETTINGS.FIELDS.LANGUAGE' | translate }}:</div>
                 <div class="langs">
@@ -55,13 +51,6 @@
             <h2 class="section-title">{{ 'SETTINGS.SECTIONS.BLOCKLY' | translate }}</h2>
             <div class="right-inner">
               <div class="item">
-                <div>{{ 'SETTINGS.FIELDS.BLOCKLY_THEME' | translate }}:</div>
-                <nz-radio-group [(ngModel)]="configData.blockly.renderer" [nzSize]="'small'" nzButtonStyle="solid">
-                  <label nz-radio-button nzValue="thrasos">Thrasos</label>
-                  <label nz-radio-button nzValue="zelos">Zelos</label>
-                </nz-radio-group>
-              </div>
-              <div class="item">
                 <div>{{ 'SETTINGS.FIELDS.BLOCKLY_MINIMAP' | translate }}:</div>
                 <nz-switch [(ngModel)]="configData.blockly.minimap"></nz-switch>
               </div>
@@ -74,112 +63,6 @@
             </div>
           </div>
 
-          <!-- 编译设置 -->
-          <!-- <div id="SETTINGS.SECTIONS.COMPILATION" class="section">
-            <h2 class="section-title">{{ 'SETTINGS.SECTIONS.COMPILATION' | translate }}</h2>
-            <div class="right-inner">
-              <div class="item">
-                <div>{{ 'SETTINGS.FIELDS.COMPILATION_OPTIONS' | translate }}:</div>
-                <div class="item-inner">
-                  <div class="w50 ccenter">
-                    多核编译
-                    <nz-switch [ngModel]="true"></nz-switch>
-                  </div>
-                  <div class="w50 ccenter">
-                    显示详情
-                    <nz-switch [ngModel]="true"></nz-switch>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div> -->
-          <!-- 仓库设置 -->
-          <div id="SETTINGS.SECTIONS.REPOSITORY" class="section">
-            <h2 class="section-title">{{ 'SETTINGS.SECTIONS.REPOSITORY' | translate }}</h2>
-            <div class="right-inner">
-              <div class="item">
-                <div>{{ 'SETTINGS.FIELDS.REGION' | translate }}:</div>
-                <div class="region-buttons">
-                  @for (region of regionList; track region.key) {
-                  <button 
-                    nz-button 
-                    nzSize="small"
-                    [nzType]="selectedRegion === region.key ? 'primary' : 'default'"
-                    (click)="onRegionChange(region.key)">
-                    {{ region.name }}
-                  </button>
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 全局依赖管理 -->
-          <div id="SETTINGS.SECTIONS.DEPENDENCIES" class="section">
-            <h2 class="section-title">
-              <div>
-                {{ 'SETTINGS.SECTIONS.DEPENDENCIES' | translate }}
-              </div>
-              <div class="search-box">
-                <input nz-input placeholder="{{'SEARCH'}}" [(ngModel)]="boardSearchKeyword"
-                  (ngModelChange)="onBoardSearchChange()" />
-                <i class="fa-light fa-search"></i>
-              </div>
-            </h2>
-            <div class="right-inner">
-              <div class="board-list sscroll bborder">
-                @if(filteredBoardList.length == 0 && boardSearchKeyword) {
-                <div class="board-item">{{ 'NO RESULTS'}}</div>
-                }@else if(boardList.length == 0) {
-                <div class="board-item">Loading...</div>
-                }@else{
-                @for (board of filteredBoardList; track $index) {
-                <div class="board-item">
-                  <div>{{ board.name }}</div>
-                  <div class="version">&#64;{{ board.version }}</div>
-                  <div class="btns">
-                    @if (board.installed) {
-                    <div class="btn link" (click)="uninstall(board)">{{ 'SETTINGS.FIELDS.UNINSTALL' | translate }}</div>
-                    } @else {
-                    <div class="btn link" (click)="install(board)">{{ 'SETTINGS.FIELDS.INSTALL' | translate }}</div>
-                    }
-                  </div>
-                </div>
-                }
-                }
-              </div>
-            </div>
-          </div>
-          <!-- <div id="SETTINGS.SECTIONS.MCP" class="section">
-            <h2 class="section-title">MCP</h2>
-            <div class="right-inner">
-              <div class="board-list sscroll bborder">
-                @if(mcpServiceList.length == 0) {
-                <div class="board-item">Coming soon</div>
-                }@else{
-                @for (mcpService of mcpServiceList; track $index) {
-                <div class="board-item">
-                  <div>{{ mcpService.name }}</div>
-                  <div class="version">&#64;{{ mcpService.version }}</div>
-                  <div class="btns">
-                  </div>
-                </div>
-                }
-                }
-
-              </div>
-            </div>
-          </div> -->
-          <!-- 开发者设置 -->
-          <div id="SETTINGS.SECTIONS.DEVMODE" class="section">
-            <h2 class="section-title">{{ 'SETTINGS.SECTIONS.DEVMODE' | translate }}</h2>
-            <div class="right-inner">
-              <div class="item">
-                <div>{{ 'SETTINGS.SECTIONS.DEVMODE' | translate }}:</div>
-                <nz-switch [(ngModel)]="configData.devmode.enabled" (ngModelChange)="onDevModeChange()"></nz-switch>
-              </div>
-            </div>
-          </div>
         </div>
       </ngx-simplebar>
     </div>
