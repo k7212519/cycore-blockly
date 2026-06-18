@@ -8,6 +8,11 @@ body {
   user-select: none;
 }
 
+body.lib-manager-overlay-open app-header {
+  visibility: hidden;
+  pointer-events: none !important;
+}
+
 input,
 textarea {
   user-select: text;
@@ -97,7 +102,7 @@ nz-option-container {
 }
 
 .llight {
-  background-color: black;
+  background-color: #f2f3f5;
 }
 
 .ddark {

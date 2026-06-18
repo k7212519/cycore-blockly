@@ -1082,7 +1082,7 @@ export class ClassificationTrainComponent implements OnInit, OnDestroy {
           weights: weightSpecs
         }],
         format: 'tfjs-layers',
-        generatedBy: 'Aily Blockly - Classification Trainer',
+        generatedBy: 'Cycore MCU DevCloud - Classification Trainer',
         convertedBy: null
       };
 

@@ -84,6 +84,7 @@
 
       nz-input-group {
         background: #363636;
+        width: 100%;
 
         ::ng-deep {
           .ant-input-group-addon {
@@ -92,6 +93,13 @@
             padding: 0;
           }
         }
+      }
+
+      .random-name-btn {
+        width: 35px;
+        height: 30px;
+        padding: 0;
+        color: rgba(255, 255, 255, 0.78);
       }
     }
   }

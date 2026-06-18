@@ -8,6 +8,7 @@
   nsExec::Exec 'taskkill /F /IM aily-blockly.exe /T'
   nsExec::Exec 'taskkill /F /IM ${PRODUCT_NAME}.exe /T'
   nsExec::Exec 'taskkill /F /IM "Aily Blockly.exe" /T'
+  nsExec::Exec 'taskkill /F /IM "Cycore MCU DevCloud.exe" /T'
   
   ; 等待确保进程完全终止
   Sleep 2000

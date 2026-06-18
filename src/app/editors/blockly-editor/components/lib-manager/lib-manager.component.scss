@@ -1,121 +1,208 @@
 .lib-manager-box {
     position: absolute;
-    background: #1f1f1f;
+    background: #222;
     width: 100%;
-    min-height: 100%;
+    height: 100%;
+    min-height: 0;
     top: 0;
     left: 0;
-    z-index: 999999;
+    z-index: 7000;
+    overflow: auto;
 
     .header {
-        height: 40px;
+        min-height: 92px;
+        box-sizing: border-box;
         display: flex;
         align-items: center;
-        border-bottom: 1px solid #333;
+        gap: 12px;
+        padding: 18px clamp(22px, 3vw, 42px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.075);
         position: sticky;
         top: 0;
         z-index: 99;
-        background: #222;
-        overflow: hidden;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+            rgba(34, 34, 34, 0.92);
+        -webkit-backdrop-filter: saturate(180%) blur(20px);
+        backdrop-filter: saturate(180%) blur(20px);
 
         .btns {
-            position: absolute;
+            position: relative;
             display: flex;
             align-items: center;
-            right: 0;
-            padding: 0 10px;
-            height: 100%;
-            background: #222;
+            margin-left: auto;
+            flex: 0 0 auto;
 
             i {
                 margin-right: 5px;
             }
+
+            button {
+                min-height: 48px;
+                padding: 0 18px;
+                border-radius: 999px;
+                font-weight: 650;
+            }
         }
 
         .btn {
-            height: 40px;
-            width: 40px;
-            font-size: 19px;
+            height: 48px;
+            width: 48px;
+            border-radius: 50%;
+            font-size: 24px;
             flex-shrink: 0;
+            color: rgba(255, 255, 255, 0.86);
+            background: rgba(255, 255, 255, 0.075);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition:
+                color 160ms ease,
+                background 160ms ease,
+                transform 180ms ease;
+
+            &:hover {
+                color: #fff;
+                background: rgba(255, 255, 255, 0.12);
+                transform: translateX(-1px);
+            }
         }
 
         nz-input-group {
-            width: 160px;
+            width: min(300px, 24vw);
+            height: 40px;
+            padding: 0 14px !important;
             flex-shrink: 0;
-            margin: 0 15px 0 10px;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            border: 0 !important;
+            border-radius: 999px !important;
+            background: rgba(255, 255, 255, 0.085) !important;
+            box-shadow: none !important;
+            transition:
+                background 180ms ease,
+                box-shadow 180ms ease;
+
+            &:hover,
+            &.ant-input-affix-wrapper-focused {
+                background: rgba(255, 255, 255, 0.12) !important;
+                box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18) !important;
+            }
+
+            ::ng-deep {
+                .ant-input {
+                    height: 100%;
+                }
+
+                input {
+                    color: rgba(255, 255, 255, 0.9);
+                    background: transparent;
+                }
+            }
         }
     }
 
     .lib-list {
         display: grid;
-        grid-template-columns: repeat(auto-fill, 365px);
+        grid-template-columns: repeat(auto-fill, minmax(270px, 292px));
         justify-content: center;
-        gap: 15px;
+        gap: 12px;
         width: 100%;
-        padding: 15px 15px 58px;
+        box-sizing: border-box;
+        padding: 18px clamp(22px, 3vw, 42px) 68px;
 
         .lib-item {
             width: 100%;
-            max-width: 365px;
-            height: 165px;
-            background: #2b2b2b;
-            border-radius: 5px;
-            padding: 10px;
+            max-width: 292px;
+            height: 140px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
+                rgba(43, 43, 43, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            padding: 11px;
             position: relative;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            -webkit-backdrop-filter: saturate(180%) blur(16px);
+            backdrop-filter: saturate(180%) blur(16px);
+            box-shadow: none;
+            transition:
+                transform 170ms ease,
+                border-color 170ms ease,
+                background 170ms ease,
+                box-shadow 170ms ease;
+
+            &:hover {
+                transform: translateY(-1px);
+                border-color: rgba(255, 255, 255, 0.15);
+                background:
+                    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.045)),
+                    rgba(48, 50, 54, 0.82);
+                box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+            }
 
             .name {
                 display: flex;
                 align-items: center;
                 // align-items: flex-end;
-                height: 20px;
+                height: 22px;
+                min-width: 0;
+                color: rgba(255, 255, 255, 0.94);
+                font-size: 13px;
+                font-weight: 720;
 
                 i {
-                    margin-left: 10px;
+                    margin-left: 8px;
                     font-size: 15px;
 
                     &.fa-badge-check {
-                        color: #007706;
+                        color: #32d074;
                     }
 
                     &.fa-circle-exclamation {
-                        color: #cfaa04;
+                        color: #ffd057;
                     }
                 }
 
                 span {
                     position: absolute;
-                    right: 10px;
+                    right: 11px;
                     font-size: 12px;
-                    color: #aaa;
+                    color: rgba(255, 255, 255, 0.46);
+                    max-width: 68px;
+                    overflow: hidden;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
                 }
             }
 
             .desc {
-                color: #aaa;
+                color: rgba(255, 255, 255, 0.58);
                 flex-grow: 1;
                 font-size: 12px;
                 white-space: normal;
-                margin-top: 5px;
+                margin-top: 6px;
+                line-height: 1.42;
 
                 .icon {
                     float: left;
                     height: 36px;
                     width: 36px;
-                    margin-right: 10px;
-                    border-radius: 10px;
-                    background: rgba(255, 255, 255, 0.04);
+                    margin-right: 9px;
+                    border-radius: 12px;
+                    background:
+                        linear-gradient(180deg, rgba(103, 232, 249, 0.12), rgba(139, 92, 246, 0.08)),
+                        rgba(255, 255, 255, 0.045);
                     color: #d7f3ff;
 
                     i {
-                        font-size: 24px;
+                        font-size: 22px;
                     }
 
                     .library-svg-icon {
-                        width: 34px;
-                        height: 34px;
+                        width: 30px;
+                        height: 30px;
                         display: block;
                         filter: drop-shadow(0 4px 10px rgba(103, 232, 249, 0.12));
                     }
@@ -125,12 +212,18 @@
             .footer {
                 // position: absolute;
                 // bottom: 10px;
-                height: 24px;
+                height: 26px;
                 display: flex;
+                align-items: center;
                 justify-content: space-between;
                 width: 100%;
+                gap: 8px;
 
                 .version {
+                    color: rgba(255, 255, 255, 0.44);
+                    font-size: 12px;
+                    white-space: nowrap;
+
                     nz-select {
                         width: 80px;
                     }
@@ -138,9 +231,15 @@
 
                 .btns {
                     display: flex;
+                    gap: 5px;
+                    flex-shrink: 0;
 
                     button {
                         display: flex;
+                        align-items: center;
+                        border-radius: 999px;
+                        min-height: 26px;
+                        padding: 0 9px;
 
                         i {
                             margin-right: 5px;
@@ -157,9 +256,11 @@
         bottom: 0;
         display: flex;
         justify-content: center;
-        padding: 10px 0;
-        background: #1f1f1f;
-        border-top: 1px solid #333;
+        padding: 12px 0;
+        background: rgba(34, 34, 34, 0.92);
+        border-top: 1px solid rgba(255, 255, 255, 0.075);
+        -webkit-backdrop-filter: saturate(180%) blur(18px);
+        backdrop-filter: saturate(180%) blur(18px);
         z-index: 10;
     }
 
@@ -167,9 +268,45 @@
 
 .tag-list {
     white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
 
     nz-tag {
+        height: 40px;
+        line-height: 38px;
+        padding: 0 16px;
+        margin: 0;
+        border-radius: 999px;
+        border-color: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.68);
+        background: rgba(255, 255, 255, 0.055);
         cursor: pointer;
+
+        &:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.1);
+        }
+    }
+
+    .filter-divider {
+        width: 1px;
+        height: 22px;
+        margin: 0 4px;
+        flex: 0 0 auto;
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .installed-filter {
+        margin-left: 0;
     }
 }
 

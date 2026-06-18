@@ -76,9 +76,113 @@ import { NoticeService } from '../../../../services/notice.service';
 import { Minimap } from '@blockly/workspace-minimap';
 import { DarkTheme } from './theme.config';
 
+class RoundedVerticalFlyout extends (Blockly as any).VerticalFlyout {
+  constructor(workspaceOptions: any) {
+    super(workspaceOptions);
+    (this as any).CORNER_RADIUS = 16;
+    (this as any).MARGIN = 16;
+  }
+
+  private setBackgroundPath(width: number, height: number) {
+    const radius = (this as any).CORNER_RADIUS;
+    const fullWidth = width + radius;
+    const fullHeight = height + 2 * radius;
+    const arrowRootX = 2;
+    const arrowWidth = 8;
+    const arrowHeight = 18;
+    const arrowCenterY = this.getArrowCenterY_(fullHeight, arrowHeight, radius);
+    const arrowTop = arrowCenterY - arrowHeight / 2;
+    const arrowBottom = arrowCenterY + arrowHeight / 2;
+    const isRightFlyout = (this as any).toolboxPosition_ == (Blockly as any).TOOLBOX_AT_RIGHT;
+
+    if (isRightFlyout) {
+      this.setRightBackgroundPath_(fullWidth, fullHeight, radius);
+      return;
+    }
+
+    const path = [
+      `M ${radius},0`,
+      `H ${fullWidth - radius}`,
+      `Q ${fullWidth},0 ${fullWidth},${radius}`,
+      `V ${fullHeight - radius}`,
+      `Q ${fullWidth},${fullHeight} ${fullWidth - radius},${fullHeight}`,
+      `H ${radius}`,
+      `Q 0,${fullHeight} 0,${fullHeight - radius}`,
+      `V ${arrowBottom}`,
+      `C ${arrowRootX},${arrowCenterY + 6} ${arrowRootX - arrowWidth},${arrowCenterY + 4} ${arrowRootX - arrowWidth},${arrowCenterY}`,
+      `C ${arrowRootX - arrowWidth},${arrowCenterY - 4} ${arrowRootX},${arrowCenterY - 6} 0,${arrowTop}`,
+      `V ${radius}`,
+      `Q 0,0 ${radius},0`,
+      'Z',
+    ].join(' ');
+
+    (this as any).svgBackground_?.setAttribute('d', path);
+  }
+
+  private setRightBackgroundPath_(fullWidth: number, fullHeight: number, radius: number) {
+    const path = [
+      `M 0,${radius}`,
+      `Q 0,0 ${radius},0`,
+      `H ${fullWidth - radius}`,
+      `Q ${fullWidth},0 ${fullWidth},${radius}`,
+      `V ${fullHeight - radius}`,
+      `Q ${fullWidth},${fullHeight} ${fullWidth - radius},${fullHeight}`,
+      `H ${radius}`,
+      `Q 0,${fullHeight} 0,${fullHeight - radius}`,
+      'Z',
+    ].join(' ');
+    (this as any).svgBackground_?.setAttribute('d', path);
+  }
+
+  private getArrowCenterY_(fullHeight: number, arrowHeight: number, radius: number): number {
+    const fallback = fullHeight / 2;
+    const selectedRow = document.querySelector('.blocklyToolboxDiv .blocklyTreeSelected');
+    const parentSvg = (this as any).targetWorkspace?.getParentSvg?.();
+    if (!selectedRow || !parentSvg) return fallback;
+
+    const selectedRect = selectedRow.getBoundingClientRect();
+    const svgRect = parentSvg.getBoundingClientRect();
+    const flyoutY = (this as any).getY();
+    const centerY = selectedRect.top + selectedRect.height / 2 - svgRect.top - flyoutY;
+    const minY = radius + arrowHeight / 2 + 4;
+    const maxY = fullHeight - radius - arrowHeight / 2 - 4;
+    if (!Number.isFinite(centerY)) return fallback;
+    return Math.max(minY, Math.min(maxY, centerY));
+  }
+}
+
 class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
   constructor(workspace: any) {
     super(workspace);
+  }
+
+  getToolboxMetrics() {
+    const metrics = super.getToolboxMetrics();
+    if (
+      (this as any).workspace_?.getToolbox?.() &&
+      metrics.position == (Blockly as any).TOOLBOX_AT_LEFT
+    ) {
+      return {
+        ...metrics,
+        width: metrics.width + this.getFloatingToolboxOffset_(),
+      };
+    }
+    return metrics;
+  }
+
+  private getFloatingToolboxOffset_(): number {
+    return (
+      this.getCssPixelVar_('--blockly-floating-toolbox-inset', 12) +
+      this.getCssPixelVar_('--blockly-floating-flyout-gap', 8)
+    );
+  }
+
+  private getCssPixelVar_(name: string, fallback: number): number {
+    const svg = (this as any).workspace_?.getParentSvg?.();
+    if (!svg) return fallback;
+    const rawValue = getComputedStyle(svg).getPropertyValue(name).trim();
+    const value = Number.parseFloat(rawValue);
+    return Number.isFinite(value) ? value : fallback;
   }
 
   getViewMetrics(getWorkspaceCoordinates: boolean | undefined = undefined) {
@@ -229,6 +333,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     },
     multiSelectKeys: ['Shift'],
     plugins: {
+      flyoutsVerticalToolbox: RoundedVerticalFlyout,
       metricsManager: OverlayFlyoutMetricsManager,
       connectionPreviewer:
         BlockDynamicConnection.decoratePreviewer(

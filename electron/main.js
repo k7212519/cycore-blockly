@@ -7,7 +7,7 @@ const { app, BrowserWindow, ipcMain, dialog, screen, shell, net } = require("ele
 const { isWin32, isDarwin, isLinux } = require("./platform");
 
 // 设置应用名称，用于 Windows 系统通知显示
-app.setName("aily blockly");
+app.setName("Cycore MCU DevCloud");
 
 // Windows 系统中设置 AppUserModelID，用于通知分组和显示
 if (isWin32) {

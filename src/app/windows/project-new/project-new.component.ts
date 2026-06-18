@@ -14,6 +14,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { TranslateModule } from '@ngx-translate/core';
 import { UiService } from '../../services/ui.service';
 import { PlatformService } from '../../services/platform.service';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 
 @Component({
   selector: 'app-project-new',
@@ -26,7 +27,8 @@ import { PlatformService } from '../../services/platform.service';
     NzStepsModule,
     NzSelectModule,
     NzTagModule,
-    TranslateModule
+    TranslateModule,
+    NzToolTipModule
   ],
   templateUrl: './project-new.component.html',
   styleUrl: './project-new.component.scss',
@@ -83,7 +85,6 @@ export class ProjectNewComponent {
     this.newProjectData.board.nickname = this.currentBoard.nickname;
     this.newProjectData.board.name = this.currentBoard.name;
     this.newProjectData.board.version = this.currentBoard.version;
-    this.newProjectData.name = this.projectService.generateUniqueProjectName(this.newProjectData.path, 'project_');
   }
 
   process(array) {
@@ -135,22 +136,44 @@ export class ProjectNewComponent {
 
   // 检查项目名称是否存在
   showIsExist = false;
+  showIsPathPassed = false;
+  projectNameChecking = false;
+
+  checkPathInvalidChars(): boolean {
+    const name = this.newProjectData.name || '';
+    this.showIsExist = false;
+    const hasInvalid = !/^[^\p{N}\s][\p{L}\p{N}_-]{0,63}$/u.test(name);
+    this.showIsPathPassed = hasInvalid;
+    return hasInvalid;
+  }
+
   async checkPathIsExist(): Promise<boolean> {
-    const pt = this.platformService.getPlatformSeparator();
-    let path = this.newProjectData.path + pt + this.newProjectData.name;
-    let isExist = window['path'].isExists(path);
-    if (isExist) {
-      this.showIsExist = true;
-    } else {
-      this.showIsExist = false;
-    }
+    const isExist = await this.projectService.isServerProjectNameTaken(this.newProjectData.name);
+    this.showIsExist = isExist;
     return isExist;
   }
 
+  generateRandomProjectName() {
+    const adjectives = ['swift', 'bright', 'smart', 'tiny', 'nova', 'lucky', 'clear', 'rapid'];
+    const nouns = ['chip', 'core', 'board', 'sensor', 'maker', 'logic', 'pilot', 'spark'];
+    const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    this.newProjectData.name = `${adjective}_${noun}_${suffix}`;
+    this.checkPathInvalidChars();
+  }
+
   async createProject() {
-    // 判断是否有同名项目
-    if (await this.checkPathIsExist()) {
+    if (this.checkPathInvalidChars()) {
       return;
+    }
+    this.projectNameChecking = true;
+    try {
+      if (await this.checkPathIsExist()) {
+        return;
+      }
+    } finally {
+      this.projectNameChecking = false;
     }
     this.currentStep = 2;
     await this.projectService.projectNew(this.newProjectData);

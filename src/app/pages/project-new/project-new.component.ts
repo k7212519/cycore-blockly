@@ -12,6 +12,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { Router } from '@angular/router';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { SequentialImgDirective } from './sequential-img.directive';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 
 @Component({
   selector: 'app-project-new',
@@ -24,7 +25,8 @@ import { SequentialImgDirective } from './sequential-img.directive';
     NzSelectModule,
     TranslateModule,
     NzRadioModule,
-    SequentialImgDirective
+    SequentialImgDirective,
+    NzToolTipModule
   ],
   templateUrl: './project-new.component.html',
   styleUrl: './project-new.component.scss',
@@ -74,7 +76,6 @@ export class ProjectNewComponent {
     if (this.boardList.length > 0) {
       this.selectBoard(this.boardList[0]);
     }
-    this.newProjectData.name = 'project_' + new Date().getTime();
   }
 
   private isAllowedBoard(board: BoardInfo): boolean {
@@ -122,22 +123,43 @@ export class ProjectNewComponent {
   // 检查项目名称是否存在
   showIsExist = false;
   async checkPathIsExist(): Promise<boolean> {
-    this.showIsExist = false;
-    return false;
+    const isExist = await this.projectService.isServerProjectNameTaken(this.newProjectData.name);
+    this.showIsExist = isExist;
+    return isExist;
   }
 
-  // macOS 项目名称非法字符检查：/ \0 : 等（仅检查用户输入的项目名）
   showIsPathPassed = false;
+  projectNameChecking = false;
+
   checkPathInvalidChars(): boolean {
-    const invalidChars = /[\0:\\*?^$!#%&()=+`~'"<>|\n\r]/;
-    const hasInvalid = invalidChars.test(this.newProjectData.name || '');
+    const name = this.newProjectData.name || '';
+    this.showIsExist = false;
+    const hasInvalid = !/^[^\p{N}\s][\p{L}\p{N}_-]{0,63}$/u.test(name);
     this.showIsPathPassed = hasInvalid;
     return hasInvalid;
+  }
+
+  generateRandomProjectName() {
+    const adjectives = ['swift', 'bright', 'smart', 'tiny', 'nova', 'lucky', 'clear', 'rapid'];
+    const nouns = ['chip', 'core', 'board', 'sensor', 'maker', 'logic', 'pilot', 'spark'];
+    const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    this.newProjectData.name = `${adjective}_${noun}_${suffix}`;
+    this.checkPathInvalidChars();
   }
 
   async createProject() {
     if (this.checkPathInvalidChars()) {
       return;
+    }
+    this.projectNameChecking = true;
+    try {
+      if (await this.checkPathIsExist()) {
+        return;
+      }
+    } finally {
+      this.projectNameChecking = false;
     }
     this.currentStep = 2;
 

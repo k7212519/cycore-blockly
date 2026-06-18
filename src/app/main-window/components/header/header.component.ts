@@ -42,6 +42,12 @@ export class HeaderComponent implements OnDestroy {
   headerMenu = HEADER_MENU;
   headerApps = APP_LIST;
 
+  get projectShortcutBtns(): IMenuItem[] {
+    return ['project-list', 'project-new']
+      .map(action => this.headerMenu.find(item => item.action === action))
+      .filter((item): item is IMenuItem => Boolean(item));
+  }
+
   get isMac() {
     return this.platformService.isMac();
   }
@@ -421,6 +427,14 @@ export class HeaderComponent implements OnDestroy {
         }
         this.openProject();
         break;
+      case 'project-list':
+        if (this.isLoaded()) {
+          const canContinue = await this.checkUnsavedChanges('close');
+          if (!canContinue) return;
+          await this.projectService.close(false);
+        }
+        this.router.navigate(['/main/guide']);
+        break;
       case 'project-save':
         this.projectService.save();
         break;
@@ -470,7 +484,10 @@ export class HeaderComponent implements OnDestroy {
         });
         break;
       case 'settings-open':
-        this.uiService.openWindow(item.data);
+        this.uiService.openWindow({
+          ...item.data,
+          queryParams: { returnUrl: this.router.url }
+        });
         break;
       case 'user-logout':
         this.logout();

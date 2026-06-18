@@ -120,7 +120,7 @@ export class UiService {
     if (opt?.path) {
       const mainRoutes = new Set(['project-new', 'playground']);
       const route = mainRoutes.has(opt.path) ? ['/main', opt.path] : ['/', opt.path];
-      this.router.navigate(route);
+      this.router.navigate(route, { queryParams: opt.queryParams });
     }
   }
 
@@ -248,7 +248,11 @@ export class UiService {
 
   // 关闭当前窗口
   closeWindow() {
-    window['iWindow'].close();
+    if (window['iWindow']?.close) {
+      window['iWindow'].close();
+      return;
+    }
+    this.router.navigate(['/main/guide']);
   }
 
 
@@ -302,6 +306,7 @@ export interface WindowOpts {
   alwaysOnTop?: boolean;
   width?: number;
   height?: number;
+  queryParams?: Record<string, any>;
 }
 
 export interface ToolOpts {

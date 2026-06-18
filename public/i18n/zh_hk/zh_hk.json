@@ -2,9 +2,9 @@
     "MENU": {
         "MENU": "選單",
         "PROJECT_NEW": "新建專案",
-        "PROJECT_OPEN": "開啟專案",
+        "PROJECT_OPEN": "專案列表",
         "PROJECT_SAVE": "儲存專案",
-        "PROJECT_SAVE_AS": "另存為",
+        "PROJECT_SAVE_AS": "匯出到本地",
         "PROJECT_CLOSE": "關閉專案",
         "BUILD": "編譯",
         "RUN": "燒錄",
@@ -54,7 +54,7 @@
     "GUIDE": {
         "START": "開始",
         "RECENTLY": "最近",
-        "TITLE": "少年芯嵌入式晶片開發雲平台",
+        "TITLE": "Cycore MCU DevCloud",
         "TUTORIAL": "教程與示例",
         "TUTORIAL_DESC": "查看教程與示例程式",
         "COMING_SOON": "coming soon",
@@ -169,7 +169,7 @@
             "PROJECT_NAME": "專案名稱",
             "SAVE_PATH": "儲存路徑",
             "NAME_EXISTS": "專案名稱已存在，請修改",
-            "PATH_INVALID_CHARS": "路徑包含非法字元（如 / : * ? \" < > | 等），請修改"
+            "PATH_INVALID_CHARS": "專案名稱不能為空、不能有空格、不能以數字開頭，只能使用中文、英文、數字、- 和 _"
         },
         "BUTTONS": {
             "USE_THIS": "使用此開發板創建專案",
@@ -177,6 +177,7 @@
             "NEXT": "下一步",
             "PREV": "上一步",
             "CREATE": "創建專案",
+            "RANDOM_NAME": "隨機名稱",
             "CREATING": "正在創建",
             "CANCEL_CREATE": "取消創建"
         },

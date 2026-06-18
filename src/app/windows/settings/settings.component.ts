@@ -15,6 +15,7 @@ import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { AuthService } from '../../services/auth.service';
 import { NzModalService } from 'ng-zorro-antd/modal';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   selector: 'app-settings',
@@ -207,6 +208,7 @@ export class SettingsComponent {
   appdata_path: string
 
   mcpServiceList = []
+  private returnUrl = '';
 
   constructor(
     private uiService: UiService,
@@ -216,10 +218,13 @@ export class SettingsComponent {
     private authService: AuthService,
     private modal: NzModalService,
     private translateService: TranslateService,
+    private route: ActivatedRoute,
+    private router: Router,
   ) {
   }
 
   async ngOnInit() {
+    this.returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || '';
     await this.configService.init();
   }
 
@@ -287,14 +292,22 @@ export class SettingsComponent {
   }
 
   cancel() {
-    this.uiService.closeWindow();
+    this.closeOrReturn();
   }
 
   apply() {
     // 保存到config.json，如有需要立即加载的，再加载
     this.configService.save();
      window['ipcRenderer'].send('setting-changed', { action: 'devmode-changed', data: this.configData.devmode });
-    // 保存完毕后关闭窗口
+    // 保存完毕后关闭窗口或回到进入设置前的页面
+    this.closeOrReturn();
+  }
+
+  private closeOrReturn() {
+    if (this.returnUrl) {
+      this.router.navigateByUrl(this.returnUrl);
+      return;
+    }
     this.uiService.closeWindow();
   }
 

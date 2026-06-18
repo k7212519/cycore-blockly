@@ -61,6 +61,18 @@ export interface ServerProjectInfo {
   packageJson: any;
 }
 
+export interface ServerProjectListItem {
+  projectId: string;
+  name: string;
+  packageName?: string;
+  boardName?: string;
+  boardNickname?: string;
+  editor: 'blockly' | 'code' | string;
+  status?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
 export interface ServerFileNode {
   name: string;
   path: string;
@@ -100,6 +112,13 @@ export interface ServerLibraryPage<T> {
   pageSize: number;
 }
 
+export interface ServerProjectPage<T> {
+  records: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -117,7 +136,7 @@ export class ProjectService {
   currentProjectId$ = this.currentProjectIdSubject.asObservable();
 
   currentPackageData: ProjectPackageData = {
-    name: '少年芯嵌入式芯片开发云平台',
+    name: 'Cycore MCU DevCloud',
   };
   lastServerCompileResult: ServerCompileResult | null = null;
 
@@ -384,7 +403,7 @@ export class ProjectService {
     this.currentProjectPath = '';
     this.currentProjectId = '';
     this.currentPackageData = {
-      name: '少年芯嵌入式芯片开发云平台',
+      name: 'Cycore MCU DevCloud',
     };
     this.stateSubject.next('default');
     this.uiService.closeTerminal();
@@ -747,6 +766,35 @@ export class ProjectService {
       API.serverProjects,
       { name, boardName }
     ));
+  }
+
+  async loadServerProjects(page = 1, pageSize = 12): Promise<ServerProjectPage<ServerProjectListItem>> {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
+    return this.unwrap<ServerProjectPage<ServerProjectListItem>>(
+      this.http.get<ApiResult<ServerProjectPage<ServerProjectListItem>>>(`${API.serverProjects}?${params.toString()}`)
+    );
+  }
+
+  async isServerProjectNameTaken(name: string): Promise<boolean> {
+    const normalizedName = (name || '').trim().toLowerCase();
+    if (!normalizedName) {
+      return false;
+    }
+
+    const pageSize = 60;
+    let page = 1;
+    while (true) {
+      const result = await this.loadServerProjects(page, pageSize);
+      if ((result.records || []).some(project => (project.name || '').trim().toLowerCase() === normalizedName)) {
+        return true;
+      }
+      if (page * pageSize >= (result.total || 0)) {
+        return false;
+      }
+      page += 1;
+    }
   }
 
   async getServerProject(projectId = this.currentProjectId): Promise<ServerProjectInfo> {

@@ -132,6 +132,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    document.body.classList.remove('lib-manager-overlay-open');
     this._projectService.destroy();
     this._builderService.cancel();
     this._builderService.destroy();
@@ -325,7 +326,12 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     // hideChaff 会关闭所有打开的下拉、输入、WidgetDiv 和 DropDownDiv
     this.blocklyService.workspace.hideChaff();
     // this.uiService.closeToolAll();
-    this.showLibraryManager = !this.showLibraryManager;
+    this.setLibraryManagerOpen(!this.showLibraryManager);
+  }
+
+  setLibraryManagerOpen(open: boolean) {
+    this.showLibraryManager = open;
+    document.body.classList.toggle('lib-manager-overlay-open', open);
     this.cd.detectChanges();
   }
 

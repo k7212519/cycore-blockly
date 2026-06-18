@@ -9,7 +9,7 @@
 }
 
 @if (showLibraryManager) {
-  <app-lib-manager (close)="showLibraryManager = false"></app-lib-manager>
+  <app-lib-manager (close)="setLibraryManagerOpen(false)"></app-lib-manager>
 }
 <!-- @if (showLibEditor) {
 <app-lib-editor (close)="showLibEditor=false"></app-lib-editor>

@@ -1,9 +1,9 @@
 {
   "name": "aily-blockly",
-  "productName": "aily blockly",
+  "productName": "Cycore MCU DevCloud",
   "version": "0.9.34",
   "author": "coloz",
-  "description": "aily blockly dev",
+  "description": "Cycore MCU DevCloud",
   "main": "electron/main.js",
   "build": {
     "publish": [
@@ -60,13 +60,13 @@
       "target": "nsis",
       "sign": false,
       "signAndEditExecutable": true,
-      "artifactName": "aily-blockly-${version}.${ext}",
+      "artifactName": "Cycore-MCU-DevCloud-${version}.${ext}",
       "icon": "public/icon.ico",
       "fileAssociations": [
         {
           "ext": "abi",
-          "name": "Aily Blockly Project",
-          "description": "Aily Blockly Project File",
+          "name": "Cycore MCU DevCloud Project",
+          "description": "Cycore MCU DevCloud Project File",
           "icon": "public/icon.ico",
           "role": "Editor"
         }
@@ -80,12 +80,12 @@
     },
     "mac": {
       "icon": "public/icon-512.ico",
-      "artifactName": "aily-blockly-${version}-${arch}.${ext}",
+      "artifactName": "Cycore-MCU-DevCloud-${version}-${arch}.${ext}",
       "fileAssociations": [
         {
           "ext": "abi",
-          "name": "Aily Blockly Project",
-          "description": "Aily Blockly Project File",
+          "name": "Cycore MCU DevCloud Project",
+          "description": "Cycore MCU DevCloud Project File",
           "role": "Editor"
         }
       ],
@@ -101,9 +101,9 @@
       "fileAssociations": [
         {
           "ext": "abi",
-          "name": "Aily Blockly Project",
-          "description": "Aily Blockly Project File",
-          "mimeType": "application/x-aily-blockly-project"
+          "name": "Cycore MCU DevCloud Project",
+          "description": "Cycore MCU DevCloud Project File",
+          "mimeType": "application/x-cycore-mcu-devcloud-project"
         }
       ]
     },
@@ -117,9 +117,9 @@
       "include": "build/installer.nsh",
       "runAfterFinish": true,
       "differentialPackage": false,
-      "artifactName": "aily-blockly-Setup-${version}.${ext}",
+      "artifactName": "Cycore-MCU-DevCloud-Setup-${version}.${ext}",
       "createStartMenuShortcut": true,
-      "shortcutName": "aily blockly"
+      "shortcutName": "Cycore MCU DevCloud"
     }
   },
   "scripts": {

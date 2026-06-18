@@ -64,8 +64,8 @@ export let HEADER_MENU: IMenuItem[] = [
   {
     name: 'MENU.PROJECT_OPEN',
     text: 'Ctrl + O',
-    action: 'project-open',
-    data: { type: 'project-open', data: 'project-open' },
+    action: 'project-list',
+    data: { type: 'route', path: '/main/guide' },
     icon: 'fa-light fa-folder-open',
   },
   {

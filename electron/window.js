@@ -7,7 +7,7 @@ function terminateAilyProcess() {
     const platform = process.platform;
     let checkCommand;
     let killCommand;
-    const processName = platform === 'win32' ? 'aily blockly.exe' : 'aily blockly';
+    const processName = platform === 'win32' ? 'Cycore MCU DevCloud.exe' : 'Cycore MCU DevCloud';
 
     if (platform === 'win32') {
         checkCommand = `tasklist /FI "IMAGENAME eq ${processName}" /FO CSV`;
@@ -35,7 +35,7 @@ function terminateAilyProcess() {
             }
         }
 
-        console.log(`Current aily-blockly process count: ${count}`);
+        console.log(`Current Cycore MCU DevCloud process count: ${count}`);
 
         if (count > 1) {
             console.log('Multiple instances detected. Skipping forced termination.');
@@ -48,14 +48,14 @@ function terminateAilyProcess() {
                     (platform === 'win32' && stderr && stderr.includes('not found')) ||
                     (platform !== 'win32' && error.code === 1);
                 if (notFound) {
-                    console.log('No aily-blockly process found to terminate.');
+                    console.log('No Cycore MCU DevCloud process found to terminate.');
                     return;
                 }
                 console.error(`Error killing aily-blockly process: ${error.message}`);
                 return;
             }
             if (stdout) {
-                console.log(`aily-blockly process terminated: ${stdout}`);
+                console.log(`Cycore MCU DevCloud process terminated: ${stdout}`);
             }
         });
     } catch (commandError) {

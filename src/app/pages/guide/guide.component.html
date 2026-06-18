@@ -1,42 +1,90 @@
-<div class="guide-box ccenter">
-  <div class="left-box">
-    <div class="stitle">
-      <img class="logo" src="imgs/logo.webp" alt="" draggable="false">
-      <div class="version">ver {{version}}</div>
+<div class="guide-shell" [class.theme-light]="isLightTheme" [class.theme-dark]="!isLightTheme">
+  <header class="page-header">
+    <div class="brand-block">
+      <div>
+        <h1>Cycore MCU DevCloud</h1>
+        <p>少年芯嵌入式芯片云开发平台</p>
+      </div>
     </div>
-    <div class="title">{{'GUIDE.START' | translate}}</div>
-    @if (showMenu) {
-    <div class="menu-box">
-      @for (item of guideMenu; track $index) {
-      @if (item.sep) {
-      <div class="sep"></div>
-      } @else {
-      <div class="btn link" (click)="onMenuClick(item)">
-        <div class="icon ccenter">
-          <i class="{{ item.icon }}"></i>
-        </div>
-        <div class="text">{{ item.name | translate}}</div>
+    <div class="header-actions">
+      <button nz-button class="refresh-btn" nz-tooltip nzTooltipTitle="刷新" [disabled]="loadingProjects"
+        (click)="loadProjects()">
+        <i class="fa-regular fa-rotate-right" [class.spinning]="loadingProjects"></i>
+      </button>
+      <button nz-button nzType="primary" class="new-project-btn" (click)="process({ action: 'project-new' })">
+        <i class="fa-light fa-file-circle-plus"></i>
+        <span>新建项目</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="projects-area">
+    <div class="section-title">
+      <div class="eyebrow">Saved Projects</div>
+      <h2>项目列表</h2>
+    </div>
+
+    @if (loadingProjects && projects.length === 0) {
+    <div class="project-grid loading-grid" aria-busy="true">
+      @for (item of [1,2,3,4,5,6]; track item) {
+      <div class="project-card skeleton-card">
+        <div class="folder-skeleton"></div>
+        <div class="line-skeleton wide"></div>
+        <div class="line-skeleton"></div>
       </div>
       }
+    </div>
+    } @else if (loadError) {
+    <div class="state-card">
+      <div class="state-icon"><i class="fa-regular fa-triangle-exclamation"></i></div>
+      <h3>项目列表加载失败</h3>
+      <p>{{ loadError }}</p>
+      <button nz-button nzType="primary" (click)="loadProjects()">重试</button>
+    </div>
+    } @else if (projects.length === 0) {
+    <div class="state-card">
+      <img src="imgs/folder.svg" alt="" draggable="false">
+      <h3>暂无保存的项目</h3>
+      <button nz-button nzType="primary" (click)="process({ action: 'project-new' })">新建项目</button>
+    </div>
+    } @else {
+    <div class="project-grid">
+      @for (project of projects; track project.projectId) {
+      <article class="project-card" [class.opening]="openingProjectId === project.projectId"
+        (click)="openServerProject(project)">
+        <div class="folder-icon">
+          <img src="imgs/folder.svg" alt="" draggable="false">
+        </div>
+
+        <div class="project-content">
+          <h3 class="project-name" [title]="project.name">{{ project.name }}</h3>
+          <div class="project-meta">
+            <span class="ellipsis">{{ project.boardNickname || project.boardName || '未选择开发板' }}</span>
+            <span class="dot"></span>
+            <span class="time-text">
+              @if (getProjectUpdatedText(project)) {
+              {{ getProjectUpdatedText(project) | date:'yyyy/MM/dd HH:mm' }}
+              } @else {
+              -
+              }
+            </span>
+          </div>
+        </div>
+
+        @if (openingProjectId === project.projectId) {
+        <i class="fa-light fa-spinner-third opening-spinner"></i>
+        }
+      </article>
       }
     </div>
     }
-    <!-- 近期打开的项目 -->
-    <div style="min-height: 150px;">
-      @if(recentlyProjects.length > 0) {
-      <div class="title">{{'GUIDE.RECENTLY' | translate}}</div>
-      <div class="menu-box">
-        @for(project of recentlyProjects; track $index) {
-        <div class="project btn link" (click)="openProjectByPath(project)">
-          <div>{{project.nickname || project.name}}</div>
-          <div class="path ellipsis">{{project.path}}</div>
-        </div>
-        }
-        <!-- <div class="project btn link" (click)="showMore=true">
-        更多...
-      </div> -->
-      </div>
-      }
+
+    @if (total > pageSize) {
+    <div class="pagination-bar">
+      <nz-pagination [(nzPageIndex)]="pageIndex" [nzPageSize]="pageSize" [nzTotal]="total"
+        [nzShowSizeChanger]="false" (nzPageIndexChange)="onPageChange($event)">
+      </nz-pagination>
     </div>
-  </div>
+    }
+  </main>
 </div>

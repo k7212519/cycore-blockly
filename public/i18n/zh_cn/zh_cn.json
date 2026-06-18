@@ -2,9 +2,9 @@
     "MENU": {
         "MENU": "菜单",
         "PROJECT_NEW": "新建项目",
-        "PROJECT_OPEN": "打开项目",
+        "PROJECT_OPEN": "项目列表",
         "PROJECT_SAVE": "保存项目",
-        "PROJECT_SAVE_AS": "另存为",
+        "PROJECT_SAVE_AS": "导出到本地",
         "PROJECT_CLOSE": "关闭项目",
         "BUILD": "编译",
         "RUN": "烧录",
@@ -93,7 +93,7 @@
     "GUIDE": {
         "START": "开始",
         "RECENTLY": "最近",
-        "TITLE": "少年芯嵌入式芯片开发云平台",
+        "TITLE": "Cycore MCU DevCloud",
         "TUTORIAL": "教程与示例",
         "TUTORIAL_DESC": "查看教程与示例程序",
         "COMING_SOON": "coming soon",
@@ -222,7 +222,7 @@
             "PROJECT_NAME": "项目名称",
             "SAVE_PATH": "保存路径",
             "NAME_EXISTS": "项目名称已存在，请修改",
-            "PATH_INVALID_CHARS": "路径包含非法字符（如 / : * ? \" < > | 等），请修改"
+            "PATH_INVALID_CHARS": "项目名称不能为空，不能有空格，不能以数字开头，只能使用中文、英文、数字、- 和 _"
         },
         "BUTTONS": {
             "USE_THIS": "创建新项目",
@@ -230,6 +230,7 @@
             "NEXT": "下一步",
             "PREV": "上一步",
             "CREATE": "创建项目",
+            "RANDOM_NAME": "随机名称",
             "CREATING": "正在创建",
             "CANCEL_CREATE": "取消创建"
         },

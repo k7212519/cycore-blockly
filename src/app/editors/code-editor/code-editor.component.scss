@@ -3,6 +3,8 @@
     height: 100%;
     width: 100%;
     position: relative;
+    box-sizing: border-box;
+    padding-top: var(--floating-header-safe-top, 74px);
     overflow: hidden;
 }
 

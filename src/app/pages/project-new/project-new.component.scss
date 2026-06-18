@@ -108,17 +108,25 @@
         }
       }
 
-      nz-input-group {
-        background: #363636;
+        nz-input-group {
+          background: #363636;
+          width: 100%;
 
-        ::ng-deep {
-          .ant-input-group-addon {
-            width: 35px;
-            height: 32px;
-            padding: 0;
+          ::ng-deep {
+            .ant-input-group-addon {
+              width: 35px;
+              height: 32px;
+              padding: 0;
+            }
           }
         }
-      }
+
+        .random-name-btn {
+          width: 35px;
+          height: 30px;
+          padding: 0;
+          color: rgba(255, 255, 255, 0.78);
+        }
     }
   }
 }

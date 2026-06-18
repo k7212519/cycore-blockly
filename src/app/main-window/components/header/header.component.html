@@ -1,25 +1,24 @@
 <div class="header-box" [class.darwin]="isNativeMacWindow" [class.full-screen]="isMacFullScreen">
   <div class="menu ccenter">
     <button type="button" class="menu-pill ccenter" [class.active]="showMenu" (click)="openMenu()"
-      [attr.aria-expanded]="showMenu" nz-tooltip nzTooltipTitle="{{ 'MENU.MENU' | translate }}">
+      [attr.aria-expanded]="showMenu">
       <i class="fa-regular fa-bars"></i>
       <span>{{ 'MENU.MENU' | translate }}</span>
     </button>
   </div>
 
-  @if(isLoaded()){
-  <div class="board ccenter" (click)="openPortList($event)">
-    {{currentBoard}}
-    @if(currentPort){
-    ({{currentPort}})
-    }@else{
-    (-)
+  <div class="project-actions ccenter" role="group">
+    @for (btn of projectShortcutBtns; track btn.action) {
+    <button type="button" class="project-action ccenter" (click)="onClick(btn,$event)">
+      <i class="{{ btn.icon }}"></i>
+      <span>{{ btn.name | translate }}</span>
+    </button>
     }
-    <div class="down ccenter"><i class="fa-regular fa-angle-down"></i></div>
   </div>
-  }
+
   <div class="null-box drag" (dblclick)="maximize()"></div>
   <div class="project-box ccenter">{{ projectData.nickname || projectData.name}}</div>
+
   @for (btn of headerBtns; track $index) {
   @if(btn.action === 'upload' && showInRouter(btn)){
   <div class="toolbox upload-toolbox">
@@ -31,6 +30,21 @@
     </div>
   </div>
   }
+  }
+
+  @if(isLoaded()){
+  <button type="button" class="serial-selector ccenter" (click)="openPortList($event)" nz-tooltip
+    nzTooltipTitle="{{ 'SERIAL.SELECT_PORT' | translate }}">
+    <span class="serial-board">{{currentBoard}}</span>
+    <span class="serial-port">
+      @if(currentPort){
+      {{currentPort}}
+      }@else{
+      -
+      }
+    </span>
+    <i class="fa-regular fa-angle-down"></i>
+  </button>
   }
 
   <div class="toolbox">

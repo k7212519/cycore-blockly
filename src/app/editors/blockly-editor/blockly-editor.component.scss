@@ -1,4 +1,6 @@
 :host {
+    --blockly-floating-toolbox-width: 164px;
+    --blockly-floating-toolbox-inset: 12px;
     position: relative;
 }
 
@@ -13,13 +15,21 @@ blockly-main {
 
 .lib-mangager-btn {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    bottom: 14px;
+    left: var(--blockly-floating-toolbox-inset);
     height: 40px;
-    width: 179px;
+    width: var(--blockly-floating-toolbox-width);
+    box-sizing: border-box;
     cursor: pointer;
-    background-color: #323232;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
+        rgba(50, 50, 50, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
     z-index: 99;
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    backdrop-filter: saturate(180%) blur(18px);
 
     &:hover {
         color: #2a74ff;
