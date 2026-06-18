@@ -72,7 +72,7 @@ export class _ProjectService {
   async save(path: string, createHistory: boolean = true) {
     const projectDocument = this.blocklyService.getProjectDocument();
     const jsonData = this.blocklyService.getProjectAbiForSave(projectDocument);
-    window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData, null, 2));
+    window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData));
     this.syncUsedLibraryManifest(path, projectDocument);
     
     // 更新 codeHash 以反映当前代码状态
