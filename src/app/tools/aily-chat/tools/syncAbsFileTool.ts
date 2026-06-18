@@ -535,7 +535,7 @@ async function importFromAbs(
     
     // 保存工作区到 ABI 文件
     const abiJson = Blockly.serialization.workspaces.save(workspace);
-    await electronService.writeFile(abiFilePath, JSON.stringify(abiJson, null, 2));
+    await electronService.writeFile(abiFilePath, JSON.stringify(abiJson));
     
     const variableCount = allVariables.size;  // 使用收集到的所有变量数量
     

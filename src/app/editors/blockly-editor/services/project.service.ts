@@ -96,7 +96,7 @@ export class _ProjectService {
       this.savedServerJson = JSON.stringify(jsonData);
       return;
     }
-    window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData, null, 2));
+    window['fs'].writeFileSync(`${path}/project.abi`, JSON.stringify(jsonData));
     
     if (createHistory && this.currentProjectPath) {
       // 创建手动保存的历史版本
