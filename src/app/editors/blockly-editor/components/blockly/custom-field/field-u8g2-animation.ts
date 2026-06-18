@@ -23,6 +23,7 @@ export interface U8g2AnimationValue {
     frames: number[][][];
     sourceName?: string;
     sourceType?: string;
+    sourcePath?: string;
 }
 
 interface DecodeWorkerMessage {
@@ -36,6 +37,13 @@ interface DecodeWorkerMessage {
 interface PixelColours {
     readonly empty: string;
     readonly filled: string;
+}
+
+interface AnimationDecodeSource {
+    fileName: string;
+    mimeType: string;
+    buffer: ArrayBuffer;
+    sourcePath?: string;
 }
 
 export interface FieldU8g2AnimationFromJsonConfig extends Blockly.FieldConfig {
@@ -61,6 +69,7 @@ const DEFAULT_PIXEL_COLOURS: PixelColours = {
     filled: '#f4f4f4',
 };
 let u8g2AnimationModeCounter = 0;
+let u8g2AnimationAssetCounter = 0;
 
 export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     private readonly bitmapModeInputName = `u8g2AnimationMode-${++u8g2AnimationModeCounter}`;
@@ -88,6 +97,10 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     private thresholdValueInput: HTMLInputElement | null = null;
     private boundEvents: Blockly.browserEvents.Data[] = [];
     private decodeWorker: Worker | null = null;
+    private sourceRedecodeTimer: ReturnType<typeof setTimeout> | null = null;
+    private sourceRedecodeInProgress = false;
+    private sourceRedecodePending = false;
+    private sourceRedecodeVersion = 0;
     private requestId = 0;
 
     constructor(
@@ -227,6 +240,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     }
 
     override dispose() {
+        this.clearSourceRedecodeTimer();
         this.terminateWorker();
         for (const event of this.boundEvents) {
             Blockly.browserEvents.unbind(event);
@@ -455,6 +469,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
 
         this.setValue(nextValue, false);
         this.rerenderSourceBlockAfterResize();
+        this.scheduleRedecodeFromSource();
     }
 
     private onPlaybackInputChange() {
@@ -474,6 +489,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
             fps: nextFps,
             maxFrames: nextMaxFrames,
         }, false);
+        this.scheduleRedecodeFromSource();
     }
 
     private onBitmapModeInputChange() {
@@ -495,6 +511,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
             ...currentValue,
             dither: nextDither,
         }, false);
+        this.scheduleRedecodeFromSource();
     }
 
     private onThresholdValueInputChange() {
@@ -512,6 +529,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
             ...currentValue,
             threshold: nextThreshold,
         }, false);
+        this.scheduleRedecodeFromSource();
     }
 
     private async onFileSelected(event: Event) {
@@ -530,21 +548,30 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         try {
             this.setStatus(`正在读取 ${file.name}...`);
             const buffer = await file.arrayBuffer();
-            await this.decodeAnimation(file, buffer, width, height, fps, maxFrames, dither, threshold);
+            this.invalidateSourceRedecode();
+            this.clearSourceRedecodeTimer();
+            this.setStatus(`正在保存 ${file.name}...`);
+            const sourcePath = this.persistSourceFile(file, buffer);
+            await this.decodeAnimation({
+                fileName: file.name,
+                mimeType: file.type || this.inferMimeType(file.name),
+                buffer,
+                sourcePath,
+            }, width, height, fps, maxFrames, dither, threshold);
         } catch (error: any) {
             this.setStatus(error?.message || '动画取模失败', true);
         }
     }
 
     private async decodeAnimation(
-        file: File,
-        buffer: ArrayBuffer,
+        source: AnimationDecodeSource,
         width: number,
         height: number,
         fps: number,
         maxFrames: number,
         dither: boolean,
         threshold: number,
+        shouldApplyResult: () => boolean = () => true,
     ) {
         this.terminateWorker();
         const worker = new Worker(
@@ -554,51 +581,342 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         this.decodeWorker = worker;
         const requestId = ++this.requestId;
 
-        await new Promise<void>((resolve, reject) => {
-            worker.onmessage = (event: MessageEvent<DecodeWorkerMessage>) => {
-                const message = event.data;
-                if (!message || message.requestId !== requestId) return;
+        try {
+            await new Promise<void>((resolve, reject) => {
+                worker.onmessage = (event: MessageEvent<DecodeWorkerMessage>) => {
+                    const message = event.data;
+                    if (!message || message.requestId !== requestId) return;
 
-                if (message.type === 'progress') {
-                    this.setStatus(message.message || '正在取模...');
-                    return;
-                }
+                    if (message.type === 'progress') {
+                        this.setStatus(message.message || '正在取模...');
+                        return;
+                    }
 
-                if (message.type === 'done' && message.result) {
-                    this.setValue(message.result, false);
-                    this.setStatus(`${Blockly.Msg['U8G2_ANIMATION_READY']} ${message.result.frames.length} 帧`);
-                    resolve();
-                    return;
-                }
+                    if (message.type === 'done' && message.result) {
+                        const result: U8g2AnimationValue = {
+                            ...message.result,
+                            sourceName: source.fileName,
+                            sourceType: source.mimeType || message.result.sourceType,
+                            sourcePath: source.sourcePath,
+                        };
+                        if (shouldApplyResult()) {
+                            this.setValue(result, false);
+                            this.setStatus(`${Blockly.Msg['U8G2_ANIMATION_READY']} ${result.frames.length} 帧`);
+                        }
+                        resolve();
+                        return;
+                    }
 
-                if (message.type === 'error') {
-                    reject(new Error(message.message || '动画取模失败'));
-                }
-            };
+                    if (message.type === 'error') {
+                        if (shouldApplyResult()) {
+                            reject(new Error(message.message || '动画取模失败'));
+                        } else {
+                            resolve();
+                        }
+                    }
+                };
 
-            worker.onerror = (error) => {
-                reject(new Error(error.message || 'Worker 执行失败'));
-            };
+                worker.onerror = (error) => {
+                    if (shouldApplyResult()) {
+                        reject(new Error(error.message || 'Worker 执行失败'));
+                    } else {
+                        resolve();
+                    }
+                };
 
-            worker.postMessage({
-                type: 'decode',
-                requestId,
-                fileName: file.name,
-                mimeType: file.type,
+                worker.postMessage({
+                    type: 'decode',
+                    requestId,
+                    fileName: source.fileName,
+                    mimeType: source.mimeType,
+                    buffer: source.buffer,
+                    width,
+                    height,
+                    fps,
+                    maxFrames,
+                    dither,
+                    threshold,
+                }, [source.buffer]);
+            });
+        } finally {
+            if (this.decodeWorker === worker) {
+                this.terminateWorker();
+            }
+        }
+    }
+
+    private persistSourceFile(file: File, buffer: ArrayBuffer): string {
+        const projectPath = this.getCurrentProjectPath();
+        const fsApi = (window as any)['fs'];
+        const pathApi = (window as any)['path'];
+
+        if (!projectPath || !fsApi || !pathApi?.join || !pathApi?.relative) {
+            throw new Error('未找到当前项目目录，无法保存动画资源');
+        }
+
+        if (typeof fsApi.mkdirSync !== 'function') {
+            throw new Error('文件系统接口不可用，无法创建 assets 目录');
+        }
+
+        const assetsDir = pathApi.join(projectPath, 'assets', 'u8g2-animation');
+        fsApi.mkdirSync(assetsDir);
+
+        const sourceExt = this.getSourceExtension(file.name, file.type);
+        const originalExt = this.getPathExtension(file.name);
+        const originalBaseName = pathApi.basename
+            ? pathApi.basename(file.name, originalExt)
+            : file.name.replace(/\.[^./\\]+$/, '');
+        const safeBaseName = this.sanitizeFileBaseName(originalBaseName);
+        const fileName = `${safeBaseName}-${Date.now()}-${++u8g2AnimationAssetCounter}${sourceExt}`;
+        const assetFilePath = pathApi.join(assetsDir, fileName);
+
+        if (typeof fsApi.writeFileBuffer === 'function') {
+            fsApi.writeFileBuffer(assetFilePath, buffer);
+        } else if (typeof fsApi.writeFileSync === 'function') {
+            fsApi.writeFileSync(assetFilePath, new Uint8Array(buffer));
+        } else if (typeof fsApi.writeBase64File === 'function') {
+            fsApi.writeBase64File(assetFilePath, this.arrayBufferToBase64(buffer));
+        } else {
+            throw new Error('文件系统接口不可用，无法保存动画资源');
+        }
+
+        return this.normalizeAssetPath(pathApi.relative(projectPath, assetFilePath));
+    }
+
+    private scheduleRedecodeFromSource(delayMs = 800) {
+        const value = this.getValue();
+        if (!value?.sourcePath) return;
+
+        this.sourceRedecodeVersion += 1;
+        this.clearSourceRedecodeTimer();
+        this.sourceRedecodeTimer = setTimeout(() => {
+            this.sourceRedecodeTimer = null;
+            void this.redecodeFromSource();
+        }, delayMs);
+    }
+
+    private clearSourceRedecodeTimer() {
+        if (this.sourceRedecodeTimer) {
+            clearTimeout(this.sourceRedecodeTimer);
+            this.sourceRedecodeTimer = null;
+        }
+    }
+
+    private invalidateSourceRedecode() {
+        this.sourceRedecodeVersion += 1;
+        this.sourceRedecodePending = false;
+    }
+
+    private async redecodeFromSource() {
+        if (this.sourceRedecodeInProgress) {
+            this.sourceRedecodePending = true;
+            return;
+        }
+
+        const value = this.getValue();
+        if (!value?.sourcePath) return;
+
+        const sourceFilePath = this.resolveSourceFilePath(value.sourcePath);
+        const fsApi = (window as any)['fs'];
+        if (!sourceFilePath || (!fsApi?.readFileBuffer && !fsApi?.readFileAsBase64)) {
+            this.setStatus('未找到动画源文件，无法重新取模', true);
+            return;
+        }
+
+        if (typeof fsApi.existsSync === 'function' && !fsApi.existsSync(sourceFilePath)) {
+            this.setStatus(`源文件不存在: ${value.sourcePath}`, true);
+            return;
+        }
+
+        const decodeVersion = this.sourceRedecodeVersion;
+        this.sourceRedecodeInProgress = true;
+        try {
+            const sourceName = value.sourceName || this.getPathBaseName(value.sourcePath);
+            this.setStatus(`正在重新取模 ${sourceName}...`);
+            const buffer = this.readSourceFileBuffer(sourceFilePath, fsApi);
+            await this.decodeAnimation({
+                fileName: sourceName,
+                mimeType: value.sourceType || this.inferMimeType(value.sourcePath),
                 buffer,
-                width,
-                height,
-                fps,
-                maxFrames,
-                dither,
-                threshold,
-            }, [buffer]);
-        });
+                sourcePath: value.sourcePath,
+            }, value.width, value.height, value.fps, value.maxFrames, value.dither, value.threshold, () => decodeVersion === this.sourceRedecodeVersion);
+        } catch (error: any) {
+            if (decodeVersion === this.sourceRedecodeVersion) {
+                this.setStatus(error?.message || '重新取模失败', true);
+            }
+        } finally {
+            this.sourceRedecodeInProgress = false;
+            if (this.sourceRedecodePending) {
+                this.sourceRedecodePending = false;
+                this.scheduleRedecodeFromSource(0);
+            }
+        }
+    }
 
-        this.terminateWorker();
+    private readSourceFileBuffer(sourceFilePath: string, fsApi: any): ArrayBuffer {
+        if (typeof fsApi.readFileBuffer === 'function') {
+            return this.toArrayBuffer(fsApi.readFileBuffer(sourceFilePath));
+        }
+
+        if (typeof fsApi.readFileAsBase64 === 'function') {
+            return this.base64ToArrayBuffer(fsApi.readFileAsBase64(sourceFilePath));
+        }
+
+        throw new Error('文件系统接口不可用，无法读取动画源文件');
+    }
+
+    private toArrayBuffer(data: unknown): ArrayBuffer {
+        if (data instanceof ArrayBuffer) {
+            return data;
+        }
+
+        if (ArrayBuffer.isView(data)) {
+            const view = data as ArrayBufferView;
+            return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+        }
+
+        if (Array.isArray(data)) {
+            return new Uint8Array(data).buffer;
+        }
+
+        const maybeBuffer = data as { type?: string; data?: unknown };
+        if (maybeBuffer?.type === 'Buffer' && Array.isArray(maybeBuffer.data)) {
+            return new Uint8Array(maybeBuffer.data).buffer;
+        }
+
+        throw new Error('动画源文件读取结果无效');
+    }
+
+    private resolveSourceFilePath(sourcePath: string): string | null {
+        const projectPath = this.getCurrentProjectPath();
+        const pathApi = (window as any)['path'];
+        if (!projectPath || !sourcePath || !pathApi?.join || !pathApi?.resolve || !pathApi?.relative) {
+            return null;
+        }
+
+        const trimmedSourcePath = sourcePath.trim();
+        const isAbsolute = typeof pathApi.isAbsolute === 'function' && pathApi.isAbsolute(trimmedSourcePath);
+        const fullPath = isAbsolute
+            ? trimmedSourcePath
+            : pathApi.join(projectPath, ...trimmedSourcePath.split(/[\\/]+/).filter(Boolean));
+        const projectRoot = pathApi.resolve(projectPath);
+        const resolvedFullPath = pathApi.resolve(fullPath);
+        const relativePath = pathApi.relative(projectRoot, resolvedFullPath);
+
+        if (relativePath.startsWith('..') || (typeof pathApi.isAbsolute === 'function' && pathApi.isAbsolute(relativePath))) {
+            return null;
+        }
+
+        return resolvedFullPath;
+    }
+
+    private getCurrentProjectPath(): string | null {
+        const projectServicePath = (window as any)['projectService']?.currentProjectPath;
+        if (typeof projectServicePath === 'string' && projectServicePath.trim()) {
+            return projectServicePath;
+        }
+
+        const searchPath = new URLSearchParams(window.location.search).get('path');
+        if (searchPath) {
+            return searchPath;
+        }
+
+        const hashQueryIndex = window.location.hash.indexOf('?');
+        if (hashQueryIndex >= 0) {
+            const hashPath = new URLSearchParams(window.location.hash.slice(hashQueryIndex + 1)).get('path');
+            if (hashPath) {
+                return hashPath;
+            }
+        }
+
+        return null;
+    }
+
+    private getSourceExtension(fileName: string, mimeType?: string) {
+        const ext = this.getPathExtension(fileName).toLowerCase();
+        if (ext === '.mp4' || ext === '.gif' || ext === '.png') {
+            return ext;
+        }
+
+        switch ((mimeType || '').toLowerCase()) {
+            case 'video/mp4':
+                return '.mp4';
+            case 'image/gif':
+                return '.gif';
+            case 'image/png':
+                return '.png';
+            default:
+                return '.bin';
+        }
+    }
+
+    private inferMimeType(fileName: string) {
+        switch (this.getPathExtension(fileName).toLowerCase()) {
+            case '.mp4':
+                return 'video/mp4';
+            case '.gif':
+                return 'image/gif';
+            case '.png':
+                return 'image/png';
+            default:
+                return '';
+        }
+    }
+
+    private getPathExtension(fileName: string) {
+        const pathApi = (window as any)['path'];
+        if (pathApi?.extname) {
+            return pathApi.extname(fileName) || '';
+        }
+        const match = /\.[^./\\]+$/.exec(fileName);
+        return match?.[0] || '';
+    }
+
+    private getPathBaseName(fileName: string) {
+        const pathApi = (window as any)['path'];
+        if (pathApi?.basename) {
+            return pathApi.basename(fileName);
+        }
+        return fileName.split(/[\\/]/).pop() || fileName;
+    }
+
+    private sanitizeFileBaseName(fileName: string) {
+        const safeName = fileName
+            .replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_')
+            .replace(/\s+/g, '_')
+            .replace(/^\.+$/, '')
+            .replace(/^_+|_+$/g, '');
+        return safeName || 'u8g2-animation';
+    }
+
+    private normalizeAssetPath(assetPath: string) {
+        return assetPath.replace(/\\/g, '/').replace(/^\.\//, '');
+    }
+
+    private arrayBufferToBase64(buffer: ArrayBuffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+            const chunk = bytes.subarray(offset, offset + chunkSize);
+            binary += String.fromCharCode(...chunk);
+        }
+        return btoa(binary);
+    }
+
+    private base64ToArrayBuffer(base64: string) {
+        const rawBase64 = base64.includes(',') ? base64.split(',').pop() || '' : base64;
+        const binary = atob(rawBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index++) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes.buffer;
     }
 
     private clearAnimation() {
+        this.invalidateSourceRedecode();
+        this.clearSourceRedecodeTimer();
         this.setValue(this.createEmptyValue(), false);
         this.setStatus(Blockly.Msg['U8G2_ANIMATION_EMPTY']);
     }
@@ -805,6 +1123,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
             frames,
             sourceName: value.sourceName,
             sourceType: value.sourceType,
+            sourcePath: value.sourcePath,
         };
     }
 
@@ -852,6 +1171,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     }
 
     private dropdownDispose() {
+        this.clearSourceRedecodeTimer();
         this.terminateWorker();
 
         if (

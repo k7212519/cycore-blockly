@@ -218,6 +218,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   fs: {
     readFileSync: (path, encoding = "utf8") => require("fs").readFileSync(path, encoding),
+    readFileBuffer: (path) => {
+      const buffer = require("fs").readFileSync(path);
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    },
     readFileAsBase64: (path) => {
       const buffer = require("fs").readFileSync(path);
       return buffer.toString('base64');
@@ -228,6 +232,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
     readdirSync: (path) => require("fs").readdirSync(path),
     writeFileSync: (path, data) => require("fs").writeFileSync(path, data),
+    writeFileBuffer: (path, data) => {
+      require("fs").writeFileSync(path, Buffer.from(data));
+    },
     writeBase64File: (path, base64Data) => {
       const buffer = Buffer.from(base64Data, 'base64');
       require("fs").writeFileSync(path, buffer);
