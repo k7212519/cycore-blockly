@@ -72,6 +72,11 @@
       }
       }
       }
+      <button type="button" class="btn theme-toggle ccenter" nz-tooltip
+        nzTooltipTitle="{{ themeToggleTitle | translate }}" (click)="toggleTheme()"
+        [attr.aria-label]="themeToggleTitle | translate">
+        <i class="{{ themeToggleIcon }}"></i>
+      </button>
     </div>
     <!-- <div class="zone ccenter">
       <div class="btn ccenter" nz-tooltip nzTooltipTitle="{{ 'MENU.APP_STORE' | translate }}"

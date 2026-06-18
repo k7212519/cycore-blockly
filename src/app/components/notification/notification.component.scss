@@ -4,10 +4,11 @@
     right: 16px;
     display: flex;
     align-items: center;
-    background: rgba(10, 10, 10, 0.8);
+    color: var(--text-primary);
+    background: var(--notification-bg);
     padding: 10px 0 10px 10px;
     border-radius: 10px;
-    box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.1);
+    box-shadow: var(--notification-shadow);
     min-width: 250px;
     max-width: 400px;
     width: 250px;
@@ -105,6 +106,37 @@
 
         :hover {
             color: rgb(116, 192, 228);
+        }
+    }
+}
+
+:host-context(.llight) .notification-box {
+    border: 1px solid var(--notification-border);
+    -webkit-backdrop-filter: saturate(160%) blur(16px);
+    backdrop-filter: saturate(160%) blur(16px);
+
+    .box {
+        background: #f8fafc;
+        border-color: #98a2b3;
+
+        .custom {
+            color: #667085;
+        }
+
+        .fa-check {
+            color: #16a164;
+        }
+
+        &.done {
+            border-color: #16a164;
+        }
+
+        &.error {
+            border-color: #c43d4b;
+        }
+
+        &.warn {
+            border-color: #d97706;
         }
     }
 }

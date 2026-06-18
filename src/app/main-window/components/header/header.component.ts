@@ -24,6 +24,7 @@ import { AppItem } from '../../../tools/app-store/app-store.config';
 import { APP_LIST } from '../../../configs/tool.config';
 import { EdaAuthService } from '../../../auth/eda-auth.service';
 import { Subscription } from 'rxjs';
+import { ThemeService } from '../../../services/theme.service';
 
 @Component({
   selector: 'app-header',
@@ -99,6 +100,14 @@ export class HeaderComponent implements OnDestroy {
     return this.configService.isDevMode;
   }
 
+  get themeToggleIcon(): string {
+    return this.themeService.isLight ? 'fa-light fa-moon' : 'fa-light fa-sun-bright';
+  }
+
+  get themeToggleTitle(): string {
+    return this.themeService.isLight ? 'MENU.SWITCH_TO_DARK' : 'MENU.SWITCH_TO_LIGHT';
+  }
+
   // 从 AppStoreService 获取要显示在 header 上的 apps
   // get headerApps(): AppItem[] {
   //   return this.appStoreService.getHeaderApps();
@@ -119,8 +128,14 @@ export class HeaderComponent implements OnDestroy {
     private edaAuthService: EdaAuthService,
     private translate: TranslateService,
     private platformService: PlatformService,
+    private themeService: ThemeService,
     // private appStoreService: AppStoreService
   ) { }
+
+  async toggleTheme(): Promise<void> {
+    const nextTheme = this.themeService.isLight ? 'dark' : 'light';
+    await this.themeService.confirm(nextTheme);
+  }
 
   async ngAfterViewInit() {
     if (this.electronService.isElectron) {

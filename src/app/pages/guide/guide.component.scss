@@ -13,17 +13,17 @@
 }
 
 @mixin guide-light-theme {
-  --guide-page-bg: #f2f3f5;
-  --guide-card: rgba(255, 255, 255, 0.2);
-  --guide-card-hover: rgba(255, 255, 255, 0.46);
-  --guide-border: rgba(24, 36, 54, 0.075);
-  --guide-border-strong: rgba(24, 36, 54, 0.14);
-  --guide-text: #172033;
-  --guide-muted: rgba(23, 32, 51, 0.62);
-  --guide-soft: rgba(23, 32, 51, 0.4);
-  --guide-accent: #287bec;
-  --guide-accent-strong: #0a66de;
-  --guide-shadow: 0 18px 42px rgba(42, 62, 92, 0.13);
+  --guide-page-bg: var(--app-background);
+  --guide-card: rgba(255, 255, 255, 0.78);
+  --guide-card-hover: rgba(255, 255, 255, 0.96);
+  --guide-border: rgba(72, 91, 128, 0.12);
+  --guide-border-strong: rgba(72, 91, 128, 0.2);
+  --guide-text: var(--text-primary);
+  --guide-muted: var(--text-secondary);
+  --guide-soft: var(--text-tertiary);
+  --guide-accent: var(--accent);
+  --guide-accent-strong: var(--accent-strong);
+  --guide-shadow: 0 16px 38px rgba(59, 78, 116, 0.1);
 }
 
 :host {
@@ -63,6 +63,12 @@
 
 :host-context(.llight) .guide-shell {
   @include guide-light-theme;
+}
+
+:host-context(.llight) .new-project-btn {
+  background: var(--brand-gradient);
+  border-color: transparent;
+  box-shadow: 0 8px 18px rgba(71, 92, 190, 0.16);
 }
 
 :host-context(.ddark) .guide-shell {

@@ -26,7 +26,9 @@
         "USER_SPACE": "雲空間",
         "LIB_MANAGER": "庫管理",
         "AI_ASSISTANT": "AI助手",
-        "PROJECT_HUB": "專案廣場"
+        "PROJECT_HUB": "專案廣場",
+        "SWITCH_TO_LIGHT": "切換到淺色主題",
+        "SWITCH_TO_DARK": "切換到深色主題"
     },
     "ESP32": {
         "UPLOAD_SPEED": "燒錄速度",

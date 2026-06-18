@@ -38,7 +38,14 @@ blockly-main {
 }
 
 :host-context(.llight) .lib-mangager-btn {
-    background: rgba(255, 255, 255, 0.9);
+    color: #344054;
+    background:
+        linear-gradient(135deg, rgba(71, 118, 230, 0.07), rgba(117, 87, 232, 0.045)),
+        rgba(255, 255, 255, 0.94);
     border-top-color: var(--border-color);
-    box-shadow: 0 -10px 24px rgba(42, 62, 92, 0.08);
+    box-shadow: 0 -8px 20px rgba(59, 78, 116, 0.07);
+
+    &:hover {
+        color: #3047b7;
+    }
 }

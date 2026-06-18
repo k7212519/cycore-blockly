@@ -239,6 +239,14 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   private minimapSyncSubject = new Subject<void>();
   private destroy$ = new Subject<void>();
   private minimap: Minimap | null = null;
+  private readonly lightDefaultRootTypes = new Set([
+    'arduino_global',
+    'arduino_setup',
+    'arduino_loop',
+  ]);
+  private readonly defaultRootStyles = new Map<string, { colour: string; styleName: string }>();
+  private currentTheme: 'dark' | 'light' = 'dark';
+  private rootColourFrame: number | null = null;
   // Track previous #include and #define for dependency change detection
   private previousDependencies = '';
   // Control bitmap upload handler visibility
@@ -363,6 +371,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
   private applyTheme(theme: 'dark' | 'light'): void {
     const isLight = theme === 'light';
+    this.currentTheme = theme;
     this.options.theme = isLight ? LightTheme : DarkTheme;
     this.options.grid.colour = isLight ? 'transparent' : '#393939';
     this.options.grid.length = isLight ? 0 : 2;
@@ -370,8 +379,49 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     if (this.workspace) {
       this.workspace.setTheme(this.options.theme);
       this.workspace.getGrid()?.setLength(this.options.grid.length);
+      this.applyDefaultRootColours();
       Blockly.svgResize(this.workspace);
     }
+  }
+
+  private scheduleDefaultRootColours(): void {
+    if (this.rootColourFrame !== null) return;
+    this.rootColourFrame = requestAnimationFrame(() => {
+      this.rootColourFrame = null;
+      this.applyDefaultRootColours();
+    });
+  }
+
+  private applyDefaultRootColours(): void {
+    if (!this.workspace) return;
+    const isLight = this.currentTheme === 'light';
+
+    this.workspace.getAllBlocks(false)
+      .filter((block) => this.lightDefaultRootTypes.has(block.type))
+      .forEach((block) => {
+        const svgRoot = block.getSvgRoot();
+
+        if (isLight) {
+          if (!this.defaultRootStyles.has(block.id)) {
+            this.defaultRootStyles.set(block.id, {
+              colour: block.getColour(),
+              styleName: block.getStyleName(),
+            });
+          }
+          block.setColour('#b9dcff');
+          svgRoot?.classList.add('blocklyLightDefaultRoot');
+          return;
+        }
+
+        const original = this.defaultRootStyles.get(block.id);
+        if (original?.styleName) {
+          block.setStyle(original.styleName);
+        } else if (original?.colour) {
+          block.setColour(original.colour);
+        }
+        svgRoot?.classList.remove('blocklyLightDefaultRoot');
+        this.defaultRootStyles.delete(block.id);
+      });
   }
 
   ngOnInit(): void {
@@ -413,6 +463,9 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.rootColourFrame !== null) {
+      cancelAnimationFrame(this.rootColourFrame);
+    }
     // 清理 RxJS 订阅
     this.destroy$.next();
     this.destroy$.complete();
@@ -556,6 +609,12 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       (window as any)['blocklyWorkspace'] = this.workspace;
       this.workspace.addChangeListener((event: any) => {
         this.codeGenerationSubject.next();
+        if (
+          event.type === Blockly.Events.BLOCK_CREATE ||
+          event.type === Blockly.Events.FINISHED_LOADING
+        ) {
+          this.scheduleDefaultRootColours();
+        }
         if (event.type !== Blockly.Events.SELECTED) {
           // 工作区变更时同步 Minimap（含 AI 批量修改 blocks 的场景）
           this.minimapSyncSubject.next();

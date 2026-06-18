@@ -62,7 +62,9 @@
         "MULTI_COMPRESS": "Compress to ZIP",
         "LIB_MANAGER": "Library Manager",
         "AI_ASSISTANT": "AI Assistant",
-        "PROJECT_HUB": "Project Hub"
+        "PROJECT_HUB": "Project Hub",
+        "SWITCH_TO_LIGHT": "Switch to light theme",
+        "SWITCH_TO_DARK": "Switch to dark theme"
     },
     "ESP32": {
         "UPLOAD_SPEED": "Upload Speed",
