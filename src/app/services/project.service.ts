@@ -485,9 +485,9 @@ export class ProjectService {
       }),
       nzMaskClosable: false,
       nzClosable: true,
+      nzClassName: 'project-lock-conflict-modal',
       nzWidth: 480,
       nzStyle: {
-        backgroundColor: '#1f1f1f',
         paddingBottom: '0',
       },
       nzFooter: [
