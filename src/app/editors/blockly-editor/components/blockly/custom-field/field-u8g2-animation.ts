@@ -64,12 +64,12 @@ const DEFAULT_FPS = 10;
 const DEFAULT_MAX_FRAMES = 30;
 const DEFAULT_THRESHOLD = 127;
 const DEFAULT_FIELD_HEIGHT = 32;
+const MAX_SOURCE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_PIXEL_COLOURS: PixelColours = {
     empty: '#151515',
     filled: '#f4f4f4',
 };
 let u8g2AnimationModeCounter = 0;
-let u8g2AnimationAssetCounter = 0;
 
 export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     private readonly bitmapModeInputName = `u8g2AnimationMode-${++u8g2AnimationModeCounter}`;
@@ -546,6 +546,10 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         const threshold = this.thresholdValueInput ? this.clampInput(this.thresholdValueInput, this.threshold) : this.threshold;
 
         try {
+            if (file.size > MAX_SOURCE_FILE_SIZE_BYTES) {
+                throw new Error(`文件大小不能超过 10MB，当前文件 ${this.formatFileSize(file.size)}`);
+            }
+
             this.setStatus(`正在读取 ${file.name}...`);
             const buffer = await file.arrayBuffer();
             this.invalidateSourceRedecode();
@@ -662,13 +666,13 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         fsApi.mkdirSync(assetsDir);
 
         const sourceExt = this.getSourceExtension(file.name, file.type);
-        const originalExt = this.getPathExtension(file.name);
-        const originalBaseName = pathApi.basename
-            ? pathApi.basename(file.name, originalExt)
-            : file.name.replace(/\.[^./\\]+$/, '');
-        const safeBaseName = this.sanitizeFileBaseName(originalBaseName);
-        const fileName = `${safeBaseName}-${Date.now()}-${++u8g2AnimationAssetCounter}${sourceExt}`;
+        const fileMd5 = this.calculateSourceMd5(buffer, fsApi);
+        const fileName = `${fileMd5}${sourceExt}`;
         const assetFilePath = pathApi.join(assetsDir, fileName);
+
+        if (typeof fsApi.existsSync === 'function' && fsApi.existsSync(assetFilePath)) {
+            return this.normalizeAssetPath(pathApi.relative(projectPath, assetFilePath));
+        }
 
         if (typeof fsApi.writeFileBuffer === 'function') {
             fsApi.writeFileBuffer(assetFilePath, buffer);
@@ -850,6 +854,18 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         }
     }
 
+    private calculateSourceMd5(buffer: ArrayBuffer, fsApi: any) {
+        if (typeof fsApi.md5Buffer !== 'function') {
+            throw new Error('文件 MD5 接口不可用，请完全重启软件后再上传');
+        }
+
+        const md5 = String(fsApi.md5Buffer(buffer) || '').toLowerCase();
+        if (!/^[a-f0-9]{32}$/.test(md5)) {
+            throw new Error('文件 MD5 计算失败');
+        }
+        return md5;
+    }
+
     private inferMimeType(fileName: string) {
         switch (this.getPathExtension(fileName).toLowerCase()) {
             case '.mp4':
@@ -880,17 +896,15 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         return fileName.split(/[\\/]/).pop() || fileName;
     }
 
-    private sanitizeFileBaseName(fileName: string) {
-        const safeName = fileName
-            .replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_')
-            .replace(/\s+/g, '_')
-            .replace(/^\.+$/, '')
-            .replace(/^_+|_+$/g, '');
-        return safeName || 'u8g2-animation';
-    }
-
     private normalizeAssetPath(assetPath: string) {
         return assetPath.replace(/\\/g, '/').replace(/^\.\//, '');
+    }
+
+    private formatFileSize(bytes: number) {
+        if (!Number.isFinite(bytes) || bytes <= 0) {
+            return '0 MB';
+        }
+        return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
     }
 
     private arrayBufferToBase64(buffer: ArrayBuffer) {
