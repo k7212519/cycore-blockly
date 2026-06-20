@@ -234,7 +234,12 @@ export class HeaderComponent implements OnDestroy {
   }
 
   showMenu = false;
-  openMenu() {
+  headerMenuPosition = { x: 12, y: 64 };
+
+  openMenu(event?: MouseEvent) {
+    if (event) {
+      this.headerMenuPosition = this.calculateDropdownPosition(event, 250, 360);
+    }
     this.showMenu = !this.showMenu;
   }
 
@@ -253,13 +258,10 @@ export class HeaderComponent implements OnDestroy {
       const uploadBtn = document.querySelector('[data-action="upload"]') as HTMLElement;
       if (uploadBtn) {
         const rect = uploadBtn.getBoundingClientRect();
-        this.portListPosition = {
-          x: rect.left + 2,
-          y: 40
-        };
+        this.portListPosition = this.clampDropdownPosition(rect.left + 2, rect.bottom + 2, 260, 400);
       } else {
         // 备用位置
-        this.portListPosition = { x: 40, y: 40 };
+        this.portListPosition = this.getHeaderFallbackPosition();
       }
     }
     let boardname = (this.currentBoard || '').replace(' 2560', ' ').replace(' R3', '');
@@ -905,30 +907,39 @@ export class HeaderComponent implements OnDestroy {
     this.builderService.triggerPreprocess('config-changed');
   }
 
-
-  portListPosition = { x: 40, y: 40 };
+  portListPosition = { x: 40, y: 64 };
   calculatePortListPosition(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    // 计算端口列表的位置，使其显示在点击元素的下方
-    this.portListPosition = {
-      x: rect.left + 2,
-      y: 40
-    };
+    this.portListPosition = this.calculateDropdownPosition(event, 260, 400);
+  }
 
-    // 确保端口列表不会超出窗口边界
+  private calculateDropdownPosition(event: MouseEvent, width: number, estimatedHeight: number) {
+    const target = (event.currentTarget || event.target) as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    return this.clampDropdownPosition(rect.left + 2, rect.bottom + 2, width, estimatedHeight);
+  }
+
+  private clampDropdownPosition(x: number, y: number, width: number, estimatedHeight: number) {
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
-    const portListWidth = 300; // 端口列表的宽度
-    const portListHeight = 400; // 端口列表的高度
 
-    if (this.portListPosition.x + portListWidth > windowWidth) {
-      this.portListPosition.x = windowWidth - portListWidth - 3;
+    if (x + width > windowWidth) {
+      x = windowWidth - width - 3;
     }
 
-    if (this.portListPosition.y + portListHeight > windowHeight) {
-      this.portListPosition.y = windowHeight - portListHeight - 3;
+    if (y + estimatedHeight > windowHeight) {
+      y = windowHeight - estimatedHeight - 3;
     }
+
+    return {
+      x: Math.max(3, x),
+      y: Math.max(3, y)
+    };
+  }
+
+  private getHeaderFallbackPosition() {
+    const headerBox = document.querySelector('.header-box') as HTMLElement | null;
+    const headerBottom = headerBox?.getBoundingClientRect().bottom ?? 62;
+    return this.clampDropdownPosition(40, headerBottom + 2, 260, 400);
   }
 
   async openBoardSelectorDialog() {

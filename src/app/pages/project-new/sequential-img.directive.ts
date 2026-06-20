@@ -1,4 +1,4 @@
-import { Directive, ElementRef, Input, OnDestroy, OnInit } from '@angular/core';
+import { Directive, ElementRef, Input, OnChanges, OnDestroy, OnInit, SimpleChanges } from '@angular/core';
 
 /**
  * 顺序加载图片指令
@@ -9,8 +9,10 @@ import { Directive, ElementRef, Input, OnDestroy, OnInit } from '@angular/core';
   selector: '[sequentialSrc]',
   standalone: true,
 })
-export class SequentialImgDirective implements OnInit, OnDestroy {
+export class SequentialImgDirective implements OnChanges, OnInit, OnDestroy {
   @Input('sequentialSrc') src: string = '';
+
+  @Input() fallbackSrc: string = '';
 
   /** 同时允许加载的最大并发数 */
   @Input() sequentialBatch: number = 1;
@@ -20,6 +22,7 @@ export class SequentialImgDirective implements OnInit, OnDestroy {
   private static maxConcurrent = 1;
 
   private resolved = false;
+  private initialized = false;
 
   constructor(private el: ElementRef<HTMLImageElement>) {}
 
@@ -32,6 +35,18 @@ export class SequentialImgDirective implements OnInit, OnDestroy {
     SequentialImgDirective.maxConcurrent = this.sequentialBatch;
     SequentialImgDirective.queue.push(this);
     SequentialImgDirective.tryLoadNext();
+    this.initialized = true;
+  }
+
+  ngOnChanges(changes: SimpleChanges) {
+    if (!this.initialized || !this.resolved || !changes['src']) {
+      return;
+    }
+
+    const img = this.el.nativeElement;
+    if (changes['src'].currentValue && img.getAttribute('src') !== changes['src'].currentValue) {
+      img.src = changes['src'].currentValue;
+    }
   }
 
   ngOnDestroy() {
@@ -62,6 +77,9 @@ export class SequentialImgDirective implements OnInit, OnDestroy {
     };
 
     const onError = () => {
+      if (this.fallbackSrc && img.getAttribute('src') !== this.fallbackSrc) {
+        img.src = this.fallbackSrc;
+      }
       img.style.opacity = '1';
       done();
     };

@@ -222,6 +222,7 @@
         "FORM": {
             "DEVMODE": "Development Framework",
             "BOARD": "Board",
+            "SDK_VERSION": "SDK Version",
             "PROJECT_NAME": "Project Name",
             "SAVE_PATH": "Save Path",
             "NAME_EXISTS": "Project name already exists, please modify",

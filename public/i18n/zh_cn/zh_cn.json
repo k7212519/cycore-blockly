@@ -222,6 +222,7 @@
         "FORM": {
             "DEVMODE": "开发框架",
             "BOARD": "开发板",
+            "SDK_VERSION": "SDK 版本",
             "PROJECT_NAME": "项目名称",
             "SAVE_PATH": "保存路径",
             "NAME_EXISTS": "项目名称已存在，请修改",

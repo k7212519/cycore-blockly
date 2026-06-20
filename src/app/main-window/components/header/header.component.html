@@ -1,6 +1,6 @@
 <div class="header-box" [class.darwin]="isNativeMacWindow" [class.full-screen]="isMacFullScreen">
   <div class="menu ccenter">
-    <button type="button" class="menu-pill ccenter" [class.active]="showMenu" (click)="openMenu()"
+    <button type="button" class="menu-pill ccenter" [class.active]="showMenu" (click)="openMenu($event)"
       [attr.aria-expanded]="showMenu">
       <i class="fa-regular fa-bars"></i>
       <span>{{ 'MENU.MENU' | translate }}</span>
@@ -93,7 +93,7 @@
 </div>
 <!-- menu -->
 @if (showMenu) {
-<app-menu [menuList]="headerMenu" [width]="250" (closeEvent)="closeMenu()"
+<app-menu [position]="headerMenuPosition" [menuList]="headerMenu" [width]="250" (closeEvent)="closeMenu()"
   (itemClickEvent)="onMenuClick($event)"></app-menu>
 }
 <!-- device port list -->

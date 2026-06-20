@@ -1,12 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { NzStepsModule } from 'ng-zorro-antd/steps';
 import { ElectronService } from '../../services/electron.service';
 import { ProjectService } from '../../services/project.service';
 import { ConfigService } from '../../services/config.service';
+import { ThemeMode, ThemeService } from '../../services/theme.service';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { TranslateModule } from '@ngx-translate/core';
 import { Router } from '@angular/router';
@@ -21,7 +22,6 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
     FormsModule,
     NzButtonModule,
     NzInputModule,
-    NzStepsModule,
     NzSelectModule,
     TranslateModule,
     NzRadioModule,
@@ -31,8 +31,13 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
   templateUrl: './project-new.component.html',
   styleUrl: './project-new.component.scss',
 })
-export class ProjectNewComponent {
+export class ProjectNewComponent implements OnDestroy {
   currentStep = 0;
+  keyword = '';
+  readonly defaultBoardImageDarkUrl = 'imgs/boards/default-board-dark.svg';
+  readonly defaultBoardImageLightUrl = 'imgs/boards/default-board-light.svg';
+  defaultBoardImageUrl = this.defaultBoardImageDarkUrl;
+  private themeSubscription?: Subscription;
 
   currentBoard: any = null;
   newProjectData: NewProjectData = {
@@ -55,15 +60,27 @@ export class ProjectNewComponent {
     return this.configService.getCurrentResourceUrl();
   }
 
+  get currentStepTitle(): string {
+    if (this.currentStep === 0) return 'PROJECT_NEW.STEPS.SELECT_BOARD';
+    if (this.currentStep === 1) return 'PROJECT_NEW.STEPS.BASIC_SETTINGS';
+    return 'PROJECT_NEW.STEPS.CREATE_PROJECT';
+  }
+
   constructor(
     private router: Router,
     private location: Location,
     private electronService: ElectronService,
     private projectService: ProjectService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private themeService: ThemeService
   ) { }
 
   async ngOnInit() {
+    document.body.classList.add('project-new-overlay-open');
+    this.updateDefaultBoardImage(this.themeService.currentTheme);
+    this.themeSubscription = this.themeService.theme$.subscribe(theme => {
+      this.updateDefaultBoardImage(theme);
+    });
     const boards = (await this.projectService.loadServerBoards()).map(board => this.prepareBoard(board as BoardInfo));
     this._boardList = boards.sort((a, b) => {
       if (a.nickname === 'Cycore ESP32S3') return -1;
@@ -75,6 +92,56 @@ export class ProjectNewComponent {
 
     if (this.boardList.length > 0) {
       this.selectBoard(this.boardList[0]);
+    }
+  }
+
+  ngOnDestroy() {
+    document.body.classList.remove('project-new-overlay-open');
+    this.themeSubscription?.unsubscribe();
+  }
+
+  private updateDefaultBoardImage(theme: ThemeMode) {
+    this.defaultBoardImageUrl = theme === 'light'
+      ? this.defaultBoardImageLightUrl
+      : this.defaultBoardImageDarkUrl;
+  }
+
+  getBoardImageUrl(board?: BoardInfo | null): string {
+    if (!board?.img) {
+      return this.defaultBoardImageUrl;
+    }
+    return `${this.resourceUrl}/imgs/boards/${board.img}`;
+  }
+
+  useDefaultBoardImage(event: Event) {
+    const img = event.target as HTMLImageElement;
+    if (img.src.endsWith(this.defaultBoardImageUrl)) {
+      return;
+    }
+    img.src = this.defaultBoardImageUrl;
+  }
+
+  search() {
+    const keyword = this.keyword.trim().toLowerCase();
+    if (!keyword) {
+      this.boardList = JSON.parse(JSON.stringify(this._boardList));
+    } else {
+      this.boardList = this._boardList
+        .filter(board => [
+          board.name,
+          board.nickname,
+          board.brand,
+          board.type,
+          board.description
+        ].some(value => `${value || ''}`.toLowerCase().includes(keyword)))
+        .map(board => JSON.parse(JSON.stringify(board)));
+    }
+
+    if (this.boardList.length > 0) {
+      const selectedBoard = this.boardList.find(board => board.name === this.currentBoard?.name) || this.boardList[0];
+      this.selectBoard(selectedBoard);
+    } else {
+      this.currentBoard = null;
     }
   }
 

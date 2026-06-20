@@ -78,7 +78,8 @@ body {
   user-select: none;
 }
 
-body.lib-manager-overlay-open app-header {
+body.lib-manager-overlay-open app-header,
+body.project-new-overlay-open app-header {
   visibility: hidden;
   pointer-events: none !important;
 }
@@ -157,6 +158,55 @@ nz-option-item {
 
 nz-option-container {
   padding: 0 !important;
+}
+
+.project-version-dropdown {
+  padding: 4px !important;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px !important;
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  overflow: hidden;
+
+  &.ant-select-dropdown-hidden,
+  &.ant-slide-up-leave,
+  &.ant-slide-up-leave-active {
+    display: none !important;
+    padding: 0 !important;
+    border: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .cdk-virtual-scroll-viewport {
+    overflow: hidden !important;
+  }
+
+  nz-option-item,
+  .ant-select-item {
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 14px !important;
+    border-radius: 16px !important;
+    color: var(--text-primary) !important;
+    font-size: 14px !important;
+    line-height: 42px !important;
+    font-weight: 650;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .ant-select-item-option-content {
+    line-height: 42px !important;
+  }
+
+  .ant-select-item-option-active,
+  .ant-select-item-option-selected {
+    background: var(--overlay-hover) !important;
+  }
 }
 
 .btn {
@@ -247,6 +297,7 @@ app-root {
 }
 
 :root[data-theme='light'] {
+
   input,
   textarea,
   select {
@@ -254,7 +305,7 @@ app-root {
   }
 
   .ant-empty-description,
-  .ant-form-item-label > label,
+  .ant-form-item-label>label,
   .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked),
   .ant-tabs-tab-btn,
   .ant-tree,
@@ -298,20 +349,20 @@ app-root {
     background: var(--canvas-bg);
   }
 
-  .blocklyLightDefaultRoot > .blocklyPath {
+  .blocklyLightDefaultRoot>.blocklyPath {
     fill: #b9dcff !important;
     stroke: #83b9ec !important;
     stroke-width: 1px !important;
   }
 
   .blocklyLightDefaultRoot .blocklyText,
-  .blocklyLightDefaultRoot .blocklyText > tspan,
+  .blocklyLightDefaultRoot .blocklyText>tspan,
   .blocklyLightDefaultRoot .blocklyDropdownText {
     fill: #15324d !important;
     color: #15324d !important;
   }
 
-  .blocklySelected > .blocklyPath {
+  .blocklySelected>.blocklyPath {
     stroke: #5b67db !important;
     stroke-width: 2.5px !important;
     filter: drop-shadow(0 5px 10px rgba(81, 91, 203, 0.18));
@@ -321,14 +372,14 @@ app-root {
     stroke: #6559d9 !important;
   }
 
-  .blocklyInsertionMarker > .blocklyPath {
+  .blocklyInsertionMarker>.blocklyPath {
     fill: #dfe5ff !important;
     fill-opacity: 0.72 !important;
     stroke: #5b67db !important;
     stroke-width: 1.5px !important;
   }
 
-  .blocklyDisabled > .blocklyPath {
+  .blocklyDisabled>.blocklyPath {
     fill: #edf1f6 !important;
     fill-opacity: 0.72 !important;
     stroke: #cbd4e1 !important;

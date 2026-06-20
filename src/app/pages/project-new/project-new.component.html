@@ -1,47 +1,73 @@
 <div class="project-new-box">
-  <div class="content">
-    @if (currentStep > 0) {
-    <div class="left">
-      <div class="left-inner">
-        <div class="steps-box ccenter">
-          <nz-steps [nzCurrent]="currentStep" nzSize="small" [nzDirection]="'vertical'">
-            <nz-step [nzTitle]="'PROJECT_NEW.STEPS.SELECT_BOARD' | translate"></nz-step>
-            <nz-step [nzTitle]="'PROJECT_NEW.STEPS.BASIC_SETTINGS' | translate"></nz-step>
-            <nz-step [nzTitle]="'PROJECT_NEW.STEPS.CREATE_PROJECT' | translate"
-              [nzIcon]="currentStep == 2 ? iconTemplate : null"></nz-step>
-          </nz-steps>
-          <ng-template #iconTemplate><i class="fa-duotone fa-solid fa-spinner-third"></i></ng-template>
-        </div>
+  <div class="project-header">
+    <button type="button" class="back-btn ccenter" (click)="back()" nz-tooltip
+      [nzTooltipTitle]="'PROJECT_NEW.BUTTONS.CANCEL_CREATE' | translate">
+      <i class="fa-regular fa-chevron-left"></i>
+    </button>
+    <div class="title-stack">
+      <div class="eyebrow">{{ 'PROJECT_NEW.TITLE' | translate }}</div>
+      <div class="page-title">
+        {{ currentStepTitle | translate }}
       </div>
     </div>
+    <div class="header-spacer"></div>
+    @if (currentStep == 0) {
+    <nz-input-group class="board-search" [nzSuffix]="suffixIconSearch" [nzSize]="'small'">
+      <input type="text" nz-input [placeholder]="'PROJECT_NEW.BOARD.SEARCH' | translate" [(ngModel)]="keyword"
+        (ngModelChange)="search()" />
+    </nz-input-group>
+    <ng-template #suffixIconSearch>
+      @if(keyword.length > 0){
+      <i class="fa-light fa-xmark" (click)="keyword='';search()"></i>
+      } @else {
+      <i class="fa-light fa-search"></i>
+      }
+    </ng-template>
     }
-    <div class="right">
+  </div>
+
+  <div class="content" [class.with-steps]="currentStep > 0">
+    <main class="right">
       @if (currentStep == 0) {
       <div class="right-inner flex-start">
         <div class="board-selector-box sscroll">
+          @if (boardList.length > 0) {
           <div class="board-selector">
             @for (board of boardList; track board.name) {
-            <div class="board ccenter btn" [ngClass]="{ selected: currentBoard == board, disabled: board.disabled }"
+            <button type="button" class="board" [ngClass]="{ selected: currentBoard?.name == board.name, disabled: board.disabled }"
               (click)="selectBoard(board)">
-              <div class="img-box">
-                <img [sequentialSrc]="resourceUrl+'/imgs/boards/'+board.img" />
-              </div>
-              <div class="name">{{ board.nickname }}
-                @if(board.state){
-                <span>({{board.state}})</span>
-                }
-              </div>
-            </div>
+              <span class="img-box">
+                <img [sequentialSrc]="getBoardImageUrl(board)" [fallbackSrc]="defaultBoardImageUrl"
+                  [alt]="board.nickname || board.name" draggable="false" />
+              </span>
+              <span class="board-meta">
+                <span class="name">{{ board.nickname }}</span>
+                <span class="subline">
+                  {{ board.brand || board.type || board.name }}
+                  @if(board.state){
+                  <span class="state">({{board.state}})</span>
+                  }
+                </span>
+              </span>
+            </button>
             }
           </div>
-        </div>
-        @if(currentBoard){
-        <div class="desc-box">
-          <div class="img-box ccenter">
-            <img [src]="resourceUrl+'/imgs/boards/'+currentBoard.img" />
+          } @else {
+          <div class="empty-state">
+            <i class="fa-light fa-magnifying-glass"></i>
+            <span>{{ 'PROJECT_NEW.BOARD.SEARCH' | translate }}</span>
           </div>
-          <div class="content">
-            <div class="title">
+          }
+        </div>
+
+        @if(currentBoard){
+        <section class="desc-box">
+          <div class="preview ccenter">
+            <img [src]="getBoardImageUrl(currentBoard)" (error)="useDefaultBoardImage($event)"
+              [alt]="currentBoard.nickname || currentBoard.name" draggable="false" />
+          </div>
+          <div class="desc-content">
+            <div class="title-row">
               <div class="title-text">{{currentBoard.nickname}}</div>
               @if(currentBoard.state=='alpha'){
               <span class="warn"><i class="fa-light fa-circle-exclamation"></i>{{ 'PROJECT_NEW.WARNINGS.BETA_VERSION' |
@@ -62,73 +88,36 @@
               <button nz-button nzType="default" (click)="back()">
                 {{ 'PROJECT_NEW.BUTTONS.CANCEL_CREATE' | translate }}
               </button>
-              <!-- <button nz-button nzType="primary" (click)="nextStep()">
-                创建项目
+              @if(currentBoard.url){
+              <button nz-button nzType="text" class="doc-btn" (click)="openUrl(currentBoard.url)">
+                <i class="fa-regular fa-book"></i>{{ 'PROJECT_NEW.BOARD.READ_DOC' | translate }}
               </button>
-              <button nz-button nzType="primary" (click)="nextStep()">
-                AI创建项目
-              </button> -->
-              <div class="links">
-                @if(currentBoard.url){
-                <div class="btn link ccenter" (click)="openUrl(currentBoard.url)">
-                  {{ 'PROJECT_NEW.BOARD.READ_DOC' | translate }}
-                </div>
-                }
-                <!-- <div class="btn link ccenter" (click)="openUrl(currentBoard.url)">
-                  {{ '教程' | translate }}
-                </div>
-                <div class="btn link ccenter" (click)="openUrl(currentBoard.url)">
-                  {{ '购买' | translate }}
-                </div> -->
-              </div>
+              }
             </div>
           </div>
-
-        </div>
+        </section>
         }
       </div>
       } @else {
-      <!-- 基本设定页面 -->
-      <div class="right-inner">
+      <div class="right-inner setup-view">
         <div class="right-content">
-          <!-- <div class="item">
-            <div>{{ 'PROJECT_NEW.FORM.DEVMODE' | translate }}:</div>
-            <nz-radio-group [(ngModel)]="newProjectData.devmode">
-              @for(mode of devmodes;track mode ){
-              @switch(mode){
-              @case ('arduino') {
-              <label nz-radio-button nzValue="arduino">Arduino</label>
-              }
-              @case ('micropython') {
-              <label nz-radio-button nzValue="micropython">MicroPython</label>
-              }
-              @case ('freertos') {
-              <label nz-radio-button nzValue="freertos">FreeRTOS</label>
-              }
-              }
-              }
-            </nz-radio-group>
-          </div> -->
-          <div class="item">
-            <div>{{ 'PROJECT_NEW.FORM.BOARD' | translate }}:</div>
-            <!-- @if(newProjectData.devmode=='arduino'){ -->
-            <nz-input-group [nzSuffix]="suffixIconSearch">
-              <input class="board" nz-input [(ngModel)]="newProjectData.board.name" [disabled]="true" />
-            </nz-input-group>
-            <ng-template #suffixIconSearch>
-              <i class="fa-light fa-at"></i>
-            </ng-template>
-            <nz-select [(ngModel)]="newProjectData.board.version">
-              @for (version of boardVersionList; track version) {
-              <nz-option [nzValue]="version" [nzLabel]="version"></nz-option>
-              }
-            </nz-select>
-            <!-- }@else if (newProjectData.devmode=='micropython') {
-            <input class="board" nz-input [(ngModel)]="newProjectData.board.name" [disabled]="true" />
-            } -->
+          <div class="setup-form-grid">
+            <div class="item">
+              <div class="label">{{ 'PROJECT_NEW.FORM.BOARD' | translate }}</div>
+              <div class="board-name-text">{{ newProjectData.board.name }}</div>
+            </div>
+            <div class="item">
+              <div class="label">{{ 'PROJECT_NEW.FORM.SDK_VERSION' | translate }}</div>
+              <nz-select class="sdk-select" [(ngModel)]="newProjectData.board.version"
+                nzDropdownClassName="project-version-dropdown" [nzOptionHeightPx]="42" [nzOptionOverflowSize]="1">
+                @for (version of boardVersionList; track version) {
+                <nz-option [nzValue]="version" [nzLabel]="version"></nz-option>
+                }
+              </nz-select>
+            </div>
           </div>
-          <div class="item">
-            <div>{{ 'PROJECT_NEW.FORM.PROJECT_NAME' | translate }}:</div>
+          <div class="item project-name-item">
+            <div class="label">{{ 'PROJECT_NEW.FORM.PROJECT_NAME' | translate }}</div>
             <nz-input-group [nzAddOnAfter]="randomNameTemplate">
               <input nz-input [(ngModel)]="newProjectData.name" (ngModelChange)="checkPathInvalidChars()" />
             </nz-input-group>
@@ -143,8 +132,8 @@
               translate }}</div>
             }
             @if(showIsPathPassed){
-            <div class="error animate__animated animate__faster animate__fadeInDown">{{ 'PROJECT_NEW.FORM.PATH_INVALID_CHARS' |
-              translate }}</div>
+            <div class="error animate__animated animate__faster animate__fadeInDown">{{ 'PROJECT_NEW.FORM.PATH_INVALID_CHARS'
+              | translate }}</div>
             }
           </div>
           <div class="step-btns">
@@ -168,6 +157,6 @@
         </div>
       </div>
       }
-    </div>
+    </main>
   </div>
 </div>
