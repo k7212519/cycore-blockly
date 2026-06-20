@@ -24,7 +24,8 @@
   <div class="toolbox upload-toolbox">
     <div class="zone ccenter">
       <app-act-btn [icon]="btn.icon" [color]="btn.color" [(state)]="btn.state" nz-tooltip
-        nzTooltipTitle="{{ btn.name | translate}}({{btn.text}})" (click)="onClick(btn,$event)" [attr.data-action]="btn.action"
+        nzTooltipPlacement="bottom" nzTooltipTitle="{{ btn.name | translate}}({{btn.text}})"
+        (click)="onClick(btn,$event)" [attr.data-action]="btn.action"
         [noBorder]="true">
       </app-act-btn>
     </div>
@@ -33,9 +34,10 @@
   }
 
   @if(isLoaded()){
-  <button type="button" class="serial-selector ccenter" (click)="openPortList($event)" nz-tooltip
-    nzTooltipTitle="{{ 'SERIAL.SELECT_PORT' | translate }}">
-    <span class="serial-board">{{currentBoard}}</span>
+  <button type="button" class="serial-selector ccenter" (click)="openPortList($event)">
+    <span class="serial-status" [class.connected]="currentPort">
+      {{ (currentPort ? 'SERIAL.CONNECTED' : 'SERIAL.DISCONNECTED') | translate }}
+    </span>
     <span class="serial-port">
       @if(currentPort){
       {{currentPort}}
@@ -52,7 +54,8 @@
       @for (btn of headerBtns; track $index) {
       @if(btn.action === 'compile' && showInRouter(btn)){
       <app-act-btn [icon]="btn.icon" [color]="btn.color" [(state)]="btn.state" nz-tooltip
-        nzTooltipTitle="{{ btn.name | translate}}({{btn.text}})" (click)="onClick(btn,$event)" [attr.data-action]="btn.action">
+        nzTooltipPlacement="bottom" nzTooltipTitle="{{ btn.name | translate}}({{btn.text}})"
+        (click)="onClick(btn,$event)" [attr.data-action]="btn.action">
       </app-act-btn>
       }
       }
@@ -62,8 +65,9 @@
       @for (app of headerApps; track app.id) {
       @if(!app.dev||isDevMode) {
       @if(showInRouter(app)){
-      <div class="btn ccenter" nz-tooltip nzTooltipTitle="{{ app.name | translate}}" (click)="onClick(app,$event)"
-        [ngStyle]="{ color: app.color ? app.color : '' }" [ngClass]="{ selected: isOpenTool(app) }">
+      <div class="btn ccenter" nz-tooltip nzTooltipPlacement="bottom" nzTooltipTitle="{{ app.name | translate}}"
+        (click)="onClick(app,$event)" [ngStyle]="{ color: app.color ? app.color : '' }"
+        [ngClass]="{ selected: isOpenTool(app) }">
         <i class="{{ app.icon }}"></i>
         @if (app.more) {
         <div class="more ccenter">{{ app.more }}</div>
@@ -73,6 +77,7 @@
       }
       }
       <button type="button" class="btn theme-toggle ccenter" nz-tooltip
+        nzTooltipPlacement="bottomRight" nzTooltipArrowPointAtCenter
         nzTooltipTitle="{{ themeToggleTitle | translate }}" (click)="toggleTheme()"
         [attr.aria-label]="themeToggleTitle | translate">
         <i class="{{ themeToggleIcon }}"></i>

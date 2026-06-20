@@ -429,6 +429,8 @@
     },
     "SERIAL": {
         "SELECT_PORT_FIRST": "Please select a serial port first",
+        "CONNECTED": "Connected",
+        "DISCONNECTED": "Disconnected",
         "PORT": "Port",
         "BAUD_RATE": "Baud Rate",
         "MORE_SETTINGS": "More Settings",

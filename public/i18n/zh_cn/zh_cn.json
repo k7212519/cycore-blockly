@@ -429,6 +429,8 @@
     },
     "SERIAL": {
         "SELECT_PORT_FIRST": "请先选择串口",
+        "CONNECTED": "已连接",
+        "DISCONNECTED": "未连接",
         "PORT": "串口",
         "BAUD_RATE": "波特率",
         "MORE_SETTINGS": "更多设置",

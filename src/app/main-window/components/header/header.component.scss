@@ -211,7 +211,7 @@ $header-inner-height: 46px;
       pointer-events: none;
     }
 
-    .serial-board,
+    .serial-status,
     .serial-port {
       min-width: 0;
       overflow: hidden;
@@ -219,8 +219,25 @@ $header-inner-height: 46px;
       text-overflow: ellipsis;
     }
 
-    .serial-board {
-      max-width: 130px;
+    .serial-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 88px;
+
+      &::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        flex: 0 0 7px;
+        border-radius: 50%;
+        background: var(--text-tertiary);
+      }
+
+      &.connected::before {
+        background: #35c46a;
+        box-shadow: 0 0 0 3px rgba(53, 196, 106, 0.14);
+      }
     }
 
     .serial-port {
