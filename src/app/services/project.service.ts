@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, firstValueFrom, Subject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, Subject } from 'rxjs';
+import { map as rxMap } from 'rxjs/operators';
 import { HttpClient } from '@angular/common/http';
 import { UiService } from './ui.service';
 import { ElectronService } from './electron.service';
@@ -105,7 +106,25 @@ export interface ServerProjectLibraries {
   libraries: any[];
 }
 
-export interface ServerLibraryPage<T> {
+export interface ServerLibraryListItem {
+  name: string;
+  nickname: string;
+  description: string;
+  version: string;
+  author?: string;
+  brand?: string;
+  keywords?: string[];
+  tags?: string[];
+  compatibility?: Record<string, any>;
+  icon?: string;
+  url?: string;
+  tested?: boolean;
+  example?: string;
+  sourceExists?: boolean;
+  archiveExists?: boolean;
+}
+
+export interface ServerLibraryPage<T = ServerLibraryListItem> {
   records: T[];
   total: number;
   page: number;
@@ -134,6 +153,8 @@ export class ProjectService {
   currentProjectPath$ = this.currentProjectPathSubject.asObservable();
   private currentProjectIdSubject = new BehaviorSubject<string>('');
   currentProjectId$ = this.currentProjectIdSubject.asObservable();
+  private readonly serverProjectLibrariesCache = new Map<string, any[]>();
+  private readonly serverProjectLibrariesInFlight = new Map<string, Promise<any[]>>();
 
   currentPackageData: ProjectPackageData = {
     name: 'Cycore MCU DevCloud',
@@ -749,22 +770,64 @@ export class ProjectService {
     return this.unwrap<ServerBoardInfo[]>(this.http.get<ApiResult<ServerBoardInfo[]>>(API.serverProjectBoards));
   }
 
-  async loadServerLibraries(keyword = '', page = 1, pageSize = 24): Promise<ServerLibraryPage<any>> {
+  loadServerLibraries$(
+    keyword = '',
+    page = 1,
+    pageSize = 24,
+    lang = ''
+  ): Observable<ServerLibraryPage<ServerLibraryListItem>> {
     const params = new URLSearchParams();
     params.set('page', String(page));
     params.set('pageSize', String(pageSize));
     if (keyword) {
       params.set('keyword', keyword);
     }
-    return this.unwrap<ServerLibraryPage<any>>(
-      this.http.get<ApiResult<ServerLibraryPage<any>>>(`${API.serverProjectLibraries}?${params.toString()}`)
+    if (lang) {
+      params.set('lang', lang);
+    }
+    return this.http.get<ApiResult<ServerLibraryPage<ServerLibraryListItem>>>(
+      `${API.serverProjectLibraries}?${params.toString()}`
+    ).pipe(
+      rxMap(response => this.unwrapResponse(response))
     );
+  }
+
+  async loadServerLibraries(
+    keyword = '',
+    page = 1,
+    pageSize = 24,
+    lang = ''
+  ): Promise<ServerLibraryPage<ServerLibraryListItem>> {
+    return firstValueFrom(this.loadServerLibraries$(keyword, page, pageSize, lang));
   }
 
   async createServerProject(name: string, boardName: string): Promise<{ projectId: string; name: string; editor: string; boardName: string }> {
     return this.unwrap(this.http.post<ApiResult<{ projectId: string; name: string; editor: string; boardName: string }>>(
       API.serverProjects,
       { name, boardName }
+    ));
+  }
+
+  async importPublicProject(
+    archive: Blob,
+    project: {
+      name: string;
+      nickname?: string;
+      description?: string;
+      docUrl?: string;
+      tags?: string[];
+    }
+  ): Promise<{ projectId: string; name: string; editor: string; boardName: string }> {
+    const formData = new FormData();
+    formData.append('archive', archive, `${project.name || 'public_project'}.7z`);
+    formData.append('name', project.name || 'public_project');
+    formData.append('nickname', project.nickname || project.name || 'public_project');
+    formData.append('description', project.description || '');
+    formData.append('docUrl', project.docUrl || '');
+    formData.append('tags', JSON.stringify(project.tags || []));
+    return this.unwrap(this.http.post<ApiResult<{ projectId: string; name: string; editor: string; boardName: string }>>(
+      `${API.serverProjects}/import`,
+      formData
     ));
   }
 
@@ -807,18 +870,42 @@ export class ProjectService {
     );
   }
 
-  async getServerProjectLibraries(projectId = this.currentProjectId): Promise<any[]> {
-    const result = await this.unwrap<ServerProjectLibraries>(
-      this.http.get<ApiResult<ServerProjectLibraries>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/libraries`)
-    );
-    return result?.libraries || [];
+  async getServerProjectLibraries(projectId = this.currentProjectId, forceRefresh = false): Promise<any[]> {
+    if (!projectId) {
+      return [];
+    }
+    if (!forceRefresh && this.serverProjectLibrariesCache.has(projectId)) {
+      return this.cloneLibraryList(this.serverProjectLibrariesCache.get(projectId) || []);
+    }
+    const existingRequest = this.serverProjectLibrariesInFlight.get(projectId);
+    if (!forceRefresh && existingRequest) {
+      return this.cloneLibraryList(await existingRequest);
+    }
+
+    const request = this.unwrap<ServerProjectLibraries>(
+      this.http.get<ApiResult<ServerProjectLibraries>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/libraries`
+      )
+    ).then(result => {
+      const libraries = result?.libraries || [];
+      this.serverProjectLibrariesCache.set(projectId, libraries);
+      return libraries;
+    }).finally(() => {
+      if (this.serverProjectLibrariesInFlight.get(projectId) === request) {
+        this.serverProjectLibrariesInFlight.delete(projectId);
+      }
+    });
+    this.serverProjectLibrariesInFlight.set(projectId, request);
+    return this.cloneLibraryList(await request);
   }
 
   async installServerProjectLibrary(name: string, projectId = this.currentProjectId): Promise<any[]> {
     const result = await this.unwrap<ServerProjectLibraries>(
       this.http.post<ApiResult<ServerProjectLibraries>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/libraries`, { name })
     );
-    return result?.libraries || [];
+    const libraries = result?.libraries || [];
+    this.serverProjectLibrariesCache.set(projectId, libraries);
+    return this.cloneLibraryList(libraries);
   }
 
   async removeServerProjectLibrary(name: string, projectId = this.currentProjectId): Promise<any[]> {
@@ -826,7 +913,9 @@ export class ProjectService {
     const result = await this.unwrap<ServerProjectLibraries>(
       this.http.delete<ApiResult<ServerProjectLibraries>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/libraries/${encodedName}`)
     );
-    return result?.libraries || [];
+    const libraries = result?.libraries || [];
+    this.serverProjectLibrariesCache.set(projectId, libraries);
+    return this.cloneLibraryList(libraries);
   }
 
   async getServerBlockly(projectId = this.currentProjectId): Promise<any> {
@@ -877,10 +966,18 @@ export class ProjectService {
 
   private async unwrap<T>(request: any): Promise<T> {
     const response = await firstValueFrom(request) as ApiResult<T>;
+    return this.unwrapResponse(response);
+  }
+
+  private unwrapResponse<T>(response: ApiResult<T>): T {
     if (!response || response.code !== 200) {
       throw new Error(response?.message || '服务端请求失败');
     }
     return response.data;
+  }
+
+  private cloneLibraryList(libraries: any[]): any[] {
+    return libraries.map(library => ({ ...library }));
   }
 
   private encodeLibraryNameForPath(name: string): string {

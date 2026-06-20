@@ -4,18 +4,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { ConfigService } from '../../../services/config.service';
+import { TranslateModule } from '@ngx-translate/core';
 import { ActivatedRoute } from '@angular/router';
-import { PlaygroundService } from '../playground.service';
 import { NzPaginationModule } from 'ng-zorro-antd/pagination';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { NzMessageService } from 'ng-zorro-antd/message';
-import { Subject, Subscription } from 'rxjs';
+import { firstValueFrom, Subject, Subscription } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { CloudService } from '../../../tools/cloud-space/services/cloud.service';
 import { ProjectService } from '../../../services/project.service';
-import { CmdService } from '../../../services/cmd.service';
 import { ElectronService } from '../../../services/electron.service';
 import { PlatformService } from "../../../services/platform.service";
 import { CrossPlatformCmdService } from "../../../services/cross-platform-cmd.service";
@@ -42,7 +39,6 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('contentBox', { static: false }) contentBox!: ElementRef;
   
   exampleList: any[] = [];
-  resourceUrl: string = '';
   keyword: string = '';
   id: string = '';
   board: string = '';
@@ -61,13 +57,9 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
   private examplesSub: Subscription | null = null;
 
   constructor(
-    private configService: ConfigService,
-    private translate: TranslateService,
     private route: ActivatedRoute,
-    private playgroundService: PlaygroundService,
     private cloudService: CloudService,
     private projectService: ProjectService,
-    private cmdService: CmdService,
     private electronService: ElectronService,
     private platformService: PlatformService,
     private crossPlatformCmdService: CrossPlatformCmdService,
@@ -165,19 +157,12 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.total = res.data.total;
         
         res.data.list.forEach(prj => {
-          // 图片url
-          if (prj.image_url) {
-            prj.image_url = this.cloudService.baseUrl + prj.image_url;
-          } else {
-            prj.image_url = 'imgs/subject.webp';
-          }
-          // archive_url
-          if (prj.archive_url) {
-            prj.archive_url = this.cloudService.baseUrl + prj.archive_url;
-          } else {
-            prj.archive_url = '';
-          }
-
+          const imageUrl = this.cloudService.resolveCloudFileUrl(prj.image_url);
+          const imageVersion = prj.updated_at || prj.updatedAt || '';
+          prj.image_url = imageUrl
+            ? `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(imageVersion)}`
+            : 'imgs/project-placeholder.svg';
+          prj.archive_url = this.cloudService.resolveCloudFileUrl(prj.archive_url);
           this.exampleList.push(prj);
         });
 
@@ -266,25 +251,41 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
     this.pageSizeCalculated = true;
   }
 
-  search(keyword = this.keyword) {
-    this.exampleList = this.playgroundService.searchExamples(keyword);
-  }
-
   onImgError(event) {
-    (event.target as HTMLImageElement).src = 'imgs/subject.webp';
+    (event.target as HTMLImageElement).src = 'imgs/project-placeholder.svg';
   }
 
-  clearSearch() {
-    console.log('清除搜索');
-    this.keyword = '';
-    this.getExamples();
-  }
-
-  loadExample(index: number) {
+  async loadExample(index: number) {
     // 设置当前加载的示例索引
     this.loadingExampleIndex = index;
 
     const item = this.exampleList[index];
+    if (!item?.archive_url) {
+      this.messageService.error('项目归档文件不存在');
+      this.loadingExampleIndex = null;
+      return;
+    }
+
+    if (!this.electronService.isElectron) {
+      try {
+        const archive = await firstValueFrom(this.cloudService.getProjectArchiveBlob(item.archive_url));
+        const created = await this.projectService.importPublicProject(archive, {
+          name: item.name || `public_project_${item.id || Date.now()}`,
+          nickname: item.nickname,
+          description: item.description,
+          docUrl: item.doc_url,
+          tags: this.parseTags(item.tags)
+        });
+        await this.projectService.projectOpenById(created.projectId);
+      } catch (error) {
+        console.error('导入公开项目失败:', error);
+        this.messageService.error('加载项目失败: ' + (error?.message || '未知错误'));
+      } finally {
+        this.loadingExampleIndex = null;
+      }
+      return;
+    }
+
     this.cloudService.getProjectArchive(item.archive_url)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -413,6 +414,21 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
     const item = this.exampleList[index];
     if (item.doc_url && item.doc_url.trim() !== '') {
       this.electronService.openUrl(item.doc_url);
+    }
+  }
+
+  private parseTags(tags: unknown): string[] {
+    if (Array.isArray(tags)) {
+      return tags.map(tag => String(tag)).filter(Boolean);
+    }
+    if (typeof tags !== 'string' || !tags.trim()) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(tags);
+      return Array.isArray(parsed) ? parsed.map(tag => String(tag)).filter(Boolean) : [];
+    } catch {
+      return tags.split(',').map(tag => tag.trim()).filter(Boolean);
     }
   }
 

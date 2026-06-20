@@ -166,7 +166,7 @@ export class CloudSpaceComponent {
             const separator = prj.image_url.includes('?') ? '&' : '?';
             imageUrl = this.cloudService.baseUrl + prj.image_url + separator + 't=' + timestamp;
           } else {
-            imageUrl = 'imgs/subject.webp';
+            imageUrl = 'imgs/project-placeholder.svg';
           }
 
           if (prj.archive_url) {

@@ -16,7 +16,8 @@
         </ng-template>
         <div class="tag-list">
             @for (tag of tagList; track tag) {
-            <nz-tag (click)="keyword=tag.text;search()" [nzColor]="tag.color">{{ tag.text }}</nz-tag>
+            <nz-tag (click)="toggleTag(tag)" [nzColor]="keyword === tag.text ? tag.color : undefined"
+                [class.selected]="keyword === tag.text">{{ tag.text }}</nz-tag>
             }
         </div>
     </div>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="260" viewBox="0 0 520 260" role="img" aria-labelledby="title desc">
+  <title id="title">默认项目封面</title>
+  <desc id="desc">由积木、芯片和连接线组成的简洁项目插图</desc>
+  <defs>
+    <linearGradient id="background" x1="30" y1="16" x2="490" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18212F"/>
+      <stop offset="1" stop-color="#0E141D"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="203" y1="75" x2="319" y2="189" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="520" height="260" rx="20" fill="url(#background)"/>
+  <path d="M0 198C82 166 135 235 229 207C324 179 387 112 520 143V260H0Z" fill="#1B2B3D" opacity=".72"/>
+  <g fill="none" stroke="#64748B" stroke-width="2" opacity=".45">
+    <path d="M57 68h92l29 29h40"/>
+    <path d="M462 192h-88l-31-31h-38"/>
+    <path d="M74 194h61l31-31h42"/>
+    <circle cx="57" cy="68" r="5" fill="#64748B"/>
+    <circle cx="462" cy="192" r="5" fill="#64748B"/>
+    <circle cx="74" cy="194" r="5" fill="#64748B"/>
+  </g>
+
+  <g stroke="#9BDCF3" stroke-width="7" stroke-linecap="round">
+    <path d="M215 68V53M245 68V53M275 68V53M305 68V53"/>
+    <path d="M215 207v-15M245 207v-15M275 207v-15M305 207v-15"/>
+    <path d="M195 88h-15M195 116h-15M195 144h-15M195 172h-15"/>
+    <path d="M340 88h-15M340 116h-15M340 144h-15M340 172h-15"/>
+  </g>
+
+  <rect x="195" y="68" width="130" height="124" rx="22" fill="url(#chip)"/>
+  <rect x="214" y="87" width="92" height="86" rx="15" fill="#102131" opacity=".9"/>
+
+  <g fill="#D8F5FF">
+    <rect x="232" y="105" width="28" height="24" rx="6"/>
+    <rect x="265" y="105" width="23" height="24" rx="6" opacity=".75"/>
+    <rect x="232" y="134" width="56" height="21" rx="6" opacity=".55"/>
+  </g>
+
+  <g fill="#94A3B8" opacity=".75">
+    <circle cx="104" cy="116" r="7"/>
+    <circle cx="127" cy="116" r="7"/>
+    <circle cx="104" cy="139" r="7"/>
+    <circle cx="127" cy="139" r="7"/>
+    <rect x="390" y="82" width="54" height="14" rx="7"/>
+    <rect x="375" y="105" width="69" height="14" rx="7" opacity=".65"/>
+  </g>
+</svg>

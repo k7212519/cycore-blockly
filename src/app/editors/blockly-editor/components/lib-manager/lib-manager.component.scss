@@ -106,9 +106,36 @@
         grid-template-columns: repeat(auto-fill, minmax(270px, 292px));
         justify-content: center;
         gap: 12px;
+        position: relative;
         width: 100%;
         box-sizing: border-box;
         padding: 18px clamp(22px, 3vw, 42px) 68px;
+
+        &.is-loading {
+            pointer-events: none;
+        }
+
+        .list-loading {
+            position: fixed;
+            z-index: 2;
+            left: 50%;
+            top: 116px;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border: 1px solid var(--glass-border);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            background: var(--glass-bg);
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(14px);
+
+            i {
+                animation: lib-manager-spin 1s linear infinite;
+            }
+        }
 
         .lib-item {
             width: 100%;
@@ -378,5 +405,11 @@
     &:hover {
         color: #3047b7;
         background: var(--selected-bg);
+    }
+}
+
+@keyframes lib-manager-spin {
+    to {
+        transform: rotate(360deg);
     }
 }

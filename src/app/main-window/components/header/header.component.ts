@@ -531,10 +531,12 @@ export class HeaderComponent implements OnDestroy {
         this.logout();
         break;
       case 'example-open':
-        if (this.isLoaded()) { // 只在已加载项目时检查
-          this.electronService.openNewInStance('/main/playground')
+        if (this.isLoaded() && this.electronService.isElectron) {
+          this.electronService.openNewInStance('/main/playground');
         } else {
-          this.router.navigate(['/main/playground']);
+          await this.router.navigate(['/main/playground'], {
+            queryParams: { returnUrl: this.router.url }
+          });
         }
         break;
       case 'board-select':

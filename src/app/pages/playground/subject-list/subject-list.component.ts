@@ -78,7 +78,7 @@ export class SubjectListComponent implements OnInit {
   }
 
   onImgError(event) {
-    (event.target as HTMLImageElement).src = 'imgs/subject.webp';
+    (event.target as HTMLImageElement).src = 'imgs/project-placeholder.svg';
   }
 
   clearSearch() {

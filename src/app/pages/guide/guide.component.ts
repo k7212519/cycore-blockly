@@ -133,7 +133,7 @@ export class GuideComponent implements OnInit {
         this.electronService.openUrl(item.data.url);
         break;
       case 'playground-open':
-        this.router.navigate(['/main/playground']);
+        this.openPlayground();
         break;
       case 'tool-open':
         this.uiService.turnTool(item.data);
@@ -144,7 +144,13 @@ export class GuideComponent implements OnInit {
   }
 
   gotoPlayground() {
-    this.router.navigate(['/main/playground']);
+    this.openPlayground();
+  }
+
+  private openPlayground() {
+    this.router.navigate(['/main/playground'], {
+      queryParams: { returnUrl: this.router.url }
+    });
   }
 
   // 重新加载微信二维码图片

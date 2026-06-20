@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, EventEmitter, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, OnDestroy, Output } from '@angular/core';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -20,6 +20,19 @@ import { BlocklyService } from '../../services/blockly.service';
 import { PlatformService } from '../../../../services/platform.service';
 import { WorkflowService } from '../../../../services/workflow.service';
 import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd.service';
+import {
+  catchError,
+  debounceTime,
+  forkJoin,
+  from,
+  map,
+  Observable,
+  of,
+  Subject,
+  switchMap,
+  takeUntil,
+  tap
+} from 'rxjs';
 
 @Component({
   selector: 'app-lib-manager',
@@ -37,7 +50,7 @@ import { CrossPlatformCmdService } from '../../../../services/cross-platform-cmd
   templateUrl: './lib-manager.component.html',
   styleUrl: './lib-manager.component.scss'
 })
-export class LibManagerComponent {
+export class LibManagerComponent implements OnDestroy {
 
   @Output() close = new EventEmitter();
 
@@ -49,9 +62,14 @@ export class LibManagerComponent {
   tagListRandom;
 
   loading = false;
+  listLoading = false;
   pageIndex = 1;
   pageSize = 24;
   total = 0;
+  private readonly searchInput$ = new Subject<string>();
+  private readonly serverLoadRequests$ = new Subject<ServerLibraryLoadRequest>();
+  private readonly destroy$ = new Subject<void>();
+  private lastDebouncedKeyword: string | null = null;
 
   constructor(
     private npmService: NpmService,
@@ -82,24 +100,36 @@ export class LibManagerComponent {
       this.translate.instant('LIB_MANAGER.IOT'),
     ];
 
+    this.setupSearchLoading();
     if (this.projectService.isServerProject) {
-      await this.loadServerLibraryPage();
+      this.requestServerLibraryPage();
     } else {
       this._libraryList = this.process(this.configService.libraryList || []);
       this.libraryList = this.applyLocalization(await this.checkInstalled());
+      this.cd.detectChanges();
     }
-    this.cd.detectChanges();
   }
 
-  async checkInstalled(libraryList = null) {
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  async checkInstalled(libraryList = null, installedLibrariesInput: any[] | null = null) {
     let isNull = false;
     if (libraryList === null) {
       isNull = true;
       libraryList = JSON.parse(JSON.stringify(this._libraryList));
     }
     // 获取已经安装的包，用于在界面上显示"移除"按钮
-    let installedLibraries = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-    installedLibraries = installedLibraries.map(item => {
+    const installedLibraries = installedLibrariesInput
+      || await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+    return this.mergeInstalledLibraries(libraryList, installedLibraries, isNull);
+  }
+
+  private mergeInstalledLibraries(libraryList: any[], installedLibrariesInput: any[], includeMissing: boolean) {
+    const installedLibraries = installedLibrariesInput.map(item => {
+      item = { ...item };
       item['state'] = 'installed';
       item['fulltext'] = `installed${item.name}${item.nickname}${item.keywords}${item.description}${item.brand}`.replace(/\s/g, '').toLowerCase();
       return item;
@@ -118,7 +148,7 @@ export class LibManagerComponent {
     });
 
     // 将只存在于installedLibraries中但不在libraryList中的库添加到libraryList中
-    if (isNull) {
+    if (includeMissing) {
       installedLibraries.forEach(installedLib => {
         const existsInLibraryList = libraryList.find(lib => lib.name === installedLib.name);
         if (!existsInLibraryList) {
@@ -147,13 +177,22 @@ export class LibManagerComponent {
     return array;
   }
 
+  onSearchInput() {
+    this.searchInput$.next(this.keyword || '');
+  }
+
   async search(keyword = this.keyword) {
     this.keyword = keyword;
+    this.pageIndex = 1;
+    this.lastDebouncedKeyword = null;
     if (this.projectService.isServerProject) {
-      this.pageIndex = 1;
-      await this.loadServerLibraryPage();
+      this.requestServerLibraryPage();
       return;
     }
+    await this.applyLocalSearch(keyword);
+  }
+
+  private async applyLocalSearch(keyword = this.keyword) {
     if (keyword) {
       keyword = keyword.replace(/\s/g, '').toLowerCase();
 
@@ -181,28 +220,100 @@ export class LibManagerComponent {
   async onPageChange(pageIndex: number) {
     this.pageIndex = pageIndex;
     if (this.projectService.isServerProject) {
-      await this.loadServerLibraryPage();
+      this.requestServerLibraryPage();
     }
   }
 
-  private async loadServerLibraryPage() {
-    const normalizedKeyword = (this.keyword || '').replace(/\s/g, '').toLowerCase();
-    if (normalizedKeyword === 'installed') {
-      const installedLibraries = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-      this.total = installedLibraries.length;
-      this._libraryList = this.process(installedLibraries || []);
-      this.libraryList = this.applyLocalization(await this.checkInstalled());
+  private setupSearchLoading() {
+    this.searchInput$.pipe(
+      debounceTime(300),
+      takeUntil(this.destroy$)
+    ).subscribe(keyword => {
+      if (keyword === this.lastDebouncedKeyword) {
+        return;
+      }
+      this.lastDebouncedKeyword = keyword;
+      this.pageIndex = 1;
+      if (this.projectService.isServerProject) {
+        this.requestServerLibraryPage(keyword);
+      } else {
+        void this.applyLocalSearch(keyword);
+      }
+    });
+
+    this.serverLoadRequests$.pipe(
+      tap(() => {
+        this.listLoading = true;
+      }),
+      switchMap(request => this.fetchServerLibraryView(request).pipe(
+        map(result => ({ result, error: null })),
+        catchError(error => of({ result: null, error }))
+      )),
+      takeUntil(this.destroy$)
+    ).subscribe(({ result, error }) => {
+      this.listLoading = false;
+      if (error || !result) {
+        this.message.error(error?.message || '扩展库列表加载失败');
+        this.cd.detectChanges();
+        return;
+      }
+      this.total = result.total;
+      this.pageIndex = result.page;
+      this.pageSize = result.pageSize;
+      this._libraryList = result.records;
+      this.libraryList = this.applyLocalization(result.records);
       this.cd.detectChanges();
-      return;
+    });
+  }
+
+  private requestServerLibraryPage(keyword = this.keyword) {
+    this.keyword = keyword || '';
+    this.serverLoadRequests$.next({
+      keyword: this.keyword,
+      pageIndex: this.pageIndex,
+      pageSize: this.pageSize,
+      lang: this.translate.currentLang || ''
+    });
+  }
+
+  private fetchServerLibraryView(request: ServerLibraryLoadRequest): Observable<ServerLibraryView> {
+    const normalizedKeyword = request.keyword.replace(/\s/g, '').toLowerCase();
+    const installedLibraries$ = from(
+      this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath)
+    );
+    if (normalizedKeyword === 'installed') {
+      return installedLibraries$.pipe(
+        map(installedLibraries => {
+          const records = this.process(installedLibraries || []);
+          return {
+            records: this.mergeInstalledLibraries(records, installedLibraries, false),
+            total: records.length,
+            page: 1,
+            pageSize: request.pageSize
+          };
+        })
+      );
     }
 
-    const page = await this.projectService.loadServerLibraries(this.keyword || '', this.pageIndex, this.pageSize);
-    this.total = page?.total || 0;
-    this.pageIndex = page?.page || this.pageIndex;
-    this.pageSize = page?.pageSize || this.pageSize;
-    this._libraryList = this.process(page?.records || []);
-    this.libraryList = this.applyLocalization(await this.checkInstalled());
-    this.cd.detectChanges();
+    return forkJoin({
+      page: this.projectService.loadServerLibraries$(
+        request.keyword,
+        request.pageIndex,
+        request.pageSize,
+        request.lang
+      ),
+      installedLibraries: installedLibraries$
+    }).pipe(
+      map(({ page, installedLibraries }) => {
+        const records = this.process(page?.records || []);
+        return {
+          records: this.mergeInstalledLibraries(records, installedLibraries, false),
+          total: page?.total || 0,
+          page: page?.page || request.pageIndex,
+          pageSize: page?.pageSize || request.pageSize
+        };
+      })
+    );
   }
 
   back() {
@@ -525,6 +636,20 @@ export class LibManagerComponent {
   openUrl(url: string) {
     this.electronService.openUrl(url);
   }
+}
+
+interface ServerLibraryLoadRequest {
+  keyword: string;
+  pageIndex: number;
+  pageSize: number;
+  lang: string;
+}
+
+interface ServerLibraryView {
+  records: PackageInfo[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 interface PackageInfo {

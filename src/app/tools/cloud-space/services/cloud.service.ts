@@ -36,10 +36,41 @@ export class CloudService {
    * 获取公开列表
    */
   getPublicProjects(page, perPage, keyword, id='', board=''): Observable<any> {
-    return this.http.get<any>(`${API.cloudPublicProjects}?page=${page}&perPage=${perPage}&keywords=${keyword}&id=${id}&board=${board}`)
+    const params = new URLSearchParams({
+      page: String(page),
+      perPage: String(perPage),
+      keywords: keyword || '',
+      id: id || '',
+      board: board || ''
+    });
+    return this.http.get<any>(`${API.cloudPublicProjects}?${params.toString()}`)
       .pipe(
         catchError(this.handleError)
       );
+  }
+
+  resolveCloudFileUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    try {
+      if (/^https?:\/\//i.test(url)) {
+        return url;
+      }
+      const cloudBase = this.baseUrl.replace(/\/$/, '');
+      if (url.startsWith('/api/')) {
+        return `${new URL(cloudBase).origin}${url}`;
+      }
+      if (url.startsWith('/')) {
+        return `${cloudBase}${url}`;
+      }
+      return `${cloudBase}/${url}`;
+    } catch {
+      return url;
+    }
+  }
+
+  getProjectArchiveBlob(archiveUrl: string): Observable<Blob> {
+    return this.http.get(this.resolveCloudFileUrl(archiveUrl), { responseType: 'blob' })
+      .pipe(catchError(this.handleError));
   }
 
   /**
@@ -191,7 +222,7 @@ export class CloudService {
    * @returns Observable<string> 解压后的路径
    */
   getProjectArchive(archiveUrl: string): Observable<string> {
-    return this.http.get(archiveUrl, { responseType: 'blob' })
+    return this.getProjectArchiveBlob(archiveUrl)
       .pipe(
         switchMap((blob: Blob) => {
           return from(this.downloadAndExtractArchive(blob));

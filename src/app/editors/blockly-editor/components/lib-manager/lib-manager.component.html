@@ -5,7 +5,7 @@
         </div>
         <nz-input-group [nzSuffix]="suffixIconSearch" [nzSize]="'small'">
             <input type="text" nz-input [placeholder]="'LIB_MANAGER.SEARCH_LIBRARY' | translate" [(ngModel)]="keyword"
-                (ngModelChange)="search()" />
+                (ngModelChange)="onSearchInput()" />
         </nz-input-group>
         <ng-template #suffixIconSearch>
             @if(keyword.length > 0){
@@ -32,7 +32,13 @@
             }
         </div>
     </div>
-    <div class="lib-list">
+    <div class="lib-list" [class.is-loading]="listLoading">
+        @if(listLoading) {
+        <div class="list-loading" aria-live="polite">
+            <i class="fa-duotone fa-solid fa-loader"></i>
+            <span>{{ 'LIB_MANAGER.LOADING' | translate }}</span>
+        </div>
+        }
         @for( lib of libraryList;track lib.name ) {
         <div class="lib-item">
             <div class="name ellipsis" [nz-tooltip] [nzTooltipTitle]="lib.tested?'':'该库未通过测试，可能存在问题'">{{lib._nickname}}

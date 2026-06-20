@@ -246,6 +246,7 @@
         "TITLE": "库管理",
         "BACK": "返回",
         "SEARCH_LIBRARY": "搜索库",
+        "LOADING": "加载中...",
         "ALL": "所有库",
         "INSTALLED": "已安装",
         "CORE_LIBRARY": "核心库",

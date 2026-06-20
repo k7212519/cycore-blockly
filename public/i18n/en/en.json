@@ -246,6 +246,7 @@
         "TITLE": "Library Manager",
         "BACK": "Back",
         "SEARCH_LIBRARY": "Search Library",
+        "LOADING": "Loading...",
         "ALL": "All Libraries",
         "INSTALLED": "Installed",
         "CORE_LIBRARY": "Core Library",

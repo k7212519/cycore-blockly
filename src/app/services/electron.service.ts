@@ -98,7 +98,12 @@ export class ElectronService {
 
   // 调用浏览器打开url
   openUrl(url) {
-    window['other'].openByBrowser(url);
+    if (!url) return;
+    if (this.isElectron && window['other']?.openByBrowser) {
+      window['other'].openByBrowser(url);
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   // 改变窗口title
