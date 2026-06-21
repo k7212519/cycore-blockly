@@ -118,9 +118,50 @@ export class UiService {
     }
 
     if (opt?.path) {
+      if (opt.path.startsWith('iframe')) {
+        this.openIframeModal(opt);
+        return;
+      }
       const mainRoutes = new Set(['project-new', 'playground']);
       const route = mainRoutes.has(opt.path) ? ['/main', opt.path] : ['/', opt.path];
       this.router.navigate(route, { queryParams: opt.queryParams });
+    }
+  }
+
+  private openIframeModal(opt: WindowOpts): void {
+    const url = this.extractIframeUrl(opt.path);
+    if (!url) {
+      return;
+    }
+    void import('../windows/iframe/iframe.component').then(({ IframeComponent }) => {
+      this.modal.create({
+        nzTitle: opt.title || null,
+        nzFooter: null,
+        nzClosable: true,
+        nzContent: IframeComponent,
+        nzData: {
+          url,
+          data: opt.data,
+          title: opt.title,
+          embedded: true,
+        },
+        nzWidth: opt.width || 900,
+        nzBodyStyle: {
+          padding: '0',
+          height: `${opt.height || 700}px`,
+          overflow: 'hidden',
+        },
+      });
+    });
+  }
+
+  private extractIframeUrl(path: string): string | null {
+    try {
+      const [, query = ''] = path.split('?');
+      const params = new URLSearchParams(query);
+      return params.get('url');
+    } catch {
+      return null;
     }
   }
 

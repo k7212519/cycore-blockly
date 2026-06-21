@@ -293,7 +293,16 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     flyout: 'overlay',
     toolbox: {
       kind: 'categoryToolbox',
-      contents: [],
+      contents: [{
+        'kind': 'search',
+        'name': 'Search',
+        'contents': [],
+      }, {
+        kind: 'category',
+        name: '__toolbox_mode_anchor__',
+        hidden: 'true',
+        contents: [],
+      }],
     },
     // plugins: {
     //   toolbox: ContinuousToolbox,
@@ -509,11 +518,12 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       // 禁用blockly的警告
       console.warn = (function (originalWarn) {
         return function (msg) {
+          const message = typeof msg === 'string' ? msg : '';
           // 过滤掉块重定义的警告
-          if (msg.includes('overwrites previous definition')) {
+          if (message.includes('overwrites previous definition')) {
             return;
           }
-          if (msg.includes('CodeGenerator init was not called before blockToCode was called.')) {
+          if (message.includes('CodeGenerator init was not called before blockToCode was called.')) {
             return;
           }
           // 保留其他警告
@@ -577,6 +587,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       // 获取当前blockly渲染器
       this.options.renderer = this.configData.blockly.renderer ? ('aily-' + this.configData.blockly.renderer) : 'thrasos';
 
+      this.options.toolbox = this.toolbox;
       this.workspace = Blockly.inject('blocklyDiv', this.options);
 
       // 根据配置决定 flyout 拖出 block 后是否自动关闭（配置重载时会通过 configReloaded$ 实时应用）

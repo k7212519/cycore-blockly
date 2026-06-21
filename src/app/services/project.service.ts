@@ -30,6 +30,8 @@ interface ProjectPackageData {
   description?: string;
   path?: string;
   board?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
   type?: string;
   framework?: string;
   cloudId?: string; // 云端项目ID
@@ -131,6 +133,19 @@ export interface ServerLibraryPage<T = ServerLibraryListItem> {
   pageSize: number;
 }
 
+export interface ServerBlocklyLibraryResource {
+  name: string;
+  blockJson?: string | null;
+  toolboxJson?: string | null;
+  generatorJs?: string | null;
+  i18nJson?: string | null;
+  missingFiles?: string[];
+}
+
+export interface ServerBlocklyLibraryResources {
+  libraries: ServerBlocklyLibraryResource[];
+}
+
 export interface ServerProjectPage<T> {
   records: T[];
   total: number;
@@ -155,6 +170,7 @@ export class ProjectService {
   currentProjectId$ = this.currentProjectIdSubject.asObservable();
   private readonly serverProjectLibrariesCache = new Map<string, any[]>();
   private readonly serverProjectLibrariesInFlight = new Map<string, Promise<any[]>>();
+  private readonly serverBlocklyResourceCache = new Map<string, ServerBlocklyLibraryResource>();
 
   currentPackageData: ProjectPackageData = {
     name: 'Cycore MCU DevCloud',
@@ -905,6 +921,8 @@ export class ProjectService {
     );
     const libraries = result?.libraries || [];
     this.serverProjectLibrariesCache.set(projectId, libraries);
+    this.syncServerLibraryDependencies(libraries);
+    this.clearServerBlocklyResourceCache(projectId);
     return this.cloneLibraryList(libraries);
   }
 
@@ -915,6 +933,8 @@ export class ProjectService {
     );
     const libraries = result?.libraries || [];
     this.serverProjectLibrariesCache.set(projectId, libraries);
+    this.syncServerLibraryDependencies(libraries);
+    this.clearServerBlocklyResourceCache(projectId);
     return this.cloneLibraryList(libraries);
   }
 
@@ -929,6 +949,44 @@ export class ProjectService {
     await this.unwrap<void>(
       this.http.put<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/blockly`, { workspace })
     );
+  }
+
+  async getServerBlocklyLibraryResources(
+    names: string[],
+    dependencyVersions: Record<string, string> = {},
+    lang = this.translate.currentLang,
+    projectId = this.currentProjectId
+  ): Promise<ServerBlocklyLibraryResource[]> {
+    if (!projectId || !names?.length) {
+      return [];
+    }
+
+    const normalizedLang = this.normalizeServerBlocklyResourceLang(lang);
+    const uniqueNames = Array.from(new Set(names.filter(name => !!name)));
+    const missingNames = uniqueNames.filter(name => {
+      const cacheKey = this.serverBlocklyResourceCacheKey(projectId, name, dependencyVersions[name], normalizedLang);
+      return !this.serverBlocklyResourceCache.has(cacheKey);
+    });
+
+    if (missingNames.length > 0) {
+      const result = await this.unwrap<ServerBlocklyLibraryResources>(
+        this.http.post<ApiResult<ServerBlocklyLibraryResources>>(
+          `${API.serverProjects}/${encodeURIComponent(projectId)}/blockly-library-resources`,
+          { names: missingNames, lang: normalizedLang }
+        )
+      );
+      (result?.libraries || []).forEach(resource => {
+        const cacheKey = this.serverBlocklyResourceCacheKey(projectId, resource.name, dependencyVersions[resource.name], normalizedLang);
+        this.serverBlocklyResourceCache.set(cacheKey, this.cloneServerBlocklyResource(resource));
+      });
+    }
+
+    return uniqueNames
+      .map(name => this.serverBlocklyResourceCache.get(
+        this.serverBlocklyResourceCacheKey(projectId, name, dependencyVersions[name], normalizedLang)
+      ))
+      .filter((resource): resource is ServerBlocklyLibraryResource => !!resource)
+      .map(resource => this.cloneServerBlocklyResource(resource));
   }
 
   async getServerFileTree(projectId = this.currentProjectId): Promise<ServerFileNode[]> {
@@ -978,6 +1036,45 @@ export class ProjectService {
 
   private cloneLibraryList(libraries: any[]): any[] {
     return libraries.map(library => ({ ...library }));
+  }
+
+  private syncServerLibraryDependencies(libraries: any[]): void {
+    const packageData = this.currentPackageData as any;
+    const dependencies = { ...(packageData.dependencies || {}) };
+    Object.keys(dependencies)
+      .filter(name => name.startsWith('@aily-project/lib-'))
+      .forEach(name => delete dependencies[name]);
+    (libraries || []).forEach(library => {
+      if (library?.name?.startsWith('@aily-project/lib-')) {
+        dependencies[library.name] = library.version || '*';
+      }
+    });
+    packageData.dependencies = dependencies;
+  }
+
+  private serverBlocklyResourceCacheKey(projectId: string, name: string, version = '', lang = ''): string {
+    return [projectId, name, version || '', lang || ''].join('::');
+  }
+
+  private cloneServerBlocklyResource(resource: ServerBlocklyLibraryResource): ServerBlocklyLibraryResource {
+    return {
+      ...resource,
+      missingFiles: [...(resource.missingFiles || [])],
+    };
+  }
+
+  private clearServerBlocklyResourceCache(projectId: string): void {
+    if (!projectId) {
+      return;
+    }
+    const prefix = `${projectId}::`;
+    Array.from(this.serverBlocklyResourceCache.keys())
+      .filter(key => key.startsWith(prefix))
+      .forEach(key => this.serverBlocklyResourceCache.delete(key));
+  }
+
+  private normalizeServerBlocklyResourceLang(lang?: string): string {
+    return (lang || '').trim().toLowerCase().replace('-', '_');
   }
 
   private encodeLibraryNameForPath(name: string): string {

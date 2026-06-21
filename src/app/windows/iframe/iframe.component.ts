@@ -48,6 +48,8 @@ export interface IframeModalData {
   data?: unknown;
   /** 窗口标题 */
   title?: string;
+  /** 嵌入式渲染，不显示 Electron 子窗口外壳 */
+  embedded?: boolean;
 }
 
 @Component({
@@ -114,11 +116,14 @@ export class IframeComponent implements OnInit, OnDestroy {
       if (this.data.url) {
         this.applyUrl(this.data.url);
       }
-      if (this.data.data) {
+      if (this.data.data !== undefined) {
         this.iframeData = this.data.data;
       }
       if (this.data.title) {
         this.windowTitle = this.data.title;
+      }
+      if (this.data.embedded !== undefined) {
+        this.embedded = this.data.embedded;
       }
     }
   }
@@ -163,6 +168,9 @@ export class IframeComponent implements OnInit, OnDestroy {
    * 统一应用 URL：设置 iframeSrc、allowedOrigins、isConnectionGraphWindow
    */
   private applyUrl(url: string): void {
+    if (!url) {
+      return;
+    }
     this.currentUrl = url;
     const themedUrl = this.applyThemeParam(url);
     this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(themedUrl);
@@ -180,6 +188,9 @@ export class IframeComponent implements OnInit, OnDestroy {
   }
 
   private applyThemeParam(url: string): string {
+    if (!url) {
+      return url;
+    }
     if (!url.includes('tool.aily.pro') && !url.includes('localhost:4201')) {
       return url;
     }
@@ -383,10 +394,17 @@ export class IframeComponent implements OnInit, OnDestroy {
   /**
    * 发送保存请求并等待主窗口返回结果
    */
-  private sendSaveGraphData(data: unknown): Promise<{ success: boolean }> {
-    if (!this.electronService.isElectron || !window['ipcRenderer']) {
-      return Promise.resolve({ success: false });
+  private async sendSaveGraphData(data: unknown): Promise<{ success: boolean }> {
+    const toSave = this.toConnectionGraphData(data);
+    if (!toSave) {
+      return { success: false };
     }
+
+    if (!this.electronService.isElectron || !window['ipcRenderer']) {
+      const success = await this.connectionGraphService.saveConnectionGraphSilentAsync(toSave);
+      return { success };
+    }
+
     const messageId = Date.now() + '-' + Math.random().toString(36).slice(2);
     return new Promise<{ success: boolean }>((resolve) => {
       const timeoutId = setTimeout(() => {
@@ -398,8 +416,22 @@ export class IframeComponent implements OnInit, OnDestroy {
         this.pendingSaveResolvers.delete(messageId);
         resolve(result);
       });
-      this.sendToMain('save-graph-data', { ...(data as object), messageId });
+      this.sendToMain('save-graph-data', { ...toSave, messageId });
     });
+  }
+
+  private toConnectionGraphData(data: unknown): any | null {
+    const source = data as any;
+    if (!source || !Array.isArray(source.components) || !Array.isArray(source.connections)) {
+      return null;
+    }
+
+    return {
+      version: source.version || '1.0.0',
+      description: source.description || '',
+      components: source.components,
+      connections: source.connections,
+    };
   }
 
   /**

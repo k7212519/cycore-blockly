@@ -17,6 +17,12 @@ import { ImageViewerComponent } from '../image-viewer/image-viewer.component';
 import { MermaidComponent } from '../../tools/aily-chat/components/aily-mermaid-viewer/mermaid/mermaid.component';
 import mermaid from 'mermaid';
 import { ThemeService } from '../../services/theme.service';
+import { ProjectResourceService } from '../../services/project-resource.service';
+import {
+  getCycoreEsp32S3DocUrl,
+  getCycoreEsp32S3Pinmap,
+  isCycoreEsp32S3Board,
+} from '../../services/cycore-esp32s3-board';
 @Component({
   selector: 'app-float-sider',
   imports: [
@@ -33,6 +39,7 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
   @ViewChild('imageViewer') imageViewer!: ImageViewerComponent;
 
   loaded = false;
+  showArchitectureTool = false;
   private routerSubscription: Subscription | undefined;
 
   constructor(
@@ -47,6 +54,7 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
     private translate: TranslateService,
     private authService: AuthService,
     private themeService: ThemeService,
+    private projectResource: ProjectResourceService,
   ) { }
 
   private requireLogin(): boolean {
@@ -94,63 +102,91 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
   boardPackagePath;
   async loadBoardInfo() {
     setTimeout(async () => {
-      this.boardPackagePath = await this.projectService.getBoardPackagePath();
-      console.log('Board Package Path:', this.boardPackagePath);
+      try {
+        this.boardPackagePath = await this.projectResource.getBoardPackagePath();
+        console.log('Board Package Path:', this.boardPackagePath);
+      } catch (error) {
+        console.warn('Board Package Path load failed:', error);
+      }
     }, 1000); // 延时1秒，确保项目服务已准备好
   }
 
-  showPinmap() {
-    if (!this.requireLogin()) return;
-    let boardPackageData = JSON.parse(this.electronService.readFile(this.boardPackagePath + '/package.json'));
+  private async isCycoreBoard(): Promise<boolean> {
+    const values: unknown[] = [];
+    try { values.push(await this.projectResource.getBoardModule()); } catch { }
+    try { values.push(await this.projectResource.getPackageJson()); } catch { }
+    try { values.push(await this.projectResource.getBoardPackageJson()); } catch { }
+    return values.some(value => isCycoreEsp32S3Board(value));
+  }
 
-    // 如果 pinmap 被禁用，直接显示 webp 图片
-    if (boardPackageData.pinmap === false) {
-      const pinmapWebpPath = this.boardPackagePath + '/pinmap.webp';
-      if (this.electronService.exists(pinmapWebpPath)) {
+  private openPinmapJson(data: unknown) {
+    this.uiService.openWindow({
+      title: this.translate.instant('FLOAT_SIDER.PINMAP'),
+      path: `iframe?url=${encodeURIComponent(`https://tool.aily.pro/component-viewer?type=json&theme=${this.themeService.currentTheme}&lang=${this.translate.currentLang}`)}`,
+      data: typeof data === 'string' ? data : JSON.stringify(data),
+      width: 800,
+      height: 600
+    });
+  }
+
+  async showPinmap() {
+    if (!this.requireLogin()) return;
+    try {
+      this.boardPackagePath = this.boardPackagePath || await this.projectResource.getBoardPackagePath();
+      const boardPackageData = await this.projectResource.getBoardPackageJson();
+      const isCycore = await this.isCycoreBoard();
+
+      // 如果 pinmap 被禁用，直接显示 webp 图片
+      if (boardPackageData?.pinmap === false && !this.projectResource.isServerProject) {
+        const pinmapWebpPath = this.projectResource.joinResource(this.boardPackagePath, 'pinmap.webp');
+        if (this.electronService.exists(pinmapWebpPath)) {
+          this.imageViewer.open(pinmapWebpPath);
+          return;
+        }
+      }
+
+      const pinmapJson = await this.projectResource.readBoardText('pinmap.json');
+      if (pinmapJson) {
+        this.openPinmapJson(pinmapJson);
+        return;
+      }
+
+      const pinmapWebpPath = this.projectResource.joinResource(this.boardPackagePath, 'pinmap.webp');
+      if (!this.projectResource.isServerProject && this.electronService.exists(pinmapWebpPath)) {
         this.imageViewer.open(pinmapWebpPath);
         return;
       }
-      this.message.error(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
-      return;
-    }
 
-    const pinmapJsonPath = this.boardPackagePath + '/pinmap.json';
-    if (this.electronService.exists(pinmapJsonPath)) {
-      // 使用子窗口打开，通过 URL 查询参数传递文件路径
-      // this.uiService.openWindow({
-      //   path: `pinjson?filePath=${encodeURIComponent(pinjsonPath)}`,
-      //   width: 800,
-      //   height: 600
-      // });
-      this.uiService.openWindow({
-        title: this.translate.instant('FLOAT_SIDER.PINMAP'),
-        path: `iframe?url=${encodeURIComponent(`https://tool.aily.pro/component-viewer?type=json&theme=${this.themeService.currentTheme}&lang=${this.translate.currentLang}`)}`,
-        // path: `iframe?url=${encodeURIComponent('http://localhost:4201/component-viewer?type=json&theme=dark&lang=' + this.translate.currentLang)}`,
-        data: this.electronService.readFile(pinmapJsonPath),
-        width: 800,
-        height: 600
-      });
-      return;
+      if (isCycore) {
+        this.openPinmapJson(getCycoreEsp32S3Pinmap());
+        return;
+      }
+
+      this.message.error(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
+    } catch (error) {
+      console.warn('Pinmap open failed:', error);
+      this.message.error(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
     }
-    const pinmapWebpPath = this.boardPackagePath + '/pinmap.webp';
-    if (this.electronService.exists(pinmapWebpPath)) {
-      this.imageViewer.open(pinmapWebpPath);
-      return;
-    }
-    this.message.error(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
   }
 
 
   async openDocUrl() {
-    let data = await this.projectService.getPackageJson();
-    if (data.doc_url) {
+    if (!this.requireLogin()) return;
+    this.boardPackagePath = this.boardPackagePath || await this.projectResource.getBoardPackagePath();
+    let data = await this.projectResource.getPackageJson();
+    if (data?.doc_url) {
       this.electronService.openUrl(data.doc_url);
       return;
     }
 
-    data = JSON.parse(this.electronService.readFile(this.boardPackagePath + '/package.json'))
-    if (data.url) {
-      this.electronService.openUrl(data.url)
+    data = await this.projectResource.getBoardPackageJson();
+    if (data?.doc_url || data?.url) {
+      this.electronService.openUrl(data.doc_url || data.url)
+      return;
+    }
+
+    if (await this.isCycoreBoard()) {
+      this.electronService.openUrl(getCycoreEsp32S3DocUrl());
       return;
     }
     this.message.error(this.translate.instant('FLOAT_SIDER.NO_DOCUMENTATION'));
@@ -171,19 +207,12 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
   /** 点击显示框架图：读取项目目录下 arch.md 并用 mermaid 全屏预览 */
   async showArch(): Promise<void> {
     if (!this.requireLogin()) return;
-    if (!this.electronService.isElectron) {
-      this.message.warning(this.translate.instant('FLOAT_SIDER.ARCH_ELECTRON_ONLY'));
-      return;
-    }
-    const projectPath = this.projectService.currentProjectPath;
-    if (!projectPath) {
+    if (!this.projectService.currentProjectPath) {
       this.message.error(this.translate.instant('FLOAT_SIDER.NO_PROJECT'));
       return;
     }
-    const archPath = (window as any).path?.join
-      ? (window as any).path.join(projectPath, 'arch.md')
-      : `${projectPath}/arch.md`;
-    if (!this.electronService.exists(archPath)) {
+    const raw = await this.projectResource.readProjectText('arch.md');
+    if (raw === null) {
       this.uiService.openTool('aily-chat');
       const prompt = this.translate.instant('FLOAT_SIDER.GENERATE_ARCH_PROMPT');
       setTimeout(() => {
@@ -202,7 +231,6 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
       return;
     }
     try {
-      const raw = this.electronService.readFile(archPath);
       const code = this.extractMermaidCode(raw);
       if (!code?.trim()) {
         this.message.warning(this.translate.instant('FLOAT_SIDER.ARCH_EMPTY'));
@@ -256,21 +284,28 @@ export class FloatSiderComponent implements OnInit, OnDestroy {
     // return;
     if (!this.requireLogin()) return;
     if (!this.requireFeaturePreviewAccess()) return;
+    try {
+      this.boardPackagePath = this.boardPackagePath || await this.projectResource.getBoardPackagePath();
 
-    if (!this.electronService.isElectron || !this.boardPackagePath) {
-      this.message.warning(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
-      return;
+      if (!this.boardPackagePath) {
+        this.message.warning(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
+        return;
+      }
+
+      let windowUrl = `https://tool.aily.pro/connection-graph?type=json&theme=${this.themeService.currentTheme}&lang=${this.translate.currentLang}`;
+      // let windowUrl = 'http://localhost:4201/connection-graph?type=json&theme=dark&lang=' + this.translate.currentLang;
+      const payload = await this.connectionGraphService.buildPayloadAsync(this.boardPackagePath);
+
+      this.uiService.openWindow({
+        title: this.translate.instant('FLOAT_SIDER.CIRCUIT'),
+        path: `iframe?url=${encodeURIComponent(windowUrl)}`,
+        data: payload,
+        width: 900,
+        height: 700,
+      });
+    } catch (error) {
+      console.warn('Circuit open failed:', error);
+      this.message.error(this.translate.instant('FLOAT_SIDER.NO_PINMAP'));
     }
-
-    let windowUrl = `https://tool.aily.pro/connection-graph?type=json&theme=${this.themeService.currentTheme}&lang=${this.translate.currentLang}`;
-    // let windowUrl = 'http://localhost:4201/connection-graph?type=json&theme=dark&lang=' + this.translate.currentLang;
-
-    this.uiService.openWindow({
-      title: this.translate.instant('FLOAT_SIDER.CIRCUIT'),
-      path: `iframe?url=${encodeURIComponent(windowUrl)}`,
-      data: null,
-      width: 900,
-      height: 700,
-    });
   }
 }

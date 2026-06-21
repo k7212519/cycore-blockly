@@ -2,6 +2,12 @@ import { Injectable } from '@angular/core';
 import { ElectronService } from './electron.service';
 import { ProjectService } from './project.service';
 import { ThemeService } from './theme.service';
+import { ProjectResourceService } from './project-resource.service';
+import {
+  buildEmptyCycoreConnectionPayload,
+  getCycoreEsp32S3Pinmap,
+  isCycoreEsp32S3Board,
+} from './cycore-esp32s3-board';
 
 // =====================================================
 // 数据类型定义（与 connection-graph 子页面共享）
@@ -405,6 +411,7 @@ export class ConnectionGraphService {
     private electronService: ElectronService,
     private projectService: ProjectService,
     private themeService: ThemeService,
+    private projectResource: ProjectResourceService,
   ) {
     // 监听子窗口请求保存连线图数据
     this.setupIpcListeners();
@@ -421,8 +428,13 @@ export class ConnectionGraphService {
             const messageId = data?.messageId;
             let success = false;
             if (data && data.components && data.connections) {
-              const { messageId: _m, ...toSave } = data;
-              success = this.saveConnectionGraphSilent(toSave);
+              const {
+                messageId: _m,
+                componentConfigs: _componentConfigs,
+                theme: _theme,
+                ...toSave
+              } = data;
+              success = await this.saveConnectionGraphSilentAsync(toSave);
             }
             if (window['ipcRenderer']) {
               window['ipcRenderer'].send('iframe-message-connection-graph', {
@@ -437,9 +449,9 @@ export class ConnectionGraphService {
             const messageId = data?.messageId;
             if (!messageId || 'payload' in (data ?? {})) break;
             try {
-              const boardPackagePath = await this.projectService.getBoardPackagePath();
+              const boardPackagePath = await this.projectResource.getBoardPackagePath();
               const graphPayload = boardPackagePath
-                ? this.buildPayload(boardPackagePath)
+                ? await this.buildPayloadAsync(boardPackagePath)
                 : null;
               window['ipcRenderer'].send('iframe-message-connection-graph', {
                 type: 'set-graph-data',
@@ -1290,6 +1302,18 @@ export class ConnectionGraphService {
     }
   }
 
+  async saveConnectionGraphSilentAsync(data: ConnectionGraphData): Promise<boolean> {
+    return this.projectResource.writeProjectJson('connection_output.json', data);
+  }
+
+  async saveConnectionGraphAsync(data: ConnectionGraphData): Promise<boolean> {
+    const success = await this.saveConnectionGraphSilentAsync(data);
+    if (success) {
+      await this.notifyConnectionGraphUpdatedAsync(data);
+    }
+    return success;
+  }
+
   /**
    * 通过 IPC 通知子窗口连线图数据已更新
    * 发送完整的 payload（包含 componentConfigs），确保子窗口能正确渲染
@@ -1315,6 +1339,21 @@ export class ConnectionGraphService {
         
         window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-updated', data: payload });
         console.log('[ConnectionGraphService] 已发送 iframe-message-connection-graph (generate-graph-updated)');
+      } catch (e) {
+        console.warn('[ConnectionGraphService] 发送 IPC 失败:', e);
+      }
+    }
+  }
+
+  private async notifyConnectionGraphUpdatedAsync(data: ConnectionGraphData): Promise<void> {
+    if (this.electronService.isElectron && window['ipcRenderer']) {
+      try {
+        const boardPackagePath = await this.projectResource.getBoardPackagePath();
+        const payload = await this.buildPayloadFromDataAsync(boardPackagePath, data);
+        if (!payload) {
+          return;
+        }
+        window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-updated', data: payload });
       } catch (e) {
         console.warn('[ConnectionGraphService] 发送 IPC 失败:', e);
       }
@@ -1554,6 +1593,101 @@ export class ConnectionGraphService {
       ...connectionData,
       componentConfigs,
     };
+  }
+
+  private async isCycoreBoardAsync(): Promise<boolean> {
+    const values: unknown[] = [];
+    try { values.push(await this.projectResource.getBoardModule()); } catch { }
+    try { values.push(await this.projectResource.getPackageJson()); } catch { }
+    try { values.push(await this.projectResource.getBoardPackageJson()); } catch { }
+    return values.some(value => isCycoreEsp32S3Board(value));
+  }
+
+  async getConnectionGraphAsync(): Promise<ConnectionGraphData | null> {
+    return this.projectResource.readProjectJson<ConnectionGraphData>('connection_output.json');
+  }
+
+  async getBoardConfigAsync(boardPackagePath: string): Promise<ComponentConfig | null> {
+    const pinmap = await this.projectResource.readBoardJson<ComponentConfig>('pinmap.json');
+    if (pinmap) {
+      return pinmap;
+    }
+
+    if (!this.projectResource.isServerProject) {
+      const localConfig = this.getBoardConfig(boardPackagePath);
+      if (localConfig) {
+        return localConfig;
+      }
+    }
+
+    if (await this.isCycoreBoardAsync()) {
+      return getCycoreEsp32S3Pinmap();
+    }
+
+    return null;
+  }
+
+  async getComponentConfigsAsync(
+    boardPackagePath: string,
+    connectionData?: ConnectionGraphData,
+    packagesBasePath?: string
+  ): Promise<{ [refId: string]: ComponentConfig }> {
+    const configs = !this.projectResource.isServerProject
+      ? this.getComponentConfigs(boardPackagePath, connectionData, packagesBasePath)
+      : {};
+
+    const boardConfig = await this.getBoardConfigAsync(boardPackagePath);
+    if (boardConfig) {
+      const boardRef = connectionData?.components?.[0]?.refId || boardConfig.id;
+      configs[boardRef] = boardConfig;
+    }
+
+    if (!this.projectResource.isServerProject || !connectionData) {
+      return configs;
+    }
+
+    for (const comp of connectionData.components || []) {
+      if (configs[comp.refId] || !comp.configFile) {
+        continue;
+      }
+      const configPath = this.projectResource.joinResource(boardPackagePath, comp.configFile);
+      const configText = await this.projectResource.readResourceText(configPath);
+      if (!configText) {
+        continue;
+      }
+      try {
+        configs[comp.refId] = JSON.parse(configText) as ComponentConfig;
+      } catch {
+        console.warn('[ConnectionGraphService] 服务端组件配置解析失败:', configPath);
+      }
+    }
+
+    return configs;
+  }
+
+  private async buildPayloadFromDataAsync(
+    boardPackagePath: string,
+    connectionData: ConnectionGraphData
+  ): Promise<ConnectionGraphPayload | null> {
+    const componentConfigs = await this.getComponentConfigsAsync(boardPackagePath, connectionData);
+    return {
+      ...connectionData,
+      componentConfigs,
+      theme: this.themeService.currentTheme,
+    };
+  }
+
+  async buildPayloadAsync(boardPackagePath: string): Promise<ConnectionGraphPayload | null> {
+    const connectionData = await this.getConnectionGraphAsync();
+    if (connectionData) {
+      return this.buildPayloadFromDataAsync(boardPackagePath, connectionData);
+    }
+
+    if (await this.isCycoreBoardAsync()) {
+      return buildEmptyCycoreConnectionPayload(this.themeService.currentTheme);
+    }
+
+    return null;
   }
 
   // -------------------------------------------------

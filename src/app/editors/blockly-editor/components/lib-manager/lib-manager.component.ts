@@ -70,6 +70,7 @@ export class LibManagerComponent implements OnDestroy {
   private readonly serverLoadRequests$ = new Subject<ServerLibraryLoadRequest>();
   private readonly destroy$ = new Subject<void>();
   private lastDebouncedKeyword: string | null = null;
+  private lastInstalledLibraries: any[] = [];
 
   constructor(
     private npmService: NpmService,
@@ -123,8 +124,19 @@ export class LibManagerComponent implements OnDestroy {
     }
     // 获取已经安装的包，用于在界面上显示"移除"按钮
     const installedLibraries = installedLibrariesInput
-      || await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+      || await this.loadInstalledLibraries();
     return this.mergeInstalledLibraries(libraryList, installedLibraries, isNull);
+  }
+
+  private async loadInstalledLibraries(): Promise<any[]> {
+    try {
+      const libraries = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+      this.lastInstalledLibraries = Array.isArray(libraries) ? libraries.map(item => ({ ...item })) : [];
+      return this.lastInstalledLibraries.map(item => ({ ...item }));
+    } catch (error) {
+      console.warn('[LibManager] 加载已安装库失败，使用上一次缓存作为降级结果', error);
+      return this.lastInstalledLibraries.map(item => ({ ...item }));
+    }
   }
 
   private mergeInstalledLibraries(libraryList: any[], installedLibrariesInput: any[], includeMissing: boolean) {
@@ -278,9 +290,7 @@ export class LibManagerComponent implements OnDestroy {
 
   private fetchServerLibraryView(request: ServerLibraryLoadRequest): Observable<ServerLibraryView> {
     const normalizedKeyword = request.keyword.replace(/\s/g, '').toLowerCase();
-    const installedLibraries$ = from(
-      this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath)
-    );
+    const installedLibraries$ = from(this.loadInstalledLibraries());
     if (normalizedKeyword === 'installed') {
       return installedLibraries$.pipe(
         map(installedLibraries => {
@@ -357,10 +367,11 @@ export class LibManagerComponent implements OnDestroy {
     this.output = '';
     try {
       if (this.projectService.isServerProject) {
-        await this.projectService.installServerProjectLibrary(lib.name);
-        this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
+        const installedLibraries = await this.projectService.installServerProjectLibrary(lib.name);
+        this.lastInstalledLibraries = installedLibraries.map(item => ({ ...item }));
+        this.libraryList = this.applyLocalization(this.mergeInstalledLibraries(this.libraryList, installedLibraries, false));
         this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.INSTALLED')}`);
-        let packageList_new = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
+        let packageList_new = installedLibraries;
         const newPackages = packageList_new.filter(pkg => !packageList_old.some(oldPkg => oldPkg.name === pkg.name && oldPkg.version === pkg.version));
         for (const pkg of newPackages) {
           await this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
@@ -408,8 +419,9 @@ export class LibManagerComponent implements OnDestroy {
     if (this.projectService.isServerProject) {
       try {
         await this.blocklyService.removeServerLibrary(lib.name);
-        await this.projectService.removeServerProjectLibrary(lib.name);
-        this.libraryList = this.applyLocalization(await this.checkInstalled(this.libraryList));
+        const installedLibraries = await this.projectService.removeServerProjectLibrary(lib.name);
+        this.lastInstalledLibraries = installedLibraries.map(item => ({ ...item }));
+        this.libraryList = this.applyLocalization(this.mergeInstalledLibraries(this.libraryList, installedLibraries, false));
         this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLED')}`);
       } catch (error: any) {
         lib.state = 'error';

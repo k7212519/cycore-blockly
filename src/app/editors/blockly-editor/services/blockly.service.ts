@@ -4,7 +4,7 @@ import * as Blockly from 'blockly';
 import { processI18n, processJsonVar, processStaticFilePath, processToolboxI18n } from '../components/blockly/abf';
 import { TranslateService } from '@ngx-translate/core';
 import { ElectronService } from '../../../services/electron.service';
-import { ProjectService } from '../../../services/project.service';
+import { ProjectService, ServerBlocklyLibraryResource } from '../../../services/project.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
 
@@ -21,6 +21,12 @@ export class BlocklyService {
         'kind': 'search',
         'name': 'Search',
         'contents': [],
+      },
+      {
+        kind: 'category',
+        name: '__toolbox_mode_anchor__',
+        hidden: 'true',
+        contents: [],
       }
     ],
   };
@@ -31,6 +37,8 @@ export class BlocklyService {
   loadedGenerators = new Map<string, Set<string>>(); // filePath -> Set of block types
   // 追踪已加载的库,避免重复加载
   loadedLibraries = new Set<string>(); // libPackagePath
+  private toolboxBatchDepth = 0;
+  private pendingToolboxRefresh = false;
 
   codeSubject = new BehaviorSubject<string>('');
   dependencySubject = new BehaviorSubject<string>('');
@@ -76,7 +84,33 @@ export class BlocklyService {
     private electronService: ElectronService,
     private projectService: ProjectService
   ) {
+    this.registerLegacyBlocklyExtensions();
     (window as any).__ailyBlockDefinitionsMap = this.blockDefinitionsMap;
+  }
+
+  private registerLegacyBlocklyExtensions(): void {
+    const extensions = (Blockly as any).Extensions;
+    if (!extensions?.register || !extensions?.isRegistered) {
+      return;
+    }
+
+    [
+      'math_arithmetic_tooltip',
+      'math_single_tooltip',
+      'math_trig_tooltip',
+      'math_number_property_tooltip',
+      'math_on_list_tooltip',
+      'math_modulo_tooltip',
+      'math_constrain_tooltip',
+      'math_random_int_tooltip',
+      'math_atan2_tooltip',
+    ].forEach((name) => {
+      if (!extensions.isRegistered(name)) {
+        extensions.register(name, function (this: any) {
+          this.setTooltip?.(this.tooltip || '');
+        });
+      }
+    });
   }
 
   // 加载blockly的json数据
@@ -89,6 +123,44 @@ export class BlocklyService {
       if (ailyIcons) block.icons = ailyIcons;
     });
     Blockly.serialization.workspaces.load(jsonData, this.workspace);
+  }
+
+  async loadLibraries(
+    libPackageNames: string[],
+    projectPath: string,
+    onProgress?: (libPackageName: string, index: number, total: number) => void,
+  ) {
+    const libraries = this.sortBlocklyLibraries((libPackageNames || []).filter(Boolean));
+    await this.withToolboxBatch(async () => {
+      if (this.projectService.isServerProject) {
+        await this.loadServerLibraries(libraries, onProgress);
+        return;
+      }
+
+      for (let index = 0; index < libraries.length; index++) {
+        const libPackageName = libraries[index];
+        onProgress?.(libPackageName, index + 1, libraries.length);
+        await this.loadLibrary(libPackageName, projectPath);
+      }
+    });
+  }
+
+  private sortBlocklyLibraries(libPackageNames: string[]): string[] {
+    return [...libPackageNames].sort((left, right) => {
+      const leftPriority = this.blocklyLibraryLoadPriority(left);
+      const rightPriority = this.blocklyLibraryLoadPriority(right);
+      return leftPriority - rightPriority || left.localeCompare(right);
+    });
+  }
+
+  private blocklyLibraryLoadPriority(libPackageName: string): number {
+    if (libPackageName === '@aily-project/lib-core') {
+      return 0;
+    }
+    if (libPackageName.startsWith('@aily-project/lib-core-')) {
+      return 1;
+    }
+    return 2;
   }
 
   // 通过node_modules加载库
@@ -168,40 +240,76 @@ export class BlocklyService {
     }
   }
 
+  private async loadServerLibraries(
+    libPackageNames: string[],
+    onProgress?: (libPackageName: string, index: number, total: number) => void,
+  ) {
+    if (libPackageNames.length === 0) {
+      return;
+    }
+
+    const dependencyVersions = this.serverLibraryDependencyVersions();
+    const resources = await this.projectService.getServerBlocklyLibraryResources(
+      libPackageNames,
+      dependencyVersions,
+      this.translateService.currentLang,
+    );
+    const resourceMap = new Map(resources.map(resource => [resource.name, resource]));
+    for (let index = 0; index < libPackageNames.length; index++) {
+      const libPackageName = libPackageNames[index];
+      onProgress?.(libPackageName, index + 1, libPackageNames.length);
+      const resource = resourceMap.get(libPackageName);
+      if (!resource) {
+        console.warn(`服务端库资源缺失: ${libPackageName}`);
+        continue;
+      }
+      await this.loadServerLibraryResource(resource);
+    }
+  }
+
   private async loadServerLibrary(libPackageName: string) {
+    const resources = await this.projectService.getServerBlocklyLibraryResources(
+      [libPackageName],
+      this.serverLibraryDependencyVersions(),
+      this.translateService.currentLang,
+    );
+    const resource = resources.find(item => item.name === libPackageName);
+    if (resource) {
+      await this.loadServerLibraryResource(resource);
+    }
+  }
+
+  private async loadServerLibraryResource(resource: ServerBlocklyLibraryResource) {
+    const libPackageName = resource.name;
     const libraryKey = `server:${this.projectService.currentProjectId}:${libPackageName}`;
     if (this.loadedLibraries.has(libraryKey)) {
       return;
     }
 
     try {
-      const packagePath = `node_modules/${libPackageName}`;
-      const blockContent = await this.tryReadServerFile(`${packagePath}/block.json`);
-      if (!blockContent) {
+      if (!resource.blockJson) {
+        console.warn(`服务端库缺少 block.json: ${libPackageName}`, resource.missingFiles || []);
         return;
       }
 
-      let blocks = JSON.parse(blockContent);
+      let blocks = JSON.parse(resource.blockJson);
       let i18nData = null;
-      const i18nContent = await this.tryReadServerFile(`${packagePath}/i18n/${this.translateService.currentLang}.json`);
-      if (i18nContent) {
-        i18nData = JSON.parse(i18nContent);
+      if (resource.i18nJson) {
+        i18nData = JSON.parse(resource.i18nJson);
         (window as any).__BLOCKLY_LIB_I18N__ = (window as any).__BLOCKLY_LIB_I18N__ || {};
         (window as any).__BLOCKLY_LIB_I18N__[libPackageName] = i18nData;
         blocks = processI18n(blocks, i18nData);
       }
 
       let generatorLoadSuccess = true;
-      const generatorContent = await this.tryReadServerFile(`${packagePath}/generator.js`);
-      if (generatorContent) {
-        generatorLoadSuccess = await this.loadLibGeneratorFromSource(libraryKey, generatorContent);
+      if (resource.generatorJs) {
+        generatorLoadSuccess = await this.loadLibGeneratorFromSource(libraryKey, resource.generatorJs);
       }
 
       this.loadLibBlocks(blocks, null);
 
-      const toolboxContent = await this.tryReadServerFile(`${packagePath}/toolbox.json`);
-      if (toolboxContent) {
-        let toolbox = JSON.parse(toolboxContent);
+      if (resource.toolboxJson) {
+        let toolbox = JSON.parse(resource.toolboxJson);
         if (i18nData) {
           toolbox = processToolboxI18n(toolbox, i18nData);
         }
@@ -216,12 +324,8 @@ export class BlocklyService {
     }
   }
 
-  private async tryReadServerFile(path: string): Promise<string | null> {
-    try {
-      return await this.projectService.readServerFile(path);
-    } catch {
-      return null;
-    }
+  private serverLibraryDependencyVersions(): Record<string, string> {
+    return (this.projectService.currentPackageData as any)?.dependencies || {};
   }
 
   // 卸载库（通过包名和项目路径）
@@ -243,18 +347,20 @@ export class BlocklyService {
       return;
     }
 
-    const packagePath = `node_modules/${libPackageName}`;
-    const blockContent = await this.tryReadServerFile(`${packagePath}/block.json`);
-    if (blockContent) {
-      this.removeLibBlocks(JSON.parse(blockContent));
+    const resources = await this.projectService.getServerBlocklyLibraryResources(
+      [libPackageName],
+      this.serverLibraryDependencyVersions(),
+      this.translateService.currentLang,
+    );
+    const resource = resources.find(item => item.name === libPackageName);
+    if (resource?.blockJson) {
+      this.removeLibBlocks(JSON.parse(resource.blockJson));
     }
 
-    const toolboxContent = await this.tryReadServerFile(`${packagePath}/toolbox.json`);
-    if (toolboxContent) {
-      let toolbox = JSON.parse(toolboxContent);
-      const i18nContent = await this.tryReadServerFile(`${packagePath}/i18n/${this.translateService.currentLang}.json`);
-      if (i18nContent) {
-        toolbox = processToolboxI18n(toolbox, JSON.parse(i18nContent));
+    if (resource?.toolboxJson) {
+      let toolbox = JSON.parse(resource.toolboxJson);
+      if (resource.i18nJson) {
+        toolbox = processToolboxI18n(toolbox, JSON.parse(resource.i18nJson));
       }
       this.removeLibToolbox(toolbox);
     }
@@ -276,7 +382,64 @@ export class BlocklyService {
       if (libStaticPath) {
         block = processStaticFilePath(block, libStaticPath);
       }
+      this.ensureBlockExtensionsRegistered(block);
       Blockly.defineBlocksWithJsonArray([block]);
+    }
+  }
+
+  private ensureBlockExtensionsRegistered(block: any): void {
+    const extensionNames = Array.isArray(block?.extensions) ? block.extensions : [];
+    if (extensionNames.length === 0) {
+      return;
+    }
+    const extensions = (Blockly as any).Extensions;
+    if (!extensions?.isRegistered || !extensions?.register) {
+      return;
+    }
+    extensionNames.forEach((name: string) => {
+      if (!name || extensions.isRegistered(name)) {
+        return;
+      }
+      const fallback = this.blockExtensionFallback(name);
+      if (fallback) {
+        extensions.register(name, fallback);
+        console.warn(`[BlocklyService] 已为缺失扩展注册兼容兜底: ${name}`);
+      }
+    });
+  }
+
+  private blockExtensionFallback(name: string): (() => void) | null {
+    switch (name) {
+      case 'text_single_quotes':
+        return function (this: any) {
+          const field = this.getField?.('CHAR');
+          if (field?.setSpellcheck) {
+            field.setSpellcheck(false);
+          }
+        };
+      case 'char_field_validator':
+        return function (this: any) {
+          const field = this.getField?.('CHAR');
+          field?.setValidator?.((text: string) => {
+            if (!text) {
+              return '';
+            }
+            if (text.length === 2 && text.charAt(0) === '\\') {
+              return text;
+            }
+            return text.charAt(0);
+          });
+        };
+      case 'parent_tooltip_when_inline':
+        return function (this: any) {
+          this.setTooltip?.(this.tooltip || '');
+        };
+      case 'text_quotes':
+        return function (this: any) {
+          this.setTooltip?.(this.tooltip || '');
+        };
+      default:
+        return null;
     }
   }
 
@@ -301,6 +464,34 @@ export class BlocklyService {
     }
 
     this.toolbox.contents.push(toolboxItem);
+    this.requestToolboxRefresh();
+  }
+
+  private async withToolboxBatch<T>(task: () => Promise<T>): Promise<T> {
+    this.toolboxBatchDepth++;
+    try {
+      return await task();
+    } finally {
+      this.toolboxBatchDepth--;
+      if (this.toolboxBatchDepth === 0 && this.pendingToolboxRefresh) {
+        this.flushToolboxRefresh();
+      }
+    }
+  }
+
+  private requestToolboxRefresh() {
+    if (this.toolboxBatchDepth > 0) {
+      this.pendingToolboxRefresh = true;
+      return;
+    }
+    this.flushToolboxRefresh();
+  }
+
+  private flushToolboxRefresh() {
+    this.pendingToolboxRefresh = false;
+    if (!this.workspace) {
+      return;
+    }
     this.workspace.updateToolbox(this.toolbox);
     this.workspace.render();
   }
@@ -474,7 +665,7 @@ export class BlocklyService {
     const index = this.findToolboxItemIndex(toolboxItem);
     if (index !== -1) {
       this.toolbox.contents.splice(index, 1);
-      this.workspace.updateToolbox(this.toolbox);
+      this.requestToolboxRefresh();
     }
   }
 
@@ -575,8 +766,12 @@ export class BlocklyService {
     // 处理工作区
     if (this.workspace) {
       this.workspace.dispose();
+      this.workspace = null as any;
       // console.log('工作区已销毁');
     }
+
+    this.toolboxBatchDepth = 0;
+    this.pendingToolboxRefresh = false;
 
     // 重置工具箱
     this.toolbox = {
@@ -585,6 +780,11 @@ export class BlocklyService {
         'kind': 'search',
         'name': 'Search',
         'contents': [],
+      }, {
+        kind: 'category',
+        name: '__toolbox_mode_anchor__',
+        hidden: 'true',
+        contents: [],
       }],
     };
 

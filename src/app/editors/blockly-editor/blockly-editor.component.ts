@@ -42,6 +42,7 @@ import { BlocklySvgExportService } from './services/blockly-svg-export.service';
 export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   showLibraryManager = false;
   showFloatSider = false;
+  readonly enableFloatSider = false;
 
   private _onMouseMoveBound = this._onMouseMove.bind(this);
   private _onMouseLeaveBound = this._onMouseLeave.bind(this);
@@ -119,6 +120,9 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
 
   // 用于弹出侧边栏的鼠标事件监听，放在 Zone 外避免频繁触发变更检测
   ngAfterViewInit(): void {
+    if (!this.enableFloatSider) {
+      return;
+    }
     // 在 Zone 外注册鼠标监听，避免每次移动都触发变更检测
     this.ngZone.runOutsideAngular(() => {
       this.el.nativeElement.addEventListener('mousemove', this._onMouseMoveBound);
@@ -152,8 +156,10 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this.unregisterSvgExportAction?.();
     this.electronService.setTitle('CYCORE-MCU-DevCloud');
     this.blocklyService.reset();
-    this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);
-    this.el.nativeElement.removeEventListener('mouseleave', this._onMouseLeaveBound);
+    if (this.enableFloatSider) {
+      this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);
+      this.el.nativeElement.removeEventListener('mouseleave', this._onMouseLeaveBound);
+    }
   }
 
   async loadProject(projectPath) {
@@ -233,18 +239,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       await this.npmService.getAllInstalledLibraries(projectPath)
     ).map((item) => item.name);
 
-    await new Promise((resolve) => setTimeout(resolve, 120));
-
-    for (let index = 0; index < libraryModuleList.length; index++) {
-      const libPackageName = libraryModuleList[index];
-      this.uiService.updateFooterState({
-        state: 'doing',
-        text: this.translate.instant('BLOCKLY_EDITOR.LOADING_LIB', {
-          name: libPackageName,
-        }),
-      });
-      await this.blocklyService.loadLibrary(libPackageName, projectPath);
-    }
+    await this.loadBlocklyLibraries(libraryModuleList, projectPath);
     // 5. 加载project.abi数据
     this.uiService.updateFooterState({
       state: 'doing',
@@ -305,15 +300,8 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
       text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BLOCKLY_LIB'),
     });
     const dependencies = packageJson.dependencies || {};
-    const libraryModuleList = Object.keys(dependencies).filter(name => name.startsWith('@aily-project/'));
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    for (const libPackageName of libraryModuleList) {
-      this.uiService.updateFooterState({
-        state: 'doing',
-        text: this.translate.instant('BLOCKLY_EDITOR.LOADING_LIB', { name: libPackageName }),
-      });
-      await this.blocklyService.loadLibrary(libPackageName, projectPath);
-    }
+    const libraryModuleList = Object.keys(dependencies).filter(name => this.isBlocklyLibraryDependency(name));
+    await this.loadBlocklyLibraries(libraryModuleList, projectPath);
 
     this.uiService.updateFooterState({
       state: 'doing',
@@ -351,6 +339,25 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
   private checkBlocklyOnboarding() {
     // 已根据用户请求移除新手指引提示
     return;
+  }
+
+  private async loadBlocklyLibraries(libraryModuleList: string[], projectPath: string): Promise<void> {
+    await this.blocklyService.loadLibraries(
+      libraryModuleList,
+      projectPath,
+      (libPackageName, index, total) => {
+        this.uiService.updateFooterState({
+          state: 'doing',
+          text: this.translate.instant('BLOCKLY_EDITOR.LOADING_LIB', {
+            name: `${libPackageName} (${index}/${total})`,
+          }),
+        });
+      },
+    );
+  }
+
+  private isBlocklyLibraryDependency(name: string): boolean {
+    return name.startsWith('@aily-project/lib-');
   }
 
   // 引导关闭或完成时的处理
