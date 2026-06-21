@@ -279,6 +279,10 @@ $header-inner-height: 46px;
     width: 20vw;
     left: 40vw;
     white-space: nowrap;
+
+    &.hidden-on-guide {
+      display: none;
+    }
   }
 
   .toolbox {

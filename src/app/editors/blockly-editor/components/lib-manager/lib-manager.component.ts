@@ -63,6 +63,7 @@ export class LibManagerComponent implements OnDestroy {
 
   loading = false;
   listLoading = false;
+  listError = '';
   pageIndex = 1;
   pageSize = 24;
   total = 0;
@@ -265,10 +266,14 @@ export class LibManagerComponent implements OnDestroy {
     ).subscribe(({ result, error }) => {
       this.listLoading = false;
       if (error || !result) {
-        this.message.error(error?.message || '扩展库列表加载失败');
+        this.listError = this.readableLoadError(error);
+        this.libraryList = [];
+        this.total = 0;
+        this.message.error(this.listError);
         this.cd.detectChanges();
         return;
       }
+      this.listError = '';
       this.total = result.total;
       this.pageIndex = result.page;
       this.pageSize = result.pageSize;
@@ -324,6 +329,22 @@ export class LibManagerComponent implements OnDestroy {
         };
       })
     );
+  }
+
+  emptyStateTitle() {
+    if (this.listError) {
+      return this.listError;
+    }
+    const lang = this.translate.currentLang || this.translate.defaultLang || '';
+    return lang.toLowerCase().startsWith('en') ? 'No libraries found' : '暂无可显示的库';
+  }
+
+  private readableLoadError(error: any): string {
+    const status = error?.status;
+    if (status === 401 || error?.message === '缺少认证令牌') {
+      return '登录状态已失效，请重新登录后再试';
+    }
+    return error?.message || '扩展库列表加载失败';
   }
 
   back() {

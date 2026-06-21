@@ -109,6 +109,10 @@ export class HeaderComponent implements OnDestroy {
     return this.themeService.isLight ? 'MENU.SWITCH_TO_DARK' : 'MENU.SWITCH_TO_LIGHT';
   }
 
+  get isGuideRoute(): boolean {
+    return this.router.url.indexOf('/main/guide') > -1;
+  }
+
   // 从 AppStoreService 获取要显示在 header 上的 apps
   // get headerApps(): AppItem[] {
   //   return this.appStoreService.getHeaderApps();

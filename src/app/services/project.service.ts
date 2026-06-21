@@ -856,6 +856,12 @@ export class ProjectService {
     );
   }
 
+  async deleteServerProject(projectId: string): Promise<void> {
+    await this.unwrap<void>(
+      this.http.delete<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`)
+    );
+  }
+
   async isServerProjectNameTaken(name: string): Promise<boolean> {
     const normalizedName = (name || '').trim().toLowerCase();
     if (!normalizedName) {

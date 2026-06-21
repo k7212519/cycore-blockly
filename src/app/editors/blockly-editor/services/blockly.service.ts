@@ -7,6 +7,8 @@ import { ElectronService } from '../../../services/electron.service';
 import { ProjectService, ServerBlocklyLibraryResource } from '../../../services/project.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
+import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
+import { micropythonGenerator } from '../components/blockly/generators/micropython/micropython';
 
 @Injectable({
   providedIn: 'root'
@@ -211,6 +213,7 @@ export class BlocklyService {
           generatorLoadSuccess = await this.loadLibGenerator(generatorFilePath);
           if (!generatorLoadSuccess) {
             console.error(`[loadLibrary] generator.js 加载失败: ${libPackageName}，库将不会标记为已加载，下次可重试`);
+            return;
           }
         }
         // 替换block中静态图片路径
@@ -304,6 +307,10 @@ export class BlocklyService {
       let generatorLoadSuccess = true;
       if (resource.generatorJs) {
         generatorLoadSuccess = await this.loadLibGeneratorFromSource(libraryKey, resource.generatorJs);
+        if (!generatorLoadSuccess) {
+          console.error(`[loadServerLibraryResource] generator.js 加载失败: ${libPackageName}，跳过 block/toolbox 加载`);
+          return;
+        }
       }
 
       this.loadLibBlocks(blocks, null);
@@ -382,64 +389,10 @@ export class BlocklyService {
       if (libStaticPath) {
         block = processStaticFilePath(block, libStaticPath);
       }
-      this.ensureBlockExtensionsRegistered(block);
+      if (block?.type && Blockly.Blocks[block.type]) {
+        continue;
+      }
       Blockly.defineBlocksWithJsonArray([block]);
-    }
-  }
-
-  private ensureBlockExtensionsRegistered(block: any): void {
-    const extensionNames = Array.isArray(block?.extensions) ? block.extensions : [];
-    if (extensionNames.length === 0) {
-      return;
-    }
-    const extensions = (Blockly as any).Extensions;
-    if (!extensions?.isRegistered || !extensions?.register) {
-      return;
-    }
-    extensionNames.forEach((name: string) => {
-      if (!name || extensions.isRegistered(name)) {
-        return;
-      }
-      const fallback = this.blockExtensionFallback(name);
-      if (fallback) {
-        extensions.register(name, fallback);
-        console.warn(`[BlocklyService] 已为缺失扩展注册兼容兜底: ${name}`);
-      }
-    });
-  }
-
-  private blockExtensionFallback(name: string): (() => void) | null {
-    switch (name) {
-      case 'text_single_quotes':
-        return function (this: any) {
-          const field = this.getField?.('CHAR');
-          if (field?.setSpellcheck) {
-            field.setSpellcheck(false);
-          }
-        };
-      case 'char_field_validator':
-        return function (this: any) {
-          const field = this.getField?.('CHAR');
-          field?.setValidator?.((text: string) => {
-            if (!text) {
-              return '';
-            }
-            if (text.length === 2 && text.charAt(0) === '\\') {
-              return text;
-            }
-            return text.charAt(0);
-          });
-        };
-      case 'parent_tooltip_when_inline':
-        return function (this: any) {
-          this.setTooltip?.(this.tooltip || '');
-        };
-      case 'text_quotes':
-        return function (this: any) {
-          this.setTooltip?.(this.tooltip || '');
-        };
-      default:
-        return null;
     }
   }
 
@@ -498,6 +451,7 @@ export class BlocklyService {
 
   loadLibGenerator(filePath): Promise<boolean> {
     return new Promise((resolve, reject) => {
+      this.ensureLibraryScriptGlobals();
       // 检查是否已加载
       if (this.loadedGenerators.has(filePath)) {
         console.warn(`Generator ${filePath} 已加载,跳过重复加载`);
@@ -513,18 +467,37 @@ export class BlocklyService {
       script.src = 'file:///' + filePath;
       script.setAttribute('data-generator-path', filePath); // 标记script来源
 
+      let settled = false;
+      const cleanup = () => window.removeEventListener('error', onRuntimeError, true);
+      const finish = (success: boolean) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(success);
+      };
+      const onRuntimeError = (event: ErrorEvent) => {
+        if (event.filename && event.filename !== script.src) {
+          return;
+        }
+        console.error(`Generator execution failed: ${filePath}`, event.error || event.message);
+        finish(false);
+      };
+      window.addEventListener('error', onRuntimeError, true);
+
       script.onload = () => {
         // 加载后检测新增的generator函数
         const blockTypesAfter = this.getRegisteredGenerators();
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
         this.loadedGenerators.set(filePath, new Set(newBlockTypes));
         console.log(`Generator loaded from ${filePath}, registered blocks:`, newBlockTypes);
-        resolve(true);
+        finish(true);
       };
 
       script.onerror = (error: any) => {
         console.error(`Generator loading failed: ${filePath}`, error);
-        resolve(false);
+        finish(false);
       };
 
       document.getElementsByTagName('head')[0].appendChild(script);
@@ -533,6 +506,7 @@ export class BlocklyService {
 
   private loadLibGeneratorFromSource(sourceKey: string, source: string): Promise<boolean> {
     return new Promise((resolve) => {
+      this.ensureLibraryScriptGlobals();
       if (this.loadedGenerators.has(sourceKey)) {
         resolve(true);
         return;
@@ -545,21 +519,49 @@ export class BlocklyService {
       script.src = objectUrl;
       script.setAttribute('data-generator-path', sourceKey);
 
+      let settled = false;
+      const cleanup = () => {
+        window.removeEventListener('error', onRuntimeError, true);
+        URL.revokeObjectURL(objectUrl);
+      };
+      const finish = (success: boolean) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve(success);
+      };
+      const onRuntimeError = (event: ErrorEvent) => {
+        if (event.filename && event.filename !== objectUrl) {
+          return;
+        }
+        console.error(`Generator execution failed: ${sourceKey}`, event.error || event.message);
+        finish(false);
+      };
+      window.addEventListener('error', onRuntimeError, true);
+
       script.onload = () => {
         const blockTypesAfter = this.getRegisteredGenerators();
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
         this.loadedGenerators.set(sourceKey, new Set(newBlockTypes));
-        URL.revokeObjectURL(objectUrl);
-        resolve(true);
+        finish(true);
       };
 
       script.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(false);
+        finish(false);
       };
 
       document.getElementsByTagName('head')[0].appendChild(script);
     });
+  }
+
+  private ensureLibraryScriptGlobals(): void {
+    const target = window as any;
+    target.Blockly = target.Blockly || Blockly;
+    target.Arduino = target.Arduino || arduinoGenerator;
+    target.MicropPython = target.MicropPython || micropythonGenerator;
+    target.MPY = target.MPY || micropythonGenerator;
   }
 
   // 获取当前已注册的所有generator函数对应的block类型

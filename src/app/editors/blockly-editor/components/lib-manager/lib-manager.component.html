@@ -39,6 +39,12 @@
             <span>{{ 'LIB_MANAGER.LOADING' | translate }}</span>
         </div>
         }
+        @if(!listLoading && libraryList.length === 0) {
+        <div class="empty-state">
+            <i class="fa-light fa-box-open"></i>
+            <span>{{ emptyStateTitle() }}</span>
+        </div>
+        }
         @for( lib of libraryList;track lib.name ) {
         <div class="lib-item">
             <div class="name ellipsis" [nz-tooltip] [nzTooltipTitle]="lib.tested?'':'该库未通过测试，可能存在问题'">{{lib._nickname}}

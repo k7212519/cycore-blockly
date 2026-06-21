@@ -2,26 +2,30 @@
   <header class="page-header">
     <div class="brand-block">
       <div>
-        <h1>Cycore MCU DevCloud</h1>
-        <p>少年芯嵌入式芯片云开发平台</p>
+        <h1>
+          <span class="brand-title-cn">少年芯嵌入式芯片云开发平台</span>
+          <span class="brand-title-en">Cycore MCU DevCloud</span>
+        </h1>
       </div>
-    </div>
-    <div class="header-actions">
-      <button nz-button class="refresh-btn" nz-tooltip nzTooltipTitle="刷新" [disabled]="loadingProjects"
-        (click)="loadProjects()">
-        <i class="fa-regular fa-rotate-right" [class.spinning]="loadingProjects"></i>
-      </button>
-      <button nz-button nzType="primary" class="new-project-btn" (click)="process({ action: 'project-new' })">
-        <i class="fa-light fa-file-circle-plus"></i>
-        <span>新建项目</span>
-      </button>
     </div>
   </header>
 
-  <main class="projects-area">
+  <main class="projects-area" (pointerdown)="onProjectsAreaPointerDown($event)">
     <div class="section-title">
-      <div class="eyebrow">Saved Projects</div>
-      <h2>项目列表</h2>
+      <div class="section-heading">
+        <h2>项目列表</h2>
+        <span>Saved Projects</span>
+      </div>
+      <div class="list-actions">
+        <button nz-button class="refresh-btn" nz-tooltip nzTooltipTitle="刷新" [disabled]="loadingProjects"
+          (click)="loadProjects()">
+          <i class="fa-regular fa-rotate-right" [class.spinning]="loadingProjects"></i>
+        </button>
+        <button nz-button nzType="primary" class="new-project-btn" (click)="process({ action: 'project-new' })">
+          <i class="fa-light fa-file-circle-plus"></i>
+          <span>新建项目</span>
+        </button>
+      </div>
     </div>
 
     @if (loadingProjects && projects.length === 0) {
@@ -51,7 +55,15 @@
     <div class="project-grid">
       @for (project of projects; track project.projectId) {
       <article class="project-card" [class.opening]="openingProjectId === project.projectId"
-        (click)="openServerProject(project)">
+        [class.selected]="isProjectSelected(project.projectId)" [class.deleting]="isProjectDeleting(project.projectId)"
+        [attr.data-project-id]="project.projectId" (click)="onProjectCardClick($event, project)"
+        (contextmenu)="onProjectCardContextMenu($event, project)">
+        @if (isProjectSelected(project.projectId)) {
+        <div class="selection-check">
+          <i class="fa-light fa-check"></i>
+        </div>
+        }
+
         <div class="folder-icon">
           <img src="imgs/folder.svg" alt="" draggable="false">
         </div>
@@ -71,12 +83,16 @@
           </div>
         </div>
 
-        @if (openingProjectId === project.projectId) {
+        @if (openingProjectId === project.projectId || isProjectDeleting(project.projectId)) {
         <i class="fa-light fa-spinner-third opening-spinner"></i>
         }
       </article>
       }
     </div>
+    }
+
+    @if (selectionRect) {
+    <div class="selection-rect" [ngStyle]="selectionRectStyle"></div>
     }
 
     @if (total > pageSize) {
@@ -87,4 +103,11 @@
     </div>
     }
   </main>
+
+  @if (showProjectContextMenu) {
+  <app-menu class="project-context-menu" [menuList]="projectContextMenu" [position]="projectContextMenuPosition"
+    [width]="contextMenuWidth" (itemClickEvent)="onProjectContextMenuClick($event)"
+    (closeEvent)="closeProjectContextMenu()">
+  </app-menu>
+  }
 </div>

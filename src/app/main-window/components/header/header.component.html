@@ -17,7 +17,7 @@
   </div>
 
   <div class="null-box drag" (dblclick)="maximize()"></div>
-  <div class="project-box ccenter">{{ projectData.nickname || projectData.name}}</div>
+  <div class="project-box ccenter" [class.hidden-on-guide]="isGuideRoute">{{ projectData.nickname || projectData.name}}</div>
 
   @for (btn of headerBtns; track $index) {
   @if(btn.action === 'upload' && showInRouter(btn)){
