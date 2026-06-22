@@ -9,6 +9,7 @@ import { ConfigService } from '../../../services/config.service';
 import { ActionState } from '../../../services/ui.service';
 import { ActionService } from '../../../services/action.service';
 import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
+import { _ProjectService } from './project.service';
 
 import { BlocklyService as BlocklyService } from './blockly.service';
 
@@ -30,6 +31,7 @@ export class _BuilderService {
     private configService: ConfigService,
     private actionService: ActionService,
     private projectService: ProjectService,
+    private blocklyProjectService: _ProjectService,
     private blocklyService: BlocklyService,
     private platformService: PlatformService,
     private electronService: ElectronService,
@@ -662,6 +664,13 @@ export class _BuilderService {
     this.currentProgress = 0; // 重置进度
     this.hasReceivedRealProgress = false; // 重置进度标记
 
+    try {
+      await this.saveProjectBeforeBuild();
+    } catch (error: any) {
+      this.workflowService.finishBuild(false, error?.text || error?.message || '保存项目失败');
+      return Promise.reject(error);
+    }
+
     if (this.projectService.isServerProject) {
       try {
         return await this.buildOnServer();
@@ -1211,6 +1220,22 @@ export class _BuilderService {
         reject({ state: 'error', text: error.message });
       }
     });
+  }
+
+  private async saveProjectBeforeBuild(): Promise<void> {
+    try {
+      await this.blocklyProjectService.saveCurrentProject(false);
+    } catch (error: any) {
+      const detail = (error?.message || error || '保存项目失败').toString();
+      this.noticeService.update({
+        title: "保存失败",
+        text: "编译前保存项目失败",
+        detail,
+        state: 'error',
+        setTimeout: 600000
+      });
+      throw { state: 'error', text: '保存项目失败', detail };
+    }
   }
 
   private async buildOnServer(): Promise<ActionState> {

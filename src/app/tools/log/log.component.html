@@ -1,4 +1,21 @@
 <div #scrollElement class="log-box">
+  @if (isSafariBrowser) {
+    <div class="log-inner log-inner-static">
+      @for (item of logList; track item.timestamp + '-' + $index) {
+        <div
+          class="item item-static"
+          [ngClass]="{'error': item.state === 'error', 'warn': item.state === 'warn', 'info': item.state === 'info'}"
+          (click)="handleClick(item, $event)"
+          (dblclick)="handleDoubleClick(item, $event)"
+          [title]="'LOG.TOOLTIP' | translate"
+        >
+          <div class="date">{{ item.timestamp | date:'HH:mm:ss' }}</div>
+          <div class="title">{{ item.title }}</div>
+          <div class="text" [innerHTML]="item.detail | ansi"></div>
+        </div>
+      }
+    </div>
+  } @else {
   <div class="log-inner" [style.height.px]="virtualizer.getTotalSize()">
     @for (row of virtualizer.getVirtualItems(); track row.index) {
       @if (logList[row.index]) {
@@ -19,4 +36,5 @@
       }
     }
   </div>
+  }
 </div>

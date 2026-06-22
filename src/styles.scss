@@ -338,6 +338,28 @@ nz-sider {
   }
 }
 
+.ddark .blocklyWidgetDiv {
+  .blocklyHtmlInput,
+  .blocklyHtmlTextAreaInput {
+    color: #172033 !important;
+    background: #f8fafc !important;
+    caret-color: #172033 !important;
+    -webkit-text-fill-color: #172033 !important;
+    border-color: rgba(23, 32, 51, 0.24) !important;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72) inset !important;
+  }
+
+  .blocklyHtmlInput:focus,
+  .blocklyHtmlTextAreaInput:focus {
+    color: #111827 !important;
+    background: #ffffff !important;
+    outline: none !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.9) inset,
+      0 0 0 2px rgba(52, 140, 233, 0.42) !important;
+  }
+}
+
 app-root {
   display: block;
   width: 100vw;

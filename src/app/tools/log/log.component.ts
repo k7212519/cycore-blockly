@@ -7,6 +7,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { UiService } from '../../services/ui.service';
 import { ProjectService } from '../../services/project.service';
 import { ElectronService } from '../../services/electron.service';
+import { PlatformService } from '../../services/platform.service';
 import { stripAnsi } from 'fancy-ansi';
 import { Subscription } from 'rxjs';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -33,6 +34,7 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // 日志数量 signal，用于驱动 virtualizer 响应式更新
   logCount = signal(0);
+  isSafariBrowser = false;
 
   // TanStack 虚拟化器
   virtualizer = injectVirtualizer(() => ({
@@ -48,6 +50,7 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
     private uiService: UiService,
     private projectService: ProjectService,
     private electronService: ElectronService,
+    private platformService: PlatformService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
   ) {
@@ -63,6 +66,7 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.isSafariBrowser = this.platformService.isSafari();
     // 初始化日志列表
     this.logList = [...this.logService.list];
     this.logCount.set(this.logList.length);
@@ -89,7 +93,14 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
     this.scrollTimeoutId = setTimeout(() => {
       const count = this.logCount();
       if (count > 0) {
-        this.virtualizer.scrollToIndex(count - 1, { align: 'end' });
+        if (this.isSafariBrowser) {
+          const scrollElement = this.scrollElement()?.nativeElement;
+          if (scrollElement) {
+            scrollElement.scrollTop = scrollElement.scrollHeight;
+          }
+        } else {
+          this.virtualizer.scrollToIndex(count - 1, { align: 'end' });
+        }
       }
     }, 30);
   }

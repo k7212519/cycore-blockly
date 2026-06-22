@@ -1,6 +1,6 @@
 .notification-box {
-    position: absolute;
-    bottom: 16px;
+    position: fixed;
+    bottom: calc(46px + env(safe-area-inset-bottom, 0px));
     right: 16px;
     display: flex;
     align-items: center;
@@ -10,12 +10,17 @@
     border-radius: 10px;
     box-shadow: var(--notification-shadow);
     min-width: 250px;
-    max-width: 400px;
+    max-width: min(400px, calc(100vw - 32px));
     width: 250px;
-    height: 90px;
+    min-height: 90px;
+    height: auto;
+    max-height: calc(100vh - 62px - 62px);
+    max-height: calc(100dvh - 62px - 62px);
     transition: all 0.3s ease;
     overflow: hidden;
-    z-index: 1100;
+    z-index: 9000;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
 
     .box {
         width: 60px;

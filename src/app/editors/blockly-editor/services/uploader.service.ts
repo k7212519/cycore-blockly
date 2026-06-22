@@ -15,6 +15,7 @@ import { arduinoGenerator } from "../components/blockly/generators/arduino/ardui
 import { BlocklyService } from "./blockly.service";
 import { WorkflowService, ProcessState } from '../../../services/workflow.service';
 import { ServerFlashService } from "../../../services/server-flash.service";
+import { _ProjectService } from "./project.service";
 
 @Injectable()
 export class _UploaderService {
@@ -33,7 +34,8 @@ export class _UploaderService {
     private actionService: ActionService,
     private blocklyService: BlocklyService,
     private workflowService: WorkflowService,
-    private serverFlashService: ServerFlashService
+    private serverFlashService: ServerFlashService,
+    private blocklyProjectService: _ProjectService
   ) { }
 
   uploadInProgress = false;
@@ -179,6 +181,14 @@ export class _UploaderService {
           this.uploadInProgress = false;
           this.handleUploadError('请先选择串口', '未选择串口');
           reject({ state: 'error', text: '请先选择串口' });
+          return;
+        }
+
+        try {
+          await this.saveProjectBeforeUpload();
+        } catch (error: any) {
+          this.uploadInProgress = false;
+          reject(error);
           return;
         }
 
@@ -651,6 +661,16 @@ export class _UploaderService {
         reject({ state: 'error', text: error.message || '上传失败' });
       }
     });
+  }
+
+  private async saveProjectBeforeUpload(): Promise<void> {
+    try {
+      await this.blocklyProjectService.saveCurrentProject(false);
+    } catch (error: any) {
+      const detail = (error?.message || error || '保存项目失败').toString();
+      this.handleUploadError('烧录前保存项目失败', '保存失败', detail);
+      throw { state: 'error', text: '保存项目失败', detail };
+    }
   }
 
   private async uploadServerProject(capturedSerialPort: any, code: string): Promise<ActionState> {

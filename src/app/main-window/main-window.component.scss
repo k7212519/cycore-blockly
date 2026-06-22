@@ -10,6 +10,7 @@ iframe {
   --floating-header-z: 5000;
 
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   display: flex;
   flex-direction: column;
@@ -191,6 +192,7 @@ nz-layout {
 
   nz-content {
     height: 100%;
+    min-height: 0;
   }
 
   .editor-box {

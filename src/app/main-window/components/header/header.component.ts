@@ -304,11 +304,20 @@ export class HeaderComponent implements OnDestroy {
     }
 
     if (!this.electronService.isElectron) {
-      portList0.push({
-        name: '选择新端口...',
-        icon: 'fa-light fa-plus',
-        action: 'request-web-serial-port'
-      });
+      if (this.platformService.supportsWebSerial()) {
+        portList0.push({
+          name: '选择新端口...',
+          icon: 'fa-light fa-plus',
+          action: 'request-web-serial-port'
+        });
+      } else {
+        portList0.push({
+          name: '当前浏览器不支持烧录',
+          text: '请使用支持 Web Serial 的浏览器连接开发板',
+          icon: 'fa-light fa-browser',
+          disabled: true,
+        });
+      }
       portList0.push({ sep: true });
     }
 

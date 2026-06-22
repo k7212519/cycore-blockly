@@ -216,6 +216,9 @@ export class BlocklyService {
             return;
           }
         }
+        if (!this.ensureLibraryBlockExtensionsRegistered(libPackageName, blocks, generatorFileIsExist)) {
+          return;
+        }
         // 替换block中静态图片路径
         const staticFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'static'));
         this.loadLibBlocks(blocks, staticFileIsExist ? this.electronService.pathJoin(libPackagePath, 'static') : null);
@@ -313,6 +316,10 @@ export class BlocklyService {
         }
       }
 
+      if (!this.ensureLibraryBlockExtensionsRegistered(libPackageName, blocks, !!resource.generatorJs)) {
+        return;
+      }
+
       this.loadLibBlocks(blocks, null);
 
       if (resource.toolboxJson) {
@@ -394,6 +401,42 @@ export class BlocklyService {
       }
       Blockly.defineBlocksWithJsonArray([block]);
     }
+  }
+
+  private ensureLibraryBlockExtensionsRegistered(
+    libPackageName: string,
+    blocks: any[],
+    hasGenerator: boolean,
+  ): boolean {
+    const missingExtensions = this.missingBlockExtensions(blocks);
+    if (missingExtensions.length === 0) {
+      return true;
+    }
+
+    const generatorHint = hasGenerator
+      ? 'generator.js 已加载但未完成这些扩展的注册'
+      : '缺少 generator.js，无法注册这些扩展';
+    console.error(
+      `[BlocklyService] 库 ${libPackageName} 的 block.json 声明了未注册扩展: ${missingExtensions.join(', ')}；${generatorHint}`,
+    );
+    return false;
+  }
+
+  private missingBlockExtensions(blocks: any[]): string[] {
+    const extensions = (Blockly as any).Extensions;
+    if (!extensions?.isRegistered) {
+      return [];
+    }
+
+    const extensionNames = new Set<string>();
+    (blocks || []).forEach(block => {
+      (Array.isArray(block?.extensions) ? block.extensions : [])
+        .filter((name: unknown): name is string => typeof name === 'string' && !!name)
+        .forEach(name => extensionNames.add(name));
+    });
+
+    return Array.from(extensionNames)
+      .filter(name => !extensions.isRegistered(name));
   }
 
   loadLibBlocksJS(filePath) {

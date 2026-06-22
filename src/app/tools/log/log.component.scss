@@ -20,6 +20,10 @@
   .log-inner {
     position: relative;
     width: 100%;
+
+    &.log-inner-static {
+      min-height: 100%;
+    }
   }
 
   .item {
@@ -89,6 +93,11 @@
     .detail {
       width: 100%;
       flex-shrink: 0;
+    }
+
+    &.item-static {
+      position: relative;
+      transform: none !important;
     }
   }
 

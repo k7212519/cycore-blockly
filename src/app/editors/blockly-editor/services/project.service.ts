@@ -110,6 +110,19 @@ export class _ProjectService {
     // this.stateSubject.next('saved');
   }
 
+  async saveCurrentProject(createHistory: boolean = true): Promise<void> {
+    const path = this.appProjectService.currentProjectPath || this.currentProjectPath;
+    this.appProjectService.stateSubject.next('saving');
+
+    try {
+      await this.save(path, createHistory);
+      this.appProjectService.stateSubject.next('saved');
+    } catch (error) {
+      this.appProjectService.stateSubject.next('error');
+      throw error;
+    }
+  }
+
   /**
    * 更新 package.json 中的 codeHash
    * 用于在项目保存时记录当前代码的哈希值

@@ -128,6 +128,26 @@ export class PlatformService {
     return this.parser.getBrowser();
   }
 
+  isSafari(): boolean {
+    const browser = this.parser.getBrowser();
+    const name = browser.name?.toLowerCase() || '';
+    return name.includes('safari') && !name.includes('chrome') && !name.includes('chromium');
+  }
+
+  isChromium(): boolean {
+    const browser = this.parser.getBrowser();
+    const name = browser.name?.toLowerCase() || '';
+    return name.includes('chrome')
+      || name.includes('chromium')
+      || name.includes('edge')
+      || name.includes('opera')
+      || name.includes('samsung');
+  }
+
+  supportsWebSerial(): boolean {
+    return typeof navigator !== 'undefined' && !!(navigator as any).serial;
+  }
+
   /**
    * 检查操作系统名称是否为 Windows
    * @param osName 操作系统名称
