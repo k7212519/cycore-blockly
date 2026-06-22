@@ -69,6 +69,10 @@ const DEFAULT_PIXEL_COLOURS: PixelColours = {
     empty: '#151515',
     filled: '#f4f4f4',
 };
+const LIGHT_PIXEL_COLOURS: PixelColours = {
+    empty: '#ffffff',
+    filled: '#111827',
+};
 let u8g2AnimationModeCounter = 0;
 
 export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
@@ -83,6 +87,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     private fieldHeight: number;
     private pixelSize: number;
     private pixelColours: PixelColours;
+    private readonly hasCustomPixelColours: boolean;
     private blockDisplayImage: SVGImageElement | null = null;
     private frameStrip: HTMLElement | null = null;
     private statusElement: HTMLElement | null = null;
@@ -123,7 +128,8 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         this.dither = normalized.dither;
         this.threshold = normalized.threshold;
         this.fieldHeight = config?.fieldHeight ?? DEFAULT_FIELD_HEIGHT;
-        this.pixelColours = { ...DEFAULT_PIXEL_COLOURS, ...config?.colours };
+        this.hasCustomPixelColours = !!config?.colours;
+        this.pixelColours = this.resolvePixelColours(config?.colours);
         this.pixelSize = this.getPixelSize();
 
         if (value === Blockly.Field.SKIP_SETUP && !config?.value) {
@@ -170,6 +176,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
     }
 
     protected override showEditor_(e?: Event) {
+        this.refreshThemeColours();
         const editor = this.dropdownCreate();
         Blockly.DropDownDiv.getContentDiv().appendChild(editor);
         Blockly.DropDownDiv.showPositionedByField(
@@ -180,6 +187,7 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
 
     protected override render_() {
         super.render_();
+        this.refreshThemeColours();
         this.updateBlockDisplayImage();
     }
 
@@ -1051,6 +1059,32 @@ export class FieldU8g2Animation extends Blockly.Field<U8g2AnimationValue> {
         this.statusElement.classList.toggle('is-error', isError);
     }
 
+    private refreshThemeColours() {
+        if (this.hasCustomPixelColours) return;
+        const nextColours = this.resolvePixelColours();
+        if (
+            nextColours.empty === this.pixelColours.empty &&
+            nextColours.filled === this.pixelColours.filled
+        ) {
+            return;
+        }
+
+        this.pixelColours = nextColours;
+        this.renderFrameStrip();
+        this.updateBlockDisplayImage();
+    }
+
+    private resolvePixelColours(customColours?: PixelColours): PixelColours {
+        const baseColours = this.isLightTheme() ? LIGHT_PIXEL_COLOURS : DEFAULT_PIXEL_COLOURS;
+        return { ...baseColours, ...customColours };
+    }
+
+    private isLightTheme() {
+        return document.documentElement.dataset['theme'] === 'light' ||
+            document.documentElement.classList.contains('llight') ||
+            document.body.classList.contains('llight');
+    }
+
     private getPixelSize() {
         return this.fieldHeight / Math.max(1, this.imgHeight);
     }
@@ -1263,8 +1297,8 @@ Blockly.fieldRegistry.register('field_u8g2_animation', FieldU8g2Animation);
 Blockly.Css.register(`
 .u8g2AnimationEditor {
   align-items: stretch;
-  background: #2a2a2a;
-  color: #f4f4f4;
+  background: var(--u8g2-panel-bg);
+  color: var(--u8g2-text-primary);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1301,15 +1335,15 @@ Blockly.Css.register(`
 }
 .u8g2AnimationNumberControl span,
 .u8g2AnimationModeControl span {
-  color: #e8e8e8;
+  color: var(--u8g2-text-primary);
   font-size: 12px;
   line-height: 1;
 }
 .u8g2AnimationNumberInput {
-  background: #fff;
-  border: 1px solid #777;
+  background: var(--u8g2-input-bg);
+  border: 1px solid var(--u8g2-input-border);
   border-radius: 4px;
-  color: #222;
+  color: var(--u8g2-input-text);
   font-size: 12px;
   height: 26px;
   padding: 0 4px;
@@ -1317,10 +1351,10 @@ Blockly.Css.register(`
   width: 48px;
 }
 .u8g2AnimationButton {
-  background: #333;
-  border: 1px solid #666;
+  background: var(--u8g2-button-bg);
+  border: 1px solid var(--u8g2-button-border);
   border-radius: 4px;
-  color: #fff;
+  color: var(--u8g2-button-text);
   cursor: pointer;
   font-size: 12px;
   height: 26px;
@@ -1328,16 +1362,16 @@ Blockly.Css.register(`
   padding: 0 10px;
 }
 .u8g2AnimationModeInput {
-  accent-color: #4db6ac;
+  accent-color: var(--u8g2-accent);
   height: 16px;
   margin: 0;
   width: 16px;
 }
 .u8g2AnimationThresholdValueInput {
-  background: #fff;
-  border: 1px solid #777;
+  background: var(--u8g2-input-bg);
+  border: 1px solid var(--u8g2-input-border);
   border-radius: 4px;
-  color: #222;
+  color: var(--u8g2-input-text);
   font-size: 12px;
   height: 26px;
   padding: 0 4px;
@@ -1345,22 +1379,22 @@ Blockly.Css.register(`
   width: 48px;
 }
 .u8g2AnimationButton:hover {
-  background: #444;
-  border-color: #888;
+  background: var(--u8g2-button-hover-bg);
+  border-color: var(--u8g2-button-hover-border);
 }
 .u8g2AnimationStatus {
-  color: #cfcfcf;
+  color: var(--u8g2-text-secondary);
   font-size: 12px;
   line-height: 1.4;
   min-height: 18px;
 }
 .u8g2AnimationStatus.is-error {
-  color: #ffb3b3;
+  color: var(--u8g2-error-text);
 }
 .u8g2AnimationFrameStrip {
   align-items: flex-start;
-  background: #1b1b1b;
-  border: 1px solid #666;
+  background: var(--u8g2-canvas-shell-bg);
+  border: 1px solid var(--u8g2-border-strong);
   border-radius: 4px;
   display: flex;
   gap: 8px;
@@ -1368,7 +1402,7 @@ Blockly.Css.register(`
   max-width: 600px;
   overflow: auto;
   padding: 8px;
-  scrollbar-color: var(--aily-border-tertiary, #666) transparent;
+  scrollbar-color: var(--u8g2-scrollbar-thumb) transparent;
   scrollbar-width: thin;
 }
 .u8g2AnimationFrameStrip::-webkit-scrollbar {
@@ -1379,11 +1413,11 @@ Blockly.Css.register(`
   background: transparent;
 }
 .u8g2AnimationFrameStrip::-webkit-scrollbar-thumb {
-  background: var(--aily-border-tertiary, #666);
+  background: var(--u8g2-scrollbar-thumb);
   border-radius: 2px;
 }
 .u8g2AnimationFrameStrip::-webkit-scrollbar-thumb:hover {
-  background: var(--aily-scrollbar-thumb-hover, #888);
+  background: var(--u8g2-scrollbar-thumb-hover);
 }
 .u8g2AnimationFrameItem {
   align-items: center;
@@ -1394,19 +1428,61 @@ Blockly.Css.register(`
 }
 .u8g2AnimationFrameItem span,
 .u8g2AnimationEmpty {
-  color: #cfcfcf;
+  color: var(--u8g2-text-secondary);
   font-size: 12px;
 }
 .u8g2AnimationCanvas {
-  background: #151515;
-  border: 1px solid #444;
+  background: var(--u8g2-canvas-bg);
+  border: 1px solid var(--u8g2-canvas-border);
   display: block;
   image-rendering: pixelated;
 }
 .blocklyDropDownContent.contains-u8g2-animation-editor {
-  background: #2a2a2a;
+  --u8g2-panel-bg: #2a2a2a;
+  --u8g2-canvas-shell-bg: #1b1b1b;
+  --u8g2-canvas-bg: #151515;
+  --u8g2-canvas-border: #444;
+  --u8g2-text-primary: #e8e8e8;
+  --u8g2-text-secondary: #cfcfcf;
+  --u8g2-error-text: #ffb3b3;
+  --u8g2-border-strong: #666;
+  --u8g2-input-bg: #ffffff;
+  --u8g2-input-border: #777;
+  --u8g2-input-text: #222;
+  --u8g2-button-bg: #333;
+  --u8g2-button-border: #666;
+  --u8g2-button-text: #fff;
+  --u8g2-button-hover-bg: #444;
+  --u8g2-button-hover-border: #888;
+  --u8g2-accent: #4db6ac;
+  --u8g2-scrollbar-thumb: #666;
+  --u8g2-scrollbar-thumb-hover: #888;
+  background: var(--u8g2-panel-bg);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   max-height: none;
+}
+:root[data-theme='light'] .blocklyDropDownContent.contains-u8g2-animation-editor,
+.llight .blocklyDropDownContent.contains-u8g2-animation-editor {
+  --u8g2-panel-bg: var(--surface-raised, #ffffff);
+  --u8g2-canvas-shell-bg: var(--surface-subtle, #eef2f7);
+  --u8g2-canvas-bg: #ffffff;
+  --u8g2-canvas-border: var(--border-strong, #c7d2e2);
+  --u8g2-text-primary: var(--text-primary, #111827);
+  --u8g2-text-secondary: var(--text-tertiary, #667085);
+  --u8g2-error-text: #c2410c;
+  --u8g2-border-strong: var(--border-strong, #c7d2e2);
+  --u8g2-input-bg: var(--control-bg, #ffffff);
+  --u8g2-input-border: var(--border-strong, #c7d2e2);
+  --u8g2-input-text: var(--text-primary, #111827);
+  --u8g2-button-bg: var(--surface-subtle, #e9eef7);
+  --u8g2-button-border: var(--border-strong, #c7d2e2);
+  --u8g2-button-text: var(--text-primary, #111827);
+  --u8g2-button-hover-bg: var(--hover-bg, #edf2fb);
+  --u8g2-button-hover-border: var(--accent, #4169e1);
+  --u8g2-accent: var(--accent, #4169e1);
+  --u8g2-scrollbar-thumb: var(--scrollbar-thumb, rgba(75, 91, 119, 0.3));
+  --u8g2-scrollbar-thumb-hover: rgba(75, 91, 119, 0.48);
+  box-shadow: var(--shadow-soft, 0 16px 38px rgba(59, 78, 116, 0.11));
 }
 `);

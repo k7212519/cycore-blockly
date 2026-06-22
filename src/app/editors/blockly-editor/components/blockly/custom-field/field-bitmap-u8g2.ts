@@ -18,6 +18,10 @@ const DEFAULT_PIXEL_COLOURS: PixelColours = {
     empty: '#151515',
     filled: '#363d80',
 };
+const LIGHT_PIXEL_COLOURS: PixelColours = {
+    empty: '#ffffff',
+    filled: '#1f2937',
+};
 const DEFAULT_BUTTONS: Buttons = {
     upload: true,
     clear: true,
@@ -75,6 +79,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     private pendingUpdates: Set<string> = new Set();
     private updateTimer: number | null = null;
     private skipNextEditorRender = false;
+    private readonly hasCustomPixelColours: boolean;
     buttonOptions: Buttons;
     pixelSize: number;
     pixelColours: { empty: string; filled: string };
@@ -96,9 +101,9 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         super(value, validator, config); this.SERIALIZABLE = true;
         // this.CURSOR = 'default';
         this.buttonOptions = { ...DEFAULT_BUTTONS, ...config?.buttons };
-        this.pixelColours = { ...DEFAULT_PIXEL_COLOURS, ...config?.colours };
-        this.emptyColour = this.hexToRgb(this.pixelColours.empty);
-        this.filledColour = this.hexToRgb(this.pixelColours.filled);
+        this.hasCustomPixelColours = !!config?.colours;
+        this.pixelColours = this.resolvePixelColours(config?.colours);
+        this.updateRgbColours();
         
         // 生成更加唯一的ID，包含更多随机性和时间戳
         this.fieldId = 'field_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9) + '_' + Math.floor(Math.random() * 1000000);
@@ -255,6 +260,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
      */
     // eslint-disable-next-line
     protected override showEditor_(e?: Event) {
+        this.refreshThemeColours();
         const editor = this.dropdownCreate();
         Blockly.DropDownDiv.getContentDiv().appendChild(editor);
         Blockly.DropDownDiv.showPositionedByField(
@@ -269,6 +275,7 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
     // eslint-disable-next-line
     protected override render_() {
         super.render_();
+        this.refreshThemeColours();
 
         if (!this.getValue()) {
             return;
@@ -602,6 +609,38 @@ export class FieldBitmapU8g2 extends Blockly.Field<number[][]> {
         }
 
         this.setValue(newBitmap, false);
+    }
+
+    private refreshThemeColours() {
+        if (this.hasCustomPixelColours) return;
+        const nextColours = this.resolvePixelColours();
+        if (
+            nextColours.empty === this.pixelColours.empty &&
+            nextColours.filled === this.pixelColours.filled
+        ) {
+            return;
+        }
+
+        this.pixelColours = nextColours;
+        this.updateRgbColours();
+        this.renderCanvasEditor();
+        this.updateBlockDisplayImage();
+    }
+
+    private resolvePixelColours(customColours?: PixelColours): PixelColours {
+        const baseColours = this.isLightTheme() ? LIGHT_PIXEL_COLOURS : DEFAULT_PIXEL_COLOURS;
+        return { ...baseColours, ...customColours };
+    }
+
+    private updateRgbColours() {
+        this.emptyColour = this.hexToRgb(this.pixelColours.empty);
+        this.filledColour = this.hexToRgb(this.pixelColours.filled);
+    }
+
+    private isLightTheme() {
+        return document.documentElement.dataset['theme'] === 'light' ||
+            document.documentElement.classList.contains('llight') ||
+            document.body.classList.contains('llight');
     }
 
     private rerenderSourceBlock() {
@@ -1254,6 +1293,8 @@ Blockly.fieldRegistry.register('field_bitmap_u8g2', FieldBitmapU8g2);
 Blockly.Css.register(`
 .dropdownEditor-u8g2 {
     align-items: stretch;
+    background: var(--u8g2-panel-bg);
+    color: var(--u8g2-text-primary);
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -1288,13 +1329,13 @@ Blockly.Css.register(`
     margin-left: auto;
 }
 .label-u8g2 {
-    color: #e8e8e8;
+    color: var(--u8g2-text-primary);
     font-size: 12px;
     line-height: 1;
     white-space: nowrap;
 }
 .hint-u8g2 {
-    color: #cfcfcf;
+    color: var(--u8g2-text-secondary);
     font-size: 12px;
     line-height: 1;
     text-align: center;
@@ -1303,8 +1344,8 @@ Blockly.Css.register(`
 }
 .canvasContainer-u8g2 {
     align-self: center;
-    background: #1b1b1b;
-    border: 2px solid #666;
+    background: var(--u8g2-canvas-shell-bg);
+    border: 2px solid var(--u8g2-border-strong);
     border-radius: 4px;
   display: inline-block;
     line-height: 0;
@@ -1313,17 +1354,17 @@ Blockly.Css.register(`
     overflow: auto;
 }
 .bitmapCanvas-u8g2 {
-    background: #151515;
+    background: var(--u8g2-canvas-bg);
   display: block;
   cursor: ${PAINT_CURSOR};
     image-rendering: pixelated;
     touch-action: none;
 }
 .dimensionInput-u8g2 {
-    background: #ffffff;
-    border: 1px solid #777;
+    background: var(--u8g2-input-bg);
+    border: 1px solid var(--u8g2-input-border);
     border-radius: 4px;
-    color: #222;
+    color: var(--u8g2-input-text);
   font-size: 12px;
     height: 26px;
     padding: 0 4px;
@@ -1332,14 +1373,14 @@ Blockly.Css.register(`
 }
 .dimensionInput-u8g2:focus {
   outline: none;
-  border-color: #007acc;
-  box-shadow: 0 0 0 1px rgba(0, 122, 204, 0.3);
+  border-color: var(--u8g2-accent);
+  box-shadow: 0 0 0 2px var(--u8g2-focus-ring);
 }
 .controlButton-u8g2 {
-    background: #333;
-    border: 1px solid #666;
+    background: var(--u8g2-button-bg);
+    border: 1px solid var(--u8g2-button-border);
   border-radius: 4px;
-    color: #fff;
+    color: var(--u8g2-button-text);
   cursor: pointer;
   font-size: 12px;
     height: 26px;
@@ -1347,13 +1388,49 @@ Blockly.Css.register(`
     padding: 0 10px;
 }
 .controlButton-u8g2:hover {
-    background: #444;
-    border-color: #888;
+    background: var(--u8g2-button-hover-bg);
+    border-color: var(--u8g2-button-hover-border);
 }
 .blocklyDropDownContent.contains-bitmap-editor-u8g2 {
-    background: #2a2a2a;
+    --u8g2-panel-bg: #2a2a2a;
+    --u8g2-canvas-shell-bg: #1b1b1b;
+    --u8g2-canvas-bg: #151515;
+    --u8g2-text-primary: #e8e8e8;
+    --u8g2-text-secondary: #cfcfcf;
+    --u8g2-border-strong: #666;
+    --u8g2-input-bg: #ffffff;
+    --u8g2-input-border: #777;
+    --u8g2-input-text: #222;
+    --u8g2-button-bg: #333;
+    --u8g2-button-border: #666;
+    --u8g2-button-text: #fff;
+    --u8g2-button-hover-bg: #444;
+    --u8g2-button-hover-border: #888;
+    --u8g2-accent: #4f8fe8;
+    --u8g2-focus-ring: rgba(79, 143, 232, 0.32);
+    background: var(--u8g2-panel-bg);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   max-height: none;
+}
+:root[data-theme='light'] .blocklyDropDownContent.contains-bitmap-editor-u8g2,
+.llight .blocklyDropDownContent.contains-bitmap-editor-u8g2 {
+    --u8g2-panel-bg: var(--surface-raised, #ffffff);
+    --u8g2-canvas-shell-bg: var(--surface-subtle, #eef2f7);
+    --u8g2-canvas-bg: #ffffff;
+    --u8g2-text-primary: var(--text-primary, #111827);
+    --u8g2-text-secondary: var(--text-tertiary, #667085);
+    --u8g2-border-strong: var(--border-strong, #c7d2e2);
+    --u8g2-input-bg: var(--control-bg, #ffffff);
+    --u8g2-input-border: var(--border-strong, #c7d2e2);
+    --u8g2-input-text: var(--text-primary, #111827);
+    --u8g2-button-bg: var(--surface-subtle, #e9eef7);
+    --u8g2-button-border: var(--border-strong, #c7d2e2);
+    --u8g2-button-text: var(--text-primary, #111827);
+    --u8g2-button-hover-bg: var(--hover-bg, #edf2fb);
+    --u8g2-button-hover-border: var(--accent, #4169e1);
+    --u8g2-accent: var(--accent, #4169e1);
+    --u8g2-focus-ring: rgba(65, 105, 225, 0.22);
+    box-shadow: var(--shadow-soft, 0 16px 38px rgba(59, 78, 116, 0.11));
 }
 `);
