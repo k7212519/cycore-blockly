@@ -17,6 +17,8 @@ import { ShortcutService, ShortcutAction, ShortcutKeyMapping } from './services/
 import { Subscription } from 'rxjs';
 import { ViewChild, AfterViewInit, OnInit, OnDestroy } from '@angular/core';
 import { _ProjectService } from './services/project.service';
+import { ProfessionalLibraryReferenceComponent } from './components/professional-library-reference/professional-library-reference.component';
+import { BlocklyService } from '../blockly-editor/services/blockly.service';
 
 export interface OpenedFile {
   path: string;      // 文件路径
@@ -43,6 +45,7 @@ export interface OpenedFile {
     NzLayoutComponent,
     NzLayoutModule,
     NzResizableModule,
+    ProfessionalLibraryReferenceComponent,
   ],
   templateUrl: './code-editor.component.html',
   styleUrl: './code-editor.component.scss'
@@ -61,6 +64,8 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   selectedIndex = 0;
 
   loaded = false;
+  isProfessionalMode = false;
+  leftPanelMode: 'library' | 'files' = 'files';
 
   // 快捷键订阅
   private shortcutSubscription?: Subscription;
@@ -83,6 +88,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     private uploadService: UploaderService,
     private electronService: ElectronService,
     private shortcutService: ShortcutService,
+    private blocklyService: BlocklyService,
   ) {
   }
 
@@ -146,6 +152,9 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // 清理快捷键监听器
     this.cleanupShortcutListeners();
+    if (this.isProfessionalMode) {
+      this.blocklyService.reset();
+    }
   }
 
   ngAfterViewInit(): void {
@@ -153,6 +162,8 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async loadProject(projectPath: string) {
+    this.isProfessionalMode = false;
+    this.leftPanelMode = 'files';
     // 判断当前目录下是否有package.json和ino文件
     if (!this.electronService.exists(projectPath + '/package.json')) {
       const fileList = this.electronService.readDir(projectPath);
@@ -193,8 +204,29 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     const packageJson = projectInfo.packageJson || {};
     this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
     this.projectService.currentPackageData = packageJson;
+    this.isProfessionalMode = projectInfo.editor === 'code';
+    this.leftPanelMode = this.isProfessionalMode ? 'library' : 'files';
+    if (this.isProfessionalMode) {
+      await this.loadProfessionalBoardContext();
+    }
     this.projectService.stateSubject.next('loaded');
     this.loaded = true;
+    if (this.isProfessionalMode) {
+      await this.openInitialServerSketch();
+    }
+  }
+
+  private async loadProfessionalBoardContext(): Promise<void> {
+    try {
+      const boardConfig = await this.projectService.getBoardJson();
+      this.projectService.currentBoardConfig = boardConfig;
+      this.blocklyService.boardConfig = boardConfig;
+      window['boardConfig'] = boardConfig;
+      window['packageJson'] = this.projectService.currentPackageData;
+      window['projectService'] = this.projectService;
+    } catch (error) {
+      console.warn('加载专业模式开发板配置失败:', error);
+    }
   }
 
   // 从文件树选择文件时触发
@@ -645,6 +677,38 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
  */
   private hasFileWithExtension(fileList: Array<{ name: string; parentPath: string; path: string }>, extension: string): boolean {
     return fileList.some(file => file.name.toLowerCase().endsWith(extension.toLowerCase()));
+  }
+
+  private async openInitialServerSketch(): Promise<void> {
+    try {
+      const tree = await this.projectService.getServerFileTree();
+      const sketch = this.findFirstFileByExtension(tree, '.ino');
+      if (!sketch) {
+        return;
+      }
+      await this.selectedFileChange({
+        path: sketch.path,
+        title: sketch.name,
+        isLeaf: true
+      });
+    } catch (error) {
+      console.warn('自动打开专业模式主文件失败:', error);
+    }
+  }
+
+  private findFirstFileByExtension(nodes: any[], extension: string): any | null {
+    for (const node of nodes || []) {
+      if (!node.directory && node.name?.toLowerCase().endsWith(extension)) {
+        return node;
+      }
+      if (node.directory) {
+        const child = this.findFirstFileByExtension(node.children || [], extension);
+        if (child) {
+          return child;
+        }
+      }
+    }
+    return null;
   }
 
   /**

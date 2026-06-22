@@ -1,0 +1,72 @@
+<div class="library-reference">
+  <div class="reference-header">
+    <div>
+      <div class="title">库参考</div>
+      <div class="subtitle">真实 Arduino 调用代码</div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" type="button" (click)="openLibraryManager()" title="安装库">
+        <i class="fa-light fa-box-open"></i>
+      </button>
+      <button class="icon-btn" type="button" (click)="loadReferences()" title="刷新">
+        <i class="fa-light fa-sync" [class.loading]="loading"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="reference-content sscroll">
+    @if (loading) {
+    <div class="state-line">
+      <i class="fa-duotone fa-solid fa-spinner-third loading"></i>
+      <span>正在生成代码参考</span>
+    </div>
+    } @else if (error) {
+    <div class="state-line error">
+      <i class="fa-light fa-circle-exclamation"></i>
+      <span>{{ error }}</span>
+    </div>
+    } @else if (categories.length === 0) {
+    <div class="empty-state">
+      <i class="fa-light fa-books"></i>
+      <span>当前项目暂无可展示的库参考</span>
+    </div>
+    } @else {
+    @for (category of categories; track category.name) {
+    <section class="reference-category">
+      <button class="category-header" type="button" (click)="toggle(category)">
+        <i class="fa-light fa-angle-right arrow" [class.open]="category.expanded"></i>
+        @if (category.icon) {
+        <i class="{{ category.icon }} category-icon"></i>
+        } @else {
+        <i class="fa-light fa-cube category-icon"></i>
+        }
+        <span>{{ category.name }}</span>
+        <small>{{ category.snippets.length }}</small>
+      </button>
+
+      @if (category.expanded) {
+      <div class="snippet-list">
+        @for (snippet of category.snippets; track snippet.id) {
+        <article class="snippet-item" [class.unavailable]="!snippet.available">
+          <div class="snippet-title">
+            <span>{{ snippet.title }}</span>
+            <button class="copy-btn" type="button" [disabled]="!snippet.available"
+              (click)="copy(snippet, $event)" title="复制 Arduino 代码">
+              <i class="fa-light fa-copy"></i>
+            </button>
+          </div>
+          <pre>{{ snippet.body }}</pre>
+        </article>
+        }
+      </div>
+      }
+    </section>
+    }
+    }
+  </div>
+</div>
+
+@if (showLibraryManager) {
+<app-lib-manager [professionalMode]="true" (librariesChanged)="onLibrariesChanged()"
+  (close)="closeLibraryManager()"></app-lib-manager>
+}

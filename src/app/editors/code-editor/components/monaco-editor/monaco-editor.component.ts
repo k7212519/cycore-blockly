@@ -69,10 +69,10 @@ export class MonacoEditorComponent implements OnDestroy {
   }
 
   editorInitialized(editor: any): void {
-    this.monacoInstance = (window as any).monaco;
+    this.monacoInstance = editor;
 
     // 在编辑器初始化后设置Tab键处理
-    if (editor && this.monacoInstance) {
+    if (editor) {
       // 添加自定义右键菜单项
       this.setupContextMenu(editor);
     }

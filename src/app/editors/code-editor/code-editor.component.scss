@@ -6,11 +6,37 @@
     box-sizing: border-box;
     padding-top: var(--floating-header-safe-top, 74px);
     overflow: hidden;
+    color: var(--text-primary);
+    background: var(--app-background);
+}
+
+.code-editor > nz-layout,
+.code-editor > .ant-layout,
+nz-layout,
+nz-sider,
+nz-content {
+    background: var(--app-background);
+}
+
+nz-sider {
+    border-right: 1px solid var(--border-color);
+
+    ::ng-deep .ant-layout-sider-children {
+        background: var(--surface-elevated);
+    }
+}
+
+nz-content {
+    min-width: 0;
+    background: var(--app-background);
 }
 
 .left-box {
     width: 100%;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .right-box {
@@ -98,5 +124,63 @@ nz-tabset {
                 }
             }
         }
+    }
+}
+
+.professional-panel-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 6px;
+    background: var(--surface-elevated);
+    border-bottom: 1px solid var(--border-subtle);
+
+    button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 28px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 12px;
+        transition:
+            background 160ms ease,
+            color 160ms ease;
+
+        &:hover {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        &.active {
+            background: rgba(89, 183, 255, 0.16);
+            color: var(--text-primary);
+        }
+    }
+}
+
+.left-box app-file-tree,
+.left-box app-professional-library-reference {
+    flex: 1;
+    min-height: 0;
+}
+
+.empty-editor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 100%;
+    color: var(--text-tertiary);
+    font-size: 13px;
+
+    i {
+        font-size: 30px;
+        color: #59b7ff;
     }
 }

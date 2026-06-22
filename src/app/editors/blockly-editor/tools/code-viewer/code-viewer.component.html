@@ -4,6 +4,11 @@
 </app-sub-window>
 } @else {
 <app-tool-container [title]="'CODE VIEWER'" (closeEvent)="close()">
+  <div header-btns class="professional-mode-btn" [class.loading]="converting" (click)="openProfessionalModeConfirm()"
+    nz-tooltip nzTooltipTitle="切换为不可逆的代码编辑模式">
+    <i class="fa-light" [class.fa-spinner-third]="converting" [class.fa-user-gear]="!converting"></i>
+    <span>专业模式</span>
+  </div>
   <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
 </app-tool-container>
 }

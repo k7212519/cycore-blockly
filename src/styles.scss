@@ -132,9 +132,41 @@ textarea {
 }
 
 .ant-modal-content {
-  border-radius: 5px !important;
-  box-shadow: none !important;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px !important;
+  color: var(--text-primary);
+  background: var(--surface-raised) !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3) !important;
+}
+
+.ant-modal-header,
+.ant-modal-footer {
+  border-color: var(--border-color) !important;
   background: transparent !important;
+}
+
+.ant-modal-title,
+.ant-modal-confirm-title {
+  color: var(--text-primary) !important;
+}
+
+.ant-modal-body,
+.ant-modal-confirm-content {
+  color: var(--text-secondary) !important;
+}
+
+.ant-modal-close {
+  color: var(--text-secondary) !important;
+
+  &:hover {
+    color: var(--text-primary) !important;
+    background: var(--hover-bg) !important;
+  }
+}
+
+.llight .ant-modal-content,
+:root[data-theme='light'] .ant-modal-content {
+  box-shadow: 0 24px 70px rgba(50, 67, 101, 0.18) !important;
 }
 
 .project-delete-confirm-modal {

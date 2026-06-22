@@ -4,6 +4,55 @@ nz-code-editor {
     background-color:transparent;
 }
 
+.professional-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    color: #ffd3d3;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    transition:
+        background 160ms ease,
+        color 160ms ease;
+
+    &:hover {
+        background: rgba(255, 84, 84, 0.14);
+        color: #fff;
+    }
+
+    &.loading {
+        pointer-events: none;
+        opacity: 0.72;
+
+        i {
+            animation: professional-spin 900ms linear infinite;
+        }
+    }
+}
+
+@keyframes professional-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+:host-context(.llight) .professional-mode-btn {
+    color: #9f1f1f;
+    border-left-color: rgba(31, 41, 55, 0.1);
+
+    &:hover {
+        background: rgba(209, 38, 38, 0.1);
+        color: #751212;
+    }
+}
+
 // Block 选中高亮样式（需要 ::ng-deep 穿透 Monaco 编辑器的 Shadow DOM）
 ::ng-deep .block-highlight-line {
     background-color: rgba(255, 213, 79, 0.15) !important;

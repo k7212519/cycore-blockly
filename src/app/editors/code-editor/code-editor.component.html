@@ -6,9 +6,31 @@
                 <!-- <div class="sider-resize-line"></div> -->
             </nz-resize-handle>
             <div class="left-box">
+                @if (isProfessionalMode) {
+                <div class="professional-panel-tabs">
+                    <button type="button" [class.active]="leftPanelMode === 'library'"
+                        (click)="leftPanelMode = 'library'">
+                        <i class="fa-light fa-books"></i>
+                        <span>库</span>
+                    </button>
+                    <button type="button" [class.active]="leftPanelMode === 'files'"
+                        (click)="leftPanelMode = 'files'">
+                        <i class="fa-light fa-folder-tree"></i>
+                        <span>文件</span>
+                    </button>
+                </div>
+                @if (leftPanelMode === 'library') {
+                <app-professional-library-reference></app-professional-library-reference>
+                } @else {
+                <app-file-tree [rootPath]="projectPath" [hideHidden]="true" [(selectedFile)]="selectedFile"
+                    (selectedFileChange)="selectedFileChange($event)"
+                    (filesDeleted)="onFilesDeleted($event)"></app-file-tree>
+                }
+                } @else {
                 <app-file-tree [rootPath]="projectPath" [(selectedFile)]="selectedFile"
                     (selectedFileChange)="selectedFileChange($event)"
                     (filesDeleted)="onFilesDeleted($event)"></app-file-tree>
+                }
             </div>
         </nz-sider>
         <nz-content>
@@ -30,11 +52,9 @@
                 <app-monaco-editor [code]="code" (codeChange)="onCodeChange($event)" [filePath]="selectedFile"
                     (openFileRequest)="onOpenFileRequest($event)"></app-monaco-editor>
                 } @else {
-                <div class="empty-editor" style="padding: 15px;">
-                    <div>这是代码编辑器，是一个测试功能，还不能正常使用</div>
-                    <div>进入到这个页面是因为你打开了一个不存在.abi文件的目录</div>
-                    <div>你可以通过界面左上角的菜单重新打开正确的项目</div>
-                    <div>奈何col 2025.3.20</div>
+                <div class="empty-editor">
+                    <i class="fa-light fa-file-code"></i>
+                    <div>请选择左侧文件开始编辑</div>
                 </div>
                 }
             </div>

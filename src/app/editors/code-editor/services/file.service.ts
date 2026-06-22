@@ -37,12 +37,15 @@ export class FileService {
   ) { }
 
 
-  readDir(path: string): NzTreeNodeOptions[] {
+  readDir(path: string, hideHidden = false): NzTreeNodeOptions[] {
     if (this.isServerPath(path)) {
-      return this.serverTreeCache.get('') || [];
+      return this.filterHidden(this.serverTreeCache.get('') || [], hideHidden);
     }
     if (this.projectService.isServerProject) {
-      return this.serverTreeCache.get(this.normalizeServerPath(path)) || [];
+      return this.filterHidden(
+        this.serverTreeCache.get(this.normalizeServerPath(path)) || [],
+        hideHidden
+      );
     }
     const separator = this.platformService.getPlatformSeparator();
     let entries = window['fs'].readDirSync(path);
@@ -66,8 +69,15 @@ export class FileService {
         files.push(item);
       }
     }
-    result = dirs.concat(files);
+    result = this.filterHidden(dirs.concat(files), hideHidden);
     return result;
+  }
+
+  private filterHidden(items: NzTreeNodeOptions[], hideHidden: boolean): NzTreeNodeOptions[] {
+    if (!hideHidden) {
+      return items;
+    }
+    return items.filter(item => !String(item.title || '').startsWith('.'));
   }
 
   async loadServerTree(): Promise<void> {

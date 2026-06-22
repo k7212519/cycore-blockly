@@ -1016,6 +1016,20 @@ export class ProjectService {
     );
   }
 
+  async convertServerProjectToProfessionalMode(code: string, projectId = this.currentProjectId): Promise<ServerProjectInfo> {
+    const projectInfo = await this.unwrap<ServerProjectInfo>(
+      this.http.post<ApiResult<ServerProjectInfo>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/professional-mode`,
+        { code: code || '' }
+      )
+    );
+    this.currentProjectId = projectInfo.projectId;
+    this.currentPackageData = projectInfo.packageJson || { name: projectInfo.name };
+    this.serverProjectLibrariesCache.delete(projectId);
+    this.clearServerBlocklyResourceCache(projectId);
+    return projectInfo;
+  }
+
   async compileServerProject(code?: string, projectId = this.currentProjectId): Promise<ServerCompileResult> {
     const result = await this.unwrap<ServerCompileResult>(
       this.http.post<ApiResult<ServerCompileResult>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/compile`, { code })

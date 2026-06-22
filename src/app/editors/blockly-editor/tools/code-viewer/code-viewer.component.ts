@@ -11,6 +11,11 @@ import { Subject, combineLatest } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { BlockCodeMapping } from '../../components/blockly/generators/arduino/arduino';
 import { ThemeService } from '../../../../services/theme.service';
+import { ProjectService } from '../../../../services/project.service';
+import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { arduinoGenerator } from '../../components/blockly/generators/arduino/arduino';
 
 @Component({
   selector: 'app-code-viewer',
@@ -19,7 +24,8 @@ import { ThemeService } from '../../../../services/theme.service';
     ToolContainerComponent,
     SubWindowComponent,
     CommonModule,
-    FormsModule
+    FormsModule,
+    NzToolTipModule
   ],
   templateUrl: './code-viewer.component.html',
   styleUrl: './code-viewer.component.scss',
@@ -44,12 +50,16 @@ export class CodeViewerComponent implements OnDestroy {
   private monacoInstance: any = null;
   private oldDecorations: string[] = [];
   private destroy$ = new Subject<void>();
+  converting = false;
 
   constructor(
     private blocklyService: BlocklyService,
     private uiService: UiService,
     private router: Router,
     private themeService: ThemeService,
+    private projectService: ProjectService,
+    private modal: NzModalService,
+    private message: NzMessageService,
   ) {
     this.themeService.theme$
       .pipe(takeUntil(this.destroy$))
@@ -154,5 +164,59 @@ export class CodeViewerComponent implements OnDestroy {
 
   close() {
     this.uiService.closeTool('code-viewer');
+  }
+
+  openProfessionalModeConfirm(): void {
+    if (this.converting) {
+      return;
+    }
+    if (!this.projectService.isServerProject) {
+      this.message.warning('当前仅支持云端项目切换专业模式');
+      return;
+    }
+
+    this.modal.confirm({
+      nzTitle: '切换为专业模式',
+      nzContent: '确认后当前项目将不再支持图形化编程，仅支持代码编辑。系统会删除图形化相关文件，此操作无法撤销。',
+      nzOkText: '确认切换',
+      nzOkDanger: true,
+      nzCancelText: '取消',
+      nzOnOk: () => this.convertToProfessionalMode()
+    });
+  }
+
+  private async convertToProfessionalMode(): Promise<void> {
+    this.converting = true;
+    try {
+      const saveResult = await this.projectService.save();
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || '保存图形化项目失败');
+      }
+      const code = this.getCurrentCode();
+      const projectInfo = await this.projectService.convertServerProjectToProfessionalMode(code);
+      this.message.success('已切换为专业模式');
+      this.uiService.closeTool('code-viewer');
+      await this.projectService.projectOpenById(projectInfo.projectId);
+    } catch (error: any) {
+      console.error('切换专业模式失败:', error);
+      this.message.error(error?.message || '切换专业模式失败');
+      throw error;
+    } finally {
+      this.converting = false;
+    }
+  }
+
+  private getCurrentCode(): string {
+    if (this.code?.trim()) {
+      return this.code;
+    }
+    try {
+      if (this.blocklyService.workspace) {
+        return arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
+      }
+    } catch (error) {
+      console.warn('生成专业模式代码失败，使用当前代码视图内容', error);
+    }
+    return this.code || '';
   }
 }

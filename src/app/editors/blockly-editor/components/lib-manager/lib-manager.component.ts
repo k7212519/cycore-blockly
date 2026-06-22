@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, EventEmitter, OnDestroy, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, EventEmitter, Input, OnDestroy, Output } from '@angular/core';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -52,7 +52,9 @@ import {
 })
 export class LibManagerComponent implements OnDestroy {
 
+  @Input() professionalMode = false;
   @Output() close = new EventEmitter();
+  @Output() librariesChanged = new EventEmitter<void>();
 
   keyword: string = '';
   tagList: string[] = [];
@@ -394,9 +396,12 @@ export class LibManagerComponent implements OnDestroy {
         this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.INSTALLED')}`);
         let packageList_new = installedLibraries;
         const newPackages = packageList_new.filter(pkg => !packageList_old.some(oldPkg => oldPkg.name === pkg.name && oldPkg.version === pkg.version));
-        for (const pkg of newPackages) {
-          await this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
+        if (!this.professionalMode) {
+          for (const pkg of newPackages) {
+            await this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
+          }
         }
+        this.librariesChanged.emit();
         this.isInstalling = false;
         this.workflowService.finishInstall(true);
         return;
@@ -432,17 +437,20 @@ export class LibManagerComponent implements OnDestroy {
 
   async removeLib(lib) {
     // 移除库前，应先检查项目代码是否使用了该库，如果使用了，应提示用户
-    if (await this.checkLibUsage(lib)) {
+    if (!this.professionalMode && await this.checkLibUsage(lib)) {
       this.message.warning(this.translate.instant('LIB_MANAGER.LIB_IN_USE'), { nzDuration: 5000 });
       return;
     }
     this.isInstalling = true;
     if (this.projectService.isServerProject) {
       try {
-        await this.blocklyService.removeServerLibrary(lib.name);
+        if (!this.professionalMode) {
+          await this.blocklyService.removeServerLibrary(lib.name);
+        }
         const installedLibraries = await this.projectService.removeServerProjectLibrary(lib.name);
         this.lastInstalledLibraries = installedLibraries.map(item => ({ ...item }));
         this.libraryList = this.applyLocalization(this.mergeInstalledLibraries(this.libraryList, installedLibraries, false));
+        this.librariesChanged.emit();
         this.message.success(`${lib._nickname || lib.nickname} ${this.translate.instant('LIB_MANAGER.UNINSTALLED')}`);
       } catch (error: any) {
         lib.state = 'error';

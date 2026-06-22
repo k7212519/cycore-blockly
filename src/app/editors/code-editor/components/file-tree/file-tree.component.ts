@@ -60,7 +60,8 @@ class DynamicFileDataSource implements DataSource<FlatFileNode> {
   constructor(
     private treeControl: FlatTreeControl<FlatFileNode>,
     private fileService: FileService,
-    initData: FlatFileNode[]
+    initData: FlatFileNode[],
+    private hideHidden = false
   ) {
     this.flattenedData = new BehaviorSubject<FlatFileNode[]>(initData);
     treeControl.dataNodes = initData;
@@ -109,7 +110,7 @@ class DynamicFileDataSource implements DataSource<FlatFileNode> {
     node.loading = true;
 
     // 使用 fileService 加载子文件夹内容
-    const children = this.fileService.readDir(node.path);
+    const children = this.fileService.readDir(node.path, this.hideHidden);
     const flatChildren: FlatFileNode[] = children.map(child => ({
       expandable: !child.isLeaf,
       title: child.title,
@@ -143,6 +144,10 @@ class DynamicFileDataSource implements DataSource<FlatFileNode> {
   // 获取当前数据
   getCurrentData(): FlatFileNode[] {
     return this.flattenedData.getValue();
+  }
+
+  setHideHidden(hideHidden: boolean): void {
+    this.hideHidden = hideHidden;
   }
 
   // 保存当前展开状态
@@ -260,7 +265,7 @@ class DynamicFileDataSource implements DataSource<FlatFileNode> {
       const node = data[nodeIndex];
       if (node.expandable) {
         // 获取新的文件列表
-        const children = this.fileService.readDir(path);
+        const children = this.fileService.readDir(path, this.hideHidden);
         const flatChildren: FlatFileNode[] = children.map(child => ({
           expandable: !child.isLeaf,
           title: child.title,
@@ -306,6 +311,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
 
   @Input() rootPath: string;
   @Input() selectedFile;
+  @Input() hideHidden = false;
   @Output() selectedFileChange = new EventEmitter();
   @Output() filesDeleted = new EventEmitter<string[]>();
 
@@ -360,7 +366,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    if (changes['hideHidden']) {
+      this.dataSource.setHideHidden(this.hideHidden);
+    }
     if (changes['rootPath'] && !changes['rootPath'].firstChange && this.rootPath) {
+      this.loadRootPath();
+    } else if (changes['hideHidden'] && !changes['hideHidden'].firstChange && this.rootPath) {
       this.loadRootPath();
     }
   }
@@ -387,7 +398,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       this.isLoading = false;
     }
 
-    const files = this.fileService.readDir(path);
+    const files = this.fileService.readDir(path, this.hideHidden);
     console.log('Loaded root path files:', files);
 
     // 转换为扁平节点格式
