@@ -173,7 +173,7 @@
         "SECTIONS": {
             "BASIC": "Basic Settings",
             "THEME": "Theme Settings",
-            "BLOCKLY": "Blockly Settings",
+            "BLOCKLY": "Feature Settings",
             "COMPILATION": "Compilation",
             "REPOSITORY": "Service Region",
             "DEPENDENCIES": "Dependencies",

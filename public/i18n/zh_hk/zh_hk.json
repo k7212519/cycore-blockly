@@ -121,7 +121,7 @@
         "SECTIONS": {
             "BASIC": "基礎設定",
             "THEME": "主題設定",
-            "BLOCKLY": "Blockly設定",
+            "BLOCKLY": "功能設定",
             "COMPILATION": "編譯設定",
             "REPOSITORY": "倉庫設定",
             "DEPENDENCIES": "全域依賴",

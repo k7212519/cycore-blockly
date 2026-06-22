@@ -47,14 +47,10 @@
             </div>
           </div>
 
-          <!-- Blockly 设置 -->
+          <!-- 功能设置 -->
           <div id="SETTINGS.SECTIONS.BLOCKLY" class="section">
             <h2 class="section-title">{{ 'SETTINGS.SECTIONS.BLOCKLY' | translate }}</h2>
             <div class="right-inner">
-              <div class="item">
-                <div>{{ 'SETTINGS.FIELDS.BLOCKLY_MINIMAP' | translate }}:</div>
-                <nz-switch [(ngModel)]="configData.blockly.minimap"></nz-switch>
-              </div>
               <div class="item">
                 <div>{{ 'SETTINGS.FIELDS.FLYOUT_AUTO_CLOSE' | translate }}:</div>
                 <nz-switch [(ngModel)]="configData.blockly.flyoutAutoClose" [ngModelOptions]="{standalone: true}"

@@ -172,7 +172,7 @@
         "SECTIONS": {
             "BASIC": "基础设置",
             "THEME": "主题设置",
-            "BLOCKLY": "Blockly设置",
+            "BLOCKLY": "功能设置",
             "COMPILATION": "编译设置",
             "REPOSITORY": "服务区域",
             "DEPENDENCIES": "全局依赖",
