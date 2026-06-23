@@ -69,7 +69,7 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
 
       this.blocklyService.boardConfig = this.projectService.currentBoardConfig || {};
       await this.blocklyService.loadLibrariesForCodeGeneration(libraryNames, this.projectService.currentProjectPath);
-      this.categories = this.buildCategories(resources);
+      this.categories = this.buildCategories(this.sortResourcesByLibraryOrder(resources, libraryNames));
     } catch (error: any) {
       console.error('加载专业模式库参考失败:', error);
       this.error = error?.message || '加载库参考失败';
@@ -141,7 +141,7 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
           categories.push({
             name: toolbox.name || this.libraryDisplayName(resource.name),
             icon: toolbox.icon,
-            expanded: categories.length === 0,
+            expanded: false,
             snippets
           });
         }
@@ -153,14 +153,27 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
     return categories;
   }
 
+  private sortResourcesByLibraryOrder(
+    resources: ServerBlocklyLibraryResource[],
+    libraryNames: string[]
+  ): ServerBlocklyLibraryResource[] {
+    const order = new Map(libraryNames.map((name, index) => [name, index]));
+    return [...(resources || [])].sort((left, right) => {
+      const leftIndex = order.get(left.name) ?? Number.MAX_SAFE_INTEGER;
+      const rightIndex = order.get(right.name) ?? Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex;
+    });
+  }
+
   private snippetsFromToolbox(toolbox: any, blockMap: Map<string, any>): ProfessionalSnippet[] {
     const snippets: ProfessionalSnippet[] = [];
+    const includeLines = new Set<string>();
     let sequence = 0;
     const visit = (items: any[]) => {
       for (const item of items || []) {
         if (item?.kind === 'block' && item.type) {
           const block = blockMap.get(item.type);
-          snippets.push(this.blockToSnippet(item, block, sequence++));
+          snippets.push(this.blockToSnippet(item, block, sequence++, includeLines));
         }
         if (Array.isArray(item?.contents)) {
           visit(item.contents);
@@ -168,10 +181,25 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
       }
     };
     visit(toolbox?.contents || []);
+    if (includeLines.size > 0) {
+      snippets.unshift({
+        id: `${toolbox?.name || 'library'}-headers`,
+        type: 'library_headers',
+        title: '头文件',
+        body: Array.from(includeLines).join('\n'),
+        available: true,
+        tooltip: '使用该库代码前需要放在文件顶部的 #include 语句'
+      });
+    }
     return snippets;
   }
 
-  private blockToSnippet(toolboxBlock: any, blockDefinition: any, sequence: number): ProfessionalSnippet {
+  private blockToSnippet(
+    toolboxBlock: any,
+    blockDefinition: any,
+    sequence: number,
+    includeLines?: Set<string>
+  ): ProfessionalSnippet {
     const type = toolboxBlock.type;
     const title = this.blockTitle(type, blockDefinition);
     const tooltip = typeof blockDefinition?.tooltip === 'string' ? blockDefinition.tooltip : '';
@@ -196,6 +224,7 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
       const block = Blockly.serialization.blocks.append(state, workspace);
       arduinoGenerator.init(workspace);
       const generated = arduinoGenerator.blockToCode(block, true);
+      this.collectGeneratorIncludes().forEach(line => includeLines?.add(line));
       const directCode = (Array.isArray(generated) ? generated[0] : generated || '').trim();
       const fallbackCode = this.actualFallbackCode(block.id);
       const body = directCode || fallbackCode;
@@ -225,6 +254,13 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
         Blockly.Events.enable();
       }
     }
+  }
+
+  private collectGeneratorIncludes(): string[] {
+    const libraries = (arduinoGenerator as any).codeDict?.libraries || {};
+    return Object.values(libraries)
+      .map(code => String(code || '').trim())
+      .filter(code => /^#include\b/.test(code));
   }
 
   private toolboxBlockState(toolboxBlock: any): Blockly.serialization.blocks.State {

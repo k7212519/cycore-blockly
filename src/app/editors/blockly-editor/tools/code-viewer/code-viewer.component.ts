@@ -16,6 +16,7 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { arduinoGenerator } from '../../components/blockly/generators/arduino/arduino';
+import { MonacoLoaderService } from '../../../../services/monaco-loader.service';
 
 @Component({
   selector: 'app-code-viewer',
@@ -51,6 +52,7 @@ export class CodeViewerComponent implements OnDestroy {
   private oldDecorations: string[] = [];
   private destroy$ = new Subject<void>();
   converting = false;
+  monacoReady = false;
 
   constructor(
     private blocklyService: BlocklyService,
@@ -60,6 +62,7 @@ export class CodeViewerComponent implements OnDestroy {
     private projectService: ProjectService,
     private modal: NzModalService,
     private message: NzMessageService,
+    private monacoLoader: MonacoLoaderService,
   ) {
     this.themeService.theme$
       .pipe(takeUntil(this.destroy$))
@@ -70,8 +73,10 @@ export class CodeViewerComponent implements OnDestroy {
       });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     this.currentUrl = this.router.url;
+    await this.monacoLoader.load();
+    this.monacoReady = true;
   }
 
   ngAfterViewInit(): void {

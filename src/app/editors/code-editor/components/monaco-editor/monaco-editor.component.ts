@@ -5,6 +5,7 @@ import { NzCodeEditorModule, NzCodeEditorComponent } from 'ng-zorro-antd/code-ed
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { Subject, takeUntil } from 'rxjs';
 import { ThemeService } from '../../../../services/theme.service';
+import { MonacoLoaderService } from '../../../../services/monaco-loader.service';
 
 @Component({
   selector: 'app-monaco-editor',
@@ -40,17 +41,21 @@ export class MonacoEditorComponent implements OnDestroy {
   private disposables: any[] = [];
   private destroy$ = new Subject<void>();
   public monacoInstance: any;
+  monacoReady = false;
 
   constructor(
     private message: NzMessageService,
     private themeService: ThemeService,
+    private monacoLoader: MonacoLoaderService
   ) {
     this.themeService.theme$
       .pipe(takeUntil(this.destroy$))
       .subscribe((theme) => this.applyTheme(theme));
   }
 
-  ngOnInit() {
+  async ngOnInit() {
+    await this.monacoLoader.load();
+    this.monacoReady = true;
   }
 
   ngAfterViewInit() {
@@ -77,6 +82,7 @@ export class MonacoEditorComponent implements OnDestroy {
       // 添加自定义右键菜单项
       this.setupContextMenu(editor);
       this.setupEditorShortcutPriority(editor);
+      this.registerVscodeEditingCommands(editor);
     }
   }
 
@@ -131,6 +137,18 @@ export class MonacoEditorComponent implements OnDestroy {
       parts.push(key);
     }
     return parts.join('+');
+  }
+
+  private registerVscodeEditingCommands(editor: any): void {
+    const monaco = (window as any).monaco;
+    if (!monaco?.KeyMod || !monaco?.KeyCode || !editor?.addCommand) {
+      return;
+    }
+
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ,
+      () => editor.trigger('keyboard', 'undo', null)
+    );
   }
 
   private applyTheme(theme: 'dark' | 'light'): void {

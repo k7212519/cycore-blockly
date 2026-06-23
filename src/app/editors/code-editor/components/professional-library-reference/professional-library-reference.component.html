@@ -48,6 +48,7 @@
       <div class="snippet-list">
         @for (snippet of category.snippets; track snippet.id) {
         <article class="snippet-item" [class.unavailable]="!snippet.available" [class.copyable]="snippet.available"
+          [class.header-snippet]="snippet.type === 'library_headers'"
           [attr.tabindex]="snippet.available ? 0 : null" [attr.role]="snippet.available ? 'button' : null"
           [attr.title]="snippet.available ? '点击复制 Arduino 代码' : null" (click)="copy(snippet, $event)"
           (keydown.enter)="copy(snippet, $event)" (keydown.space)="copy(snippet, $event)">

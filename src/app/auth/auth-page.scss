@@ -13,6 +13,8 @@
   --danger: #c13d45;
 
   position: relative;
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
@@ -143,7 +145,8 @@
 
 .login-shell {
   width: min(980px, 100%);
-  height: min(620px, calc(100dvh - 48px));
+  height: auto;
+  min-height: min(620px, calc(100dvh - 48px));
   grid-template-columns: minmax(330px, 390px) minmax(0, 1fr);
   border: 0;
 }
@@ -457,17 +460,22 @@ a:hover,
     margin-bottom: 24px;
   }
 
-  .brand img {
-    width: min(280px, 100%);
+  .login-shell .brand {
+    margin-bottom: 18px;
+  }
+
+  .login-shell .brand img {
+    width: min(220px, 100%);
     height: auto;
   }
 
-  h1 {
-    font-size: 28px;
+  .login-shell h1 {
+    font-size: clamp(21px, 6vw, 24px);
+    line-height: 1.22;
   }
 
-  .intro {
-    margin-bottom: 22px;
+  .login-shell .intro {
+    margin: 8px 0 18px;
     font-size: 14px;
   }
 

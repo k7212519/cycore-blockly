@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { NzCodeEditorModule } from 'ng-zorro-antd/code-editor';
 import { Subject, takeUntil } from 'rxjs';
 import { ThemeService } from '../../../../services/theme.service';
+import { MonacoLoaderService } from '../../../../services/monaco-loader.service';
 
 @Component({
   selector: 'app-quick-send-editor',
@@ -28,11 +29,13 @@ export class QuickSendEditorComponent implements OnDestroy {
 
   code = '';
   private destroy$ = new Subject<void>();
+  monacoReady = false;
 
   constructor(
     private serialMonitorService: SerialMonitorService,
     private message: NzMessageService,
     private themeService: ThemeService,
+    private monacoLoader: MonacoLoaderService,
   ) {
     this.themeService.theme$
       .pipe(takeUntil(this.destroy$))
@@ -43,8 +46,10 @@ export class QuickSendEditorComponent implements OnDestroy {
       });
   }
 
-  ngOnInit() {
+  async ngOnInit() {
     this.code = JSON.stringify(this.serialMonitorService.quickSendList, null, 2)
+    await this.monacoLoader.load();
+    this.monacoReady = true;
   }
 
   ngOnDestroy(): void {
