@@ -10,7 +10,6 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { NZ_MODAL_DATA } from 'ng-zorro-antd/modal';
 import { ActivatedRoute } from '@angular/router';
-import { ElectronService } from '../../services/electron.service';
 import { ConnectionGraphService } from '../../services/connection-graph.service';
 import { NoticeService } from '../../services/notice.service';
 import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
@@ -22,25 +21,6 @@ import { TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { ThemeService } from '../../services/theme.service';
 
-/** iframe IPC 统一载荷（规范：docs/iframe-ipc-spec.md） */
-export interface IframeIpcPayload<T = unknown> {
-  type: string;
-  data?: T;
-}
-
-/** connection-graph 模块 type 枚举 */
-export type ConnectionGraphIpcType =
-  | 'generate-graph-data'
-  | 'generate-graph-updated'
-  | 'get-graph-data'
-  | 'set-graph-data'
-  | 'save-graph-data'
-  | 'save-graph-data-result'
-  | 'send-to-chat'
-  | 'generate-graph-code';
-
-const IFRAME_CHANNEL_CONNECTION_GRAPH = 'iframe-message-connection-graph';
-
 export interface IframeModalData {
   /** 要加载的 iframe URL */
   url: string;
@@ -48,7 +28,7 @@ export interface IframeModalData {
   data?: unknown;
   /** 窗口标题 */
   title?: string;
-  /** 嵌入式渲染，不显示 Electron 子窗口外壳 */
+  /** 嵌入式渲染，不显示独立页面外壳 */
   embedded?: boolean;
 }
 
@@ -70,9 +50,6 @@ export class IframeComponent implements OnInit, OnDestroy {
   private penpalConnection: Connection | null = null;
   private remoteApi: any = null;
 
-  // IPC 初始化数据清理函数
-  private initDataCleanup: (() => void) | null = null;
-
   // 窗口标题
   windowTitle = '';
 
@@ -86,10 +63,6 @@ export class IframeComponent implements OnInit, OnDestroy {
   // ===== 连线图自动生成相关 =====
   /** 是否为连线图窗口 */
   isConnectionGraphWindow = false;
-  /** connection-graph IPC 统一监听清理函数 */
-  private connectionGraphIpcCleanup: (() => void) | null = null;
-  /** 待响应的保存请求：messageId -> resolve */
-  private pendingSaveResolvers = new Map<string, (result: { success: boolean }) => void>();
   private currentUrl = '';
   private destroy$ = new Subject<void>();
 
@@ -97,7 +70,6 @@ export class IframeComponent implements OnInit, OnDestroy {
     @Optional() @Inject(NZ_MODAL_DATA) public data: IframeModalData | null,
     private sanitizer: DomSanitizer,
     private route: ActivatedRoute,
-    private electronService: ElectronService,
     private connectionGraphService: ConnectionGraphService,
     private noticeService: NoticeService,
     private ngZone: NgZone,
@@ -153,14 +125,6 @@ export class IframeComponent implements OnInit, OnDestroy {
         }
       });
 
-      // 监听来自 openWindow 的 IPC 初始化数据
-      if (this.electronService.isElectron && window['subWindow']?.onInitData) {
-        this.initDataCleanup = window['subWindow'].onInitData(
-          (initData: any) => {
-            this.handleInitData(initData);
-          },
-        );
-      }
     }
   }
 
@@ -288,28 +252,7 @@ export class IframeComponent implements OnInit, OnDestroy {
             this.iframeData = data;
             return this.sendSaveGraphData(this.iframeData);
           },
-          // 子页面调用此方法通过 IPC 实时获取连线图 payload（type: get-graph-data）
-          getGraphData: () => {
-            if (!this.electronService.isElectron || !window['ipcRenderer']) {
-              return Promise.resolve(this.iframeData ?? null);
-            }
-            const messageId = Date.now() + '-' + Math.random().toString(36).slice(2);
-            return new Promise<unknown>((resolve) => {
-              const timeoutId = setTimeout(() => {
-                // window['ipcRenderer'].removeListener(IFRAME_CHANNEL_CONNECTION_GRAPH, listener);
-                resolve(this.iframeData ?? null);
-              }, 5000);
-              const listener = (_event: unknown, p: { type?: string; data?: { messageId?: string; payload?: unknown } }) => {
-                if (p?.type === 'set-graph-data' && p?.data?.messageId === messageId) {
-                  clearTimeout(timeoutId);
-                  // window['ipcRenderer'].removeListener(IFRAME_CHANNEL_CONNECTION_GRAPH, listener);
-                  resolve(p.data?.payload ?? this.iframeData ?? null);
-                }
-              };
-              window['ipcRenderer'].on(IFRAME_CHANNEL_CONNECTION_GRAPH, listener);
-              this.sendToMain('get-graph-data', { messageId });
-            });
-          },
+          getGraphData: () => Promise.resolve(this.iframeData ?? null),
           // 子页面编辑连线后回调此方法，持久化更新
           onConnectionsChanged: (connections: any) => {
             try {
@@ -364,11 +307,6 @@ export class IframeComponent implements OnInit, OnDestroy {
       this.isLoading = false;
       this.showEmptyState = false;
 
-      // 开始监听 connection-graph IPC（统一按 type 分发）
-      if (this.isConnectionGraphWindow) {
-        this.startConnectionGraphIpcListener();
-      }
-
       // TODO:如果是 component-viewer 窗口，立即推送数据给子页面，新版本为web主动调用，这里临时多推送一次，待web更新后可删除
       if (this.isComponentViewerWindow) {
         setTimeout(() => {
@@ -384,14 +322,6 @@ export class IframeComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 向主窗口发送 connection-graph IPC 消息（规范：iframe-message-connection-graph）
-   */
-  private sendToMain(type: ConnectionGraphIpcType, data?: unknown): void {
-    if (!this.electronService.isElectron || !window['ipcRenderer']) return;
-    window['ipcRenderer'].send(IFRAME_CHANNEL_CONNECTION_GRAPH, { type, data });
-  }
-
-  /**
    * 发送保存请求并等待主窗口返回结果
    */
   private async sendSaveGraphData(data: unknown): Promise<{ success: boolean }> {
@@ -400,24 +330,8 @@ export class IframeComponent implements OnInit, OnDestroy {
       return { success: false };
     }
 
-    if (!this.electronService.isElectron || !window['ipcRenderer']) {
-      const success = await this.connectionGraphService.saveConnectionGraphSilentAsync(toSave);
-      return { success };
-    }
-
-    const messageId = Date.now() + '-' + Math.random().toString(36).slice(2);
-    return new Promise<{ success: boolean }>((resolve) => {
-      const timeoutId = setTimeout(() => {
-        this.pendingSaveResolvers.delete(messageId);
-        resolve({ success: false });
-      }, 5000);
-      this.pendingSaveResolvers.set(messageId, (result) => {
-        clearTimeout(timeoutId);
-        this.pendingSaveResolvers.delete(messageId);
-        resolve(result);
-      });
-      this.sendToMain('save-graph-data', { ...toSave, messageId });
-    });
+    const success = await this.connectionGraphService.saveConnectionGraphSilentAsync(toSave);
+    return { success };
   }
 
   private toConnectionGraphData(data: unknown): any | null {
@@ -469,59 +383,14 @@ export class IframeComponent implements OnInit, OnDestroy {
     return this.remoteApi[method](...args);
   }
 
-  /**
-   * 开始监听 connection-graph IPC（统一按 type 分发，规范：docs/iframe-ipc-spec.md）
-   */
-  private startConnectionGraphIpcListener(): void {
-    if (!this.electronService.isElectron || !window['ipcRenderer']) return;
-
-    const handler = (_event: unknown, payload: IframeIpcPayload) => {
-      const { type, data } = payload ?? {};
-      switch (type) {
-        case 'generate-graph-updated':
-          this.ngZone.run(() => this.handleConnectionGraphUpdate(data));
-          break;
-        case 'set-graph-data': {
-          break;
-        }
-        case 'save-graph-data-result': {
-          const resultData = data as { messageId?: string; success?: boolean } | undefined;
-          const messageId = resultData?.messageId;
-          const success = !!resultData?.success;
-          const resolver = this.pendingSaveResolvers.get(messageId);
-          if (resolver) {
-            this.ngZone.run(() => resolver({ success }));
-          }
-          break;
-        }
-      }
-    };
-
-    window['ipcRenderer'].on(IFRAME_CHANNEL_CONNECTION_GRAPH, handler);
-    this.connectionGraphIpcCleanup = () => {
-      // window['ipcRenderer'].removeListener(
-      //   IFRAME_CHANNEL_CONNECTION_GRAPH,
-      //   handler,
-      // );
-    };
-  }
-
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    if (this.connectionGraphIpcCleanup) {
-      this.connectionGraphIpcCleanup();
-      this.connectionGraphIpcCleanup = null;
-    }
     // 清除 ConnectionGraphService 中的 iframe API 引用
     this.connectionGraphService.clearIframeApi();
     if (this.penpalConnection) {
       this.penpalConnection.destroy();
       this.penpalConnection = null;
-    }
-    if (this.initDataCleanup) {
-      this.initDataCleanup();
-      this.initDataCleanup = null;
     }
   }
 
@@ -564,15 +433,10 @@ export class IframeComponent implements OnInit, OnDestroy {
 
   /**
    * 向 aily-chat 发送消息。
-   * 嵌入模式（主窗口内）直接调用 ChatService；
-   * 独立窗口通过 IPC 转发到主窗口由 BackgroundAgentService 处理。
+   * 直接调用主窗口内的聊天服务。
    */
   private sendToChat(text: string): void {
-    if (this.embedded) {
-      this.uiService.openAndSendToChat(text, { autoSend: true });
-    } else {
-      this.sendToMain('send-to-chat', { text, autoSend: true });
-    }
+    this.uiService.openAndSendToChat(text, { autoSend: true });
   }
 
   /**

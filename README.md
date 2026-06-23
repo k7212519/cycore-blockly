@@ -97,8 +97,8 @@ Li Duan (Yixuehui)
 Sun Junjie (Community Partner)  
 
 ## Main Open Source Projects Used in This Project
-[electron]() This project uses electron to build desktop applications  
-[angular]() This project uses angular as the rendering end to build main UI logic  
+[angular]() This project uses Angular to build the browser UI
+[Web Serial]() The browser connects to boards through the Web Serial API
 [node]() This project uses npm and node for package management and executing necessary scripts  
 [7z]() This project uses 7z to reduce the size of some packages (such as the huge ESP32 compiler)  
 Other content can be found in [package.json](./package.json)  

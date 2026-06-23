@@ -77,14 +77,6 @@ export let HEADER_MENU: IMenuItem[] = [
     router: ['/main/blockly-editor', '/main/code-editor']
   },
   {
-    name: 'MENU.PROJECT_SAVE_AS',
-    text: 'Ctrl/⌘ + Shift + S',
-    action: 'project-save-as',
-    data: { type: 'cmd', data: 'save-as' },
-    icon: 'fa-light fa-copy',
-    router: ['/main/blockly-editor', '/main/code-editor']
-  },
-  {
     name: 'MENU.EXPORT_BLOCKS_SVG',
     action: 'blockly-svg-export',
     icon: 'fa-light fa-file-image',
@@ -135,12 +127,6 @@ export let GUIDE_MENU: IMenuItem[] = [
     action: 'project-new',
     data: { type: 'project-new', path: 'project-new', alwaysOnTop: true, width: 820, height: 550 },
     icon: 'fa-light fa-file-circle-plus',
-  },
-  {
-    name: 'MENU.PROJECT_OPEN',
-    action: 'project-open',
-    data: { type: 'explorer', data: 'project-open' },
-    icon: 'fa-light fa-folder-open',
   },
   // {
   //   name: 'MENU.USER_MANUAL',

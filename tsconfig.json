@@ -29,7 +29,6 @@
   },
   "exclude": [
     "child",
-    "electron",
     "dist",
     "node_modules",
     "**/*.spec.ts",

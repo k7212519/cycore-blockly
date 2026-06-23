@@ -1,4 +1,4 @@
-<div class="header-box" [class.darwin]="isNativeMacWindow" [class.full-screen]="isMacFullScreen">
+<div class="header-box">
   <div class="menu ccenter">
     <button type="button" class="menu-pill ccenter" [class.active]="showMenu" (click)="openMenu($event)"
       [attr.aria-expanded]="showMenu">
@@ -16,7 +16,7 @@
     }
   </div>
 
-  <div class="null-box drag" (dblclick)="maximize()"></div>
+  <div class="null-box"></div>
   <div class="project-box ccenter" [class.hidden-on-guide]="isGuideRoute">{{ projectData.nickname || projectData.name}}</div>
 
   @for (btn of headerBtns; track $index) {

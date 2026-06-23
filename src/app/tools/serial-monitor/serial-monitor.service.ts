@@ -1,22 +1,9 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { Buffer } from 'buffer';
-import { ProjectService } from '../../services/project.service';
-import { ElectronService } from '../../services/electron.service';
+import { SerialService } from '../../services/serial.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { ConfigService } from '../../services/config.service';
-
-// 声明Electron API全局接口
-declare global {
-  interface Window {
-    electronAPI: {
-      SerialPort: {
-        list: () => Promise<any[]>;
-        create: (options: any) => any;
-      }
-    }
-  }
-}
 
 @Injectable({
   providedIn: 'root'
@@ -70,8 +57,7 @@ export class SerialMonitorService {
   quickSendList: QuickSendItem[] = []
 
   constructor(
-    private projectService: ProjectService,
-    private electronService: ElectronService,
+    private serialService: SerialService,
     private message: NzMessageService,
     private configService: ConfigService
   ) {
@@ -82,14 +68,9 @@ export class SerialMonitorService {
    * 获取可用串口列表
    */
   async getPortsList(): Promise<any[]> {
-    try {
-      const ports = await window.electronAPI.SerialPort.list();
-      this.availablePorts.next(ports);
-      return ports;
-    } catch (error) {
-      console.error('获取串口列表失败:', error);
-      return [];
-    }
+    const ports = await this.serialService.getSerialPorts();
+    this.availablePorts.next(ports);
+    return ports;
   }
 
   /**
@@ -102,54 +83,28 @@ export class SerialMonitorService {
     }
 
     try {
-      const serialOptions = {
-        path: options.path,
+      this.serialPort = this.serialService.getBrowserPort(options.path);
+      if (!this.serialPort) {
+        throw new Error('未找到已授权串口');
+      }
+      await this.serialPort.open({
         baudRate: options.baudRate || 9600,
         dataBits: options.dataBits || 8,
         stopBits: options.stopBits || 1,
         parity: options.parity || 'none',
         flowControl: options.flowControl || 'none',
-        autoOpen: false
-      };
-
-      this.serialPort = window.electronAPI.SerialPort.create(serialOptions);
-
-      return new Promise((resolve, reject) => {
-        this.serialPort.on('open', () => {
-          this.isConnected = true;
-          this.connectionStatus.next(true);
-          this.setupDataListeners();
-          console.log('串口已打开');
-          // 记录连接信息到数据列表
-          this.dataList.push({
-            time: new Date().toLocaleTimeString(),
-            data: Buffer.from(`[串口已连接: ${options.path} ${options.baudRate}波特 ${options.dataBits}数据位 ${options.stopBits}停止位 ${options.parity}校验 ${options.flowControl}流控]`),
-            dir: 'SYS',
-            isError: false
-          });
-          this.dataUpdated.next();
-
-          resolve(true);
-        });
-
-        this.serialPort.on('error', (err: any) => {
-          console.error('串口错误:', err);
-          this.message.error(`串口错误: ${err.message || err}`);
-          this.isConnected = false;
-          this.connectionStatus.next(false);
-          reject(err);
-        });
-
-        this.serialPort.open((err: any) => {
-          if (err) {
-            console.error('打开串口失败:', err);
-            this.message.error(`打开串口失败: ${err.message || err}`);
-            this.isConnected = false;
-            this.connectionStatus.next(false);
-            reject(err);
-          }
-        });
       });
+      this.isConnected = true;
+      this.connectionStatus.next(true);
+      void this.readLoop();
+      this.dataList.push({
+        time: new Date().toLocaleTimeString(),
+        data: Buffer.from(`[串口已连接: ${options.path} ${options.baudRate}波特]`),
+        dir: 'SYS',
+        isError: false
+      });
+      this.dataUpdated.next();
+      return true;
     } catch (error) {
       console.error('连接串口失败:', error);
       this.message.error(`连接串口失败: ${error.message || error}`);
@@ -162,18 +117,19 @@ export class SerialMonitorService {
   /**
    * 设置数据监听器
    */
-  private setupDataListeners() {
-    if (!this.serialPort) return;
-
-    this.serialPort.on('data', (data) => {
-      this.processReceivedData(data);
-    });
-
-    this.serialPort.on('close', () => {
-      this.isConnected = false;
-      this.connectionStatus.next(false);
-      console.log('串口已关闭');
-    });
+  private async readLoop(): Promise<void> {
+    while (this.isConnected && this.serialPort?.readable) {
+      const reader = this.serialPort.readable.getReader();
+      try {
+        while (this.isConnected) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) this.processReceivedData(Buffer.from(value));
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
   }
 
   /**
@@ -278,7 +234,7 @@ export class SerialMonitorService {
       this.message.warning('串口未连接，请先打开串口');
       return Promise.resolve(false);
     }
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       let bufferToSend;
       if (typeof data === 'string') {
         // 如果输入模式是hex，则将字符串解析为hex
@@ -308,53 +264,49 @@ export class SerialMonitorService {
         bufferToSend = data;
       }
 
-      this.serialPort.write(bufferToSend, (err: any) => {
-        if (err) {
-          console.error('发送数据失败:', err);
-          resolve(false);
-        } else {
-          // 记录发送的数据到dataList
-          this.dataList.push({
-            time: new Date().toLocaleTimeString(),
-            data: bufferToSend,
-            dir: 'TX',
-            isError: false
-          });
-
-          this.dataUpdated.next();
-          resolve(true);
-        }
-      });
+      try {
+        const writer = this.serialPort.writable.getWriter();
+        await writer.write(bufferToSend);
+        writer.releaseLock();
+        this.dataList.push({
+          time: new Date().toLocaleTimeString(),
+          data: bufferToSend,
+          dir: 'TX',
+          isError: false
+        });
+        this.dataUpdated.next();
+        resolve(true);
+      } catch (error) {
+        console.error('发送数据失败:', error);
+        resolve(false);
+      }
     });
   }
 
   /**
    * 断开串口连接
    */
-  disconnect(): Promise<boolean> {
+  async disconnect(): Promise<boolean> {
     // 合并剩余的待处理数据分块
     this.flushPendingChunks();
     this.pendingItem = null;
     this.pendingChunks = [];
 
     if (!this.isConnected || !this.serialPort) {
-      return Promise.resolve(true);
+      return true;
     }
 
-    return new Promise((resolve) => {
-      this.serialPort.close((err: any) => {
-        if (err) {
-          console.error('关闭串口失败:', err);
-          this.message.error(`关闭串口失败: ${err.message || err}`);
-          resolve(false);
-        } else {
-          this.isConnected = false;
-          this.connectionStatus.next(false);
-          this.serialPort = null;
-          resolve(true);
-        }
-      });
-    });
+    try {
+      this.isConnected = false;
+      await this.serialPort.close();
+      this.connectionStatus.next(false);
+      this.serialPort = null;
+      return true;
+    } catch (error) {
+      console.error('关闭串口失败:', error);
+      this.message.error(`关闭串口失败: ${error?.message || error}`);
+      return false;
+    }
   }
 
   /**
@@ -377,29 +329,6 @@ export class SerialMonitorService {
   async exportData() {
     if (this.dataList.length === 0) {
       console.warn('没有数据可以导出');
-      return;
-    }
-
-    // 弹出保存对话框
-    const folderPath = await window['ipcRenderer'].invoke('select-folder-saveAs', {
-      title: '导出串口数据',
-      path: this.projectService.currentProjectPath,
-      suggestedName: 'log_' + new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).replace(/[/,:]/g, '_').replace(/\s/g, '_') + '.txt',
-      filters: [
-        { name: '文本文件', extensions: ['txt'] },
-        { name: '所有文件', extensions: ['*'] }
-      ]
-    });
-    // console.log('选中的文件夹路径：', folderPath);
-
-    if (!folderPath) {
       return;
     }
 
@@ -461,9 +390,21 @@ export class SerialMonitorService {
       }
     }
 
-    // 写入文件
-    this.electronService.writeFile(folderPath, fileContent);
-    this.message.success('数据已成功导出到' + folderPath);
+    const fileName = 'serial_' + new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace(/[/,:]/g, '_').replace(/\s/g, '_') + '.txt';
+    const url = URL.createObjectURL(new Blob([fileContent], { type: 'text/plain;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    this.message.success('串口数据已导出');
   }
 
   /**
@@ -478,37 +419,23 @@ export class SerialMonitorService {
       return Promise.resolve(false);
     }
 
-    return new Promise((resolve) => {
-      try {
-        const methodName = signalType.toLowerCase();
-        // 如果没提供状态，则获取当前状态并取反
-        if (state === undefined && typeof this.serialPort[methodName + 'Bool'] === 'function') {
-          state = !this.serialPort[methodName + 'Bool']();
-        }
-
-        // 调用串口对象的方法设置信号
-        this.serialPort.set({ [methodName]: state }, (err: any) => {
-          if (err) {
-            console.error(`设置${signalType}信号失败:`, err);
-            this.message.error(`设置${signalType}信号失败`);
-            resolve(false);
-          } else {
-            // 记录信号发送到数据列表
-            this.dataList.push({
-              time: new Date().toLocaleTimeString(),
-              data: Buffer.from(`[设置${signalType}信号: ${state ? '开启' : '关闭'}]`),
-              dir: 'SYS',
-              isError: false
-            });
-            this.dataUpdated.next();
-            resolve(true);
-          }
-        });
-      } catch (error) {
-        console.error('发送信号时出错:', error);
-        this.message.error('发送信号失败');
-        resolve(false);
-      }
+    const enabled = state ?? true;
+    const signals = signalType === 'DTR'
+      ? { dataTerminalReady: enabled }
+      : { requestToSend: enabled };
+    return this.serialPort.setSignals(signals).then(() => {
+      this.dataList.push({
+        time: new Date().toLocaleTimeString(),
+        data: Buffer.from(`[设置${signalType}信号: ${enabled ? '开启' : '关闭'}]`),
+        dir: 'SYS',
+        isError: false
+      });
+      this.dataUpdated.next();
+      return true;
+    }).catch((error: unknown) => {
+      console.error(`设置${signalType}信号失败:`, error);
+      this.message.error(`设置${signalType}信号失败`);
+      return false;
     });
   }
 

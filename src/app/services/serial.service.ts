@@ -1,5 +1,4 @@
 import { Injectable } from '@angular/core';
-import { ElectronService } from './electron.service';
 import { Subject } from 'rxjs';
 
 // export const BOARD_NAME: Record<string, string> = {
@@ -40,9 +39,7 @@ export class SerialService {
   private portChangedSubject = new Subject<void>();
   portsChanged$ = this.portChangedSubject.asObservable();
 
-  constructor(
-    private electronService: ElectronService
-  ) {
+  constructor() {
     this.ensureBrowserSerialEvents();
   }
 
@@ -71,76 +68,34 @@ export class SerialService {
     }
   }
 
-  // 此处还未考虑linux、macos适配
   async getSerialPorts(): Promise<PortItem[]> {
-    if (this.electronService.isElectron) {
-      const currentSerialPortList = await window['SerialPort'].list();
-
-      // console.log("Detected serial ports: ", currentSerialPortList);
-
-      let serialList: PortItem[] = [];
-
-      if (window['platform'].isWindows) {
-        serialList = currentSerialPortList.map((item) => {
-          let friendlyName: string = (item.friendlyName || item.manufacturer || item.path || '').replace(/ \(COM\d+\)$/, '');
-          let keywords = ["蓝牙", "ble", "bluetooth"];
-          let icon: string = keywords.some(keyword => (item.friendlyName || '').toLowerCase().includes(keyword.toLowerCase())) ? "fa-light fa-bluetooth" : 'fa-light fa-usb-drive';
-          return {
-            name: item.path,
-            text: friendlyName,
-            type: 'serial',
-            icon: icon,
-          }
-        });
-      } else if (window['platform'].isMacOS) {
-        // 只返回usb串口设备
-        serialList = currentSerialPortList.map((item) => {
-          // 将 tty 路径转换为 cu 路径
-          let devicePath = item.path.replace('/dev/tty.', '/dev/cu.');
-          
-          let friendlyName: string = item.manufacturer? item.manufacturer : devicePath.replace('/dev/cu.usbserial-', '').replace('/dev/cu.', '');
-          let keywords = ["usb", "serial", "uart", "ftdi", "ch340", "cp210x"];
-          let icon: string = keywords.some(keyword => devicePath.toLowerCase().includes(keyword.toLowerCase())) ? "fa-light fa-usb-drive" : 'fa-light fa-computer';
-          return {
-            name: devicePath, // 使用转换后的 cu 路径
-            text: friendlyName,
-            type: 'serial',
-            icon: icon,
-          }
-        });
-      }
-      
-      return serialList;
-    } else {
-      try {
-        if (!navigator['serial']) {
-          return [];
-        }
-        this.ensureBrowserSerialEvents();
-        const ports = await navigator['serial'].getPorts();
-        this.removeUnavailableBrowserPorts(ports);
-        const serialList: PortItem[] = ports
-          .filter(port => !this.disconnectedBrowserPorts.has(port))
-          .map((port) => {
-            const name = this.registerBrowserPort(port);
-            return {
-              port: port,
-              name: name,
-              text: `已授权设备 ${name.replace('串口 ', '')}`,
-              type: 'serial',
-              icon: 'fa-light fa-usb-drive'
-            };
-          });
-        return serialList;
-      } catch (error) {
-        console.error('获取 Web Serial 串口失败:', error);
+    try {
+      if (!navigator['serial']) {
         return [];
       }
+      this.ensureBrowserSerialEvents();
+      const ports = await navigator['serial'].getPorts();
+      this.removeUnavailableBrowserPorts(ports);
+      return ports
+        .filter(port => !this.disconnectedBrowserPorts.has(port))
+        .map((port) => {
+          const name = this.registerBrowserPort(port);
+          return {
+            port,
+            name,
+            text: `已授权设备 ${name.replace('串口 ', '')}`,
+            type: 'serial',
+            icon: 'fa-light fa-usb-drive'
+          };
+        });
+    } catch (error) {
+      console.error('获取 Web Serial 串口失败:', error);
+      return [];
     }
   }
 
   private ensureBrowserSerialEvents(): void {
-    if (this.browserSerialEventsInitialized || this.electronService.isElectron) {
+    if (this.browserSerialEventsInitialized) {
       return;
     }
     if (typeof navigator === 'undefined' || !navigator['serial']?.addEventListener) {
@@ -228,7 +183,7 @@ export class SerialService {
   }
 
   private rememberSelectedBrowserPort(portName: any): void {
-    if (this.electronService.isElectron || typeof portName !== 'string') {
+    if (typeof portName !== 'string') {
       return;
     }
     const port = this.browserPortsMap.get(portName);
@@ -266,7 +221,7 @@ export class SerialService {
 }
 
 export interface PortItem {
-  port?: any,  // SerialPort 对象（浏览器环境）或字符串（Electron 环境）
+  port?: any,
   name?: string,
   text?: string,
   type?: string,

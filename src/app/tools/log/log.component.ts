@@ -6,7 +6,6 @@ import { AnsiPipe } from './ansi.pipe';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { UiService } from '../../services/ui.service';
 import { ProjectService } from '../../services/project.service';
-import { ElectronService } from '../../services/electron.service';
 import { PlatformService } from '../../services/platform.service';
 import { stripAnsi } from 'fancy-ansi';
 import { Subscription } from 'rxjs';
@@ -49,7 +48,6 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
     private message: NzMessageService,
     private uiService: UiService,
     private projectService: ProjectService,
-    private electronService: ElectronService,
     private platformService: PlatformService,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService
@@ -177,16 +175,11 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // 双击打开AI助手并发送日志内容
   async copyLogItemToChat(item: any) {
-    // 这里可以实现将日志内容发送到AI助手的逻辑
-    // 例如，调用一个服务方法来处理这个操作
-    this.uiService.openTool("aily-chat");
     const cleanDetail = this.cleanLogContent(item.detail);
-    setTimeout(() => {
-      window.sendToAilyChat(`log:\n${cleanDetail}`, {
-        sender: 'LogComponent',
-        type: 'log'
-      });
-    }, 100);
+    this.uiService.openAndSendToChat(`log:\n${cleanDetail}`, {
+      sender: 'LogComponent',
+      type: 'log'
+    });
     this.message.info(this.translate.instant('LOG.SENT_TO_AI'));
   }
 
@@ -196,29 +189,6 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    // 弹出保存对话框
-    const folderPath = await window['ipcRenderer'].invoke('select-folder-saveAs', {
-      title: this.translate.instant('LOG.EXPORT_TITLE'),
-      path: this.projectService.currentProjectPath,
-      suggestedName: 'log_' + new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).replace(/[/,:]/g, '_').replace(/\s/g, '_') + '.txt',
-      filters: [
-        { name: this.translate.instant('LOG.TEXT_FILE'), extensions: ['txt'] },
-        { name: this.translate.instant('LOG.ALL_FILES'), extensions: ['*'] }
-      ]
-    });
-
-    if (!folderPath) {
-      return;
-    }
-
-    // 准备要写入的内容
     let fileContent = '';
 
     for (const item of this.logService.list) {
@@ -226,9 +196,21 @@ export class LogComponent implements OnInit, AfterViewInit, OnDestroy {
       fileContent += `[${timeString}] ${item.detail || ''}\n`;
     }
 
-    // 写入文件
-    this.electronService.writeFile(folderPath, fileContent);
-    this.message.success(this.translate.instant('LOG.EXPORT_SUCCESS') + folderPath);
+    const fileName = 'log_' + new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace(/[/,:]/g, '_').replace(/\s/g, '_') + '.txt';
+    const url = URL.createObjectURL(new Blob([fileContent], { type: 'text/plain;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    this.message.success(this.translate.instant('LOG.EXPORT_SUCCESS') + fileName);
   }
 
 }

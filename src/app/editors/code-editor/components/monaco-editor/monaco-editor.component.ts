@@ -32,6 +32,7 @@ export class MonacoEditorComponent implements OnDestroy {
 
   @Output() codeChange = new EventEmitter<string>();
   @Output() openFileRequest = new EventEmitter<{ filePath: string, position: any }>();
+  @Output() editorShortcut = new EventEmitter<'save' | 'close'>();
 
   @Input() sdkPath: string;
   @Input() librariesPath: string;
@@ -75,7 +76,61 @@ export class MonacoEditorComponent implements OnDestroy {
     if (editor) {
       // 添加自定义右键菜单项
       this.setupContextMenu(editor);
+      this.setupEditorShortcutPriority(editor);
     }
+  }
+
+  private setupEditorShortcutPriority(editor: any): void {
+    const domNode = editor?.getDomNode?.();
+    if (!domNode) {
+      return;
+    }
+
+    const listener = (event: KeyboardEvent) => {
+      if (!this.isEditorPriorityShortcut(event)) {
+        return;
+      }
+
+      event.stopPropagation();
+      const shortcut = this.normalizeShortcut(event);
+      if (shortcut === 'ctrl+s') {
+        event.preventDefault();
+        this.editorShortcut.emit('save');
+      } else if (shortcut === 'ctrl+w') {
+        event.preventDefault();
+        this.editorShortcut.emit('close');
+      }
+    };
+
+    domNode.addEventListener('keydown', listener);
+    this.disposables.push({
+      dispose: () => domNode.removeEventListener('keydown', listener)
+    });
+  }
+
+  private isEditorPriorityShortcut(event: KeyboardEvent): boolean {
+    const key = event.key.toLowerCase();
+    const isFunctionKey = /^f([1-9]|1[0-2])$/.test(key);
+    return event.ctrlKey || event.metaKey || event.altKey || isFunctionKey;
+  }
+
+  private normalizeShortcut(event: KeyboardEvent): string {
+    const parts: string[] = [];
+    if (event.ctrlKey || event.metaKey) {
+      parts.push('ctrl');
+    }
+    if (event.shiftKey) {
+      parts.push('shift');
+    }
+    if (event.altKey) {
+      parts.push('alt');
+    }
+
+    const key = event.key.toLowerCase();
+    if (!['control', 'shift', 'alt', 'meta'].includes(key)) {
+      parts.push(key);
+    }
+    return parts.join('+');
   }
 
   private applyTheme(theme: 'dark' | 'light'): void {

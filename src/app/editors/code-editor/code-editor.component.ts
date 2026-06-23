@@ -12,7 +12,7 @@ import { NzResizableModule, NzResizeEvent } from 'ng-zorro-antd/resizable';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { BuilderService } from '../../services/builder.service';
 import { UploaderService } from '../../services/uploader.service';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 import { ShortcutService, ShortcutAction, ShortcutKeyMapping } from './services/shortcut.service';
 import { Subscription } from 'rxjs';
 import { ViewChild, AfterViewInit, OnInit, OnDestroy } from '@angular/core';
@@ -86,7 +86,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     private message: NzMessageService,
     private builderService: BuilderService,
     private uploadService: UploaderService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private shortcutService: ShortcutService,
     private blocklyService: BlocklyService,
   ) {
@@ -104,14 +104,6 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
         console.log('project id', params['projectId']);
         try {
           this.loadServerProject(params['projectId']);
-        } catch (error) {
-          console.error('加载项目失败', error);
-          this.message.error('加载项目失败，请检查项目文件是否完整');
-        }
-      } else if (params['path']) {
-        console.log('project path', params['path']);
-        try {
-          this.loadProject(params['path']);
         } catch (error) {
           console.error('加载项目失败', error);
           this.message.error('加载项目失败，请检查项目文件是否完整');
@@ -148,7 +140,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.builderService.cancel();
     this.uploadService.cancel();
 
-    this.electronService.setTitle('CYCORE-MCU-DevCloud');
+    this.browserService.setTitle('CYCORE-MCU-DevCloud');
 
     // 清理快捷键监听器
     this.cleanupShortcutListeners();
@@ -161,48 +153,11 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
   }
 
-  async loadProject(projectPath: string) {
-    this.isProfessionalMode = false;
-    this.leftPanelMode = 'files';
-    // 判断当前目录下是否有package.json和ino文件
-    if (!this.electronService.exists(projectPath + '/package.json')) {
-      const fileList = this.electronService.readDir(projectPath);
-      if (this.hasFileWithExtension(fileList, '.ino')) {
-        const projectName = projectPath.split(/[\/\\]/).filter(Boolean).pop() || ''
-        const packageData = {
-          version: '1.0.0',
-          name: projectName,
-          platform: 'arduino'
-        }
-        this.electronService.writeFile(projectPath + '/package.json', JSON.stringify(packageData))
-      }
-    }
-
-    const packageJson = JSON.parse(this.electronService.readFile(`${projectPath}/package.json`));
-    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name}`);
-    this.projectService.currentPackageData = packageJson;
-    // 添加到最近打开的项目
-    this.projectService.addRecentlyProject({ name: packageJson.name, path: projectPath, nickname: packageJson.nickname || packageJson.name });
-    // 设置当前项目路径和package.json数据
-    this.projectService.currentPackageData = packageJson;
-    this.projectService.currentProjectPath = projectPath;
-
-    this.projectService.stateSubject.next('loaded');
-    // 7. 后台安装开发板依赖
-    // this.npmService.installBoardDeps()
-    //   .then(() => {
-    //     console.log('install board dependencies success');
-    //   })
-    //   .catch(err => {
-    //     console.error('install board dependencies error', err);
-    //   });
-  }
-
   async loadServerProject(projectId: string) {
     this.projectService.currentProjectId = projectId;
     const projectInfo = await this.projectService.getServerProject(projectId);
     const packageJson = projectInfo.packageJson || {};
-    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
+    this.browserService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
     this.projectService.currentPackageData = packageJson;
     this.isProfessionalMode = projectInfo.editor === 'code';
     this.leftPanelMode = this.isProfessionalMode ? 'library' : 'files';
@@ -243,9 +198,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
       this.selectedIndex = existingFileIndex;
     } else {
       // 否则新建标签页
-      const content = this.projectService.isServerProject
-        ? await this.projectService.readServerFile(filePath)
-        : window['fs'].readFileSync(filePath);
+      const content = await this.projectService.readServerFile(filePath);
       const newFile: OpenedFile = {
         path: filePath,
         title: file.title,
@@ -340,11 +293,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   // 保存文件
   async saveFile(index: number): Promise<void> {
     const file = this.openedFiles[index];
-    if (this.projectService.isServerProject) {
-      await this.projectService.saveServerFile(file.path, file.content);
-    } else {
-      window['fs'].writeFileSync(file.path, file.content);
-    }
+    await this.projectService.saveServerFile(file.path, file.content);
     file.isDirty = false;
   }
 
@@ -450,50 +399,28 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  onEditorShortcut(action: 'save' | 'close'): void {
+    if (action === 'save') {
+      this.handleSaveShortcut();
+      return;
+    }
+    if (action === 'close') {
+      this.handleCloseShortcut();
+    }
+  }
+
   /**
    * 处理打开文件请求（从Monaco编辑器的跳转到定义功能触发）
    */
   onOpenFileRequest(event: { filePath: string, position: any }): void {
     console.log('收到打开文件请求:', event);
 
-    // 检查文件是否存在
-    if (this.projectService.isServerProject) {
+    const existingFileIndex = this.openedFiles.findIndex(f => f.path === event.filePath);
+    if (existingFileIndex < 0) {
       this.message.warning('服务端项目暂不支持跨文件跳转');
       return;
     }
-    if (!this.electronService.exists(event.filePath)) {
-      this.message.error(`文件不存在: ${event.filePath}`);
-      return;
-    }
-
-    // 检查文件是否已经打开
-    const existingFileIndex = this.openedFiles.findIndex(f => f.path === event.filePath);
-
-    if (existingFileIndex >= 0) {
-      // 如果已经打开，切换到该标签页
-      this.selectedIndex = existingFileIndex;
-    } else {
-      try {
-        // 否则新建标签页
-        const content = window['fs'].readFileSync(event.filePath);
-        const fileName = event.filePath.split(/[\/\\]/).pop() || '';
-
-        const newFile: OpenedFile = {
-          path: event.filePath,
-          title: fileName,
-          content: content,
-          isDirty: false,
-          editorState: {}
-        };
-
-        this.openedFiles.push(newFile);
-        this.selectedIndex = this.openedFiles.length - 1;
-      } catch (error) {
-        console.error('读取文件失败:', error);
-        this.message.error(`无法打开文件: ${event.filePath}`);
-        return;
-      }
-    }
+    this.selectedIndex = existingFileIndex;
 
     // 延迟更新代码并跳转到指定位置
     setTimeout(async () => {

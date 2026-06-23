@@ -40,15 +40,7 @@ process.on('unhandledRejection', (reason) => {
 function loadSerialPort() {
     if (SerialPort) return SerialPort;
     
-    // 尝试多个可能的路径加载 serialport
-    const possiblePaths = [
-        // 从 electron 目录加载
-        path.join(__dirname, '..', '..', 'electron', 'node_modules', 'serialport'),
-        // 从 app.asar.unpacked 加载 (打包后)
-        path.join(__dirname, '..', '..', 'electron', 'node_modules', 'serialport'),
-        // 直接 require (如果在 NODE_PATH 中)
-        'serialport'
-    ];
+    const possiblePaths = ['serialport'];
     
     for (const modulePath of possiblePaths) {
         try {

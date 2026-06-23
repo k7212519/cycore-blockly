@@ -50,7 +50,8 @@
                     }
                 </nz-tabset>
                 <app-monaco-editor [code]="code" (codeChange)="onCodeChange($event)" [filePath]="selectedFile"
-                    (openFileRequest)="onOpenFileRequest($event)"></app-monaco-editor>
+                    (openFileRequest)="onOpenFileRequest($event)"
+                    (editorShortcut)="onEditorShortcut($event)"></app-monaco-editor>
                 } @else {
                 <div class="empty-editor">
                     <i class="fa-light fa-file-code"></i>

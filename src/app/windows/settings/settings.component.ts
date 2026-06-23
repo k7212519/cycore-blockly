@@ -94,7 +94,6 @@ export class SettingsComponent implements OnDestroy {
 
   selectLang(lang) {
     this.translationService.setLanguage(lang.code);
-    window['ipcRenderer'].send('setting-changed', { action: 'language-changed', data: lang.code });
   }
 
   // 使用锚点滚动到指定部分

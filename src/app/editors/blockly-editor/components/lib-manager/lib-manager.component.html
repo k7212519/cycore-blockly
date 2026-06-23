@@ -24,13 +24,6 @@
                 }}</nz-tag>
             <nz-tag (click)="search('lib-core')">{{ 'LIB_MANAGER.CORE_LIBRARY' | translate }}</nz-tag>
         </div>
-        <div class="btns">
-            @if (!projectService.isServerProject) {
-            <button nz-button nzType="primary" nzSize="small" (click)="importLib()">
-                <i class="fa-light fa-plus"></i>{{'LIB_MANAGER.IMPORT_LIBRARY' | translate}}
-            </button>
-            }
-        </div>
     </div>
     <div class="lib-list" [class.is-loading]="listLoading">
         @if(listLoading) {

@@ -263,7 +263,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   }
 
   set workspace(workspace) {
-    this.blocklyService.workspace = workspace;
+    this.blocklyService.setWorkspace(workspace);
   }
 
   get toolbox() {

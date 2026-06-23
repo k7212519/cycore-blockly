@@ -13,7 +13,7 @@ export function processJsonVar(sourceJson, boardConfig) {
             let itemName = item.replace('"${', '').replace('}"', '')
             let data = JSON.parse(JSON.stringify(boardConfig))
             data = data[getLastElement(itemName.split('.'))]
-            jsonString = jsonString.replace(item, JSON.stringify(data))
+            jsonString = jsonString.replace(item, JSON.stringify(data ?? null))
         });
     }
     return JSON.parse(jsonString)

@@ -4,132 +4,11 @@
   "version": "0.9.34",
   "author": "coloz",
   "description": "Cycore MCU DevCloud",
-  "main": "electron/main.js",
-  "build": {
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "https://dl.diandeng.tech/blockly"
-      }
-    ],
-    "appId": "blockly.aily.pro",
-    "forceCodeSigning": false,
-    "asar": true,
-    "asarUnpack": [
-      "electron/preload.js",
-      "electron/node_modules/**/*.node",
-      "electron/node_modules/@lydell/**",
-      "electron/node_modules/@serialport/**",
-      "electron/node_modules/serialport/**"
-    ],
-    "directories": {
-      "output": "dist/aily-blockly/"
-    },
-    "files": [
-      "!**/*",
-      "package.json",
-      {
-        "from": "electron",
-        "to": "electron",
-        "filter": ["**/*", "!package-lock.json", "!.gitignore"]
-      },
-      {
-        "from": "electron/node_modules",
-        "to": "electron/node_modules"
-      },
-      {
-        "from": "dist/aily-blockly/browser",
-        "to": "renderer"
-      }
-    ],
-    "extraResources": [
-      {
-        "from": "child/scripts",
-        "to": "child/scripts"
-      },
-      {
-        "from": "public/icon.ico",
-        "to": "icon.ico"
-      },
-      {
-        "from": "electron/app-update.yml",
-        "to": "app-update.yml"
-      }
-    ],
-    "win": {
-      "target": "nsis",
-      "sign": false,
-      "signAndEditExecutable": true,
-      "artifactName": "Cycore-MCU-DevCloud-${version}.${ext}",
-      "icon": "public/icon.ico",
-      "fileAssociations": [
-        {
-          "ext": "abi",
-          "name": "Cycore MCU DevCloud Project",
-          "description": "Cycore MCU DevCloud Project File",
-          "icon": "public/icon.ico",
-          "role": "Editor"
-        }
-      ],
-      "extraResources": [
-        {
-          "from": "child/windows",
-          "to": "child"
-        }
-      ]
-    },
-    "mac": {
-      "icon": "public/icon-512.ico",
-      "artifactName": "Cycore-MCU-DevCloud-${version}-${arch}.${ext}",
-      "fileAssociations": [
-        {
-          "ext": "abi",
-          "name": "Cycore MCU DevCloud Project",
-          "description": "Cycore MCU DevCloud Project File",
-          "role": "Editor"
-        }
-      ],
-      "extraResources": [
-        {
-          "from": "child/macos",
-          "to": "child"
-        }
-      ]
-    },
-    "linux": {
-      "icon": "public/icon.ico",
-      "fileAssociations": [
-        {
-          "ext": "abi",
-          "name": "Cycore MCU DevCloud Project",
-          "description": "Cycore MCU DevCloud Project File",
-          "mimeType": "application/x-cycore-mcu-devcloud-project"
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": false,
-      "perMachine": true,
-      "allowElevation": true,
-      "deleteAppDataOnUninstall": true,
-      "include": "build/installer.nsh",
-      "runAfterFinish": true,
-      "differentialPackage": false,
-      "artifactName": "Cycore-MCU-DevCloud-Setup-${version}.${ext}",
-      "createStartMenuShortcut": true,
-      "shortcutName": "Cycore MCU DevCloud"
-    }
-  },
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "watch": "ng build --watch --configuration development",
-    "electron": "concurrently \"npm start\" \"wait-on tcp:4200 && electron ./electron/main.js --serve\"",
-    "build": "ng build --base-href ./ && electron-builder build",
-    "build:mac": "ng build --base-href ./ && electron-builder --mac --arm64 --x64",
-    "build:mac:universal": "ng build --base-href ./ && electron-builder --mac --universal"
+    "build": "ng build --base-href ./"
   },
   "private": true,
   "dependencies": {
@@ -146,7 +25,6 @@
     "@blockly/field-colour-hsv-sliders": "^5.0.19",
     "@blockly/workspace-minimap": "^0.2.16",
     "@ctrl/tinycolor": "^4.1.0",
-    "@lydell/node-pty": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@ngx-translate/core": "^16.0.3",
     "@splidejs/splide": "^4.1.4",
@@ -198,16 +76,12 @@
     "@types/node": "^22.10.7",
     "@types/sortablejs": "^1.15.9",
     "@types/ua-parser-js": "^0.7.39",
-    "concurrently": "^9.1.2",
-    "electron": "^35.0.2",
-    "electron-builder": "^25.1.8",
     "jasmine-core": "~5.4.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "typescript": "~5.6.2",
-    "wait-on": "^8.0.2"
+    "typescript": "~5.6.2"
   }
 }

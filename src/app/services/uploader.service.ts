@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { ActionService } from './action.service';
-import { ElectronService } from './electron.service';
+import { BrowserService } from './browser.service';
 import { UiService } from './ui.service';
 
 @Injectable({
@@ -10,7 +10,7 @@ export class UploaderService {
 
   constructor(
     private actionService: ActionService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private uiService: UiService
   ) { }
 
@@ -33,13 +33,13 @@ export class UploaderService {
         throw error;
       }
 
-      if (!this.electronService.isWindowFocused()) {
-        this.electronService.notify('上传', uploadResult?.text || '');
+      if (!this.browserService.isWindowFocused()) {
+        this.browserService.notify('上传', uploadResult?.text || '');
       }
       return uploadResult;
     } catch (error: any) {
-      if (!this.electronService.isWindowFocused()) {
-        this.electronService.notify('上传', error?.text || error?.message || '上传失败');
+      if (!this.browserService.isWindowFocused()) {
+        this.browserService.notify('上传', error?.text || error?.message || '上传失败');
       }
       throw error;
     } finally {
@@ -72,15 +72,15 @@ export class UploaderService {
         serialPort
       }, 300000).toPromise();
       
-      if (!this.electronService.isWindowFocused()) {
+      if (!this.browserService.isWindowFocused()) {
         const message = result.data?.result?.success ? 'SoftDevice 烧录成功' : 'SoftDevice 烧录失败';
-        this.electronService.notify('烧录', message);
+        this.browserService.notify('烧录', message);
       }
       this.uiService.sendToolSignal('serial-monitor:connect');
       return result.data?.result || { success: false, message: '烧录失败' };
     } catch (error: any) {
-      if (!this.electronService.isWindowFocused()) {
-        this.electronService.notify('烧录', 'SoftDevice 烧录失败');
+      if (!this.browserService.isWindowFocused()) {
+        this.browserService.notify('烧录', 'SoftDevice 烧录失败');
       }
       this.uiService.sendToolSignal('serial-monitor:connect');
       return { success: false, message: error.message || '烧录失败' };

@@ -22,12 +22,10 @@
  * ```
  */
 
-import { BlockConfig } from './editBlockTool';
 import { 
   BlockMeta as DynamicBlockMeta,
   getGlobalBlockMetas, 
   setGlobalBlockMetas, 
-  loadBlockDefinitionsFromPath 
 } from '../services/block-definition.service';
 
 // =============================================================================
@@ -41,6 +39,41 @@ interface VariableDefinition {
   name: string;
   type: string;
   initialValue?: string;
+}
+
+interface Position {
+  x?: number;
+  y?: number;
+}
+
+interface FieldConfig {
+  [fieldName: string]: any;
+}
+
+interface InputConfig {
+  [inputName: string]: {
+    block?: BlockConfig;
+    shadow?: BlockConfig;
+    connection?: 'value' | 'statement';
+  };
+}
+
+export interface BlockConfig {
+  type: string;
+  id?: string;
+  fields?: FieldConfig;
+  inputs?: InputConfig;
+  position?: Position;
+  next?: { block: BlockConfig };
+  extraState?: {
+    itemCount?: number;
+    elseIfCount?: number;
+    hasElse?: boolean;
+    params?: Array<{ type: string; name: string }>;
+    returnType?: string;
+    extraCount?: number;
+    [key: string]: any;
+  };
 }
 
 /**
@@ -98,19 +131,8 @@ interface BlockMeta {
  * @param projectPath 项目路径
  */
 export function loadProjectBlockDefinitions(projectPath: string): void {
-  try {
-    const electronAPI = (window as any).electronAPI;
-    if (!electronAPI) {
-      console.warn('[absParser] electronAPI 不可用，使用内置块定义');
-      return;
-    }
-    
-    const metas = loadBlockDefinitionsFromPath(projectPath, electronAPI);
-    setGlobalBlockMetas(metas);
-    // console.log(`[absParser] 已从项目加载 ${metas.size} 个块定义`);
-  } catch (e) {
-    console.warn('[absParser] 加载项目块定义失败:', e);
-  }
+  void projectPath;
+  setGlobalBlockMetas(new Map());
 }
 
 /**

@@ -12,7 +12,7 @@ import { ModelDetailComponent } from './model-detail/model-detail.component';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPaginationModule } from 'ng-zorro-antd/pagination';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
@@ -41,7 +41,7 @@ export class ModelStoreComponent implements OnInit, AfterViewInit {
     private router: Router,
     private modelStoreService: ModelStoreService,
     private message: NzMessageService,
-    private electronService: ElectronService
+    private browserService: BrowserService
   ) { }
 
   itemList: ModelItem[] = []
@@ -241,7 +241,7 @@ export class ModelStoreComponent implements OnInit, AfterViewInit {
 
   onTrain(): void {
     // this.message.warning('当前版本暂不可用，敬请期待');
-    this.electronService.openUrl('https://sensecraft.seeed.cc/ai/training');
+    this.browserService.openUrl('https://sensecraft.seeed.cc/ai/training');
     return;
     this.uiService.openWindow({
       path: 'model-train',

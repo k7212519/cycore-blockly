@@ -7,7 +7,7 @@ import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { PlaygroundService } from './playground.service';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 
 @Component({
   selector: 'app-playground',
@@ -36,7 +36,7 @@ export class PlaygroundComponent {
     private route: ActivatedRoute,
     private translate: TranslateService,
     private playgroundService: PlaygroundService,
-    private electronService: ElectronService
+    private browserService: BrowserService
   ) {
 
   }
@@ -71,7 +71,7 @@ export class PlaygroundComponent {
       }
     ];
 
-    this.electronService.setTitle('CYCORE-MCU-DevCloud - Playground');
+    this.browserService.setTitle('CYCORE-MCU-DevCloud - Playground');
   }
 
   keyword: string = '';

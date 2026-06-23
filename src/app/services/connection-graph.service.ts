@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ElectronService } from './electron.service';
+import { BrowserService } from './browser.service';
 import { ProjectService } from './project.service';
 import { ThemeService } from './theme.service';
 import { ProjectResourceService } from './project-resource.service';
@@ -408,7 +408,7 @@ export class ConnectionGraphService {
   private _iframeApi: any = null;
 
   constructor(
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private projectService: ProjectService,
     private themeService: ThemeService,
     private projectResource: ProjectResourceService,
@@ -417,59 +417,7 @@ export class ConnectionGraphService {
     this.setupIpcListeners();
   }
 
-  /** 设置 IPC 监听器（规范：iframe-message-connection-graph，参数 {type, data}） */
-  private setupIpcListeners(): void {
-    if (this.electronService.isElectron && window['ipcRenderer']) {
-      window['ipcRenderer'].on('iframe-message-connection-graph', async (_event: any, payload: { type: string; data?: any }) => {
-        const { type, data } = payload ?? {};
-        switch (type) {
-          case 'save-graph-data': {
-            console.log('[ConnectionGraphService] 收到子窗口保存请求');
-            const messageId = data?.messageId;
-            let success = false;
-            if (data && data.components && data.connections) {
-              const {
-                messageId: _m,
-                componentConfigs: _componentConfigs,
-                theme: _theme,
-                ...toSave
-              } = data;
-              success = await this.saveConnectionGraphSilentAsync(toSave);
-            }
-            if (window['ipcRenderer']) {
-              window['ipcRenderer'].send('iframe-message-connection-graph', {
-                type: 'save-graph-data-result',
-                data: { messageId, success },
-              });
-            }
-            break;
-          }
-          case 'get-graph-data': {
-            // 子窗口请求：data 仅有 messageId 无 payload；主窗口响应：返回 messageId + payload
-            const messageId = data?.messageId;
-            if (!messageId || 'payload' in (data ?? {})) break;
-            try {
-              const boardPackagePath = await this.projectResource.getBoardPackagePath();
-              const graphPayload = boardPackagePath
-                ? await this.buildPayloadAsync(boardPackagePath)
-                : null;
-              window['ipcRenderer'].send('iframe-message-connection-graph', {
-                type: 'set-graph-data',
-                data: { messageId, payload: graphPayload },
-              });
-            } catch (e) {
-              console.error('[ConnectionGraphService] 实时构建 payload 失败:', e);
-              window['ipcRenderer'].send('iframe-message-connection-graph', {
-                type: 'set-graph-data',
-                data: { messageId, payload: null },
-              });
-            }
-            break;
-          }
-        }
-      });
-    }
-  }
+  private setupIpcListeners(): void {}
 
   // -------------------------------------------------
   // iframe API 管理
@@ -527,8 +475,8 @@ export class ConnectionGraphService {
    */
   private resolveBoardPinmapPath(boardPackagePath: string): string | null {
     // 1. 旧版：根目录 pinmap.json
-    const legacyPath = this.electronService.pathJoin(boardPackagePath, 'pinmap.json');
-    if (this.electronService.exists(legacyPath)) {
+    const legacyPath = this.browserService.pathJoin(boardPackagePath, 'pinmap.json');
+    if (this.browserService.exists(legacyPath)) {
       return legacyPath;
     }
 
@@ -549,8 +497,8 @@ export class ConnectionGraphService {
       return null;
     }
 
-    const resolvedPath = this.electronService.pathJoin(boardPackagePath, variant.pinmapFile);
-    return this.electronService.exists(resolvedPath) ? resolvedPath : null;
+    const resolvedPath = this.browserService.pathJoin(boardPackagePath, variant.pinmapFile);
+    return this.browserService.exists(resolvedPath) ? resolvedPath : null;
   }
 
   /**
@@ -563,7 +511,7 @@ export class ConnectionGraphService {
       return null;
     }
     try {
-      const config: ComponentConfig = JSON.parse(this.electronService.readFile(pinmapPath));
+      const config: ComponentConfig = JSON.parse(this.browserService.readFile(pinmapPath));
       return this.extractPinSummary(config);
     } catch (e) {
       console.error('读取开发板 pinmap 失败:', e);
@@ -581,7 +529,7 @@ export class ConnectionGraphService {
       return null;
     }
     try {
-      return JSON.parse(this.electronService.readFile(pinmapPath));
+      return JSON.parse(this.browserService.readFile(pinmapPath));
     } catch (e) {
       console.error('读取开发板 pinmap 失败:', e);
       return null;
@@ -623,13 +571,13 @@ export class ConnectionGraphService {
    */
   resolveCatalogPath(packagePath: string): string | null {
     // 新版：pinmaps/pinmap_catalog.json
-    const newPath = this.electronService.pathJoin(packagePath, 'pinmaps', 'pinmap_catalog.json');
-    if (this.electronService.exists(newPath)) {
+    const newPath = this.browserService.pathJoin(packagePath, 'pinmaps', 'pinmap_catalog.json');
+    if (this.browserService.exists(newPath)) {
       return newPath;
     }
     // 旧版：根目录 pinmap_catalog.json
-    const legacyPath = this.electronService.pathJoin(packagePath, 'pinmap_catalog.json');
-    if (this.electronService.exists(legacyPath)) {
+    const legacyPath = this.browserService.pathJoin(packagePath, 'pinmap_catalog.json');
+    if (this.browserService.exists(legacyPath)) {
       return legacyPath;
     }
     return null;
@@ -645,7 +593,7 @@ export class ConnectionGraphService {
       return null;
     }
     try {
-      return JSON.parse(this.electronService.readFile(catalogPath));
+      return JSON.parse(this.browserService.readFile(catalogPath));
     } catch (e) {
       console.error('读取 pinmap_catalog.json 失败:', e);
       return null;
@@ -661,8 +609,8 @@ export class ConnectionGraphService {
     const { packageSlug, modelId, variantId } = this.parsePinmapId(fullId);
 
     // 构建包路径
-    const packagePath = this.electronService.pathJoin(packagesBasePath, `@aily-project`, packageSlug);
-    if (!this.electronService.exists(packagePath)) {
+    const packagePath = this.browserService.pathJoin(packagesBasePath, `@aily-project`, packageSlug);
+    if (!this.browserService.exists(packagePath)) {
       console.warn(`resolvePinmapPath: 包路径不存在: ${packagePath}`);
       return null;
     }
@@ -671,8 +619,8 @@ export class ConnectionGraphService {
     const catalog = this.readPinmapCatalog(packagePath);
     if (!catalog) {
       // 无 catalog，尝试直接返回 pinmap.json (开发板兼容)
-      const defaultPinmap = this.electronService.pathJoin(packagePath, 'pinmap.json');
-      return this.electronService.exists(defaultPinmap) ? defaultPinmap : null;
+      const defaultPinmap = this.browserService.pathJoin(packagePath, 'pinmap.json');
+      return this.browserService.exists(defaultPinmap) ? defaultPinmap : null;
     }
 
     // 查找 model
@@ -691,14 +639,14 @@ export class ConnectionGraphService {
 
     // 确定 pinmap 文件路径
     if (variant.pinmapFile) {
-      return this.electronService.pathJoin(packagePath, variant.pinmapFile);
+      return this.browserService.pathJoin(packagePath, variant.pinmapFile);
     } else if (variant.pinmapRef && catalog.sharedPinmaps?.[variant.pinmapRef]) {
-      return this.electronService.pathJoin(packagePath, catalog.sharedPinmaps[variant.pinmapRef].file);
+      return this.browserService.pathJoin(packagePath, catalog.sharedPinmaps[variant.pinmapRef].file);
     }
 
     // 回退：如果 variant 没有指定 pinmapFile，尝试使用默认的 pinmap.json（开发板常见情况）
-    const defaultPinmap = this.electronService.pathJoin(packagePath, 'pinmap.json');
-    if (this.electronService.exists(defaultPinmap)) {
+    const defaultPinmap = this.browserService.pathJoin(packagePath, 'pinmap.json');
+    if (this.browserService.exists(defaultPinmap)) {
       return defaultPinmap;
     }
 
@@ -733,7 +681,7 @@ export class ConnectionGraphService {
 
       let data: ComponentConfig | undefined;
       if (pinmapFile) {
-        const pinmapPath = this.electronService.pathJoin(packagePath, pinmapFile);
+        const pinmapPath = this.browserService.pathJoin(packagePath, pinmapFile);
         data = this.readComponentConfig(pinmapPath) || undefined;
       }
 
@@ -779,7 +727,7 @@ export class ConnectionGraphService {
   getVariantByFullId(fullId: string, packagesBasePath: string): SensorVariant | null {
     const { packageSlug, modelId, variantId } = this.parsePinmapId(fullId);
 
-    const packagePath = this.electronService.pathJoin(packagesBasePath, '@aily-project', packageSlug);
+    const packagePath = this.browserService.pathJoin(packagesBasePath, '@aily-project', packageSlug);
     const catalog = this.readPinmapCatalog(packagePath);
     if (!catalog) return null;
 
@@ -797,7 +745,7 @@ export class ConnectionGraphService {
    */
   getCatalogByFullId(fullId: string, packagesBasePath: string): PinmapCatalog | null {
     const { packageSlug } = this.parsePinmapId(fullId);
-    const packagePath = this.electronService.pathJoin(packagesBasePath, '@aily-project', packageSlug);
+    const packagePath = this.browserService.pathJoin(packagesBasePath, '@aily-project', packageSlug);
     return this.readPinmapCatalog(packagePath);
   }
 
@@ -831,19 +779,19 @@ export class ConnectionGraphService {
       return catalogs;
     }
 
-    const ailyProjectPath = this.electronService.pathJoin(packagesBasePath, '@aily-project');
-    if (!this.electronService.exists(ailyProjectPath)) {
+    const ailyProjectPath = this.browserService.pathJoin(packagesBasePath, '@aily-project');
+    if (!this.browserService.exists(ailyProjectPath)) {
       return catalogs;
     }
 
     try {
-      const packages = this.electronService.readDir(ailyProjectPath);
+      const packages = this.browserService.readDir(ailyProjectPath);
       for (const pkg of packages) {
         // 确保 pkg 是字符串
         const pkgName = typeof pkg === 'string' ? pkg : (pkg?.name || String(pkg));
         if (!pkgName) continue;
         
-        const pkgPath = this.electronService.pathJoin(ailyProjectPath, pkgName);
+        const pkgPath = this.browserService.pathJoin(ailyProjectPath, pkgName);
         const catalog = this.readPinmapCatalog(pkgPath);
         if (catalog) {
           catalogs.push(catalog);
@@ -870,13 +818,13 @@ export class ConnectionGraphService {
       return results;
     }
 
-    const ailyProjectPath = this.electronService.pathJoin(packagesBasePath, '@aily-project');
-    if (!this.electronService.exists(ailyProjectPath)) {
+    const ailyProjectPath = this.browserService.pathJoin(packagesBasePath, '@aily-project');
+    if (!this.browserService.exists(ailyProjectPath)) {
       return results;
     }
 
     try {
-      const packages = this.electronService.readDir(ailyProjectPath);
+      const packages = this.browserService.readDir(ailyProjectPath);
       for (const pkg of packages) {
         const pkgName = typeof pkg === 'string' ? pkg : (pkg?.name || String(pkg));
         if (!pkgName) continue;
@@ -884,14 +832,14 @@ export class ConnectionGraphService {
         // 只处理 lib-* 开头的库
         if (!pkgName.startsWith('lib-')) continue;
 
-        const pkgPath = this.electronService.pathJoin(ailyProjectPath, pkgName);
-        const pkgJsonPath = this.electronService.pathJoin(pkgPath, 'package.json');
+        const pkgPath = this.browserService.pathJoin(ailyProjectPath, pkgName);
+        const pkgJsonPath = this.browserService.pathJoin(pkgPath, 'package.json');
 
         // 读取 package.json 获取显示名称
         let displayName = pkgName;
         try {
-          if (this.electronService.exists(pkgJsonPath)) {
-            const pkgJson = JSON.parse(this.electronService.readFile(pkgJsonPath));
+          if (this.browserService.exists(pkgJsonPath)) {
+            const pkgJson = JSON.parse(this.browserService.readFile(pkgJsonPath));
             displayName = pkgJson.displayName || pkgJson.name || pkgName;
           }
         } catch (e) {
@@ -1000,13 +948,13 @@ export class ConnectionGraphService {
    */
   findPeripheralConfigs(boardPackagePath: string): string[] {
     try {
-      const files = this.electronService.readDir(boardPackagePath);
+      const files = this.browserService.readDir(boardPackagePath);
       return files
         .map((f: any) => typeof f === 'string' ? f : (f?.name || ''))
         .filter((f: string) =>
           f && f.endsWith('_config.json') && f !== 'pinmap.json'
         )
-        .map((f: string) => this.electronService.pathJoin(boardPackagePath, f));
+        .map((f: string) => this.browserService.pathJoin(boardPackagePath, f));
     } catch (e) {
       console.error('扫描外设配置失败:', e);
       return [];
@@ -1017,11 +965,11 @@ export class ConnectionGraphService {
    * 读取指定路径的组件配置
    */
   readComponentConfig(configPath: string): ComponentConfig | null {
-    if (!this.electronService.exists(configPath)) {
+    if (!this.browserService.exists(configPath)) {
       return null;
     }
     try {
-      return JSON.parse(this.electronService.readFile(configPath));
+      return JSON.parse(this.browserService.readFile(configPath));
     } catch (e) {
       console.error(`读取组件配置失败: ${configPath}`, e);
       return null;
@@ -1268,7 +1216,7 @@ export class ConnectionGraphService {
    */
   getConnectionGraphPath(projectPath?: string): string {
     const basePath = projectPath || this.projectService.currentProjectPath;
-    return this.electronService.pathJoin(basePath, 'connection_output.json');
+    return this.browserService.pathJoin(basePath, 'connection_output.json');
   }
 
   /**
@@ -1277,7 +1225,7 @@ export class ConnectionGraphService {
   saveConnectionGraph(data: ConnectionGraphData, projectPath?: string): boolean {
     try {
       const filePath = this.getConnectionGraphPath(projectPath);
-      this.electronService.writeFile(filePath, JSON.stringify(data, null, 2));
+      this.browserService.writeFile(filePath, JSON.stringify(data, null, 2));
       // 通知子窗口数据已更新
       this.notifyConnectionGraphUpdated(data);
       return true;
@@ -1294,7 +1242,7 @@ export class ConnectionGraphService {
   saveConnectionGraphSilent(data: ConnectionGraphData, projectPath?: string): boolean {
     try {
       const filePath = this.getConnectionGraphPath(projectPath);
-      this.electronService.writeFile(filePath, JSON.stringify(data, null, 2));
+      this.browserService.writeFile(filePath, JSON.stringify(data, null, 2));
       return true;
     } catch (e) {
       console.error('保存连线图数据失败:', e);
@@ -1315,49 +1263,14 @@ export class ConnectionGraphService {
   }
 
   /**
-   * 通过 IPC 通知子窗口连线图数据已更新
-   * 发送完整的 payload（包含 componentConfigs），确保子窗口能正确渲染
+   * 内嵌视图直接读取服务状态，无需跨窗口通知。
    */
   private async notifyConnectionGraphUpdated(data: ConnectionGraphData): Promise<void> {
-    if (this.electronService.isElectron && window['ipcRenderer']) {
-      try {
-        // 获取 boardPackagePath 以构建完整 payload
-        const boardPackagePath = await this.projectService.getBoardPackagePath();
-        if (!boardPackagePath) {
-          console.warn('[ConnectionGraphService] 无法获取 boardPackagePath，跳过 IPC 通知');
-          return;
-        }
-        
-        // 构建完整的 payload（包含 componentConfigs）
-        const componentConfigs = this.getComponentConfigs(boardPackagePath, data);
-        const payload: ConnectionGraphPayload = {
-          componentConfigs,
-          components: data.components,
-          connections: data.connections,
-          theme: this.themeService.currentTheme,
-        };
-        
-        window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-updated', data: payload });
-        console.log('[ConnectionGraphService] 已发送 iframe-message-connection-graph (generate-graph-updated)');
-      } catch (e) {
-        console.warn('[ConnectionGraphService] 发送 IPC 失败:', e);
-      }
-    }
+    void data;
   }
 
   private async notifyConnectionGraphUpdatedAsync(data: ConnectionGraphData): Promise<void> {
-    if (this.electronService.isElectron && window['ipcRenderer']) {
-      try {
-        const boardPackagePath = await this.projectResource.getBoardPackagePath();
-        const payload = await this.buildPayloadFromDataAsync(boardPackagePath, data);
-        if (!payload) {
-          return;
-        }
-        window['ipcRenderer'].send('iframe-message-connection-graph', { type: 'generate-graph-updated', data: payload });
-      } catch (e) {
-        console.warn('[ConnectionGraphService] 发送 IPC 失败:', e);
-      }
-    }
+    void data;
   }
 
   /**
@@ -1366,10 +1279,10 @@ export class ConnectionGraphService {
   getConnectionGraph(projectPath?: string): ConnectionGraphData | null {
     try {
       const filePath = this.getConnectionGraphPath(projectPath);
-      if (!this.electronService.exists(filePath)) {
+      if (!this.browserService.exists(filePath)) {
         return null;
       }
-      return JSON.parse(this.electronService.readFile(filePath)) as ConnectionGraphData;
+      return JSON.parse(this.browserService.readFile(filePath)) as ConnectionGraphData;
     } catch (e) {
       console.error('读取连线图数据失败:', e);
       return null;
@@ -1381,7 +1294,7 @@ export class ConnectionGraphService {
    */
   hasConnectionGraph(projectPath?: string): boolean {
     const filePath = this.getConnectionGraphPath(projectPath);
-    return this.electronService.exists(filePath);
+    return this.browserService.exists(filePath);
   }
 
   // -------------------------------------------------
@@ -1393,7 +1306,7 @@ export class ConnectionGraphService {
    */
   getAWSFilePath(projectPath?: string): string {
     const basePath = projectPath || this.projectService.currentProjectPath;
-    return this.electronService.pathJoin(basePath, 'connection.aws');
+    return this.browserService.pathJoin(basePath, 'connection.aws');
   }
 
   /**
@@ -1410,7 +1323,7 @@ export class ConnectionGraphService {
   saveAWSFile(awsContent: string, projectPath?: string): boolean {
     try {
       const filePath = this.getAWSFilePath(projectPath);
-      this.electronService.writeFile(filePath, awsContent);
+      this.browserService.writeFile(filePath, awsContent);
       return true;
     } catch (e) {
       console.error('保存 AWS 文件失败:', e);
@@ -1424,10 +1337,10 @@ export class ConnectionGraphService {
   readAWSFile(projectPath?: string): string | null {
     try {
       const filePath = this.getAWSFilePath(projectPath);
-      if (!this.electronService.exists(filePath)) {
+      if (!this.browserService.exists(filePath)) {
         return null;
       }
-      return this.electronService.readFile(filePath);
+      return this.browserService.readFile(filePath);
     } catch (e) {
       console.error('读取 AWS 文件失败:', e);
       return null;
@@ -1439,7 +1352,7 @@ export class ConnectionGraphService {
    */
   hasAWSFile(projectPath?: string): boolean {
     const filePath = this.getAWSFilePath(projectPath);
-    return this.electronService.exists(filePath);
+    return this.browserService.exists(filePath);
   }
 
   /**
@@ -1448,7 +1361,7 @@ export class ConnectionGraphService {
   saveJSONFile(data: any, projectPath?: string): boolean {
     try {
       const filePath = this.getJSONFilePath(projectPath);
-      this.electronService.writeFile(filePath, JSON.stringify(data, null, 2));
+      this.browserService.writeFile(filePath, JSON.stringify(data, null, 2));
       // 通知子窗口数据已更新
       this.notifyConnectionGraphUpdated(data);
       return true;
@@ -1512,7 +1425,7 @@ export class ConnectionGraphService {
           if (config) {
             // 从 pinmap_catalog.json 合并类似组件列表
             const { packageSlug } = this.parsePinmapId(comp.pinmapId);
-            const packagePath = this.electronService.pathJoin(inferredBasePath, '@aily-project', packageSlug);
+            const packagePath = this.browserService.pathJoin(inferredBasePath, '@aily-project', packageSlug);
             const similarComponents = this.buildSimilarComponentsFromCatalog(packagePath, comp.pinmapId);
             if (similarComponents.length > 0) {
               configs[comp.refId] = { ...config, similarComponents };
@@ -1528,7 +1441,7 @@ export class ConnectionGraphService {
 
         // 回退：通过 configFile 字段查找 (旧版方式)
         if (comp.configFile) {
-          const configPath = this.electronService.pathJoin(boardPackagePath, comp.configFile);
+          const configPath = this.browserService.pathJoin(boardPackagePath, comp.configFile);
           console.log('[getComponentConfigs] trying configFile:', configPath);
           const config = this.readComponentConfig(configPath);
           if (config) {
@@ -1780,10 +1693,10 @@ export class ConnectionGraphService {
     } = {};
 
     // 1. 读取 README.md
-    const readmePath = this.electronService.pathJoin(packagePath, 'README.md');
-    if (this.electronService.exists(readmePath)) {
+    const readmePath = this.browserService.pathJoin(packagePath, 'README.md');
+    if (this.browserService.exists(readmePath)) {
       try {
-        const content = this.electronService.readFile(readmePath);
+        const content = this.browserService.readFile(readmePath);
         // 截取前 4000 字符避免过长
         result.readme = content.length > 4000 ? content.substring(0, 4000) + '\n...(已截断)' : content;
       } catch (e) {
@@ -1792,25 +1705,25 @@ export class ConnectionGraphService {
     }
 
     // 2. 读取 package.json
-    const packageJsonPath = this.electronService.pathJoin(packagePath, 'package.json');
-    if (this.electronService.exists(packageJsonPath)) {
+    const packageJsonPath = this.browserService.pathJoin(packagePath, 'package.json');
+    if (this.browserService.exists(packageJsonPath)) {
       try {
-        result.packageJson = JSON.parse(this.electronService.readFile(packageJsonPath));
+        result.packageJson = JSON.parse(this.browserService.readFile(packageJsonPath));
       } catch (e) {
         console.error('读取 package.json 失败:', e);
       }
     }
 
     // 3. 收集示例代码（从 examples 目录）
-    const examplesDir = this.electronService.pathJoin(packagePath, 'examples');
-    if (this.electronService.exists(examplesDir)) {
+    const examplesDir = this.browserService.pathJoin(packagePath, 'examples');
+    if (this.browserService.exists(examplesDir)) {
       try {
-        const files = this.electronService.readDir(examplesDir);
+        const files = this.browserService.readDir(examplesDir);
         for (const file of files) {
           const fileName = typeof file === 'string' ? file : file?.name;
           if (fileName && (fileName.endsWith('.ino') || fileName.endsWith('.cpp') || fileName.endsWith('.c'))) {
-            const filePath = this.electronService.pathJoin(examplesDir, fileName);
-            const content = this.electronService.readFile(filePath);
+            const filePath = this.browserService.pathJoin(examplesDir, fileName);
+            const content = this.browserService.readFile(filePath);
             // 只取第一个示例，且截取前 2000 字符
             result.exampleCode = content.length > 2000 ? content.substring(0, 2000) + '\n...(已截断)' : content;
             break;
@@ -1822,10 +1735,10 @@ export class ConnectionGraphService {
     }
 
     // 4. 列出已有的 pinmap 文件（作为参考）
-    const pinmapsDir = this.electronService.pathJoin(packagePath, 'pinmaps');
-    if (this.electronService.exists(pinmapsDir)) {
+    const pinmapsDir = this.browserService.pathJoin(packagePath, 'pinmaps');
+    if (this.browserService.exists(pinmapsDir)) {
       try {
-        const files = this.electronService.readDir(pinmapsDir);
+        const files = this.browserService.readDir(pinmapsDir);
         result.existingPinmaps = files
           .map((f: any) => typeof f === 'string' ? f : f?.name)
           .filter((f: string) => f && f.endsWith('.json'));
@@ -1949,19 +1862,19 @@ export class ConnectionGraphService {
       let packagePath = `${packagesBasePath}/@aily-project/${ref.packageSlug}`;
       
       // 验证包目录存在（防止用错 packageSlug 创建无效目录）
-      if (!this.electronService.exists(packagePath)) {
+      if (!this.browserService.exists(packagePath)) {
         // 尝试模糊匹配：在 @aily-project/ 下查找以 packageSlug 开头的库
-        const ailyProjectPath = this.electronService.pathJoin(packagesBasePath, '@aily-project');
+        const ailyProjectPath = this.browserService.pathJoin(packagesBasePath, '@aily-project');
         let matched = false;
-        if (this.electronService.exists(ailyProjectPath)) {
+        if (this.browserService.exists(ailyProjectPath)) {
           try {
-            const packages = this.electronService.readDir(ailyProjectPath);
+            const packages = this.browserService.readDir(ailyProjectPath);
             for (const pkg of packages) {
               const pkgName = typeof pkg === 'string' ? pkg : (pkg?.name || String(pkg));
               // 精确前缀匹配：lib-sensor → lib-sensor-xxx
               if (pkgName.startsWith(ref.packageSlug + '-') || pkgName === ref.packageSlug) {
                 // 检查该包的 catalog 中是否有匹配的 modelId
-                const candidatePath = this.electronService.pathJoin(ailyProjectPath, pkgName);
+                const candidatePath = this.browserService.pathJoin(ailyProjectPath, pkgName);
                 const catalog = this.readPinmapCatalog(candidatePath);
                 if (catalog) {
                   const hasModel = catalog.models.some(m => m.id === ref.modelId);
@@ -1984,25 +1897,18 @@ export class ConnectionGraphService {
           }
         }
         if (!matched) {
-          // 未找到已有匹配 → 自动创建包目录（支持自定义包名场景）
-          console.log(`[savePinmapConfig] 包目录 @aily-project/${ref.packageSlug} 不存在，自动创建`);
-          window['fs'].mkdirSync(packagePath, { recursive: true });
+          console.log(`[savePinmapConfig] 使用浏览器存储创建 @aily-project/${ref.packageSlug}`);
         }
       }
 
-      // 确保 pinmaps 目录存在
-      const pinmapsDir = this.electronService.pathJoin(packagePath, 'pinmaps');
-      if (!this.electronService.exists(pinmapsDir)) {
-        // 使用 fs.mkdirSync 创建目录
-        window['fs'].mkdirSync(pinmapsDir, { recursive: true });
-      }
+      const pinmapsDir = this.browserService.pathJoin(packagePath, 'pinmaps');
 
       // 生成文件名
       const fileName = `${ref.modelId}_${ref.variantId}.json`;
-      const filePath = this.electronService.pathJoin(pinmapsDir, fileName);
+      const filePath = this.browserService.pathJoin(pinmapsDir, fileName);
 
       // 保存文件
-      this.electronService.writeFile(filePath, JSON.stringify(config, null, 2));
+      this.browserService.writeFile(filePath, JSON.stringify(config, null, 2));
 
       // 更新 catalog 状态（传入已解析的 packagePath，避免重新从 packageSlug 构建错误路径）
       const catalogUpdated = this.updateCatalogStatus(pinmapId, 'available', `pinmaps/${fileName}`, packagePath, config);
@@ -2037,17 +1943,17 @@ export class ConnectionGraphService {
       const packagePath = resolvedPackagePath;
       // 兼容新旧路径：优先使用已存在的位置，新建时使用根目录（旧版）
       const catalogPath = this.resolveCatalogPath(packagePath)
-        || this.electronService.pathJoin(packagePath, 'pinmap_catalog.json');
+        || this.browserService.pathJoin(packagePath, 'pinmap_catalog.json');
 
       let catalog: PinmapCatalog;
 
       // 如果 catalog 不存在，创建新的
-      if (!this.electronService.exists(catalogPath)) {
+      if (!this.browserService.exists(catalogPath)) {
         console.log('[updateCatalogStatus] 创建新的 pinmap_catalog.json');
         catalog = this.createNewCatalog(ref.packageSlug, componentConfig);
       } else {
         console.log('[updateCatalogStatus] 读取现有 catalog:', catalogPath);
-        catalog = JSON.parse(this.electronService.readFile(catalogPath));
+        catalog = JSON.parse(this.browserService.readFile(catalogPath));
         console.log('[updateCatalogStatus] 现有 models 数量:', catalog.models?.length || 0);
         console.log('[updateCatalogStatus] 现有 model IDs:', catalog.models?.map(m => m.id).join(', ') || 'none');
       }
@@ -2091,7 +1997,7 @@ export class ConnectionGraphService {
       // 保存 catalog
       console.log('[updateCatalogStatus] 保存前 models 数量:', catalog.models.length, 'model IDs:', catalog.models.map(m => m.id).join(', '));
       const catalogContent = JSON.stringify(catalog, null, 2);
-      this.electronService.writeFile(catalogPath, catalogContent);
+      this.browserService.writeFile(catalogPath, catalogContent);
       console.log('[updateCatalogStatus] catalog 已更新:', catalogPath);
       
       return true;

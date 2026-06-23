@@ -9,7 +9,6 @@
  */
 
 import { Injectable } from '@angular/core';
-import { AilyHost } from '../core/host';
 
 // =============================================================================
 // 类型定义
@@ -160,75 +159,9 @@ export class BlockDefinitionService {
    * 确保块定义已加载
    */
   private async ensureLoaded(): Promise<void> {
-    const projectPath = AilyHost.get().project.currentProjectPath;
-    
-    if (!projectPath) {
-      console.warn('[BlockDefinitionService] 无项目路径，无法加载块定义');
-      return;
+    if (!this.cache) {
+      this.cache = { projectPath: '', blocks: new Map(), loadedAt: Date.now() };
     }
-    
-    // 检查缓存是否有效
-    if (this.cache && 
-        this.cache.projectPath === projectPath &&
-        Date.now() - this.cache.loadedAt < this.CACHE_TTL) {
-      return;
-    }
-    
-    // 重新加载
-    await this.loadBlockDefinitions(projectPath);
-  }
-  
-  /**
-   * 加载项目的所有块定义
-   */
-  private async loadBlockDefinitions(projectPath: string): Promise<void> {
-    const blocks = new Map<string, BlockMeta>();
-    
-    try {
-      const libsPath = AilyHost.get().path.join(projectPath, 'node_modules', '@aily-project');
-      
-      if (!AilyHost.get().fs.existsSync(libsPath)) {
-        console.warn('[BlockDefinitionService] 库目录不存在:', libsPath);
-        this.cache = { projectPath, blocks, loadedAt: Date.now() };
-        return;
-      }
-      
-      // 读取所有 lib-* 目录
-      const entries = AilyHost.get().fs.readdirSync(libsPath);
-      const libDirs = entries.filter((name: string) => name.startsWith('lib-'));
-      
-      console.log(`[BlockDefinitionService] 发现 ${libDirs.length} 个库`);
-      
-      for (const libDir of libDirs) {
-        const libPath = AilyHost.get().path.join(libsPath, libDir);
-        const blockJsonPath = AilyHost.get().path.join(libPath, 'block.json');
-        
-        if (AilyHost.get().fs.existsSync(blockJsonPath)) {
-          try {
-            const content = AilyHost.get().fs.readFileSync(blockJsonPath);
-            const blockDefs = JSON.parse(content);
-            
-            if (Array.isArray(blockDefs)) {
-              for (const blockDef of blockDefs) {
-                const meta = this.parseBlockDefinition(blockDef, libDir);
-                if (meta) {
-                  blocks.set(meta.type, meta);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn(`[BlockDefinitionService] 解析 ${libDir}/block.json 失败:`, e);
-          }
-        }
-      }
-      
-      console.log(`[BlockDefinitionService] 已加载 ${blocks.size} 个块定义`);
-      
-    } catch (error) {
-      console.error('[BlockDefinitionService] 加载块定义失败:', error);
-    }
-    
-    this.cache = { projectPath, blocks, loadedAt: Date.now() };
   }
   
   /**
@@ -351,53 +284,6 @@ export function getBlockMetaSync(blockType: string): BlockMeta | undefined {
   return globalBlockMetas?.get(blockType);
 }
 
-/**
- * 从文件系统同步加载块定义（用于非 Angular 上下文）
- */
-export function loadBlockDefinitionsFromPath(
-  projectPath: string,
-  electronAPI: any
-): Map<string, BlockMeta> {
-  const blocks = new Map<string, BlockMeta>();
-  
-  try {
-    const libsPath = electronAPI.path.join(projectPath, 'node_modules', '@aily-project');
-    
-    if (!electronAPI.fs.existsSync(libsPath)) {
-      console.warn('[loadBlockDefinitionsFromPath] 库目录不存在:', libsPath);
-      return blocks;
-    }
-    
-    const entries = electronAPI.fs.readdirSync(libsPath);
-    const libDirs = entries.filter((name: string) => name.startsWith('lib-'));
-    
-    for (const libDir of libDirs) {
-      const blockJsonPath = electronAPI.path.join(libsPath, libDir, 'block.json');
-      
-      if (electronAPI.fs.existsSync(blockJsonPath)) {
-        try {
-          const content = electronAPI.fs.readFileSync(blockJsonPath, 'utf8');
-          const blockDefs = JSON.parse(content);
-          
-          if (Array.isArray(blockDefs)) {
-            for (const blockDef of blockDefs) {
-              const meta = parseBlockDefSimple(blockDef, libDir);
-              if (meta) {
-                blocks.set(meta.type, meta);
-              }
-            }
-          }
-        } catch (e) {
-          // 忽略解析错误
-        }
-      }
-    }
-  } catch (error) {
-    console.error('[loadBlockDefinitionsFromPath] 加载失败:', error);
-  }
-  
-  return blocks;
-}
 
 /**
  * 简化版块定义解析（用于同步加载）

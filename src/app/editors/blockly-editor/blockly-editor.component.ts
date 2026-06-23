@@ -1,10 +1,10 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { LibManagerComponent } from './components/lib-manager/lib-manager.component';
 import { NotificationComponent } from '../../components/notification/notification.component';
 import { UiService } from '../../services/ui.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ActivatedRoute } from '@angular/router';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { ConfigService } from '../../services/config.service';
 import { NpmService } from '../../services/npm.service';
@@ -17,11 +17,9 @@ import { _BuilderService } from './services/builder.service';
 import { BitmapUploadService } from './services/bitmap-upload.service';
 import { ProjectService } from '../../services/project.service';
 import { DevToolComponent } from './components/dev-tool/dev-tool.component';
-import { HistoryService } from './services/history.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { BLOCKLY_ONBOARDING_CONFIG } from '../../configs/onboarding.config';
 import { NoticeService } from '../../services/notice.service';
-import { FloatSiderComponent } from '../../components/float-sider/float-sider.component';
 import { ActionService } from '../../services/action.service';
 import { BlocklySvgExportService } from './services/blockly-svg-export.service';
 
@@ -33,19 +31,13 @@ import { BlocklySvgExportService } from './services/blockly-svg-export.service';
     NotificationComponent,
     TranslateModule,
     DevToolComponent,
-    FloatSiderComponent,
   ],
   providers: [_BuilderService, _UploaderService, BitmapUploadService],
   templateUrl: './blockly-editor.component.html',
   styleUrl: './blockly-editor.component.scss',
 })
-export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy {
+export class BlocklyEditorComponent implements OnInit, OnDestroy {
   showLibraryManager = false;
-  showFloatSider = false;
-  readonly enableFloatSider = false;
-
-  private _onMouseMoveBound = this._onMouseMove.bind(this);
-  private _onMouseLeaveBound = this._onMouseLeave.bind(this);
   private unregisterSvgExportAction?: () => void;
 
   devmode;
@@ -59,7 +51,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     private uiService: UiService,
     private activatedRoute: ActivatedRoute,
     private blocklyService: BlocklyService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private message: NzMessageService,
     private configService: ConfigService,
     private npmService: NpmService,
@@ -71,8 +63,6 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     private onboardingService: OnboardingService,
     private translate: TranslateService,
     private noticeService: NoticeService,
-    private el: ElementRef,
-    private ngZone: NgZone,
     private actionService: ActionService,
     private blocklySvgExportService: BlocklySvgExportService,
   ) { }
@@ -93,17 +83,6 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
           console.error('加载项目失败', error);
           this.message.error('加载项目失败，请检查项目文件是否完整');
         }
-      } else if (params['path']) {
-        console.log('project path', params['path']);
-        try {
-          this._projectService.currentProjectPath = params['path'];
-          this.projectService.currentProjectPath = params['path'];
-          // this._projectService.initHistory(); // 初始化历史服务
-          this.loadProject(params['path']);
-        } catch (error) {
-          console.error('加载项目失败', error);
-          this.message.error('加载项目失败，请检查项目文件是否完整');
-        }
       } else {
         this.message.error('没有找到项目');
       }
@@ -118,34 +97,6 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     window.history.pushState(null, '', window.location.href);
   }
 
-  // 用于弹出侧边栏的鼠标事件监听，放在 Zone 外避免频繁触发变更检测
-  ngAfterViewInit(): void {
-    if (!this.enableFloatSider) {
-      return;
-    }
-    // 在 Zone 外注册鼠标监听，避免每次移动都触发变更检测
-    this.ngZone.runOutsideAngular(() => {
-      this.el.nativeElement.addEventListener('mousemove', this._onMouseMoveBound);
-      this.el.nativeElement.addEventListener('mouseleave', this._onMouseLeaveBound);
-    });
-  }
-
-  private _onMouseMove(event: MouseEvent): void {
-    const rect = this.el.nativeElement.getBoundingClientRect();
-    const shouldShow = (rect.right - event.clientX) <= 70;
-    if (shouldShow !== this.showFloatSider) {
-      this.showFloatSider = shouldShow;
-      this.ngZone.run(() => this.cd.markForCheck());
-    }
-  }
-
-  private _onMouseLeave(): void {
-    if (this.showFloatSider) {
-      this.showFloatSider = false;
-      this.ngZone.run(() => this.cd.markForCheck());
-    }
-  }
-
   ngOnDestroy(): void {
     document.body.classList.remove('lib-manager-overlay-open');
     this._projectService.destroy();
@@ -154,121 +105,8 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     this._uploadService.cancel();
     this._uploadService.destroy();
     this.unregisterSvgExportAction?.();
-    this.electronService.setTitle('CYCORE-MCU-DevCloud');
+    this.browserService.setTitle('CYCORE-MCU-DevCloud');
     this.blocklyService.reset();
-    if (this.enableFloatSider) {
-      this.el.nativeElement.removeEventListener('mousemove', this._onMouseMoveBound);
-      this.el.nativeElement.removeEventListener('mouseleave', this._onMouseLeaveBound);
-    }
-  }
-
-  async loadProject(projectPath) {
-    // 处理 temp 下的 package.json：有则覆盖主项目，无则从主项目复制到 temp
-    await this.projectService.syncPackageJsonWithTemp(projectPath);
-    // 加载项目package.json
-    const packageJson = JSON.parse(
-      this.electronService.readFile(`${projectPath}/package.json`),
-    );
-    // 加载项目开发框架
-    this.devmode = packageJson.devmode || 'arduino'; // 可选项: 'arduino', 'micropython'
-
-    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name}`);
-    // 添加到最近打开的项目
-    this.projectService.addRecentlyProject({
-      name: packageJson.name,
-      path: projectPath,
-      nickname: packageJson.nickname || packageJson.name,
-    });
-    // 设置当前项目路径和package.json数据
-    this._projectService.currentPackageData = packageJson;
-    this.projectService.currentPackageData = packageJson;
-    window['packageJson'] = packageJson;
-    // 暴露 ProjectService 到全局，供 generator.js 使用
-    window['projectService'] = this.projectService;
-
-    if (!(await this.npmService.installedOk(projectPath))) {
-      // 终端进入项目目录，安装项目依赖
-      // this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('BLOCKLY_EDITOR.INSTALLING_DEPS') });
-      setTimeout(() => {
-        this.noticeService.update({
-          title: this.translate.instant('NPM.INSTALLING_TITLE'),
-          text: this.translate.instant('BLOCKLY_EDITOR.INSTALLING_DEPS'),
-          state: 'doing',
-          icon: 'fa-light fa-cubes',
-          showProgress: false,
-        });
-      }, 0);
-      await this.cmdService.runAsync(`npm install`, projectPath);
-      if (!(await this.npmService.installedOk(projectPath))) {
-        setTimeout(() => {
-          this.noticeService.update({
-            title: this.translate.instant('NPM.INSTALL_FAILED_TITLE'),
-            text: this.translate.instant('NPM.BOARD_DEPS_INSTALL_FAILED'),
-            state: 'error',
-          });
-        }, 1000);
-        return;
-      }
-      setTimeout(() => {
-        this.noticeService.update({
-          title: this.translate.instant('NPM.INSTALL_COMPLETE_TITLE'),
-          text: this.translate.instant('NPM.DEPS_INSTALL_COMPLETE'),
-          state: 'done',
-          showProgress: false,
-          setTimeout: 3000,
-        });
-      }, 100);
-    }
-    // 3. 加载开发板module中的board.json
-    this.uiService.updateFooterState({
-      state: 'doing',
-      text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BOARD_CONFIG'),
-    });
-    const boardJson = await this.projectService.getBoardJson();
-
-    this.projectService.currentBoardConfig = boardJson;
-    this.blocklyService.boardConfig = boardJson;
-    window['boardConfig'] = boardJson;
-    // 4. 加载blockly library
-    this.uiService.updateFooterState({
-      state: 'doing',
-      text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BLOCKLY_LIB'),
-    });
-    // 获取项目目录下的所有blockly库
-    let libraryModuleList = (
-      await this.npmService.getAllInstalledLibraries(projectPath)
-    ).map((item) => item.name);
-
-    await this.loadBlocklyLibraries(libraryModuleList, projectPath);
-    // 5. 加载project.abi数据
-    this.uiService.updateFooterState({
-      state: 'doing',
-      text: this.translate.instant('BLOCKLY_EDITOR.LOADING_BLOCKLY_PROGRAM'),
-    });
-    let jsonData = JSON.parse(
-      this.electronService.readFile(`${projectPath}/project.abi`),
-    );
-    this.blocklyService.loadAbiJson(jsonData);
-
-    // 6. 加载项目目录中project.abi（这是blockly格式的json文本必须要先安装库才能加载这个json，因为其中可能会用到一些库）
-    this.uiService.updateFooterState({
-      state: 'done',
-      text: this.translate.instant('BLOCKLY_EDITOR.PROJECT_LOAD_SUCCESS'),
-    });
-    this.projectService.stateSubject.next('loaded');
-
-    // 检查是否需要显示新手引导
-    this.checkBlocklyOnboarding();
-
-    // 7. 后台安装开发板依赖
-    this.npmService
-      .installBoardDeps()
-      .then(() => {
-        console.log('install board dependencies success');
-      })
-      .catch((err) => {
-        console.error('install board dependencies error', err);
-      });
   }
 
   async loadServerProject(projectId: string) {
@@ -279,7 +117,7 @@ export class BlocklyEditorComponent implements OnInit, AfterViewInit, OnDestroy 
     const projectInfo = await this.projectService.getServerProject(projectId);
     const packageJson = projectInfo.packageJson || {};
     this.devmode = packageJson.devmode || 'arduino';
-    this.electronService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
+    this.browserService.setTitle(`CYCORE-MCU-DevCloud - ${packageJson.nickname || packageJson.name || projectInfo.name}`);
 
     this._projectService.currentPackageData = packageJson;
     this.projectService.currentPackageData = packageJson;

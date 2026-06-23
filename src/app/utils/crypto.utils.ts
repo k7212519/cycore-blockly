@@ -1,6 +1,6 @@
 /**
  * 使用原生 Web Crypto API 计算 SHA-256 哈希，返回十六进制字符串。
- * 兼容浏览器及 Electron 渲染进程（均支持 window.crypto.subtle）。
+ * 使用浏览器原生 Web Crypto API。
  */
 export async function sha256Hex(message: string): Promise<string> {
   const encoder = new TextEncoder();

@@ -15,7 +15,7 @@ import { ProjectService } from '../../../../services/project.service';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { CompatibleDialogComponent } from '../compatible-dialog/compatible-dialog.component';
 import { CmdOutput, CmdService } from '../../../../services/cmd.service';
-import { ElectronService } from '../../../../services/electron.service';
+import { BrowserService } from '../../../../services/browser.service';
 import { BlocklyService } from '../../services/blockly.service';
 import { PlatformService } from '../../../../services/platform.service';
 import { WorkflowService } from '../../../../services/workflow.service';
@@ -86,7 +86,7 @@ export class LibManagerComponent implements OnDestroy {
     private modal: NzModalService,
     private cmdService: CmdService,
     private crossPlatformCmdService: CrossPlatformCmdService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private platformService: PlatformService,
     private workflowService: WorkflowService
   ) {
@@ -462,7 +462,7 @@ export class LibManagerComponent implements OnDestroy {
     }
 
     // 使用pathJoin处理路径，正确处理包含'/'的包名（如@aily-project/test）
-    const libPackagePath = this.electronService.pathJoin(
+    const libPackagePath = this.browserService.pathJoin(
       this.projectService.currentProjectPath,
       'node_modules',
       ...lib.name.split('/')
@@ -496,7 +496,7 @@ export class LibManagerComponent implements OnDestroy {
     const separator = this.platformService.getPlatformSeparator();
     const libPackagePath = this.projectService.currentProjectPath + `${separator}node_modules${separator}` + lib.name;
     const libBlockPath = libPackagePath + `${separator}block.json`;
-      blocksData = JSON.parse(this.electronService.readFile(libBlockPath));
+      blocksData = JSON.parse(this.browserService.readFile(libBlockPath));
     }
     const abiJson = JSON.stringify(this.blocklyService.getWorkspaceJson());
     for (let index = 0; index < blocksData.length; index++) {
@@ -566,20 +566,20 @@ export class LibManagerComponent implements OnDestroy {
   }
 
   openExample(packageName) {
-    this.electronService.openNewInStance('/main/playground/s/' + packageName.replace('@aily-project/', ''))
+    this.browserService.openNewInStance('/main/playground/s/' + packageName.replace('@aily-project/', ''))
   }
 
   private getImportedLibraryBasePath() {
-    return this.electronService.pathJoin(this.projectService.currentProjectPath, 'local-libraries');
+    return this.browserService.pathJoin(this.projectService.currentProjectPath, 'local-libraries');
   }
 
   private resolveImportedLibraryPath(packageName: string) {
-    return this.electronService.pathJoin(this.getImportedLibraryBasePath(), ...packageName.split('/'));
+    return this.browserService.pathJoin(this.getImportedLibraryBasePath(), ...packageName.split('/'));
   }
 
   private async copyLibraryToProject(folderPath: string) {
-    const packageJsonPath = this.electronService.pathJoin(folderPath, 'package.json');
-    const packageJson = JSON.parse(this.electronService.readFile(packageJsonPath));
+    const packageJsonPath = this.browserService.pathJoin(folderPath, 'package.json');
+    const packageJson = JSON.parse(this.browserService.readFile(packageJsonPath));
     const packageName = packageJson?.name;
 
     if (!packageName) {
@@ -587,11 +587,11 @@ export class LibManagerComponent implements OnDestroy {
     }
 
     const importedLibraryPath = this.resolveImportedLibraryPath(packageName);
-    const importedLibraryParentPath = this.electronService.pathJoin(importedLibraryPath, '..');
+    const importedLibraryParentPath = this.browserService.pathJoin(importedLibraryPath, '..');
 
     await this.crossPlatformCmdService.createDirectory(importedLibraryParentPath, true);
 
-    if (folderPath !== importedLibraryPath && this.electronService.exists(importedLibraryPath)) {
+    if (folderPath !== importedLibraryPath && this.browserService.exists(importedLibraryPath)) {
       await this.crossPlatformCmdService.removeItem(importedLibraryPath, true, true);
     }
 
@@ -602,80 +602,8 @@ export class LibManagerComponent implements OnDestroy {
     return importedLibraryPath;
   }
 
-  async importLib() {
-    if (this.projectService.isServerProject) {
-      return;
-    }
-    let importingMessage: { messageId?: string } | undefined;
-    try {
-      // 弹出文件夹选择对话框
-      const folderPath = await window['ipcRenderer'].invoke('select-folder', {
-        path: this.projectService.currentProjectPath,
-      });
-
-      // 如果用户取消选择，返回
-      if (!folderPath || folderPath === this.projectService.currentProjectPath) {
-        return;
-      }
-
-      // console.log('选择的文件夹路径：', folderPath);
-
-      // 检查选择的路径下是否有package.json、block.json、generator.js文件
-      const hasPackageJson = await this.electronService.exists(this.electronService.pathJoin(folderPath, 'package.json'));
-      const hasBlockJson = await this.electronService.exists(this.electronService.pathJoin(folderPath, 'block.json'));
-      const hasGeneratorJs = await this.electronService.exists(this.electronService.pathJoin(folderPath, 'generator.js'));
-
-      if (!hasPackageJson || !hasBlockJson || !hasGeneratorJs) {
-        this.message.error(`${this.translate.instant('LIB_MANAGER.IMPORT_FAILED')}: 该路径下不是 Cycore MCU DevCloud 库`);
-        return;
-      }
-
-      importingMessage = this.message.loading(
-        `${this.translate.instant('LIB_MANAGER.IMPORTING')}...`,
-        { nzDuration: 0 }
-      );
-
-      // 获取安装前的库列表
-      let packageList_old = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-      // console.log('导入前已安装的库列表：', packageList_old);
-
-      // 先复制库到当前项目目录下，再从项目内的副本执行安装
-      const importedLibraryPath = await this.copyLibraryToProject(folderPath);
-
-      // 使用 npm install 安装本地库
-      const { code } = await this.cmdService.runAsync(`npm install "${importedLibraryPath}"`, this.projectService.currentProjectPath);
-
-      if (code !== 0) {
-        throw new Error('安装导入库失败');
-      }
-
-      // 重新检查已安装的库
-      this.libraryList = this.applyLocalization(await this.checkInstalled());
-
-      this.removeTaskMessage(importingMessage);
-      this.message.success(`${this.translate.instant('LIB_MANAGER.IMPORTED')}`);
-
-      // 获取安装后的库列表并加载新增的库
-      let packageList_new = await this.npmService.getAllInstalledLibraries(this.projectService.currentProjectPath);
-      // console.log('导入后已安装的库列表：', packageList_new);
-
-      // 比对相较于旧的已安装库列表，找出新增的库
-      const newPackages = packageList_new.filter(pkg => !packageList_old.some(oldPkg => oldPkg.name === pkg.name && oldPkg.version === pkg.version));
-      // console.log('新导入的库：', newPackages);
-
-      // 加载新增的库到 Blockly
-      for (const pkg of newPackages) {
-        this.blocklyService.loadLibrary(pkg.name, this.projectService.currentProjectPath);
-      }
-    } catch (error) {
-      console.error('导入库失败：', error);
-      this.removeTaskMessage(importingMessage);
-      this.message.error(`${this.translate.instant('LIB_MANAGER.IMPORT_FAILED')}: ${error.message || error}`);
-    }
-  }
-
   openUrl(url: string) {
-    this.electronService.openUrl(url);
+    this.browserService.openUrl(url);
   }
 }
 

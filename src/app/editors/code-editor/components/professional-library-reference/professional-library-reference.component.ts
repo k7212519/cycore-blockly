@@ -68,7 +68,7 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
       );
 
       this.blocklyService.boardConfig = this.projectService.currentBoardConfig || {};
-      await this.blocklyService.loadLibraries(libraryNames, this.projectService.currentProjectPath);
+      await this.blocklyService.loadLibrariesForCodeGeneration(libraryNames, this.projectService.currentProjectPath);
       this.categories = this.buildCategories(resources);
     } catch (error: any) {
       console.error('加载专业模式库参考失败:', error);
@@ -97,11 +97,12 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
     category.expanded = !category.expanded;
   }
 
-  async copy(snippet: ProfessionalSnippet, event: MouseEvent): Promise<void> {
+  async copy(snippet: ProfessionalSnippet, event: Event): Promise<void> {
     event.stopPropagation();
     if (!snippet.available) {
       return;
     }
+    event.preventDefault();
     try {
       await navigator.clipboard.writeText(snippet.body);
       this.message.success('已复制 Arduino 代码');

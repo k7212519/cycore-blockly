@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 import { ProjectService } from '../../services/project.service';
 import { ConfigService } from '../../services/config.service';
 import { ThemeMode, ThemeService } from '../../services/theme.service';
@@ -69,7 +69,7 @@ export class ProjectNewComponent implements OnDestroy {
   constructor(
     private router: Router,
     private location: Location,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private projectService: ProjectService,
     private configService: ConfigService,
     private themeService: ThemeService
@@ -237,7 +237,7 @@ export class ProjectNewComponent implements OnDestroy {
   }
 
   openUrl(url) {
-    this.electronService.openUrl(url);
+    this.browserService.openUrl(url);
   }
 
   back() {

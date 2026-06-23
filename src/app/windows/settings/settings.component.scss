@@ -1,7 +1,50 @@
-@use "../project-new/project-new.component.scss";
+.window-inner {
+  position: relative;
+  height: calc(100vh - 35px);
+}
 
-:host ::ng-deep app-sub-window .header.darwin {
-  padding-left: 0;
+.window-content {
+  display: flex;
+  height: calc(100% - 60px);
+  position: relative;
+
+  .left {
+    width: 25vw;
+    height: 100%;
+    padding: 15px;
+    flex-shrink: 0;
+
+    .left-inner {
+      height: 100%;
+      border-right: 1px solid var(--border-strong);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+  }
+
+  .right {
+    padding: 15px;
+    flex-grow: 1;
+  }
+}
+
+.window-footer {
+  border-top: 1px solid var(--border-color);
+  height: 60px;
+  position: relative;
+
+  .btns {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    right: 0;
+    height: 100%;
+
+    button {
+      margin-right: 15px;
+    }
+  }
 }
 
 .type-btn {

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ProjectService } from '../../../../services/project.service';
-import { ElectronService } from '../../../../services/electron.service';
+import { BrowserService } from '../../../../services/browser.service';
 import { BuilderService } from '../../../../services/builder.service';
 import { ActionService } from '../../../../services/action.service';
 import { WorkflowService, ProcessState } from '../../../../services/workflow.service';
@@ -50,7 +50,7 @@ export class DevToolComponent implements OnInit {
 
   constructor(
     private projectService: ProjectService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private messageService: NzMessageService,
     private configService: ConfigService,
     private builderService: BuilderService,
@@ -152,23 +152,7 @@ export class DevToolComponent implements OnInit {
         }, 3000);
       });
 
-      const defaultBuildPath = await this.projectService.getBuildPath();
-  
-      // 检查目录是否存在
-      if (window['fs'].existsSync(defaultBuildPath)) {
-        // 删除buildPath目录
-        console.log('Deleting build folder:', defaultBuildPath);
-        this.electronService.deleteDir(defaultBuildPath);
-      }
-
-      // 检查.temp目录是否存在
-      const tempDirPath = this.electronService.pathJoin(this.projectService.currentProjectPath, '.temp');
-      if (this.electronService.exists(tempDirPath)) {
-        console.log('Deleting .temp directory:', tempDirPath);
-        this.electronService.deleteDir(tempDirPath);
-      }
-
-      this.messageService.success('Clear build folder success');
+      this.messageService.info('浏览器项目的构建缓存由服务端管理');
     } catch (error) {
       if (error.message && error.message.includes('EBUSY')) {
         console.warn('Clear build folder failed: Folder is busy');
@@ -180,11 +164,6 @@ export class DevToolComponent implements OnInit {
     }
   }
 
-  openWebDevTools() {
-    // 打开开发者工具
-    window['ipcRenderer'].send('open-dev-tools');
-  }
-
   help() {
 
   }
@@ -193,16 +172,4 @@ export class DevToolComponent implements OnInit {
 
   }
 
-  openResources() {
-    this.electronService.openByExplorer(window['path'].getAppDataPath());
-  }
-
-  async openCompileFolder() {
-    const buildPath = await this.projectService.getBuildPath();
-    if (!this.electronService.exists(buildPath)) {
-      this.messageService.warning('Compile folder does not exist');
-      return;
-    }
-    this.electronService.openByExplorer(buildPath);
-  }
 }

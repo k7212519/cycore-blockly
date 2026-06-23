@@ -26,7 +26,7 @@ class SyncAbsFileTool implements IAilyTool {
 
   async invoke(args: any, ctx: ToolContext): Promise<ToolUseResult> {
     if (!ctx.host?.project) return { is_error: true, content: '项目服务不可用' };
-    // electronService compat wrapper: 使用异步 IPC 方法避免阻塞渲染线程
+    // browserService compat wrapper: 使用异步 IPC 方法避免阻塞渲染线程
     const fsCompat = {
       exists: (p: string) => asyncFs.exists(p),
       readFile: (p: string) => asyncFs.readFile(p, 'utf-8'),

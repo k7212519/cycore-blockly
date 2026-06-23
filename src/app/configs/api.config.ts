@@ -10,21 +10,15 @@ function getInitialServerUrl(): string {
   if (edaApiBaseUrl) {
     return String(edaApiBaseUrl).replace(/\/$/, '');
   }
-  return (typeof process !== 'undefined' && window['env'].get("AILY_API_SERVER")) 
-    ? window['env'].get("AILY_API_SERVER")
-    : 'https://api.aily.pro';
+  return 'https://api.aily.pro';
 }
 
 function getInitialToolWebUrl(): string {
-  return (typeof process !== 'undefined' && window['env'].get("AILY_TOOL_WEB"))
-    ? window['env'].get("AILY_TOOL_WEB")
-    : 'https://tool.aily.pro';
+  return 'https://tool.aily.pro';
 }
 
 function getInitialRegistryUrl(): string {
-  return (typeof process !== 'undefined' && window['env'].get("AILY_NPM_REGISTRY"))
-    ? window['env'].get("AILY_NPM_REGISTRY")
-    : 'https://registry.diandeng.tech';
+  return 'https://registry.diandeng.tech';
 }
 
 // 动态获取服务器地址，优先使用缓存的值
@@ -76,6 +70,7 @@ export function setToolWebUrl(url: string): void {
 
 // 使用 getter 动态获取 API 地址，确保每次访问都读取最新的环境变量
 export const API = {
+  get registryBase() { return getRegistryUrl(); },
   get projectList() { return `${getRegistryUrl()}/-/verdaccio/data/packages`; },
   get projectSearch() { return `${getRegistryUrl()}/-/v1/search`; },
   // ai

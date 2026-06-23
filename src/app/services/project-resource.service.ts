@@ -1,15 +1,11 @@
 import { Injectable } from '@angular/core';
-import { ElectronService } from './electron.service';
 import { ProjectService, ServerFileNode } from './project.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class ProjectResourceService {
-  constructor(
-    private projectService: ProjectService,
-    private electronService: ElectronService,
-  ) {}
+  constructor(private projectService: ProjectService) {}
 
   get isServerProject(): boolean {
     return this.projectService.isServerProject;
@@ -36,33 +32,19 @@ export class ProjectResourceService {
     if (!boardModule) {
       throw new Error('未找到开发板模块');
     }
-    if (this.isServerProject) {
-      return `node_modules/${boardModule}`;
-    }
-    return this.projectService.getBoardPackagePath();
+    return `node_modules/${boardModule}`;
   }
 
   async projectFileExists(relativePath: string): Promise<boolean> {
-    if (this.isServerProject) {
-      return this.serverProjectFileExists(relativePath);
-    }
-
-    return this.electronService.exists(this.joinLocal(this.projectService.currentProjectPath, relativePath));
+    return this.serverProjectFileExists(relativePath);
   }
 
   async readProjectText(relativePath: string): Promise<string | null> {
     try {
-      if (this.isServerProject) {
-        if (!await this.projectFileExists(relativePath)) {
-          return null;
-        }
-        return await this.projectService.readServerFile(relativePath);
-      }
-      const filePath = this.joinLocal(this.projectService.currentProjectPath, relativePath);
-      if (!this.electronService.exists(filePath)) {
+      if (!await this.projectFileExists(relativePath)) {
         return null;
       }
-      return this.electronService.readFile(filePath);
+      return await this.projectService.readServerFile(relativePath);
     } catch {
       return null;
     }
@@ -81,14 +63,7 @@ export class ProjectResourceService {
   async writeProjectJson(relativePath: string, data: unknown): Promise<boolean> {
     try {
       const content = JSON.stringify(data, null, 2);
-      if (this.isServerProject) {
-        await this.projectService.saveServerFile(relativePath, content);
-      } else {
-        this.electronService.writeFile(
-          this.joinLocal(this.projectService.currentProjectPath, relativePath),
-          content,
-        );
-      }
+      await this.projectService.saveServerFile(relativePath, content);
       return true;
     } catch (e) {
       console.error('写入项目 JSON 失败:', relativePath, e);
@@ -117,40 +92,21 @@ export class ProjectResourceService {
   }
 
   async resourceExists(path: string): Promise<boolean> {
-    if (this.isServerProject) {
-      return this.serverProjectFileExists(path);
-    }
-    return this.electronService.exists(path);
+    return this.serverProjectFileExists(path);
   }
 
   async readResourceText(path: string): Promise<string | null> {
     try {
-      if (this.isServerProject) {
-        if (!await this.resourceExists(path)) {
-          return null;
-        }
-        return await this.projectService.readServerFile(path);
-      }
-      if (!this.electronService.exists(path)) {
+      if (!await this.resourceExists(path)) {
         return null;
       }
-      return this.electronService.readFile(path);
+      return await this.projectService.readServerFile(path);
     } catch {
       return null;
     }
   }
 
   joinResource(...parts: string[]): string {
-    if (this.isServerProject) {
-      return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
-    }
-    return this.joinLocal(...parts);
-  }
-
-  private joinLocal(...parts: string[]): string {
-    if (this.electronService.isElectron && window['path']?.join) {
-      return window['path'].join(...parts);
-    }
     return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
   }
 

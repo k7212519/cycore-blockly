@@ -6,7 +6,7 @@ import { ProjectService, ServerProjectListItem } from '../../services/project.se
 import { version } from '../../../../package.json';
 import { TranslateModule } from '@ngx-translate/core';
 import { Router } from '@angular/router';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzPaginationModule } from 'ng-zorro-antd/pagination';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -98,7 +98,7 @@ export class GuideComponent implements OnInit, OnDestroy {
     private uiService: UiService,
     private projectService: ProjectService,
     private router: Router,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private message: NzMessageService,
     private configService: ConfigService,
     private modal: NzModalService
@@ -139,21 +139,6 @@ export class GuideComponent implements OnInit, OnDestroy {
 
   onMenuClick(e: any) {
     this.process(e);
-  }
-
-  async selectFolder() {
-    const folderPath = await window['ipcRenderer'].invoke('select-folder', {
-      path: '',
-    });
-    console.log('选中的文件夹路径：', folderPath);
-    return folderPath;
-  }
-
-  async openProject(data) {
-    const path = await this.selectFolder();
-    if (path) {
-      await this.projectService.projectOpen(path);
-    }
   }
 
   async openProjectByPath(data) {
@@ -396,11 +381,8 @@ export class GuideComponent implements OnInit, OnDestroy {
         this.router.navigate(['/main/project-new']);
         // this.uiService.openWindow(item.data);
         break;
-      case 'project-open':
-        this.openProject(item.data);
-        break;
       case 'browser-open':
-        this.electronService.openUrl(item.data.url);
+        this.browserService.openUrl(item.data.url);
         break;
       case 'playground-open':
         this.openPlayground();
@@ -435,9 +417,9 @@ export class GuideComponent implements OnInit, OnDestroy {
   // }
 
   // test() {
-  //   console.log(this.electronService.isWindowFocused());
+  //   console.log(this.browserService.isWindowFocused());
   //   setTimeout(() => {
-  //     // if (!this.electronService.isWindowFocused()) {
+  //     // if (!this.browserService.isWindowFocused()) {
   //     // }
   //   }, 12000)
   // }

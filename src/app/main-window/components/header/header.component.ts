@@ -15,7 +15,7 @@ import { NzModalService } from 'ng-zorro-antd/modal';
 import { UnsaveDialogComponent } from '../unsave-dialog/unsave-dialog.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Router } from '@angular/router';
-import { ElectronService } from '../../../services/electron.service';
+import { BrowserService } from '../../../services/browser.service';
 import { ConfigService } from '../../../services/config.service';
 import { BoardSelectorDialogComponent } from '../board-selector-dialog/board-selector-dialog.component';
 import { PlatformService } from '../../../services/platform.service';
@@ -50,24 +50,6 @@ export class HeaderComponent implements OnDestroy {
       .filter((item): item is IMenuItem => Boolean(item));
   }
 
-  get isMac() {
-    return this.platformService.isMac();
-  }
-
-  get isNativeMacWindow() {
-    return this.electronService.isElectron && this.isMac;
-  }
-
-  private _isWindowFullScreen = false;
-
-  get isWindowFullScreen() {
-    return this._isWindowFullScreen;
-  }
-
-  isMacFullScreen = false;
-  private unsubscribeFullScreenChanged?: () => void;
-  private unsubscribeMaximizeChanged?: () => void;
-  private unsubscribeCloseRequest?: () => void;
   private serialPortsChangedSubscription?: Subscription;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
 
@@ -128,7 +110,7 @@ export class HeaderComponent implements OnDestroy {
     private message: NzMessageService,
     private modal: NzModalService,
     private router: Router,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private configService: ConfigService,
     private edaAuthService: EdaAuthService,
     private translate: TranslateService,
@@ -144,39 +126,6 @@ export class HeaderComponent implements OnDestroy {
   }
 
   async ngAfterViewInit() {
-    if (this.electronService.isElectron) {
-      // 初始化窗口最大化状态缓存
-      this._isWindowFullScreen = this.electronService.isWindowFullScreen();
-
-      // 监听窗口全屏状态变化
-      this.unsubscribeFullScreenChanged = this.electronService.onWindowFullScreenChanged((isFullScreen: boolean) => {
-        this.isMacFullScreen = isFullScreen;
-        // 使用 setTimeout 将变更检测推迟到下一个变更检测周期，避免 ExpressionChangedAfterItHasBeenCheckedError
-        setTimeout(() => {
-          this.cd.detectChanges();
-        }, 0);
-      });
-
-      // 监听窗口最大化状态变化（用于更新图标）
-      this.unsubscribeMaximizeChanged = this.electronService.onWindowMaximizeChanged((isMaximized: boolean) => {
-        this._isWindowFullScreen = isMaximized;
-        // 使用 setTimeout 将变更检测推迟到下一个变更检测周期，避免 ExpressionChangedAfterItHasBeenCheckedError
-        setTimeout(() => {
-          this.cd.detectChanges();
-        }, 0);
-      });
-
-      // Mac 平台下监听系统关闭按钮的关闭请求
-      if (this.isMac && window['iWindow'] && window['iWindow'].onCloseRequest) {
-        this.unsubscribeCloseRequest = window['iWindow'].onCloseRequest(async () => {
-          const canClose = await this.checkUnsavedChanges('close');
-          if (canClose) {
-            window['iWindow'].confirmClose();
-          }
-        });
-      }
-    }
-
     this.projectService.stateSubject.subscribe((state) => {
       if (state == 'loaded' || state == 'saved') {
         // 将headerMenu中有disabled的按钮置为可用
@@ -303,25 +252,23 @@ export class HeaderComponent implements OnDestroy {
       ];
     }
 
-    if (!this.electronService.isElectron) {
-      if (this.platformService.supportsWebSerial()) {
-        portList0.push({
-          name: '选择新端口...',
-          icon: 'fa-light fa-plus',
-          action: 'request-web-serial-port'
-        });
-      } else {
-        portList0.push({
-          name: '当前浏览器不支持烧录',
-          text: '请使用支持 Web Serial 的浏览器连接开发板',
-          icon: 'fa-light fa-browser',
-          disabled: true,
-        });
-      }
-      portList0.push({ sep: true });
+    if (this.platformService.supportsWebSerial()) {
+      portList0.push({
+        name: '选择新端口...',
+        icon: 'fa-light fa-plus',
+        action: 'request-web-serial-port'
+      });
+    } else {
+      portList0.push({
+        name: '当前浏览器不支持烧录',
+        text: '请使用支持 Web Serial 的浏览器连接开发板',
+        icon: 'fa-light fa-browser',
+        disabled: true,
+      });
     }
+    portList0.push({ sep: true });
 
-    if (!this.electronService.isElectron && this.projectService.isServerProject) {
+    if (this.projectService.isServerProject) {
       try {
         const esp32config = await this.projectService.updateEsp32ConfigMenu('');
         if (esp32config?.length) {
@@ -419,30 +366,6 @@ export class HeaderComponent implements OnDestroy {
     this.closeMenu();
   }
 
-  async selectFolder() {
-    const folderPath = await window['ipcRenderer'].invoke('select-folder', {
-      path: this.projectData.path,
-    });
-    // console.log('选中的文件夹路径：', folderPath);
-    return folderPath;
-  }
-
-  async selectSaveAsFolder() {
-    const folderPath = await window['ipcRenderer'].invoke('select-folder-saveAs', {
-      path: this.projectData.path,
-      suggestedName: this.projectData.name + '_new',
-    });
-    // console.log('选中的文件夹路径：', folderPath);
-    return folderPath;
-  }
-
-  async openProject() {
-    const path = await this.selectFolder();
-    if (path) {
-      await this.projectService.projectOpen(path);
-    }
-  }
-
   async process(item: IMenuItem, event = null) {
     switch (item.action) {
       case 'project-new':
@@ -451,13 +374,6 @@ export class HeaderComponent implements OnDestroy {
           if (!canContinue) return;
         }
         this.uiService.openWindow(item.data);
-        break;
-      case 'project-open':
-        if (this.isLoaded()) { // 只在已加载项目时检查
-          const canContinue = await this.checkUnsavedChanges('open');
-          if (!canContinue) return;
-        }
-        this.openProject();
         break;
       case 'project-list':
         if (this.isLoaded()) {
@@ -469,12 +385,6 @@ export class HeaderComponent implements OnDestroy {
         break;
       case 'project-save':
         this.projectService.save();
-        break;
-      case 'project-save-as':
-        const path = await this.selectSaveAsFolder();
-        if (path) {
-          this.projectService.saveAs(path);
-        }
         break;
       case 'blockly-svg-export':
         this.actionService.dispatch(
@@ -546,13 +456,9 @@ export class HeaderComponent implements OnDestroy {
         this.logout();
         break;
       case 'example-open':
-        if (this.isLoaded() && this.electronService.isElectron) {
-          this.electronService.openNewInStance('/main/playground');
-        } else {
-          await this.router.navigate(['/main/playground'], {
-            queryParams: { returnUrl: this.router.url }
-          });
-        }
+        await this.router.navigate(['/main/playground'], {
+          queryParams: { returnUrl: this.router.url }
+        });
         break;
       case 'board-select':
         this.openBoardSelectorDialog();
@@ -586,35 +492,7 @@ export class HeaderComponent implements OnDestroy {
     return ['default', 'doing', 'done', 'error', 'warn'].includes(state);
   }
 
-  minimize() {
-    window['iWindow'].minimize();
-  }
-
-  maximize() {
-    if (window['iWindow'].isMaximized()) {
-      window['iWindow'].unmaximize();
-    } else {
-      window['iWindow'].maximize();
-    }
-    // 立即更新缓存状态，避免 UI 延迟
-    this._isWindowFullScreen = window['iWindow'].isMaximized();
-  }
-
   ngOnDestroy() {
-    if (this.electronService.isElectron) {
-      // 取消窗口全屏状态变化监听
-      if (this.unsubscribeFullScreenChanged) {
-        this.unsubscribeFullScreenChanged();
-      }
-      // 取消窗口最大化状态变化监听
-      if (this.unsubscribeMaximizeChanged) {
-        this.unsubscribeMaximizeChanged();
-      }
-      // 取消 Mac 平台关闭请求监听
-      if (this.unsubscribeCloseRequest) {
-        this.unsubscribeCloseRequest();
-      }
-    }
     if (this.serialPortsChangedSubscription) {
       this.serialPortsChangedSubscription.unsubscribe();
     }
@@ -746,21 +624,15 @@ export class HeaderComponent implements OnDestroy {
   }
 
   private setZoomLevel(level: number) {
-    if (this.electronService.isElectron) {
-      // 使用preload中暴露的webFrame API设置缩放级别
-      window['webFrame'].setZoomLevel(level);
+    const zoomFactor = Math.pow(1.2, level);
+    document.body.style.transform = `scale(${zoomFactor})`;
+    document.body.style.transformOrigin = 'top left';
+    if (zoomFactor !== 1) {
+      document.body.style.width = `${100 / zoomFactor}%`;
+      document.body.style.height = `${100 / zoomFactor}%`;
     } else {
-      // 在浏览器中使用CSS transform作为备选方案
-      const zoomFactor = Math.pow(1.2, level);
-      document.body.style.transform = `scale(${zoomFactor})`;
-      document.body.style.transformOrigin = 'top left';
-      if (zoomFactor !== 1) {
-        document.body.style.width = `${100 / zoomFactor}%`;
-        document.body.style.height = `${100 / zoomFactor}%`;
-      } else {
-        document.body.style.width = '';
-        document.body.style.height = '';
-      }
+      document.body.style.width = '';
+      document.body.style.height = '';
     }
   }
 
@@ -865,7 +737,6 @@ export class HeaderComponent implements OnDestroy {
 
     // // 判断是否为PartitionScheme并且值为'custom'，如果是则弹出文件选择
     // if (subItem.key === 'PartitionScheme' && subItem.data.toLowerCase() === 'custom') {
-    //   const folderPath = await window['ipcRenderer'].invoke('select-file', {
     //     title: '选择分区文件',
     //     path: this.projectService.currentProjectPath,
     //   });
@@ -877,18 +748,6 @@ export class HeaderComponent implements OnDestroy {
     //     return;
     //   }
 
-    //   // 执行复制操作，复制到项目根目录下的 'partitions.csv'
-    //   const destPath = window['path'].join(this.projectService.currentProjectPath, 'partitions.csv');
-    //   if (folderPath != destPath) {
-    //     // console.log('复制分区文件到项目目录:', destPath);
-    //     try {
-    //       window['fs'].copySync(folderPath, destPath);
-    //     } catch (error) {
-    //       console.warn('复制分区文件失败:', error);
-    //       this.message.error('复制分区文件失败');
-    //       return;
-    //     }
-    //   }
     // }
 
     packageJson['projectConfig'][subItem.key] = subItem.data;

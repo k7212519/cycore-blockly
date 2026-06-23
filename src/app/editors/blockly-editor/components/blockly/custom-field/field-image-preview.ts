@@ -548,7 +548,7 @@ export class FieldImagePreview extends Blockly.Field<ImagePreviewValue> {
      * 打开文件选择对话框
      */
     private openFileDialog() {
-        // 这里需要通过Electron的IPC调用文件选择对话框
+        // 浏览器版本通过文件输入控件选择图片
         // 暂时使用简单的文件输入
         const fileInput = document.createElement('input');
         fileInput.type = 'file';

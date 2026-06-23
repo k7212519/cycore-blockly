@@ -2,7 +2,6 @@ import { DOCUMENT } from '@angular/common';
 import { Inject, Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { ConfigService } from './config.service';
-import { ElectronService } from './electron.service';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -26,13 +25,10 @@ export class ThemeService {
   constructor(
     @Inject(DOCUMENT) private document: Document,
     private configService: ConfigService,
-    private electronService: ElectronService,
   ) {}
 
   initialize(): ThemeMode {
-    const storedTheme = this.electronService.isElectron
-      ? null
-      : localStorage.getItem(ThemeService.STORAGE_KEY);
+    const storedTheme = localStorage.getItem(ThemeService.STORAGE_KEY);
     const theme = this.normalize(storedTheme || this.configService.data?.theme);
 
     this.configService.data.theme = theme;
@@ -50,11 +46,8 @@ export class ThemeService {
     const normalized = this.preview(theme);
     this.configService.data.theme = normalized;
 
-    if (this.electronService.isElectron) {
-      await this.configService.save();
-    } else {
-      localStorage.setItem(ThemeService.STORAGE_KEY, normalized);
-    }
+    localStorage.setItem(ThemeService.STORAGE_KEY, normalized);
+    await this.configService.save();
 
     return normalized;
   }

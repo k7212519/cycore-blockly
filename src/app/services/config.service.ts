@@ -2,7 +2,6 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { lastValueFrom, Subject } from 'rxjs';
-import { ElectronService } from './electron.service';
 import { API, setServerUrl, setRegistryUrl, setToolWebUrl } from '../configs/api.config';
 
 @Injectable({
@@ -10,6 +9,7 @@ import { API, setServerUrl, setRegistryUrl, setToolWebUrl } from '../configs/api
 })
 export class ConfigService {
   private static readonly ERROR_MESSAGE_DEDUP_MS = 10000;
+  private static readonly STORAGE_KEY = 'cycore-app-config';
 
   data: AppConfig | any = {};
 
@@ -54,7 +54,6 @@ export class ConfigService {
 
   constructor(
     private http: HttpClient,
-    private electronService: ElectronService,
     private message: NzMessageService
   ) { }
 
@@ -62,43 +61,23 @@ export class ConfigService {
     if (this._isDataReady) {
       return;
     }
-    if (!this.electronService.isElectron) {
-      console.log('[ConfigService] 非Electron环境，从远程加载基础数据');
-      this.data = this.createBrowserDefaultConfig();
-      this.data["selectedLanguage"] = this.get_lang_filename(navigator.language);
-      setRegistryUrl(this.getCurrentNpmRegistry());
-      setServerUrl(this.getCurrentApiServer());
-      setToolWebUrl(this.getCurrentRegionConfig()?.tool_web || 'https://tool.aily.pro');
+    const stored = localStorage.getItem(ConfigService.STORAGE_KEY);
+    const storedConfig = stored ? JSON.parse(stored) : {};
+    this.data = { ...this.createBrowserDefaultConfig(), ...storedConfig };
+    this.data.selectedLanguage ||= this.get_lang_filename(navigator.language);
+    setRegistryUrl(this.getCurrentNpmRegistry());
+    setServerUrl(this.getCurrentApiServer());
+    setToolWebUrl(this.getCurrentRegionConfig()?.tool_web || 'https://tool.aily.pro');
 
-      try {
-        const [boardList, libraryList] = await Promise.all([
-          this.loadBoardList(),
-          this.loadLibraryList()
-        ]);
-        this.boardList = boardList;
-        this.libraryList = libraryList;
-        this.boardDict = {};
-        this.boardList.forEach(board => {
-          this.boardDict[board.name] = board;
-        });
-        this.libraryDict = {};
-        this.libraryList.forEach(library => {
-          this.libraryDict[library.name] = library;
-        });
-      } catch (error) {
-        console.error('[ConfigService] 浏览器环境远程数据加载失败:', error);
-        this.boardList = [];
-        this.libraryList = [];
-        this.boardDict = {};
-        this.libraryDict = {};
-      }
-
-      this._isDataReady = true;
-      return;
-    }
-    console.log('[ConfigService] 开始初始化...');
-    await this.load();
-    console.log('[ConfigService] 初始化完成, isDataReady=', this.isDataReady);
+    const [boardList, libraryList] = await Promise.all([
+      this.loadBoardList(),
+      this.loadLibraryList()
+    ]);
+    this.boardList = boardList;
+    this.libraryList = libraryList;
+    this.boardDict = Object.fromEntries(boardList.map(board => [board.name, board]));
+    this.libraryDict = Object.fromEntries(libraryList.map(library => [library.name, library]));
+    this._isDataReady = true;
   }
 
   get_lang_filename(lang: string) {
@@ -161,159 +140,9 @@ export class ConfigService {
     };
   }
 
-  async load() {
-    console.log('[ConfigService] load() 开始执行...');
-    let defaultConfigFilePath = window['path'].getElectronPath();
-    let defaultConfigFile = window['fs'].readFileSync(`${defaultConfigFilePath}/config/config.json`);
-    this.data = await JSON.parse(defaultConfigFile);
-
-    this.data["selectedLanguage"] = this.get_lang_filename(window['platform'].lang);
-
-    let userConfData;
-    let configFilePath = window['path'].getAppDataPath();
-    // 检查配置文件是否存在，如果不存在则创建一个默认的配置文件
-    if (this.electronService.exists(`${configFilePath}/config.json`)) {
-      userConfData = JSON.parse(this.electronService.readFile(`${configFilePath}/config.json`));
-    } else {
-      userConfData = {};
-    }
-
-    // 合并用户配置和默认配置
-    this.data = { ...this.data, ...userConfData };
-
-    // 规范化 devmode
-    if (typeof this.data.devmode === 'boolean') {
-      this.data.devmode = { enabled: this.data.devmode, autoSave: true };
-    } else if (!this.data.devmode) {
-      this.data.devmode = { enabled: false, autoSave: true };
-    }
-
-    this.configReloaded$.next();
-
-    // 使用Electron检测到的最优区域覆盖配置
-    if (this.electronService.isElectron) {
-      try {
-        // 获取当前区域
-        const region = await this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION');
-        if (region && this.data.regions && this.data.regions[region]) {
-          this.data.region = region;
-          // 更新 API 配置模块的缓存
-          setRegistryUrl(this.data.regions[region].npm_registry);
-          setServerUrl(this.data.regions[region].api_server);
-        } else {
-          // 使用默认区域
-          const defaultRegion = this.data.region || 'cn';
-          if (this.data.regions && this.data.regions[defaultRegion]) {
-            setRegistryUrl(this.data.regions[defaultRegion].npm_registry);
-            setServerUrl(this.data.regions[defaultRegion].api_server);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to get env vars', e);
-      }
-    }
-
-    // 添加当前系统类型到data中
-    this.data["platform"] = window['platform'].type;
-    this.data["lang"] = this.get_lang_filename(window['platform'].lang);
-
-    // 并行加载缓存的boards.json和libraries.json（旧格式，用于基础功能）
-    // await Promise.all([
-    this.loadAndCacheBoardList(configFilePath);
-    this.loadAndCacheLibraryList(configFilePath);
-    // ]);
-
-    // 注意：boardIndex 和 libraryIndex（新格式索引）延迟到 AI 组件加载时再加载
-    // 以减轻软件启动耗时，参见 loadHardwareIndexForAI()
-
-    // 延迟后再次尝试加载，确保最优节点检测完成后能成功下载最新数据
-    if (this.electronService.isElectron) {
-      setTimeout(async () => {
-        try {
-          // 重新获取区域配置（可能已经由主进程检测到最优节点并更新）
-          const newRegion = await this.electronService.electron.ipcRenderer.invoke('env-get', 'AILY_REGION');
-          if (newRegion && this.data.regions && this.data.regions[newRegion]) {
-            // 更新区域配置
-            if (newRegion !== this.data.region) {
-              this.data.region = newRegion;
-              setRegistryUrl(this.data.regions[newRegion].npm_registry);
-              setServerUrl(this.data.regions[newRegion].api_server);
-            }
-            // 重新加载数据，确保获取最新内容
-            this.loadAndCacheBoardList(configFilePath);
-            this.loadAndCacheLibraryList(configFilePath);
-          }
-        } catch (e) {
-          console.error('Failed to reload data after region detection:', e);
-        }
-      }, 5000); // 5秒后重试，给主进程足够时间完成最优节点检测
-    }
-  }
-
-  private async loadAndCacheBoardList(configFilePath: string): Promise<void> {
-    const localPath = `${configFilePath}/boards.json`;
-
-    try {
-      if (this.electronService.exists(localPath)) {
-        this.boardList = this.parseBoardList(this.electronService.readFile(localPath));
-        const boardList = await this.loadBoardList();
-        if (boardList.length > 0) {
-          this.boardList = boardList;
-          this.electronService.writeFile(localPath, JSON.stringify(boardList));
-        }
-      } else {
-        // 首次启动软件，创建boards.json
-        const boardList = await this.fetchBoardListOrThrow();
-        this.boardList = boardList;
-        this.electronService.writeFile(localPath, JSON.stringify(boardList));
-      }
-    } catch (error) {
-      console.error('[ConfigService] boards.json 加载失败，尝试从线上恢复:', error);
-      await this.reloadBoardListFromRemote(localPath, error);
-    }
-
-    this.boardDict = {};
-    // 创建一个boardDict，方便通过name快速查找board信息
-    this.boardList.forEach(board => {
-      this.boardDict[board.name] = board;
-    });
-    console.log(`[ConfigService] boardDict创建完成，共 ${Object.keys(this.boardDict).length} 个开发板`);
-  }
-
-  private async loadAndCacheLibraryList(configFilePath: string): Promise<void> {
-    const localPath = `${configFilePath}/libraries.json`;
-
-    try {
-      if (this.electronService.exists(localPath)) {
-        this.libraryList = this.parseLibraryList(this.electronService.readFile(localPath));
-        const libraryList = await this.loadLibraryList();
-        if (libraryList.length > 0) {
-          this.libraryList = libraryList;
-          this.electronService.writeFile(localPath, JSON.stringify(libraryList));
-        }
-      } else {
-        // 首次启动软件，创建libraries.json
-        const libraryList = await this.fetchLibraryListOrThrow();
-        this.libraryList = libraryList;
-        this.electronService.writeFile(localPath, JSON.stringify(libraryList));
-      }
-    } catch (error) {
-      console.error('[ConfigService] libraries.json 加载失败，尝试从线上恢复:', error);
-      await this.reloadLibraryListFromRemote(localPath, error);
-    }
-
-    this.libraryDict = {};
-    // 创建一个libraryDict，方便通过name快速查找library信息
-    this.libraryList.forEach(library => {
-      this.libraryDict[library.name] = library;
-    });
-    console.log(`[ConfigService] libraryDict创建完成，共 ${Object.keys(this.libraryDict).length} 个库`);
-  }
-
   async save() {
-    if (!this.electronService.isElectron) return;
-    let configFilePath = window['path'].getAppDataPath();
-    window['fs'].writeFileSync(`${configFilePath}/config.json`, JSON.stringify(this.data, null, 2));
+    localStorage.setItem(ConfigService.STORAGE_KEY, JSON.stringify(this.data));
+    this.configReloaded$.next();
   }
 
   /**
@@ -385,26 +214,6 @@ export class ConfigService {
       setServerUrl(regionConfig.api_server);
       setToolWebUrl(regionConfig.tool_web);
       
-      // 更新环境变量
-      if (window['process']?.env) {
-        window['process'].env['AILY_REGION'] = regionKey;
-        window['process'].env['AILY_NPM_REGISTRY'] = regionConfig.npm_registry;
-        window['process'].env['AILY_ZIP_URL'] = regionConfig.resource;
-        window['process'].env['AILY_API_SERVER'] = regionConfig.api_server;
-        window['process'].env['AILY_TOOL_WEB'] = regionConfig.tool_web;
-      }
-      
-      // 通过 ipcRenderer 通知主进程更新环境变量（等待所有更新完成）
-      if (window['ipcRenderer']) {
-        await Promise.all([
-          window['ipcRenderer'].invoke('env-set', { key: 'AILY_REGION', value: regionKey }),
-          window['ipcRenderer'].invoke('env-set', { key: 'AILY_NPM_REGISTRY', value: regionConfig.npm_registry }),
-          window['ipcRenderer'].invoke('env-set', { key: 'AILY_ZIP_URL', value: regionConfig.resource }),
-          window['ipcRenderer'].invoke('env-set', { key: 'AILY_API_SERVER', value: regionConfig.api_server }),
-          window['ipcRenderer'].invoke('env-set', { key: 'AILY_TOOL_WEB', value: regionConfig.tool_web })
-        ]);
-      }
-      
       // 保存配置
       await this.save();
     }
@@ -422,12 +231,10 @@ export class ConfigService {
     return this.fetchRemoteArrayOrThrow('/boards.json', '线上 boards.json 格式无效');
   }
 
-  private async reloadBoardListFromRemote(localPath: string, originalError: unknown): Promise<void> {
+  private async reloadBoardListFromRemote(_localPath: string, originalError: unknown): Promise<void> {
     try {
       const latestBoardList = await this.fetchBoardListOrThrow();
       this.boardList = latestBoardList;
-      this.electronService.writeFile(localPath, JSON.stringify(latestBoardList));
-      console.log('[ConfigService] 已使用线上最新 boards.json 覆盖本地缓存');
     } catch (remoteError) {
       this.boardList = [];
       const message = this.getBoardReloadFailureMessage(remoteError, originalError);
@@ -483,12 +290,10 @@ export class ConfigService {
     return this.fetchRemoteArrayOrThrow('/libraries.json', '线上 libraries.json 格式无效');
   }
 
-  private async reloadLibraryListFromRemote(localPath: string, originalError: unknown): Promise<void> {
+  private async reloadLibraryListFromRemote(_localPath: string, originalError: unknown): Promise<void> {
     try {
       const latestLibraryList = await this.fetchLibraryListOrThrow();
       this.libraryList = latestLibraryList;
-      this.electronService.writeFile(localPath, JSON.stringify(latestLibraryList));
-      console.log('[ConfigService] 已使用线上最新 libraries.json 覆盖本地缓存');
     } catch (remoteError) {
       this.libraryList = [];
       const message = this.getLibraryReloadFailureMessage(remoteError, originalError);
@@ -532,11 +337,9 @@ export class ConfigService {
     }
 
     console.log('[ConfigService] 开始加载 AI 硬件索引...');
-    const configFilePath = window['path'].getAppDataPath();
-    
-    await Promise.all([
-      this.loadAndCacheBoardIndex(configFilePath),
-      this.loadAndCacheLibraryIndex(configFilePath)
+    [this.boardIndex, this.libraryIndex] = await Promise.all([
+      this.loadBoardIndex(),
+      this.loadLibraryIndex(),
     ]);
     
     this._hardwareIndexLoaded = true;
@@ -550,92 +353,12 @@ export class ConfigService {
     return this._hardwareIndexLoaded;
   }
 
-  private async loadAndCacheBoardIndex(configFilePath: string): Promise<void> {
-    const localPath = `${configFilePath}/boards-index.json`;
-
-    try {
-      // 优先从本地缓存读取
-      if (this.electronService.exists(localPath)) {
-        this.boardIndex = this.parseBoardIndex(this.electronService.readFile(localPath));
-        console.log('[ConfigService] 本地 boardIndex 加载成功, 数量:', this.boardIndex?.length || 0);
-      }
-      // 从远程加载最新数据
-      const boardIndex = await this.loadBoardIndex();
-      if (boardIndex.length > 0) {
-        this.boardIndex = boardIndex;
-        this.writeBoardIndexCache(localPath, boardIndex);
-        console.log('[ConfigService] 远程 boardIndex 加载成功并缓存, 数量:', boardIndex.length);
-      }
-    } catch (error) {
-      console.error('[ConfigService] boards-index.json 加载失败，尝试从线上恢复:', error);
-      await this.reloadBoardIndexFromRemote(localPath, error);
-    }
-  }
-
-  private async loadAndCacheLibraryIndex(configFilePath: string): Promise<void> {
-    const localPath = `${configFilePath}/libraries-index.json`;
-    console.log('[ConfigService] 检查 libraries-index.json 路径:', localPath);
-
-    try {
-      // 优先从本地缓存读取
-      if (this.electronService.exists(localPath)) {
-        const fileContent = this.electronService.readFile(localPath);
-        console.log('[ConfigService] 本地 libraries-index.json 文件大小:', fileContent?.length || 0, '字节');
-        this.libraryIndex = this.parseLibraryIndex(fileContent);
-        console.log('[ConfigService] 本地 libraryIndex 加载成功, 数量:', this.libraryIndex?.length || 0);
-
-        if (this.libraryIndex.length > 0) {
-          const sample = this.libraryIndex[0];
-          console.log('[ConfigService] libraryIndex 示例数据:', {
-            name: sample.name,
-            displayName: sample.displayName,
-            category: sample.category,
-            hasNewFormat: !!(sample.displayName && sample.category && sample.supportedCores)
-          });
-        }
-      } else {
-        console.log('[ConfigService] 本地 libraries-index.json 不存在');
-      }
-
-      // 从远程加载最新数据
-      const libraryIndex = await this.loadLibraryIndex();
-      if (libraryIndex.length > 0) {
-        this.libraryIndex = libraryIndex;
-        this.writeLibraryIndexCache(localPath, libraryIndex);
-        console.log('[ConfigService] 远程 libraryIndex 加载成功并缓存, 数量:', libraryIndex.length);
-      }
-    } catch (error) {
-      console.error('[ConfigService] libraries-index.json 加载失败，尝试从线上恢复:', error);
-      await this.reloadLibraryIndexFromRemote(localPath, error);
-    }
-  }
-
   private parseBoardIndex(raw: string): any[] {
     return this.parseArrayPayload(raw, 'boards-index.json 格式无效', 'boards');
   }
 
   private parseLibraryIndex(raw: string): any[] {
     return this.parseArrayPayload(raw, 'libraries-index.json 格式无效', 'libraries');
-  }
-
-  private writeBoardIndexCache(localPath: string, boardIndex: any[]): void {
-    const cacheData = {
-      version: '1.0.0',
-      generated: new Date().toISOString(),
-      count: boardIndex.length,
-      boards: boardIndex
-    };
-    this.electronService.writeFile(localPath, JSON.stringify(cacheData));
-  }
-
-  private writeLibraryIndexCache(localPath: string, libraryIndex: any[]): void {
-    const cacheData = {
-      version: '1.0.0',
-      generated: new Date().toISOString(),
-      count: libraryIndex.length,
-      libraries: libraryIndex
-    };
-    this.electronService.writeFile(localPath, JSON.stringify(cacheData));
   }
 
   private async fetchBoardIndexOrThrow(): Promise<any[]> {
@@ -646,12 +369,10 @@ export class ConfigService {
     return this.fetchRemoteArrayOrThrow('/libraries-index.json', '线上 libraries-index.json 格式无效', 'libraries');
   }
 
-  private async reloadBoardIndexFromRemote(localPath: string, originalError: unknown): Promise<void> {
+  private async reloadBoardIndexFromRemote(_localPath: string, originalError: unknown): Promise<void> {
     try {
       const latestBoardIndex = await this.fetchBoardIndexOrThrow();
       this.boardIndex = latestBoardIndex;
-      this.writeBoardIndexCache(localPath, latestBoardIndex);
-      console.log('[ConfigService] 已使用线上最新 boards-index.json 覆盖本地缓存');
     } catch (remoteError) {
       this.boardIndex = [];
       const message = this.getBoardIndexReloadFailureMessage(remoteError, originalError);
@@ -660,12 +381,10 @@ export class ConfigService {
     }
   }
 
-  private async reloadLibraryIndexFromRemote(localPath: string, originalError: unknown): Promise<void> {
+  private async reloadLibraryIndexFromRemote(_localPath: string, originalError: unknown): Promise<void> {
     try {
       const latestLibraryIndex = await this.fetchLibraryIndexOrThrow();
       this.libraryIndex = latestLibraryIndex;
-      this.writeLibraryIndexCache(localPath, latestLibraryIndex);
-      console.log('[ConfigService] 已使用线上最新 libraries-index.json 覆盖本地缓存');
     } catch (remoteError) {
       this.libraryIndex = [];
       const message = this.getLibraryIndexReloadFailureMessage(remoteError, originalError);

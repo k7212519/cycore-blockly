@@ -2,11 +2,9 @@
  */
 import { Injectable } from '@angular/core';
 import { filter, Observable, Subject } from 'rxjs';
-import { ElectronService } from './electron.service';
 import { NavigationEnd, Router } from '@angular/router';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { ProjectSettingDialogComponent } from '../components/project-setting-dialog/project-setting-dialog.component';
-import { HistoryDialogComponent } from '../editors/blockly-editor/components/history-dialog/history-dialog.component';
 import { EdaAuthService } from '../auth/eda-auth.service';
 
 @Injectable({
@@ -46,7 +44,6 @@ export class UiService {
 
 
   constructor(
-    private electronService: ElectronService,
     private router: Router,
     private modal: NzModalService,
     private authService: EdaAuthService
@@ -59,64 +56,10 @@ export class UiService {
     (window as any).openAndSendToAilyChat = (text: string, options?: Record<string, any>) => {
       this.openAndSendToChat(text, options);
     };
-    if (!this.electronService.isElectron) {
-      this.isMainWindow = true;
-      return;
-    }
-    if (this.electronService.isElectron) {
-      this.isMainWindow = true;
-      window['ipcRenderer'].on('window-go-main', (event, toolName) => {
-        this.openTool(toolName);
-      });
-
-      window['ipcRenderer'].on('window-receive', async (event, message) => {
-        console.log('window-receive', message);
-        let data;
-        if (message.data?.action === 'logout') {
-          // 处理登出请求
-          try {
-            await new Promise<void>((resolve) => {
-              this.authService.logout().subscribe({
-                next: () => resolve(),
-                error: () => {
-                  this.authService.clearLocalSession();
-                  resolve();
-                }
-              });
-            });
-            data = { success: true };
-          } catch (error) {
-            console.error('登出失败:', error);
-            data = { success: false, error: error.message };
-          }
-        }
-        // if (message.data.action == 'open-terminal') {
-        //   data = await this.openTerminal();
-        //   // console.log('open-terminal', pid);
-        // } else if (message.data.action == 'close-terminal') {
-        //   this.closeTerminal();
-        // } else {
-        //   return;
-        // }
-        // 反馈完成结果
-        if (message.messageId) {
-          window['ipcRenderer'].send('main-window-response', {
-            messageId: message.messageId,
-            result: "success",
-            data,
-          });
-        }
-      });
-    }
-
+    this.isMainWindow = true;
   }
 
   openWindow(opt: WindowOpts) {
-    if (window['subWindow']?.open) {
-      window['subWindow'].open(opt);
-      return;
-    }
-
     if (opt?.path) {
       if (opt.path.startsWith('iframe')) {
         this.openIframeModal(opt);
@@ -244,79 +187,33 @@ export class UiService {
   // 切换底部面板的tab
   switchBottomSiderTab(data: string) {
     this.currentBottomTab = data;
-    if (this.isMainWindow) {
-      this.actionSubject.next({ action: 'switch-tab', type: 'bottom-sider', data });
-    } else {
-      window['iWindow'].send({ to: 'main', data: { action: 'switch-terminal-tab', tab: data } });
-    }
+    this.actionSubject.next({ action: 'switch-tab', type: 'bottom-sider', data });
   }
 
   async openBottomSider(data = 'default'): Promise<{ pid: number }> {
-    return new Promise(async (resolve, reject) => {
-      this.currentBottomTab = data;
-      if (this.isMainWindow) {
-        this.actionSubject.next({ action: 'open', type: 'bottom-sider', data });
-        this.terminalIsOpen = true;
-        resolve({ pid: 0 });
-      } else {
-        // 其它窗口调用
-        let { pid } = await window['iWindow'].send({ to: 'main', data: { action: 'open-terminal' } });
-        // console.log('open-terminal', pid);
-        resolve({ pid });
-      }
-    });
+    this.currentBottomTab = data;
+    this.actionSubject.next({ action: 'open', type: 'bottom-sider', data });
+    this.terminalIsOpen = true;
+    return { pid: 0 };
   }
 
   closeTerminal() {
-    if (this.isMainWindow) {
-      this.actionSubject.next({ action: 'close', type: 'bottom-sider' });
-      this.terminalIsOpen = false;
-      this.currentBottomTab = '';
-    } else {
-      window['iWindow'].send({ to: 'main', data: { action: 'close-terminal' } });
-    }
+    this.actionSubject.next({ action: 'close', type: 'bottom-sider' });
+    this.terminalIsOpen = false;
+    this.currentBottomTab = '';
   }
 
   // 更新footer右下角的状态
   updateFooterState(state: ActionState) {
-    // 判断当前url是否是main-window
-    if (this.isMainWindow || !window['ipcRenderer']?.send) {
-      this.stateSubject.next(state);
-    } else {
-      window['ipcRenderer'].send('state-update', state);
-    }
+    this.stateSubject.next(state);
   }
 
   // 关闭当前窗口
   closeWindow() {
-    if (window['iWindow']?.close) {
-      window['iWindow'].close();
-      return;
-    }
     this.router.navigate(['/main/guide']);
   }
 
 
-
-  openHistory() {
-    const modalRef = this.modal.create({
-      nzTitle: null,
-      nzFooter: null,
-      nzClosable: false,
-      nzBodyStyle: {
-        padding: '0',
-      },
-      nzContent: HistoryDialogComponent,
-      nzWidth: '520px',
-    });
-
-    // 处理反馈结果
-    // modalRef.afterClose.subscribe(result => {
-    //   if (result?.result === 'success') {
-    //     console.log('反馈已提交:', result.data);
-    //   }
-    // });
-  }
 
   openProjectSettings() {
     // 这里参考 USAGE_EXAMPLE.ts 中的代码实现

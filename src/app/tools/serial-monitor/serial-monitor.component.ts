@@ -31,7 +31,7 @@ import { SerialChartComponent } from './components/serial-chart/serial-chart.com
 import { Buffer } from 'buffer';
 import { TranslateService, TranslateModule } from '@ngx-translate/core';
 import { ConfigService } from '../../services/config.service';
-import { ElectronService } from '../../services/electron.service';
+import { BrowserService } from '../../services/browser.service';
 
 @Component({
   selector: 'app-serial-monitor',
@@ -168,7 +168,7 @@ export class SerialMonitorComponent {
     private message: NzMessageService,
     private translate: TranslateService,
     private configService: ConfigService,
-    private electronService: ElectronService
+    private browserService: BrowserService
   ) {
     // 当虚拟行元素变化时，动态测量每个元素的实际高度
     effect(() => {
@@ -720,6 +720,6 @@ export class SerialMonitorComponent {
   }
 
   openUrl(url) {
-    this.electronService.openUrl(url);
+    this.browserService.openUrl(url);
   }
 }

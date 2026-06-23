@@ -84,7 +84,7 @@ function sortBlocksForLoading(rootBlocks: any[]): any[] {
 export async function syncAbsFileHandler(
   args: SyncAbsArgs,
   projectService: any,
-  electronService: any,
+  browserService: any,
   absAutoSyncService?: AbsAutoSyncService
 ): Promise<SyncAbsResult> {
   const { operation, includeHeader = true } = args;
@@ -106,13 +106,13 @@ export async function syncAbsFileHandler(
   
   switch (operation) {
     case 'export':
-      return await exportToAbs(abiFilePath, absFilePath, includeHeader, electronService);
+      return await exportToAbs(abiFilePath, absFilePath, includeHeader, browserService);
     
     case 'import':
-      return await importFromAbs(absFilePath, abiFilePath, electronService, absAutoSyncService, projectService);
+      return await importFromAbs(absFilePath, abiFilePath, browserService, absAutoSyncService, projectService);
     
     case 'status':
-      return await getAbsStatus(absFilePath, abiFilePath, electronService);
+      return await getAbsStatus(absFilePath, abiFilePath, browserService);
     
     default:
       return {
@@ -129,7 +129,7 @@ async function exportToAbs(
   abiFilePath: string,
   absFilePath: string,
   includeHeader: boolean,
-  electronService: any
+  browserService: any
 ): Promise<SyncAbsResult> {
   try {
     // 方法1：从工作区获取
@@ -139,9 +139,9 @@ async function exportToAbs(
     if (workspace) {
       // 直接从工作区序列化
       abiJson = Blockly.serialization.workspaces.save(workspace);
-    } else if (await electronService.exists(abiFilePath)) {
+    } else if (await browserService.exists(abiFilePath)) {
       // 方法2：从 ABI 文件读取
-      const abiContent = await electronService.readFile(abiFilePath);
+      const abiContent = await browserService.readFile(abiFilePath);
       abiJson = JSON.parse(abiContent);
     } else {
       return {
@@ -154,7 +154,7 @@ async function exportToAbs(
     const absContent = convertAbiToAbs(abiJson, { includeHeader });
     
     // 写入 ABS 文件
-    await electronService.writeFile(absFilePath, absContent);
+    await browserService.writeFile(absFilePath, absContent);
     
     // 统计信息
     const blockCount = countBlocks(abiJson);
@@ -204,13 +204,13 @@ ${preview}
 async function importFromAbs(
   absFilePath: string,
   abiFilePath: string,
-  electronService: any,
+  browserService: any,
   absAutoSyncService?: AbsAutoSyncService,
   projectService?: any
 ): Promise<SyncAbsResult> {
   try {
     // 检查 ABS 文件是否存在
-    if (!await electronService.exists(absFilePath)) {
+    if (!await browserService.exists(absFilePath)) {
       return {
         is_error: true,
         content: `ABS 文件不存在: ${absFilePath}\n\n请先使用 \`sync_abs_file(operation: "export")\` 生成 ABS 文件`
@@ -234,7 +234,7 @@ async function importFromAbs(
     }
     
     // 读取 ABS 文件
-    const absContent = await electronService.readFile(absFilePath);
+    const absContent = await browserService.readFile(absFilePath);
     
     // 解析 ABS（不转换为 ABI JSON，而是获取 BlockConfig）
     const parser = new BlocklyAbsParser();
@@ -267,10 +267,10 @@ async function importFromAbs(
     }
     
     // 备份当前 ABI 文件
-    if (await electronService.exists(abiFilePath)) {
+    if (await browserService.exists(abiFilePath)) {
       const backupPath = `${abiFilePath}.backup`;
-      const currentAbi = await electronService.readFile(abiFilePath);
-      await electronService.writeFile(backupPath, currentAbi);
+      const currentAbi = await browserService.readFile(abiFilePath);
+      await browserService.writeFile(backupPath, currentAbi);
       projectService?.copyPackageJsonToTemp(projectService?.currentProjectPath);
     }
     
@@ -535,7 +535,7 @@ async function importFromAbs(
     
     // 保存工作区到 ABI 文件
     const abiJson = Blockly.serialization.workspaces.save(workspace);
-    await electronService.writeFile(abiFilePath, JSON.stringify(abiJson));
+    await browserService.writeFile(abiFilePath, JSON.stringify(abiJson));
     
     const variableCount = allVariables.size;  // 使用收集到的所有变量数量
     
@@ -790,11 +790,11 @@ function calculateBlockHeight(block: any): number {
 async function getAbsStatus(
   absFilePath: string,
   abiFilePath: string,
-  electronService: any
+  browserService: any
 ): Promise<SyncAbsResult> {
   try {
-    const absExists = await electronService.exists(absFilePath);
-    const abiExists = await electronService.exists(abiFilePath);
+    const absExists = await browserService.exists(absFilePath);
+    const abiExists = await browserService.exists(abiFilePath);
     
     let content = `## ABS 文件状态\n\n`;
     content += `**ABS 文件:** ${absFilePath}\n`;
@@ -807,7 +807,7 @@ async function getAbsStatus(
     let absPreview = '';
     
     if (absExists) {
-      const absContent = await electronService.readFile(absFilePath);
+      const absContent = await browserService.readFile(absFilePath);
       const lines = absContent.split('\n');
       absPreview = lines.slice(0, 20).join('\n') + 
         (lines.length > 20 ? '\n... (more lines)' : '');
@@ -820,7 +820,7 @@ async function getAbsStatus(
     }
     
     if (abiExists) {
-      const abiContent = await electronService.readFile(abiFilePath);
+      const abiContent = await browserService.readFile(abiFilePath);
       const abiJson = JSON.parse(abiContent);
       blockCount = countBlocks(abiJson);
       variableCount = abiJson.variables?.length || 0;

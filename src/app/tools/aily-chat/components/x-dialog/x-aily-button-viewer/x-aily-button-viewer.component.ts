@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ChatService } from '../../../services/chat.service';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { CmdService } from '../../../../../services/cmd.service';
-import { ElectronService } from '../../../../../services/electron.service';
+import { BrowserService } from '../../../../../services/browser.service';
 import { ProjectService } from '../../../../../services/project.service';
 import { executeCommandTool } from '../../../tools/executeCommandTool';
 import { AilyHost } from '../../../core/host';
@@ -108,7 +108,7 @@ export class XAilyButtonViewerComponent implements OnChanges {
   constructor(
     private chatService: ChatService,
     private cmdService: CmdService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private projectService: ProjectService,
   ) {}
 
@@ -214,7 +214,7 @@ export class XAilyButtonViewerComponent implements OnChanges {
   private handleUrl(btn: ButtonData): void {
     const url = btn.actionPayload;
     if (!url) return;
-    this.electronService.openUrl(url);
+    this.browserService.openUrl(url);
   }
 
   /** 用资源管理器打开本地路径 */

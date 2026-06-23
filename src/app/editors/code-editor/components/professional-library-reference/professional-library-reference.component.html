@@ -47,7 +47,10 @@
       @if (category.expanded) {
       <div class="snippet-list">
         @for (snippet of category.snippets; track snippet.id) {
-        <article class="snippet-item" [class.unavailable]="!snippet.available">
+        <article class="snippet-item" [class.unavailable]="!snippet.available" [class.copyable]="snippet.available"
+          [attr.tabindex]="snippet.available ? 0 : null" [attr.role]="snippet.available ? 'button' : null"
+          [attr.title]="snippet.available ? '点击复制 Arduino 代码' : null" (click)="copy(snippet, $event)"
+          (keydown.enter)="copy(snippet, $event)" (keydown.space)="copy(snippet, $event)">
           <div class="snippet-title">
             <span>{{ snippet.title }}</span>
             <button class="copy-btn" type="button" [disabled]="!snippet.available"

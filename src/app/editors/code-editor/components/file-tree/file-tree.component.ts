@@ -26,6 +26,20 @@ interface FileNode {
   children?: FileNode[];
 }
 
+function joinPath(...parts: string[]): string {
+  return parts.filter(Boolean).join('/').replace(/\/+/g, '/');
+}
+
+function dirname(path: string): string {
+  const normalized = (path || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  const index = normalized.lastIndexOf('/');
+  return index > 0 ? normalized.slice(0, index) : '';
+}
+
+function basename(path: string): string {
+  return (path || '').replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() || '';
+}
+
 // 原始文件节点接口
 interface FileNodeOrig {
   title: string;
@@ -642,7 +656,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       let targetPath = targetNode.path;
       if (targetNode.isLeaf) {
         // 如果是文件，使用其父目录
-        targetPath = window['path'].dirname(targetPath);
+        targetPath = dirname(targetPath);
       }
 
       // 如果是剪切操作，先从原位置删除文件节点
@@ -716,12 +730,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
     // 确定实际的父路径
     let parentPath = parentNode.path;
     if (parentNode.isLeaf) {
-      parentPath = window['path'].dirname(parentPath);
+      parentPath = dirname(parentPath);
     }
 
     // 创建临时节点用于内联编辑，使用时间戳确保唯一性
     const tempKey = `__new_file_temp_${Date.now()}__`;
-    const tempPath = window['path'].join(parentPath, tempKey);
+    const tempPath = joinPath(parentPath, tempKey);
     const tempNode: FlatFileNode = {
       expandable: false,
       title: '',
@@ -742,12 +756,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
     // 确定实际的父路径
     let parentPath = parentNode.path;
     if (parentNode.isLeaf) {
-      parentPath = window['path'].dirname(parentPath);
+      parentPath = dirname(parentPath);
     }
 
     // 创建临时节点用于内联编辑，使用时间戳确保唯一性
     const tempKey = `__new_folder_temp_${Date.now()}__`;
-    const tempPath = window['path'].join(parentPath, tempKey);
+    const tempPath = joinPath(parentPath, tempKey);
     const tempNode: FlatFileNode = {
       expandable: true,
       title: '',
@@ -980,7 +994,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
 
   // 增量更新 - 添加新文件/文件夹
   addFileNode(parentPath: string, newFileName: string, isLeaf: boolean) {
-    const fullPath = window['path'].join(parentPath, newFileName);
+    const fullPath = joinPath(parentPath, newFileName);
     const parentNode = this.dataSource.getCurrentData().find(n => n.path === parentPath);
 
     if (parentNode) {
@@ -999,7 +1013,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
 
   // 直接添加文件节点（不依赖父节点存在）
   addFileNodeDirect(parentPath: string, newFileName: string, isLeaf: boolean) {
-    const fullPath = window['path'].join(parentPath, newFileName);
+    const fullPath = joinPath(parentPath, newFileName);
     const data = this.dataSource.getCurrentData();
 
     // 检查文件是否已存在
@@ -1097,7 +1111,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
     this.dataSource.updateNode(oldPath, (node) => {
       node.path = newPath;
       node.key = newPath;
-      node.title = window['path'].basename(newPath);
+      node.title = basename(newPath);
     });
   }
 

@@ -1,20 +1,24 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
 import * as Blockly from 'blockly';
 import { processI18n, processJsonVar, processStaticFilePath, processToolboxI18n } from '../components/blockly/abf';
 import { TranslateService } from '@ngx-translate/core';
-import { ElectronService } from '../../../services/electron.service';
+import { BrowserService } from '../../../services/browser.service';
 import { ProjectService, ServerBlocklyLibraryResource } from '../../../services/project.service';
 import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
 import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
 import { micropythonGenerator } from '../components/blockly/generators/micropython/micropython';
+import '../components/blockly/plugins/block-plus-minus/src/index.js';
 
 @Injectable({
   providedIn: 'root'
 })
 export class BlocklyService {
   workspace: Blockly.WorkspaceSvg;
+  private codeGenerationWorkspace: Blockly.Workspace | null = null;
+  private workspaceReadySubject = new BehaviorSubject<Blockly.WorkspaceSvg | null>(null);
 
   toolbox = {
     kind: 'categoryToolbox',
@@ -83,36 +87,11 @@ export class BlocklyService {
 
   constructor(
     private translateService: TranslateService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private projectService: ProjectService
   ) {
-    this.registerLegacyBlocklyExtensions();
+    this.ensureLibraryScriptGlobals();
     (window as any).__ailyBlockDefinitionsMap = this.blockDefinitionsMap;
-  }
-
-  private registerLegacyBlocklyExtensions(): void {
-    const extensions = (Blockly as any).Extensions;
-    if (!extensions?.register || !extensions?.isRegistered) {
-      return;
-    }
-
-    [
-      'math_arithmetic_tooltip',
-      'math_single_tooltip',
-      'math_trig_tooltip',
-      'math_number_property_tooltip',
-      'math_on_list_tooltip',
-      'math_modulo_tooltip',
-      'math_constrain_tooltip',
-      'math_random_int_tooltip',
-      'math_atan2_tooltip',
-    ].forEach((name) => {
-      if (!extensions.isRegistered(name)) {
-        extensions.register(name, function (this: any) {
-          this.setTooltip?.(this.tooltip || '');
-        });
-      }
-    });
   }
 
   // 加载blockly的json数据
@@ -133,6 +112,35 @@ export class BlocklyService {
     onProgress?: (libPackageName: string, index: number, total: number) => void,
   ) {
     const libraries = this.sortBlocklyLibraries((libPackageNames || []).filter(Boolean));
+    if (libraries.length === 0) {
+      return;
+    }
+    await this.waitForWorkspaceReady();
+    await this.withToolboxBatch(async () => {
+      if (this.projectService.isServerProject) {
+        await this.loadServerLibraries(libraries, onProgress);
+        return;
+      }
+
+      for (let index = 0; index < libraries.length; index++) {
+        const libPackageName = libraries[index];
+        onProgress?.(libPackageName, index + 1, libraries.length);
+        await this.loadLibrary(libPackageName, projectPath);
+      }
+    });
+  }
+
+  async loadLibrariesForCodeGeneration(
+    libPackageNames: string[],
+    projectPath: string,
+    onProgress?: (libPackageName: string, index: number, total: number) => void,
+  ) {
+    const libraries = this.sortBlocklyLibraries((libPackageNames || []).filter(Boolean));
+    if (libraries.length === 0) {
+      return;
+    }
+
+    this.ensureCodeGenerationWorkspace();
     await this.withToolboxBatch(async () => {
       if (this.projectService.isServerProject) {
         await this.loadServerLibraries(libraries, onProgress);
@@ -165,6 +173,39 @@ export class BlocklyService {
     return 2;
   }
 
+  setWorkspace(workspace: Blockly.WorkspaceSvg): void {
+    this.workspace = workspace;
+    this.codeGenerationWorkspace?.dispose();
+    this.codeGenerationWorkspace = null;
+    (window as any).workspace = workspace;
+    (Blockly as any).common?.setMainWorkspace?.(workspace);
+    this.workspaceReadySubject.next(workspace);
+  }
+
+  private ensureCodeGenerationWorkspace(): Blockly.Workspace | Blockly.WorkspaceSvg {
+    if (this.workspace) {
+      return this.workspace;
+    }
+    if (!this.codeGenerationWorkspace) {
+      this.codeGenerationWorkspace = new Blockly.Workspace();
+    }
+    (window as any).workspace = this.codeGenerationWorkspace;
+    (Blockly as any).common?.setMainWorkspace?.(this.codeGenerationWorkspace);
+    return this.codeGenerationWorkspace;
+  }
+
+  private waitForWorkspaceReady(): Promise<Blockly.WorkspaceSvg> {
+    if (this.workspace) {
+      return Promise.resolve(this.workspace);
+    }
+    return firstValueFrom(
+      this.workspaceReadySubject.pipe(
+        filter((workspace): workspace is Blockly.WorkspaceSvg => !!workspace),
+        take(1),
+      ),
+    );
+  }
+
   // 通过node_modules加载库
   async loadLibrary(libPackageName, projectPath) {
     if (this.projectService.isServerProject) {
@@ -176,7 +217,7 @@ export class BlocklyService {
     // const normalizedProjectPath = projectPath.replace(/\//g, '\\');
     // const libPackagePath = normalizedProjectPath + '\\node_modules\\' + libPackageName.replace(/\//g, '\\');
 
-    const libPackagePath = this.electronService.pathJoin(
+    const libPackagePath = this.browserService.pathJoin(
       projectPath,
       'node_modules',
       ...libPackageName.split('/')
@@ -190,25 +231,25 @@ export class BlocklyService {
     let generatorLoadSuccess = true;
     try {
       // 加载block
-      // const blockFileIsExist = this.electronService.exists(libPackagePath + '\\block.json');
-      const blockFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'block.json'));
+      // const blockFileIsExist = this.browserService.exists(libPackagePath + '\\block.json');
+      const blockFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'block.json'));
 
       if (blockFileIsExist) {
         // 加载blocks
-        let blocks = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'block.json')));
+        let blocks = JSON.parse(this.browserService.readFile(this.browserService.pathJoin(libPackagePath, 'block.json')));
         let i18nData = null;
         // 检查多语言文件是否存在（先于 generator.js 加载，确保动态扩展能读取到 i18n 数据）
-        const i18nFilePath = this.electronService.pathJoin(libPackagePath, 'i18n', this.translateService.currentLang + '.json');
-        if (this.electronService.exists(i18nFilePath)) {
-          i18nData = JSON.parse(this.electronService.readFile(i18nFilePath));
+        const i18nFilePath = this.browserService.pathJoin(libPackagePath, 'i18n', this.translateService.currentLang + '.json');
+        if (this.browserService.exists(i18nFilePath)) {
+          i18nData = JSON.parse(this.browserService.readFile(i18nFilePath));
           // 将 i18n 数据按库名存储到全局，供动态扩展使用
           (window as any).__BLOCKLY_LIB_I18N__ = (window as any).__BLOCKLY_LIB_I18N__ || {};
           (window as any).__BLOCKLY_LIB_I18N__[libPackageName] = i18nData;
           blocks = processI18n(blocks, i18nData);
         }
         // 加载generator（必须在 i18n 数据存储后，这样动态定义的块才能读取到正确的多语言）
-        const generatorFilePath = this.electronService.pathJoin(libPackagePath, 'generator.js');
-        const generatorFileIsExist = this.electronService.exists(generatorFilePath);
+        const generatorFilePath = this.browserService.pathJoin(libPackagePath, 'generator.js');
+        const generatorFileIsExist = this.browserService.exists(generatorFilePath);
         if (generatorFileIsExist) {
           generatorLoadSuccess = await this.loadLibGenerator(generatorFilePath);
           if (!generatorLoadSuccess) {
@@ -220,12 +261,12 @@ export class BlocklyService {
           return;
         }
         // 替换block中静态图片路径
-        const staticFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'static'));
-        this.loadLibBlocks(blocks, staticFileIsExist ? this.electronService.pathJoin(libPackagePath, 'static') : null);
+        const staticFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'static'));
+        this.loadLibBlocks(blocks, staticFileIsExist ? this.browserService.pathJoin(libPackagePath, 'static') : null);
         // 加载toolbox
-        const toolboxFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'toolbox.json'));
+        const toolboxFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'toolbox.json'));
         if (toolboxFileIsExist) {
-          let toolbox = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'toolbox.json')));
+          let toolbox = JSON.parse(this.browserService.readFile(this.browserService.pathJoin(libPackagePath, 'toolbox.json')));
           // 处理 toolbox 多语言（包括 name 和 labels）
           if (i18nData) {
             toolbox = processToolboxI18n(toolbox, i18nData);
@@ -344,8 +385,8 @@ export class BlocklyService {
 
   // 卸载库（通过包名和项目路径）
   async unloadLibrary(libPackageName, projectPath) {
-    // 统一路径分隔符，使用electronService.pathJoin处理跨平台路径
-    const libPackagePath = this.electronService.pathJoin(
+    // 统一路径分隔符，使用browserService.pathJoin处理跨平台路径
+    const libPackagePath = this.browserService.pathJoin(
       projectPath,
       'node_modules',
       ...libPackageName.split('/')
@@ -601,10 +642,16 @@ export class BlocklyService {
 
   private ensureLibraryScriptGlobals(): void {
     const target = window as any;
-    target.Blockly = target.Blockly || Blockly;
-    target.Arduino = target.Arduino || arduinoGenerator;
-    target.MicropPython = target.MicropPython || micropythonGenerator;
-    target.MPY = target.MPY || micropythonGenerator;
+    // Blockly core creates a temporary global `{ Msg }` object during module
+    // initialization. Library generator scripts are classic scripts and read
+    // `window.Blockly`, so preserving that placeholder makes APIs such as
+    // Extensions and getMainWorkspace unavailable until the component later
+    // overwrites it. Always expose the actual module instances before a
+    // library script can execute.
+    target.Blockly = Blockly;
+    target.Arduino = arduinoGenerator;
+    target.MicropPython = micropythonGenerator;
+    target.MPY = micropythonGenerator;
   }
 
   // 获取当前已注册的所有generator函数对应的block类型
@@ -628,7 +675,7 @@ export class BlocklyService {
 
   removeLibrary(libPackagePath) {
     // 路径已经是标准格式，无需再次分割
-    // electronService.pathJoin已经处理了路径分隔符
+    // browserService.pathJoin已经处理了路径分隔符
 
     // 检查是否已加载
     if (!this.loadedLibraries.has(libPackagePath)) {
@@ -640,34 +687,34 @@ export class BlocklyService {
 
     // 读取要移除的库的信息
     // 移除block定义
-    const blockFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'block.json'));
+    const blockFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'block.json'));
     if (blockFileIsExist) {
-      let blocks = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'block.json')));
+      let blocks = JSON.parse(this.browserService.readFile(this.browserService.pathJoin(libPackagePath, 'block.json')));
       this.removeLibBlocks(blocks);
     } else {
       // 对于JS形式加载的block，需要使用block文件名作为标识
-      const blockJsPath = this.electronService.pathJoin(libPackagePath, 'block.js');
+      const blockJsPath = this.browserService.pathJoin(libPackagePath, 'block.js');
       this.removeLibBlocksJS(blockJsPath);
     }
 
     // 移除toolbox项
-    const toolboxFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'toolbox.json'));
+    const toolboxFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'toolbox.json'));
     if (toolboxFileIsExist) {
-      let toolbox = JSON.parse(this.electronService.readFile(this.electronService.pathJoin(libPackagePath, 'toolbox.json')));
+      let toolbox = JSON.parse(this.browserService.readFile(this.browserService.pathJoin(libPackagePath, 'toolbox.json')));
       // 检查多语言文件是否存在，（2025.5.29 修复因为多语言造成的移除不了toolbox的问题）
       let i18nData = null;
-      const i18nFilePath = this.electronService.pathJoin(libPackagePath, 'i18n', this.translateService.currentLang + '.json');
-      if (this.electronService.exists(i18nFilePath)) {
-        i18nData = JSON.parse(this.electronService.readFile(i18nFilePath));
+      const i18nFilePath = this.browserService.pathJoin(libPackagePath, 'i18n', this.translateService.currentLang + '.json');
+      if (this.browserService.exists(i18nFilePath)) {
+        i18nData = JSON.parse(this.browserService.readFile(i18nFilePath));
         if (i18nData) toolbox.name = i18nData.toolbox_name;
       }
       this.removeLibToolbox(toolbox);
     }
 
     // 移除generator相关引用
-    const generatorFileIsExist = this.electronService.exists(this.electronService.pathJoin(libPackagePath, 'generator.js'));
+    const generatorFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'generator.js'));
     if (generatorFileIsExist) {
-      this.removeLibGenerator(this.electronService.pathJoin(libPackagePath, 'generator.js'));
+      this.removeLibGenerator(this.browserService.pathJoin(libPackagePath, 'generator.js'));
     }
 
     // 从已加载库列表中移除
@@ -770,6 +817,9 @@ export class BlocklyService {
     this.blockDefinitionsMap.clear();
     this.loadedGenerators.clear();
     this.loadedLibraries.clear();
+    this.codeGenerationWorkspace?.dispose();
+    this.codeGenerationWorkspace = null;
+    delete (window as any).workspace;
 
     // 移除所有加载的脚本标签（block.js 和 generator.js）
     const scripts = document.getElementsByTagName('script');
@@ -812,6 +862,7 @@ export class BlocklyService {
     if (this.workspace) {
       this.workspace.dispose();
       this.workspace = null as any;
+      this.workspaceReadySubject.next(null);
       // console.log('工作区已销毁');
     }
 

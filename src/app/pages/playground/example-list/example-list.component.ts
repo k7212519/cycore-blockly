@@ -13,10 +13,7 @@ import { firstValueFrom, Subject, Subscription } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { CloudService } from '../../../tools/cloud-space/services/cloud.service';
 import { ProjectService } from '../../../services/project.service';
-import { ElectronService } from '../../../services/electron.service';
-import { PlatformService } from "../../../services/platform.service";
-import { CrossPlatformCmdService } from "../../../services/cross-platform-cmd.service";
-import { updateBlocksInFile } from '../../../utils/blockly_updater';
+import { BrowserService } from '../../../services/browser.service';
 import { Buffer } from 'buffer';
 import { jsonrepair } from 'jsonrepair';
 
@@ -60,9 +57,7 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
     private route: ActivatedRoute,
     private cloudService: CloudService,
     private projectService: ProjectService,
-    private electronService: ElectronService,
-    private platformService: PlatformService,
-    private crossPlatformCmdService: CrossPlatformCmdService,
+    private browserService: BrowserService,
     private messageService: NzMessageService
   ) {
   }
@@ -266,140 +261,22 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    if (!this.electronService.isElectron) {
-      try {
-        const archive = await firstValueFrom(this.cloudService.getProjectArchiveBlob(item.archive_url));
-        const created = await this.projectService.importPublicProject(archive, {
-          name: item.name || `public_project_${item.id || Date.now()}`,
-          nickname: item.nickname,
-          description: item.description,
-          docUrl: item.doc_url,
-          tags: this.parseTags(item.tags)
-        });
-        await this.projectService.projectOpenById(created.projectId);
-      } catch (error) {
-        console.error('导入公开项目失败:', error);
-        this.messageService.error('加载项目失败: ' + (error?.message || '未知错误'));
-      } finally {
-        this.loadingExampleIndex = null;
-      }
-      return;
-    }
-
-    this.cloudService.getProjectArchive(item.archive_url)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: async res => {
-          try {
-            // 直接添加随机数避免重名
-            const randomNum = Math.floor(100000 + Math.random() * 900000);
-            const uniqueName = `${item.name || 'cloud_project'}_${randomNum}`;
-            const targetPath = this.projectService.projectRootPath + this.platformService.getPlatformSeparator() + uniqueName;
-
-            // 确保目标目录的父目录存在
-            const targetParent = window['path'].dirname(targetPath);
-            if (!window['fs'].existsSync(targetParent)) {
-              window['fs'].mkdirSync(targetParent, { recursive: true });
-            }
-            
-            // 如果目标目录已存在，先删除它（确保干净复制）
-            if (window['fs'].existsSync(targetPath)) {
-              window['fs'].rmdirSync(targetPath, { recursive: true });
-            }
-            
-            console.log('复制解压文件:', res, '->', targetPath);
-            // 使用 Move-Item 将下载/临时文件移动到目标项目目录
-            // -Force 用于覆盖同名目标（如果存在）
-            await this.crossPlatformCmdService.copyItem(res, targetPath, true, true);
-            
-            // 验证复制是否成功
-            if (!window['fs'].existsSync(targetPath)) {
-              throw new Error(`复制失败：目标目录不存在 ${targetPath}`);
-            }
-            
-            // 等待一小段时间，确保文件系统操作完成
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            // 检查解压后的目录结构，可能有一个子目录包含实际项目文件
-            let actualProjectPath = targetPath;
-            
-            // 检查目标目录是否存在且可读
-            if (!window['fs'].existsSync(targetPath)) {
-              throw new Error(`目标目录不存在: ${targetPath}`);
-            }
-            
-            const files = window['fs'].readDirSync(targetPath);
-            
-            // 如果目标目录只有一个子目录，且该子目录包含 package.json，则使用子目录
-            if (files.length === 1) {
-              const firstItem = files[0];
-              const itemName = typeof firstItem === 'object' && firstItem !== null ? firstItem.name : firstItem;
-              const subPath = `${targetPath}${this.platformService.getPlatformSeparator()}${itemName}`;
-              
-              // 检查子目录是否是目录且包含 package.json
-              if (window['fs'].isDirectory(subPath)) {
-                const subFiles = window['fs'].readDirSync(subPath);
-                const hasPackageJson = subFiles.some((file: any) => {
-                  const fileName = typeof file === 'object' && file !== null ? file.name : file;
-                  return fileName === 'package.json';
-                });
-                
-                if (hasPackageJson) {
-                  actualProjectPath = subPath;
-                  console.log('检测到嵌套目录结构，使用子目录:', actualProjectPath);
-                }
-              }
-            }
-
-            // 验证 package.json 是否存在
-            const packageJsonPath = `${actualProjectPath}${this.platformService.getPlatformSeparator()}package.json`;
-            if (!window['fs'].existsSync(packageJsonPath)) {
-              // 列出目录内容以便调试
-              const dirContents = window['fs'].readDirSync(actualProjectPath).map((file: any) => {
-                return typeof file === 'object' && file !== null ? file.name : file;
-              });
-              throw new Error(`package.json 不存在于 ${actualProjectPath}。目录内容: ${dirContents.join(', ')}`);
-            }
-
-            // 更新 package.json 中的项目信息
-            const packageJson = JSON.parse(this.electronService.readFile(packageJsonPath));
-            packageJson.nickname = item.nickname
-            packageJson.description = item.description || ''
-            packageJson.doc_url = item.doc_url || ''
-            packageJson.keywords = item?.tags ? JSON.parse(item.tags) : ""
-            delete packageJson.cloudId;
-
-            this.electronService.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
-
-            if (this.params && Object.keys(this.params).length > 0) {
-              const abiFilePath = `${actualProjectPath}${this.platformService.getPlatformSeparator()}project.abi`;
-              if (window['fs'].existsSync(abiFilePath)) {
-                updateBlocksInFile(abiFilePath, this.params);
-              }
-            }
-
-            this.projectService.projectOpen(actualProjectPath);
-            this.loadingExampleIndex = null;
-          } catch (error) {
-            console.error('加载示例处理失败:', error);
-            // 将错误写入日志文件
-            if ((window as any)['electronAPI']?.log) {
-              (window as any)['electronAPI'].log.error('加载示例处理失败', error);
-            }
-            this.messageService.error('加载示例失败: ' + (error?.message || '未知错误'));
-            this.loadingExampleIndex = null;
-          }
-        },
-        error: (error) => {
-          console.error('加载示例失败:', error);
-          // 将错误写入日志文件
-          if ((window as any)['electronAPI']?.log) {
-            (window as any)['electronAPI'].log.error('加载示例失败', error);
-          }
-          this.messageService.error('加载示例失败: ' + (error?.message || '网络错误或文件下载失败'));
-          this.loadingExampleIndex = null;
-        }
+    try {
+      const archive = await firstValueFrom(this.cloudService.getProjectArchiveBlob(item.archive_url));
+      const created = await this.projectService.importPublicProject(archive, {
+        name: item.name || `public_project_${item.id || Date.now()}`,
+        nickname: item.nickname,
+        description: item.description,
+        docUrl: item.doc_url,
+        tags: this.parseTags(item.tags)
       });
+      await this.projectService.projectOpenById(created.projectId);
+    } catch (error) {
+      console.error('导入公开项目失败:', error);
+      this.messageService.error('加载项目失败: ' + (error?.message || '未知错误'));
+    } finally {
+      this.loadingExampleIndex = null;
+    }
   }
 
   isLoading(index: number): boolean {
@@ -413,7 +290,7 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
   openDoc(index: number) {
     const item = this.exampleList[index];
     if (item.doc_url && item.doc_url.trim() !== '') {
-      this.electronService.openUrl(item.doc_url);
+      this.browserService.openUrl(item.doc_url);
     }
   }
 

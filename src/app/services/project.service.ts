@@ -3,7 +3,7 @@ import { BehaviorSubject, firstValueFrom, Observable, Subject } from 'rxjs';
 import { map as rxMap } from 'rxjs/operators';
 import { HttpClient } from '@angular/common/http';
 import { UiService } from './ui.service';
-import { ElectronService } from './electron.service';
+import { BrowserService } from './browser.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { pinyin } from "pinyin-pro";
 import { Router } from '@angular/router';
@@ -212,7 +212,7 @@ export class ProjectService {
 
   constructor(
     private uiService: UiService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private message: NzMessageService,
     private router: Router,
     private cmdService: CmdService,
@@ -228,42 +228,7 @@ export class ProjectService {
   }
 
   // 初始化UI服务，这个init函数仅供main-window使用
-  async init() {
-    if (this.electronService.isElectron) {
-      window['ipcRenderer'].on('window-receive', async (event, message) => {
-        console.log('window-receive', message);
-        if (message.data.action == 'open-project') {
-          this.projectOpen(message.data.path);
-        } else {
-          return;
-        }
-        // 反馈完成结果
-        if (message.messageId) {
-          window['ipcRenderer'].send('main-window-response', {
-            messageId: message.messageId,
-            result: "success"
-          });
-        }
-      });
-
-      // 监听来自文件关联的打开请求
-      window['ipcRenderer'].on('open-project-from-file', async (event, projectPath) => {
-        console.log('Received open-project-from-file event:', projectPath);
-        try {
-          await this.projectOpen(projectPath);
-          console.log('Successfully opened project from file association');
-        } catch (error) {
-          console.error('Error opening project from file association:', error);
-          this.message.error(this.translate.instant('PROJECT.CANNOT_OPEN_PROJECT') + error.message);
-        }
-      });
-
-      this.projectRootPath = (await window['env'].get("AILY_PROJECT_PATH")).replace('%HOMEPATH%\\Documents\\', window['path'].getUserDocuments() + this.platformService.getPlatformSeparator());
-      // if (!this.currentProjectPath) {
-      //   this.currentProjectPath = this.projectRootPath;
-      // }
-    }
-  }
+  async init() {}
 
   // 检测字符串是否包含中文字符
   containsChineseCharacters(str: string): boolean {
@@ -279,45 +244,6 @@ export class ProjectService {
       this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
       await this.projectOpenById(created.projectId);
       return;
-
-      const separator = this.platformService.getPlatformSeparator();
-      // console.log('newProjectData: ', newProjectData);
-      const appDataPath = window['path'].getAppDataPath();
-      // const projectPath = (newProjectData.path + newProjectData.name).replace(/\s/g, '_');
-      const projectPath = window['path'].join(newProjectData.path, newProjectData.name.replace(/\s/g, '_'));
-      const boardPackage = newProjectData.board.name + '@' + newProjectData.board.version;
-
-      this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
-      await this.cmdService.runAsync(`npm install ${boardPackage} --prefix "${appDataPath}"`);
-      // const templatePath = `${appDataPath}${separator}node_modules${separator}${newProjectData.board.name}${separator}template`;
-      const templatePath = window['path'].join(appDataPath, 'node_modules', newProjectData.board.name, 'template');
-      // 创建项目目录
-      await this.crossPlatformCmdService.createDirectory(projectPath, true);
-      // 复制模板文件到项目目录
-      await this.crossPlatformCmdService.copyItem(`${templatePath}${separator}*`, projectPath, true, true);
-
-      // 3. 修改package.json文件
-      const packageJson = JSON.parse(window['fs'].readFileSync(`${projectPath}/package.json`));
-      if (this.containsChineseCharacters(newProjectData.name)) {
-        packageJson.name = pinyin(newProjectData.name, {
-          toneType: "none",
-          separator: ""
-        }).replace(/\s/g, '_');
-      } else {
-        packageJson.name = newProjectData.name;
-      }
-      // 设置开发框架
-      packageJson.devmode = newProjectData.devmode;
-
-      window['fs'].writeFileSync(`${projectPath}/package.json`, JSON.stringify(packageJson, null, 2));
-
-      this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
-      // 此后就是打开项目(projectOpen)的逻辑，理论可复用，由于此时在新建项目窗口，因此要告知主窗口，进行打开项目操作
-      await window['iWindow'].send({ to: 'main', data: { action: 'open-project', path: projectPath } });
-
-      // if (closeWindow) {
-      //   this.uiService.closeWindow();
-      // }
     } catch (error) {
       this.message.error(this.translate.instant('PROJECT.CREATE_FAILED') + ": " + error.message);
       this.uiService.updateFooterState({ state: 'error', text: this.translate.instant('PROJECT.CREATE_FAILED') });
@@ -326,43 +252,10 @@ export class ProjectService {
 
   // 打开项目
   async projectOpen(projectPath = this.currentProjectPath) {
-    if (!this.electronService.isElectron || projectPath?.startsWith?.('server-project:')) {
-      const projectId = projectPath?.startsWith?.('server-project:')
-        ? projectPath.replace('server-project:', '')
-        : (projectPath || this.currentProjectId);
-      return this.projectOpenById(projectId);
-    }
-
-    await this.close();
-    await new Promise(resolve => setTimeout(resolve, 100));
-    // 判断路径是否存在
-    if (!this.electronService.exists(projectPath)) {
-      this.removeRecentlyProject({ path: projectPath })
-      return this.message.error(this.translate.instant('PROJECT.PATH_NOT_EXIST'));
-    }
-    this.stateSubject.next('loading');
-
-    // 更新当前项目路径和包数据
-    this.currentProjectPath = projectPath;
-
-    const abiIsExist = window['path'].isExists(projectPath + '/project.abi');
-    if (abiIsExist) {
-      // 打开blockly编辑器
-      this.router.navigate(['/main/blockly-editor'], {
-        queryParams: {
-          path: projectPath
-        },
-        replaceUrl: true
-      });
-    } else {
-      // 打开代码编辑器
-      this.router.navigate(['/main/code-editor'], {
-        queryParams: {
-          path: projectPath
-        },
-        replaceUrl: true
-      });
-    }
+    const projectId = projectPath?.startsWith?.('server-project:')
+      ? projectPath.replace('server-project:', '')
+      : (projectPath || this.currentProjectId);
+    return this.projectOpenById(projectId);
   }
 
   async projectOpenById(projectId: string) {
@@ -389,9 +282,6 @@ export class ProjectService {
       this.stateSubject.next('saving');
       this.actionService.dispatch('project-save', { path }, async result => {
         if (result.success) {
-          if (!this.isServerProject) {
-            await this.copyPackageJsonToTemp(path);
-          }
           this.currentPackageData = await this.getPackageJson();
           this.stateSubject.next('saved');
           resolve({ success: true, path });
@@ -405,37 +295,6 @@ export class ProjectService {
   }
 
 
-  saveAs(path) {
-    //在当前路径下创建一个新的目录
-    path = path.replace(/\s/g, '_');
-    window['fs'].mkdirSync(path);
-    // 复制项目目录到新路径
-    window['fs'].copySync(this.currentProjectPath, path);
-    // 修改package.json文件
-    this.save(path);
-    // 修改package.json文件
-    const packageJson = JSON.parse(window['fs'].readFileSync(`${path}/package.json`));
-    // 另存为时去掉cloudId
-    if (packageJson.cloudId) {
-      delete packageJson.cloudId;
-    }
-    // 获取新的项目名称
-    let name = path.split('\\').pop();
-    if (this.containsChineseCharacters(name)) {
-      packageJson.name = pinyin(name, {
-        toneType: "none",
-        separator: ""
-      }).replace(/\s/g, '_');
-    } else {
-      packageJson.name = name;
-    }
-    window['fs'].writeFileSync(`${path}/package.json`, JSON.stringify(packageJson, null, 2));
-    // 修改当前项目路径
-    this.currentProjectPath = path;
-    this.currentPackageData = packageJson;
-    this.addRecentlyProject({ name: this.currentPackageData.name, path: path, nickname: this.currentPackageData.nickname || this.currentPackageData.name });
-  }
-
   async close(navigate = true) {
     this.currentProjectPath = '';
     this.currentProjectId = '';
@@ -444,7 +303,6 @@ export class ProjectService {
     };
     this.stateSubject.next('default');
     this.uiService.closeTerminal();
-    // this.currentProjectPath = (await window['env'].get("AILY_PROJECT_PATH")).replace('%HOMEPATH%\\Documents', window['path'].getUserDocuments());
     if (navigate) {
       this.router.navigate(['/main/guide'], { replaceUrl: true });
     }
@@ -497,181 +355,25 @@ export class ProjectService {
 
   // 获取当前项目的package.json
   async getPackageJson() {
-    if (this.currentProjectId) {
-      const projectInfo = await this.getServerProject(this.currentProjectId);
-      return projectInfo.packageJson;
-    }
-    if (!this.currentProjectPath) {
+    if (!this.currentProjectId) {
       return null;
     }
-    const packageJsonPath = `${this.currentProjectPath}/package.json`;
-    return JSON.parse(window['fs'].readFileSync(packageJsonPath, 'utf8'));
-  }
-
-  /**
-   * 同步 package.json 与 temp 文件夹：
-   * - 若 temp/package.json 存在，则用它覆盖主项目的 package.json
-   * - 若不存在，则将主项目的 package.json 复制到 temp 文件夹
-   */
-  async syncPackageJsonWithTemp(projectPath: string): Promise<void> {
-    if (this.isServerProject || projectPath?.startsWith?.('server-project:')) {
-      return;
-    }
-    const mainPackagePath = window['path'].join(projectPath, 'package.json');
-    const tempDir = window['path'].join(projectPath, '.temp');
-    const tempPackagePath = window['path'].join(tempDir, 'package.json');
-
-    if (!window['fs'].existsSync(mainPackagePath)) {
-      return;
-    }
-
-    if (window['fs'].existsSync(tempPackagePath)) {
-      // temp 下有 package.json，覆盖主项目
-      const tempContent = window['fs'].readFileSync(tempPackagePath, 'utf8');
-      window['fs'].writeFileSync(mainPackagePath, tempContent);
-      // 覆盖后扫描 node_modules 删除未声明的依赖包（避免 npm prune 冷启动慢）
-      this.pruneUndeclaredDeps(projectPath);
-    } else {
-      // temp 下无 package.json，从主项目复制到 temp
-      await this.copyPackageJsonToTemp(projectPath);
-    }
-  }
-
-  /**
-   * 项目保存时复制主项目 package.json 到 temp 下
-   */
-  private async copyPackageJsonToTemp(projectPath: string): Promise<void> {
-    const mainPackagePath = window['path'].join(projectPath, 'package.json');
-    const tempDir = window['path'].join(projectPath, '.temp');
-    const tempPackagePath = window['path'].join(tempDir, 'package.json');
-    if (!window['fs'].existsSync(mainPackagePath)) {
-      return;
-    }
-    try {
-      if (!window['fs'].existsSync(tempDir)) {
-        window['fs'].mkdirSync(tempDir, { recursive: true });
-      }
-      const mainContent = window['fs'].readFileSync(mainPackagePath, 'utf8');
-      window['fs'].writeFileSync(tempPackagePath, mainContent);
-    } catch (error) {
-      console.warn('复制 package.json 到 temp 失败:', error);
-    }
-  }
-
-  /**
-   * 扫描 node_modules 删除未在 package.json 中声明的依赖包（仅第一层）
-   * 参考 NpmService.installedOk 实现，避免 npm prune 冷启动慢
-   */
-  private pruneUndeclaredDeps(projectPath: string): void {
-    try {
-      const packageJsonPath = window['path'].join(projectPath, 'package.json');
-      const nodeModulesPath = window['path'].join(projectPath, 'node_modules');
-
-      if (!window['path'].isExists(packageJsonPath) || !window['path'].isExists(nodeModulesPath)) {
-        return;
-      }
-
-      const packageJson = JSON.parse(window['fs'].readFileSync(packageJsonPath, 'utf8'));
-      const deps = { ...(packageJson.dependencies || {}), ...(packageJson.devDependencies || {}) };
-      const declaredNames = new Set(Object.keys(deps));
-
-      const dirs = window['fs'].readDirSync(nodeModulesPath);
-      const toRemove: string[] = [];
-
-      for (const dir of dirs) {
-        const dirName = dir.name ?? dir;
-        if (typeof dirName !== 'string' || dirName.startsWith('.')) {
-          continue;
-        }
-
-        const dirPath = window['path'].join(nodeModulesPath, dirName);
-        if (!window['fs'].isDirectory(dirPath)) {
-          continue;
-        }
-
-        if (dirName.startsWith('@')) {
-          const scopeDirs = window['fs'].readDirSync(dirPath);
-          for (const scopeDir of scopeDirs) {
-            const scopeDirName = scopeDir.name ?? scopeDir;
-            if (typeof scopeDirName !== 'string' || scopeDirName.startsWith('.')) {
-              continue;
-            }
-            const packageName = `${dirName}/${scopeDirName}`;
-            if (!declaredNames.has(packageName)) {
-              toRemove.push(window['path'].join(dirPath, scopeDirName));
-            }
-          }
-        } else {
-          if (!declaredNames.has(dirName)) {
-            toRemove.push(dirPath);
-          }
-        }
-      }
-
-      for (const removePath of toRemove) {
-        try {
-          window['fs'].rmSync(removePath, { recursive: true, force: true });
-          console.log('[pruneUndeclaredDeps] 已删除未声明依赖:', window['path'].basename(removePath));
-        } catch (err) {
-          console.warn('[pruneUndeclaredDeps] 删除失败:', removePath, err);
-        }
-      }
-    } catch (err) {
-      console.warn('[pruneUndeclaredDeps] 执行异常:', err);
-    }
+    const projectInfo = await this.getServerProject(this.currentProjectId);
+    return projectInfo.packageJson;
   }
 
   async setPackageJson(data: any) {
-    if (this.currentProjectId) {
-      const currentPackageJson = await this.getPackageJson();
-      if (JSON.stringify(currentPackageJson) === JSON.stringify(data)) {
-        return;
-      }
-      if (currentPackageJson) {
-        data = { ...currentPackageJson, ...data };
-      }
-      await this.saveServerFile('package.json', JSON.stringify(data, null, 2));
-      this.currentPackageData = data;
-      return;
+    if (!this.currentProjectId) {
+      throw new Error('当前项目 ID 未设置');
     }
-    if (!this.currentProjectPath) {
-      throw new Error('当前项目路径未设置');
-    }
-
-    // set之前重新获取最新的package.json内容，然后进行合并
     const currentPackageJson = await this.getPackageJson();
-    // 对比写入内容和当前内容是否相同，如果相同则不写入
     if (JSON.stringify(currentPackageJson) === JSON.stringify(data)) {
-      // console.log('package.json内容未更改，跳过写入');
       return;
     }
-
     if (currentPackageJson) {
       data = { ...currentPackageJson, ...data };
     }
-
-    const packageJsonPath = `${this.currentProjectPath}/package.json`;
-
-    try {
-      // 尝试直接写入
-      window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
-    } catch (error) {
-      // 如果写入失败，尝试移除只读属性后重试
-      console.warn('写入package.json失败，尝试修改权限后重试:', error);
-      try {
-        if (window['fs'].existsSync(packageJsonPath)) {
-          // 0o666 确保文件可读写
-          window['fs'].chmodSync(packageJsonPath, 0o666);
-          // 重试写入
-          window['fs'].writeFileSync(packageJsonPath, JSON.stringify(data, null, 2));
-        }
-      } catch (retryError) {
-        console.error('修改权限后写入仍然失败:', retryError);
-        throw retryError;
-      }
-    }
-
-    // 更新当前packageData
+    await this.saveServerFile('package.json', JSON.stringify(data, null, 2));
     this.currentPackageData = data;
   }
 
@@ -1107,11 +809,7 @@ export class ProjectService {
   // 获取开发板模块的package.json
   async getBoardPackageJson() {
     const boardModule = await this.getBoardModule();
-    if (this.currentProjectId) {
-      return JSON.parse(await this.readServerFile(`node_modules/${boardModule}/package.json`));
-    }
-    const boardPackageJsonPath = `${this.currentProjectPath}/node_modules/${boardModule}/package.json`;
-    return JSON.parse(this.electronService.readFile(boardPackageJsonPath));
+    return JSON.parse(await this.readServerFile(`node_modules/${boardModule}/package.json`));
   }
 
   // 获取开发板配置文件board.json
@@ -1120,14 +818,7 @@ export class ProjectService {
     if (!boardModule) {
       throw new Error('未找到开发板模块');
     }
-    if (this.currentProjectId) {
-      return JSON.parse(await this.readServerFile(`node_modules/${boardModule}/board.json`));
-    }
-    const boardJsonPath = `${this.currentProjectPath}/node_modules/${boardModule}/board.json`;
-    if (!window['fs'].existsSync(boardJsonPath)) {
-      throw new Error('开发板配置文件不存在: ' + boardJsonPath);
-    }
-    return JSON.parse(this.electronService.readFile(boardJsonPath));
+    return JSON.parse(await this.readServerFile(`node_modules/${boardModule}/board.json`));
   }
 
   // 获取开发板根目录路下得特殊配置文件，如 ESP32 需要的 partitions.csv
@@ -1136,11 +827,13 @@ export class ProjectService {
     if (!boardModule) {
       throw new Error('未找到开发板模块');
     }
-    const filePath = `${this.currentProjectPath}/node_modules/${boardModule}/${fileName}`;
-    if (!window['fs'].existsSync(filePath)) {
+    const filePath = `node_modules/${boardModule}/${fileName}`;
+    try {
+      await this.readServerFile(filePath);
+      return filePath;
+    } catch {
       return null;
     }
-    return filePath;
   }
 
 
@@ -1150,11 +843,8 @@ export class ProjectService {
     if (!boardModule) {
       throw new Error('未找到开发板模块');
     }
-    const configPath = `${this.currentProjectPath}/node_modules/${boardModule}/${fileName}`;
-    if (!window['fs'].existsSync(configPath)) {
-      throw new Error('配置文件不存在: ' + configPath);
-    }
-    return JSON.parse(this.electronService.readFile(configPath));
+    const configPath = `node_modules/${boardModule}/${fileName}`;
+    return JSON.parse(await this.readServerFile(configPath));
   }
 
   // 修改开发板配置文件board.json， 如 STM32需要，传入新的data
@@ -1163,18 +853,13 @@ export class ProjectService {
     if (!boardModule) {
       throw new Error('未找到开发板模块');
     }
-    const boardJsonPath = `${this.currentProjectPath}/node_modules/${boardModule}/board.json`;
-    if (!window['fs'].existsSync(boardJsonPath)) {
-      throw new Error('开发板配置文件不存在: ' + boardJsonPath);
-    }
-
-    // 保存当前项目
-    this.save();
+    const boardJsonPath = `node_modules/${boardModule}/board.json`;
+    await this.save();
     this.message.loading(this.translate.instant('PROJECT.SWITCHING_BOARD_CONFIG'), { nzDuration: 5000 });
 
-    const boardJson = JSON.parse(this.electronService.readFile(boardJsonPath));
+    const boardJson = JSON.parse(await this.readServerFile(boardJsonPath));
     Object.assign(boardJson, data);
-    window['fs'].writeFileSync(boardJsonPath, JSON.stringify(boardJson, null, 2));
+    await this.saveServerFile(boardJsonPath, JSON.stringify(boardJson, null, 2));
 
     // 重新加载项目
     console.log('重新加载项目...');
@@ -1192,56 +877,12 @@ export class ProjectService {
     if (!boardModule) {
       throw new Error('未找到开发板模块');
     }
-    const boardPackagePath = `${this.currentProjectPath}/node_modules/${boardModule}`;
-    return boardPackagePath;
+    return `node_modules/${boardModule}`;
   }
 
   // 获取开发板 SDK 路径
   async getSdkPath() {
-    if (!this.electronService.isElectron) {
-      return "";
-    }
-    try {
-      const boardPackageJson = await this.getBoardPackageJson();
-      if (!boardPackageJson || !boardPackageJson.boardDependencies) {
-        throw new Error('未找到开发板 SDK 路径');
-      }
-
-      const sdkModule = Object.keys(boardPackageJson.boardDependencies).find(dep => dep.startsWith('@aily-project/sdk-'));
-      if (!sdkModule) {
-        throw new Error('未找到开发板 SDK 模块');
-      }
-
-      const sdkVersion = boardPackageJson.boardDependencies[sdkModule];
-      const sdkFileName = sdkModule.replace('@aily-project/sdk-', '') + '_' + sdkVersion;
-      const appDataPath = window['path'].getAppDataPath()
-      const sdkLibPath = this.electronService.pathJoin(appDataPath, 'sdk', `${sdkFileName}`);
-      if (!window['fs'].existsSync(sdkLibPath)) {
-        throw new Error('SDK 库路径不存在: ' + sdkLibPath);
-      }
-
-      // // Get all files in the SDK library path
-      // const sdkFiles = window['fs'].readDirSync(sdkLibPath);
-
-      // // Filter for .7z files
-      // const sdkZipFiles = sdkFiles.filter(file => file.name.endsWith('.7z'));
-
-      // // If there are no .7z files, throw an error
-      // if (sdkZipFiles.length === 0) {
-      //   throw new Error('未找到 SDK 压缩包文件');
-      // }
-
-      // // Replace '@' with '_' in the filename
-      // const sdkZipFileName = sdkZipFiles[0].name;
-      // const formattedSdkZipFileName = sdkZipFileName.replace(/@/g, '_').replace(/\.7z$/i, '');
-
-      // sdk path
-      // return `${await window["env"].get('AILY_SDK_PATH')}/${formattedSdkZipFileName}`;
-      return `${await window["env"].get('AILY_SDK_PATH')}/${sdkFileName}`;
-    } catch (error) {
-      console.error('获取 SDK 路径失败:', error);
-      return "";
-    }
+    return '';
   }
 
   // // 解析boards.txt并获取配置信息
@@ -1535,7 +1176,7 @@ export class ProjectService {
 
   // 更新ESP32配置菜单项
   async updateEsp32ConfigMenu(boardName: string) {
-    if (!this.electronService.isElectron) {
+    if (!false) {
       if (!this.currentProjectId) {
         return null;
       }
@@ -1671,7 +1312,7 @@ export class ProjectService {
 
   // 更新STM32配置菜单项
   async updateStm32ConfigMenu(boardName: string) {
-    if (!this.electronService.isElectron) {
+    if (!false) {
       return null;
     }
     try {
@@ -1793,7 +1434,7 @@ export class ProjectService {
 
   // 更新nRF5配置菜单项
   async updateNrf5ConfigMenu(boardName: string) {
-    if (!this.electronService.isElectron) {
+    if (!false) {
       return null;
     }
     try {
@@ -2142,131 +1783,11 @@ export class ProjectService {
   }
 
   async changeBoard(boardInfo: { "name": string, "version": string }) {
-    try {
-      const separator = this.platformService.getPlatformSeparator();
-      if (!this.currentProjectPath) {
-        throw new Error('当前项目路径未设置');
-      }
-      // 0. 保存当前项目
-      await this.save();
-      this.message.loading(this.translate.instant('PROJECT.SWITCHING_BOARD'), { nzDuration: 5000 });
-
-      // 记录开发板使用次数
-      this.configService.recordBoardUsage(boardInfo.name);
-
-      // 1. 先获取项目package.json中的board依赖，如@aily-project/board-xxxx，然后npm uninstall移除这个board依赖
-      const currentBoardModule = await this.getBoardModule();
-      if (currentBoardModule) {
-        console.log('卸载当前开发板模块:', currentBoardModule);
-        this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.UNINSTALLING_CURRENT_BOARD') });
-        await this.cmdService.runAsync(`npm uninstall ${currentBoardModule}`, this.currentProjectPath);
-      }
-      // 2. npm install 安装boardInfo.name@boardInfo.version 到 appDataPath（与 projectNew 一致）
-      const appDataPath = window['path'].getAppDataPath();
-      const newBoardPackage = `${boardInfo.name}@${boardInfo.version}`;
-      console.log('安装新开发板模块:', newBoardPackage);
-      this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.INSTALLING_NEW_BOARD') });
-      await this.cmdService.runAsync(`npm install ${newBoardPackage}`, this.currentProjectPath);
-      await this.cmdService.runAsync(`npm install ${newBoardPackage} --prefix "${appDataPath}"`);
-
-      // 2.5. 获取新开发板的模板并更新package.json
-      console.log('更新项目配置文件...');
-      this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.UPDATING_PROJECT_CONFIG') });
-      
-      // 读取当前package.json保留项目基本信息
-      const currentPackageJson = await this.getPackageJson();
-      
-      // 获取新开发板的模板package.json（从 appDataPath 读取）
-      const templatePath = `${appDataPath}${separator}node_modules${separator}${boardInfo.name}${separator}template`;
-      const templatePackageJsonPath = `${templatePath}${separator}package.json`;
-      
-      if (window['fs'].existsSync(templatePackageJsonPath)) {
-        // 读取模板package.json
-        const templatePackageJson = JSON.parse(window['fs'].readFileSync(templatePackageJsonPath, 'utf8'));
-        
-        // 合并配置：保留当前项目的基本信息，使用新开发板的依赖和配置
-        const newPackageJson = {
-          ...templatePackageJson,
-          name: currentPackageJson.name, // 保留项目名称
-          nickname: currentPackageJson.nickname, // 保留昵称
-          author: currentPackageJson.author, // 保留作者
-          description: currentPackageJson.description, // 保留描述
-          dependencies: {
-            // 从模板获取新的开发板依赖和基础库
-            ...templatePackageJson.dependencies,
-            // 保留当前项目的非开发板依赖（过滤掉 @aily-project/board-* 包）
-            ...Object.fromEntries(
-              Object.entries(currentPackageJson.dependencies || {})
-                .filter(([key]) => !key.startsWith('@aily-project/board-'))
-            ),
-          },
-          // 不保留其他自定义配置
-          // ...(currentPackageJson.projectConfig && { projectConfig: currentPackageJson.projectConfig }),
-          // ...(currentPackageJson.cloudId && { cloudId: currentPackageJson.cloudId }),
-        };
-        
-        // 写入新的package.json
-        window['fs'].writeFileSync(`${this.currentProjectPath}/package.json`, JSON.stringify(newPackageJson, null, 2));
-        console.log('package.json 更新完成');
-      } else {
-        console.warn('未找到新开发板的模板package.json，跳过配置更新');
-      }
-
-      // 同步更新 temp 副本，防止 projectOpen 重新加载时被旧的 temp/package.json 覆盖
-      await this.copyPackageJsonToTemp(this.currentProjectPath);
-
-      // 3. 重新加载项目
-      console.log('重新加载项目...');
-      await this.projectOpen(this.currentProjectPath);
-
-      // 触发开发板变更事件
-      this.boardChangeSubject.next();
-
-      this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.BOARD_SWITCH_COMPLETE') });
-      this.message.success(this.translate.instant('PROJECT.BOARD_SWITCH_SUCCESS'), { nzDuration: 3000 });
-    } catch (error) {
-      console.error('切换开发板失败:', error);
-      this.message.error(this.translate.instant('PROJECT.BOARD_SWITCH_FAILED') + error.message);
-      throw error;
-    }
+    throw new Error(`浏览器版暂不支持直接切换开发板依赖: ${boardInfo.name}@${boardInfo.version}`);
   }
 
-  generateUniqueProjectName(prjPath, prefix = 'project_'): string {
-    const baseDateStr = generateDateString();
-    prefix = prefix + baseDateStr;
-    if (!window['path']?.isExists) {
-      return prefix + 'a';
-    }
-    const pt = this.platformService.getPlatformSeparator();
-
-    // 尝试使用字母后缀 a-z
-    for (let charCode = 97; charCode <= 122; charCode++) {
-      const suffix = String.fromCharCode(charCode);
-      const projectName: string = prefix + suffix;
-      const projectPath = prjPath + pt + projectName;
-
-      if (!window['path'].isExists(projectPath)) {
-        return projectName;
-      }
-    }
-
-    // 如果所有字母都已使用，则使用数字后缀
-    let numberSuffix = 0;
-    while (true) {
-      const projectName = prefix + 'a' + numberSuffix;
-      const projectPath = prjPath + pt + projectName;
-
-      if (!window['path'].isExists(projectPath)) {
-        return projectName;
-      }
-
-      numberSuffix++;
-
-      // 安全检查，防止无限循环
-      if (numberSuffix > 1000) {
-        return prefix + 'a' + Date.now(); // 极端情况下使用时间戳
-      }
-    }
+  generateUniqueProjectName(_prjPath: string, prefix = 'project_'): string {
+    return `${prefix}${generateDateString()}_${Date.now().toString(36)}`;
   }
 
   /**
@@ -2274,22 +1795,6 @@ export class ProjectService {
    * @returns 返回构建路径
    */
   async getBuildPath(): Promise<string> {
-    const sketchPath = window['path'].join(
-      this.currentProjectPath,
-      '.temp',
-      'sketch',
-      'sketch.ino'
-    );
-    const sketchName = window['path'].basename(sketchPath, '.ino');
-
-    // 为了避免不同项目的同名sketch冲突,使用项目路径的MD5哈希值
-    const projectPathMD5 = (await window['tools'].calculateMD5(sketchPath)).substring(0, 8); // 只取前8位MD5值
-    const uniqueSketchName = `${sketchName}_${projectPathMD5}`;
-
-    // 使用统一的构建路径获取方法
-    return window['path'].join(
-      window['path'].getAilyBuilderBuildPath(),
-      uniqueSketchName
-    );
+    return '';
   }
 }

@@ -5,7 +5,7 @@ import { createChart, IChartApi, ISeriesApi, LineSeries, ColorType, Time } from 
 import { TranslateModule } from '@ngx-translate/core';
 import { Buffer } from 'buffer';
 import { SerialMonitorService, dataItem } from '../../serial-monitor.service';
-import { ElectronService } from '../../../../services/electron.service';
+import { BrowserService } from '../../../../services/browser.service';
 
 // 预编译正则，避免在热路径中反复创建
 const LINE_SPLIT_RE = /\r?\n/;
@@ -65,7 +65,7 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(
     private serialMonitorService: SerialMonitorService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private cd: ChangeDetectorRef,
     private ngZone: NgZone
   ) { }
@@ -445,6 +445,6 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   openUrl(url: string) {
-    this.electronService.openUrl(url);
+    this.browserService.openUrl(url);
   }
 }

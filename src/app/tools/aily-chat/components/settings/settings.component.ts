@@ -9,7 +9,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { TOOLS } from '../../tools/tools';
-import { ElectronService } from '../../../../services/electron.service';
+import { BrowserService } from '../../../../services/browser.service';
 import { AilyChatConfigService, WorkspaceSecurityOption, ModelConfigOption, AgentToolsConfig } from '../../services/aily-chat-config.service';
 
 /** Agent 类型定义 */
@@ -136,7 +136,7 @@ export class AilyChatSettingsComponent implements OnInit {
 
   constructor(
     private message: NzMessageService,
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private ailyChatConfigService: AilyChatConfigService
   ) {
   }
@@ -494,6 +494,6 @@ export class AilyChatSettingsComponent implements OnInit {
     };
 
     // https://aily.pro/doc/ai-usage-guide
-    this.electronService.openUrl('https://aily.pro/doc/ai-usage-guide');
+    this.browserService.openUrl('https://aily.pro/doc/ai-usage-guide');
   }
 }

@@ -5,7 +5,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { ModelStoreService, ModelDetail } from '../model-store.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { NzSkeletonModule } from 'ng-zorro-antd/skeleton';
-import { ElectronService } from '../../../services/electron.service';
+import { BrowserService } from '../../../services/browser.service';
 import { UiService } from '../../../services/ui.service';
 import { SerialService } from '../../../services/serial.service';
 import { TranslateModule } from '@ngx-translate/core';
@@ -44,7 +44,7 @@ export class ModelDetailComponent implements OnInit {
   supportedBoards: SupportBoardInfo[] = [];
 
   constructor(
-    private electronService: ElectronService,
+    private browserService: BrowserService,
     private uiService: UiService,
     private serialService: SerialService
   ) { }
