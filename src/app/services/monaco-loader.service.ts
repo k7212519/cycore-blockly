@@ -1,11 +1,13 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, inject } from '@angular/core';
+import { ConfigService } from './config.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class MonacoLoaderService {
   private document = inject(DOCUMENT);
+  private configService = inject(ConfigService);
   private loadPromise?: Promise<void>;
 
   load(): Promise<void> {
@@ -27,7 +29,14 @@ export class MonacoLoaderService {
           return;
         }
 
-        win.require.config({ paths: { vs: 'assets/vs' } });
+        win.require.config({
+          paths: { vs: 'assets/vs' },
+          'vs/nls': {
+            availableLanguages: {
+              '*': this.getMonacoLanguage()
+            }
+          }
+        });
         win.require(
           ['vs/editor/editor.main'],
           () => {
@@ -57,5 +66,19 @@ export class MonacoLoaderService {
     if (typeof define === 'function' && define.amd) {
       define.amd = false;
     }
+  }
+
+  private getMonacoLanguage(): 'zh-cn' | 'zh-tw' | 'en' {
+    const lang = (this.configService.data?.selectedLanguage || this.configService.data?.lang || '')
+      .toLowerCase()
+      .replace('_', '-');
+
+    if (lang === 'zh-hk' || lang === 'zh-tw' || lang === 'zh-hant') {
+      return 'zh-tw';
+    }
+    if (lang === 'en' || lang.startsWith('en-')) {
+      return 'en';
+    }
+    return 'zh-cn';
   }
 }

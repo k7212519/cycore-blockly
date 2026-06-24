@@ -93,19 +93,31 @@
   min-width: 0;
   display: flex;
   align-items: center;
+  gap: 14px;
+}
 
-  h1 {
-    margin: 0;
-    color: var(--guide-text);
-    font-size: clamp(24px, 2.6vw, 34px);
-    line-height: 1.15;
-    font-weight: 780;
-    letter-spacing: 0;
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
+.brand-logo {
+  flex: 0 0 auto;
+  width: clamp(52px, 5.2vw, 74px);
+  height: auto;
+  display: block;
+}
+
+.guide-shell.theme-dark .brand-logo {
+  filter: brightness(0) invert(1);
+}
+
+.brand-block h1 {
+  margin: 0;
+  color: var(--guide-text);
+  font-size: clamp(24px, 2.6vw, 34px);
+  line-height: 1.15;
+  font-weight: 780;
+  letter-spacing: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .brand-title-cn,
@@ -321,8 +333,17 @@
   flex: 1 1 auto;
 }
 
-.project-name {
+.project-title-row {
+  min-width: 0;
   margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-name {
+  min-width: 0;
+  margin: 0;
   color: var(--guide-text);
   font-size: 16px;
   line-height: 1.25;
@@ -331,6 +352,39 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.project-type-badge {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(103, 232, 249, 0.24);
+  border-radius: 999px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.11);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 720;
+  white-space: nowrap;
+
+  &.professional {
+    border-color: rgba(251, 191, 36, 0.28);
+    color: #facc15;
+    background: rgba(245, 158, 11, 0.12);
+  }
+}
+
+:host-context(.llight) .project-type-badge,
+.guide-shell.theme-light .project-type-badge {
+  border-color: rgba(2, 132, 199, 0.34);
+  color: #075985;
+  background: rgba(186, 230, 253, 0.78);
+
+  &.professional {
+    border-color: rgba(180, 83, 9, 0.36);
+    color: #92400e;
+    background: rgba(254, 215, 170, 0.82);
+  }
 }
 
 .project-meta {
@@ -470,6 +524,48 @@
   .ant-pagination-item-active {
     border-color: var(--guide-accent);
     background: rgba(90, 166, 255, 0.16);
+  }
+}
+
+.project-info-form {
+  display: grid;
+  gap: 18px;
+}
+
+.project-info-field {
+  display: grid;
+  gap: 8px;
+
+  span {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+}
+
+.project-info-grid {
+  display: grid;
+  gap: 10px;
+
+  div {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  strong {
+    min-width: 0;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
   }
 }
 

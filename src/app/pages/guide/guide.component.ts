@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { GUIDE_MENU } from '../../configs/menu.config';
 import { UiService } from '../../services/ui.service';
 import { ProjectService, ServerProjectListItem } from '../../services/project.service';
@@ -13,6 +14,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { ConfigService } from '../../services/config.service';
 import { NzModalService } from 'ng-zorro-antd/modal';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { MenuComponent } from '../../components/menu/menu.component';
 
 interface SelectionRect {
@@ -24,11 +26,13 @@ interface SelectionRect {
 
 @Component({
   selector: 'app-guide',
-  imports: [CommonModule, TranslateModule, NzButtonModule, NzPaginationModule, NzToolTipModule, MenuComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, NzButtonModule, NzPaginationModule, NzToolTipModule, NzInputModule, MenuComponent],
   templateUrl: './guide.component.html',
   styleUrl: './guide.component.scss'
 })
 export class GuideComponent implements OnInit, OnDestroy {
+  @ViewChild('projectInfoTemplate', { static: true }) projectInfoTemplate!: TemplateRef<void>;
+
   version = version;
   guideMenu = GUIDE_MENU;
   showMenu = true;
@@ -45,6 +49,9 @@ export class GuideComponent implements OnInit, OnDestroy {
   showProjectContextMenu = false;
   projectContextMenuPosition = { x: 0, y: 0 };
   readonly contextMenuWidth = 178;
+  projectInfoProject: ServerProjectListItem | null = null;
+  projectInfoName = '';
+  renamingProjectId = '';
 
   private selectionStart = { x: 0, y: 0 };
   private dragBaseSelection = new Set<string>();
@@ -74,6 +81,12 @@ export class GuideComponent implements OnInit, OnDestroy {
   get projectContextMenu() {
     const count = Math.max(this.selectedProjects.length, 1);
     return [
+      {
+        name: '重命名',
+        icon: 'fa-light fa-pen-to-square',
+        action: 'rename-project',
+        disabled: count !== 1
+      },
       {
         name: count > 1 ? `删除 ${count} 个项目` : '删除项目',
         icon: 'fa-light fa-trash-can',
@@ -220,8 +233,15 @@ export class GuideComponent implements OnInit, OnDestroy {
 
   onProjectContextMenuClick(item: any) {
     this.closeProjectContextMenu();
-    if (item?.action === 'delete-projects') {
-      this.confirmDeleteSelectedProjects();
+    switch (item?.action) {
+      case 'rename-project':
+        this.openProjectInfoModal();
+        break;
+      case 'delete-projects':
+        this.confirmDeleteSelectedProjects();
+        break;
+      default:
+        break;
     }
   }
 
@@ -264,6 +284,54 @@ export class GuideComponent implements OnInit, OnDestroy {
       nzCancelText: '取消',
       nzOnOk: () => this.deleteProjects(projects)
     });
+  }
+
+  private openProjectInfoModal() {
+    const project = this.selectedProjects[0];
+    if (!project) {
+      return;
+    }
+
+    this.projectInfoProject = project;
+    this.projectInfoName = project.name || '';
+
+    this.modal.create({
+      nzClassName: 'project-info-modal',
+      nzTitle: '项目基本信息',
+      nzContent: this.projectInfoTemplate,
+      nzOkText: '保存',
+      nzCancelText: '取消',
+      nzOnOk: () => this.renameProject()
+    });
+  }
+
+  private async renameProject() {
+    const project = this.projectInfoProject;
+    const nextName = (this.projectInfoName || '').trim();
+    if (!project) {
+      return false;
+    }
+    if (!nextName) {
+      this.message.warning('项目名称不能为空');
+      return false;
+    }
+    if (nextName === project.name) {
+      return true;
+    }
+
+    this.renamingProjectId = project.projectId;
+    try {
+      const updated = await this.projectService.updateServerProject(project.projectId, nextName);
+      this.message.success('项目名称已更新');
+      project.name = updated.name || nextName;
+      await this.loadProjects(this.pageIndex);
+      return true;
+    } catch (error) {
+      this.message.error(error?.message || '项目名称更新失败');
+      return false;
+    } finally {
+      this.renamingProjectId = '';
+    }
   }
 
   private async deleteProjects(projects: ServerProjectListItem[]) {

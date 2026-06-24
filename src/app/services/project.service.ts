@@ -564,6 +564,12 @@ export class ProjectService {
     );
   }
 
+  async updateServerProject(projectId: string, name: string): Promise<ServerProjectInfo> {
+    return this.unwrap<ServerProjectInfo>(
+      this.http.put<ApiResult<ServerProjectInfo>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`, { name })
+    );
+  }
+
   async isServerProjectNameTaken(name: string): Promise<boolean> {
     const normalizedName = (name || '').trim().toLowerCase();
     if (!normalizedName) {

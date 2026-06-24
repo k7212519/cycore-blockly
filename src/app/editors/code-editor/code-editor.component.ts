@@ -13,8 +13,6 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { BuilderService } from '../../services/builder.service';
 import { UploaderService } from '../../services/uploader.service';
 import { BrowserService } from '../../services/browser.service';
-import { ShortcutService, ShortcutAction, ShortcutKeyMapping } from './services/shortcut.service';
-import { Subscription } from 'rxjs';
 import { ViewChild, AfterViewInit, OnInit, OnDestroy } from '@angular/core';
 import { _ProjectService } from './services/project.service';
 import { ProfessionalLibraryReferenceComponent } from './components/professional-library-reference/professional-library-reference.component';
@@ -67,10 +65,6 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   isProfessionalMode = false;
   leftPanelMode: 'library' | 'files' = 'files';
 
-  // 快捷键订阅
-  private shortcutSubscription?: Subscription;
-  private keydownListener?: (event: KeyboardEvent) => void;
-
   // 定期保存状态的定时器
   private saveStateTimer?: any;
 
@@ -87,7 +81,6 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     private builderService: BuilderService,
     private uploadService: UploaderService,
     private browserService: BrowserService,
-    private shortcutService: ShortcutService,
     private blocklyService: BlocklyService,
   ) {
   }
@@ -112,9 +105,6 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
         this.message.error('没有找到项目');
       }
     });
-
-    // 初始化快捷键监听
-    this.initShortcutListeners();
 
     // 启动定期保存编辑器状态的定时器（每5秒保存一次）
     this.saveStateTimer = setInterval(() => {
@@ -142,8 +132,6 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.browserService.setTitle('CYCORE-MCU-DevCloud');
 
-    // 清理快捷键监听器
-    this.cleanupShortcutListeners();
     if (this.isProfessionalMode) {
       this.blocklyService.reset();
     }
@@ -386,6 +374,18 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   // 获取Monaco编辑器组件引用
   private getMonacoEditorComponent(): MonacoEditorComponent | null {
     return this.monacoEditorRef || null;
+  }
+
+  increaseEditorFontSize(): void {
+    this.getMonacoEditorComponent()?.increaseFontSize();
+  }
+
+  decreaseEditorFontSize(): void {
+    this.getMonacoEditorComponent()?.decreaseFontSize();
+  }
+
+  resetEditorFontSize(): void {
+    this.getMonacoEditorComponent()?.resetFontSize();
   }
 
   // 编辑器内容变更事件
@@ -639,84 +639,6 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * 初始化快捷键监听器
-   */
-  private initShortcutListeners(): void {
-    // 监听快捷键事件
-    this.shortcutSubscription = this.shortcutService.shortcutKey$.subscribe(action => {
-      this.handleShortcutAction(action);
-    });
-
-    // 添加全局键盘事件监听器
-    this.keydownListener = (event: KeyboardEvent) => {
-      this.handleKeyDown(event);
-    };
-    document.addEventListener('keydown', this.keydownListener);
-  }
-
-  /**
-   * 清理快捷键监听器
-   */
-  private cleanupShortcutListeners(): void {
-    if (this.shortcutSubscription) {
-      this.shortcutSubscription.unsubscribe();
-      this.shortcutSubscription = undefined;
-    }
-
-    if (this.keydownListener) {
-      document.removeEventListener('keydown', this.keydownListener);
-      this.keydownListener = undefined;
-    }
-  }
-
-  /**
-   * 处理键盘按下事件
-   * @param event 键盘事件
-   */
-  private handleKeyDown(event: KeyboardEvent): void {
-    // 检查是否在代码编辑器区域内
-    const target = event.target as HTMLElement;
-    if (!target || !target.closest('.code-editor')) {
-      return;
-    }
-
-    const shortcutKey = this.shortcutService.getShortcutFromEvent(event);
-    const action = this.shortcutService.getShortcutAction(shortcutKey, 'editor');
-
-    if (action) {
-      event.preventDefault();
-      this.handleShortcutAction(action);
-    }
-  }
-
-  /**
-   * 处理快捷键动作
-   * @param action 动作对象
-   */
-  private handleShortcutAction(action: ShortcutAction): void {
-    switch (action.type) {
-      case 'save':
-        this.handleSaveShortcut();
-        break;
-      case 'close':
-        this.handleCloseShortcut();
-        break;
-      case 'find':
-        this.message.info('查找功能正在开发中...');
-        break;
-      case 'replace':
-        this.message.info('替换功能正在开发中...');
-        break;
-      case 'open':
-        this.message.info('打开文件功能正在开发中...');
-        break;
-      default:
-        console.log('未知的快捷键动作:', action.type);
-        break;
-    }
-  }
-
-  /**
    * 处理关闭标签页快捷键
    */
   private handleCloseShortcut(): void {
@@ -763,29 +685,4 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  /**
-   * 获取所有可用的快捷键
-   * @returns 快捷键列表
-   */
-  getAvailableShortcuts(): ShortcutKeyMapping[] {
-    return this.shortcutService.getAllShortcuts().filter(shortcut =>
-      shortcut.context === 'editor' || shortcut.context === 'global'
-    );
-  }
-
-  /**
-   * 显示快捷键帮助
-   */
-  showShortcutHelp(): void {
-    const shortcuts = this.getAvailableShortcuts();
-    const helpText = shortcuts.map(shortcut =>
-      `${shortcut.key.toUpperCase()} - ${shortcut.description}`
-    ).join('\n');
-
-    this.modal.info({
-      nzTitle: '快捷键帮助',
-      nzContent: `<pre style="white-space: pre-wrap;">${helpText}</pre>`,
-      nzWidth: 500
-    });
-  }
 }

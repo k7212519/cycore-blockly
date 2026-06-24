@@ -6,7 +6,6 @@ import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { PlaygroundService } from './playground.service';
 import { BrowserService } from '../../services/browser.service';
 
 @Component({
@@ -35,7 +34,6 @@ export class PlaygroundComponent {
     private router: Router,
     private route: ActivatedRoute,
     private translate: TranslateService,
-    private playgroundService: PlaygroundService,
     private browserService: BrowserService
   ) {
 

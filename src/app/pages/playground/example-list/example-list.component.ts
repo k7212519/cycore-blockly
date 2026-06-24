@@ -48,7 +48,6 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
   pageSize: number = 10; // 每页显示数量，默认值
   total: number = 500; // 总条目数
   loadingExampleIndex: number | null = null; // 当前正在加载的示例索引
-  private pageSizeCalculated: boolean = false; // 标记 pageSize 是否已计算
   
   private destroy$ = new Subject<void>();
   private examplesSub: Subscription | null = null;
@@ -109,35 +108,8 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
         this.version = params['version'] || '';
         // 当通过 URL 搜索时，重置回第一页
         this.pageIndex = 1;
-        // 只有在 pageSize 已计算后才获取数据
-
-        if (this.pageSizeCalculated) {
-          this.getExamples();
-        }
+        this.getExamples();
       });
-    // this.resourceUrl = this.configService.data.resource[0] + "/imgs/examples/";
-
-    // // 如果数据已经加载，直接使用
-    // if (this.playgroundService.isLoaded) {
-    //   this.exampleList = this.playgroundService.processedExamplesList;
-    //   console.log(this.exampleList);
-
-    //   // 如果URL中有关键词，执行搜索
-    //   if (this.keyword) {
-    //     this.search(this.keyword);
-    //   }
-    // } else {
-    //   // 如果数据未加载，等待加载完成
-    //   this.playgroundService.loadExamplesList().then(() => {
-    //     this.exampleList = this.playgroundService.processedExamplesList;
-    //     console.log(this.exampleList);
-
-    //     // 如果URL中有关键词，执行搜索
-    //     if (this.keyword) {
-    //       this.search(this.keyword);
-    //     }
-    //   });
-    // }
   }
 
   getExamples() {
@@ -237,13 +209,7 @@ export class ExampleListComponent implements OnInit, AfterViewInit, OnDestroy {
       // 重置到第一页并重新获取数据
       this.pageIndex = 1;
       this.getExamples();
-    } else if (!this.pageSizeCalculated) {
-      // 第一次计算完成后，即使值没变也要获取数据
-      this.getExamples();
     }
-    
-    // 标记 pageSize 已计算
-    this.pageSizeCalculated = true;
   }
 
   onImgError(event) {

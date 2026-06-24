@@ -36,19 +36,32 @@
         <nz-content>
             <div class="right-box">
                 @if (openedFiles.length > 0) {
-                <nz-tabset [nzSize]="'small'" [nzSelectedIndex]="selectedIndex"
-                    (nzSelectedIndexChange)="onTabChange($event)" nzType="editable-card" [nzHideAdd]="true"
-                    (nzClose)="closeTab($event)">
-                    @for (file of openedFiles; track file.path; let i = $index) {
-                    <nz-tab nzClosable [nzTitle]="titleTemplate">
-                        <ng-template #titleTemplate>
-                            <span class="tab-inner" (mousedown)="handleMiddleClick($event, i)">
-                                {{ file.title }} <span class="blue-point" *ngIf="file.isDirty"></span>
-                            </span>
-                        </ng-template>
-                    </nz-tab>
-                    }
-                </nz-tabset>
+                <div class="editor-bar">
+                    <nz-tabset [nzSize]="'small'" [nzSelectedIndex]="selectedIndex"
+                        (nzSelectedIndexChange)="onTabChange($event)" nzType="editable-card" [nzHideAdd]="true"
+                        (nzClose)="closeTab($event)">
+                        @for (file of openedFiles; track file.path; let i = $index) {
+                        <nz-tab nzClosable [nzTitle]="titleTemplate">
+                            <ng-template #titleTemplate>
+                                <span class="tab-inner" (mousedown)="handleMiddleClick($event, i)">
+                                    {{ file.title }} <span class="blue-point" *ngIf="file.isDirty"></span>
+                                </span>
+                            </ng-template>
+                        </nz-tab>
+                        }
+                    </nz-tabset>
+                    <div class="editor-tools">
+                        <button type="button" title="缩小字体" (click)="decreaseEditorFontSize()">
+                            <i class="fa-regular fa-minus"></i>
+                        </button>
+                        <button type="button" title="重置字体" (click)="resetEditorFontSize()">
+                            <i class="fa-regular fa-arrow-rotate-left"></i>
+                        </button>
+                        <button type="button" title="放大字体" (click)="increaseEditorFontSize()">
+                            <i class="fa-regular fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
                 <app-monaco-editor [code]="code" (codeChange)="onCodeChange($event)" [filePath]="selectedFile"
                     (openFileRequest)="onOpenFileRequest($event)"
                     (editorShortcut)="onEditorShortcut($event)"></app-monaco-editor>

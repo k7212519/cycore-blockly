@@ -136,6 +136,9 @@ export class ConfigService {
       },
       blockly: {
         renderer: 'thrasos'
+      },
+      codeEditor: {
+        fontSize: 14
       }
     };
   }
@@ -826,6 +829,10 @@ interface AppConfig {
   blockly: {
     renderer: string; // Blockly渲染器
   }
+
+  codeEditor?: {
+    fontSize?: number;
+  };
 
   /** 串口监视器快速发送列表 */
   quickSendList?: Array<{ name: string, type: "signal" | "text" | "hex", data: string }>;

@@ -6,6 +6,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { Subject, takeUntil } from 'rxjs';
 import { ThemeService } from '../../../../services/theme.service';
 import { MonacoLoaderService } from '../../../../services/monaco-loader.service';
+import { ConfigService } from '../../../../services/config.service';
 
 @Component({
   selector: 'app-monaco-editor',
@@ -42,11 +43,15 @@ export class MonacoEditorComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
   public monacoInstance: any;
   monacoReady = false;
+  readonly defaultFontSize = 14;
+  readonly minFontSize = 10;
+  readonly maxFontSize = 32;
 
   constructor(
     private message: NzMessageService,
     private themeService: ThemeService,
-    private monacoLoader: MonacoLoaderService
+    private monacoLoader: MonacoLoaderService,
+    private configService: ConfigService
   ) {
     this.themeService.theme$
       .pipe(takeUntil(this.destroy$))
@@ -54,6 +59,7 @@ export class MonacoEditorComponent implements OnDestroy {
   }
 
   async ngOnInit() {
+    this.applySavedEditorOptions();
     await this.monacoLoader.load();
     this.monacoReady = true;
   }
@@ -77,77 +83,73 @@ export class MonacoEditorComponent implements OnDestroy {
   editorInitialized(editor: any): void {
     this.monacoInstance = editor;
 
-    // 在编辑器初始化后设置Tab键处理
     if (editor) {
+      editor.updateOptions({ fontSize: this.editorFontSize });
       // 添加自定义右键菜单项
       this.setupContextMenu(editor);
-      this.setupEditorShortcutPriority(editor);
-      this.registerVscodeEditingCommands(editor);
+      this.registerEditorCommands(editor);
     }
   }
 
-  private setupEditorShortcutPriority(editor: any): void {
-    const domNode = editor?.getDomNode?.();
-    if (!domNode) {
-      return;
-    }
-
-    const listener = (event: KeyboardEvent) => {
-      if (!this.isEditorPriorityShortcut(event)) {
-        return;
-      }
-
-      event.stopPropagation();
-      const shortcut = this.normalizeShortcut(event);
-      if (shortcut === 'ctrl+s') {
-        event.preventDefault();
-        this.editorShortcut.emit('save');
-      } else if (shortcut === 'ctrl+w') {
-        event.preventDefault();
-        this.editorShortcut.emit('close');
-      }
-    };
-
-    domNode.addEventListener('keydown', listener);
-    this.disposables.push({
-      dispose: () => domNode.removeEventListener('keydown', listener)
-    });
-  }
-
-  private isEditorPriorityShortcut(event: KeyboardEvent): boolean {
-    const key = event.key.toLowerCase();
-    const isFunctionKey = /^f([1-9]|1[0-2])$/.test(key);
-    return event.ctrlKey || event.metaKey || event.altKey || isFunctionKey;
-  }
-
-  private normalizeShortcut(event: KeyboardEvent): string {
-    const parts: string[] = [];
-    if (event.ctrlKey || event.metaKey) {
-      parts.push('ctrl');
-    }
-    if (event.shiftKey) {
-      parts.push('shift');
-    }
-    if (event.altKey) {
-      parts.push('alt');
-    }
-
-    const key = event.key.toLowerCase();
-    if (!['control', 'shift', 'alt', 'meta'].includes(key)) {
-      parts.push(key);
-    }
-    return parts.join('+');
-  }
-
-  private registerVscodeEditingCommands(editor: any): void {
+  private registerEditorCommands(editor: any): void {
     const monaco = (window as any).monaco;
-    if (!monaco?.KeyMod || !monaco?.KeyCode || !editor?.addCommand) {
+    if (!monaco?.KeyMod || !monaco?.KeyCode || !editor?.addAction) {
       return;
     }
 
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ,
-      () => editor.trigger('keyboard', 'undo', null)
+    const KeyMod = monaco.KeyMod;
+    const KeyCode = monaco.KeyCode;
+    this.disposables.push(
+      editor.addAction({
+        id: 'cycore.editor.save',
+        label: '保存当前文件',
+        keybindings: [KeyMod.CtrlCmd | KeyCode.KeyS],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1,
+        run: () => this.editorShortcut.emit('save')
+      }),
+      editor.addAction({
+        id: 'cycore.editor.closeTab',
+        label: '关闭当前标签页',
+        keybindings: [KeyMod.CtrlCmd | KeyCode.KeyW],
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 2,
+        run: () => this.editorShortcut.emit('close')
+      }),
+      editor.addAction({
+        id: 'cycore.editor.fontZoomIn',
+        label: '放大编辑器字体',
+        keybindings: [
+          KeyMod.CtrlCmd | KeyCode.Equal,
+          KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal,
+          KeyMod.CtrlCmd | KeyCode.NumpadAdd
+        ],
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 10,
+        run: () => this.increaseFontSize()
+      }),
+      editor.addAction({
+        id: 'cycore.editor.fontZoomOut',
+        label: '缩小编辑器字体',
+        keybindings: [
+          KeyMod.CtrlCmd | KeyCode.Minus,
+          KeyMod.CtrlCmd | KeyCode.NumpadSubtract
+        ],
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 11,
+        run: () => this.decreaseFontSize()
+      }),
+      editor.addAction({
+        id: 'cycore.editor.fontReset',
+        label: '重置编辑器字体',
+        keybindings: [
+          KeyMod.CtrlCmd | KeyCode.Digit0,
+          KeyMod.CtrlCmd | KeyCode.Numpad0
+        ],
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 12,
+        run: () => this.resetFontSize()
+      })
     );
   }
 
@@ -155,6 +157,48 @@ export class MonacoEditorComponent implements OnDestroy {
     const monacoTheme = theme === 'light' ? 'vs' : 'vs-dark';
     this.options = { ...this.options, theme: monacoTheme };
     (window as any).monaco?.editor?.setTheme(monacoTheme);
+  }
+
+  get editorFontSize(): number {
+    const fontSize = Number(this.configService.data?.codeEditor?.fontSize);
+    return this.clampFontSize(Number.isFinite(fontSize) ? fontSize : this.defaultFontSize);
+  }
+
+  increaseFontSize(): void {
+    this.setFontSize(this.editorFontSize + 1);
+  }
+
+  decreaseFontSize(): void {
+    this.setFontSize(this.editorFontSize - 1);
+  }
+
+  resetFontSize(): void {
+    this.setFontSize(this.defaultFontSize);
+  }
+
+  private applySavedEditorOptions(): void {
+    this.options = {
+      ...this.options,
+      fontSize: this.editorFontSize
+    };
+  }
+
+  private setFontSize(nextFontSize: number): void {
+    const fontSize = this.clampFontSize(nextFontSize);
+    this.configService.data.codeEditor = {
+      ...(this.configService.data.codeEditor || {}),
+      fontSize
+    };
+    this.configService.save();
+    this.options = {
+      ...this.options,
+      fontSize
+    };
+    this.monacoInstance?.updateOptions?.({ fontSize });
+  }
+
+  private clampFontSize(fontSize: number): number {
+    return Math.min(this.maxFontSize, Math.max(this.minFontSize, Math.round(fontSize)));
   }
 
   /**

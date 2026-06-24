@@ -1,6 +1,7 @@
 <div class="guide-shell" [class.theme-light]="isLightTheme" [class.theme-dark]="!isLightTheme">
   <header class="page-header">
     <div class="brand-block">
+      <img class="brand-logo" src="imgs/cycore_logo.svg" alt="" draggable="false">
       <div>
         <h1>
           <span class="brand-title-cn">少年芯嵌入式芯片云开发平台</span>
@@ -69,7 +70,12 @@
         </div>
 
         <div class="project-content">
-          <h3 class="project-name" [title]="project.name">{{ project.name }}</h3>
+          <div class="project-title-row">
+            <h3 class="project-name" [title]="project.name">{{ project.name }}</h3>
+            <span class="project-type-badge" [class.professional]="project.editor === 'code'">
+              {{ project.editor === 'code' ? '代码' : '图形化' }}
+            </span>
+          </div>
           <div class="project-meta">
             <span class="ellipsis">{{ project.boardNickname || project.boardName || '未选择开发板' }}</span>
             <span class="dot"></span>
@@ -110,4 +116,41 @@
     (closeEvent)="closeProjectContextMenu()">
   </app-menu>
   }
+
+  <ng-template #projectInfoTemplate>
+    @if (projectInfoProject) {
+    <div class="project-info-form">
+      <label class="project-info-field">
+        <span>项目名称</span>
+        <input nz-input [(ngModel)]="projectInfoName" maxlength="64" [disabled]="renamingProjectId === projectInfoProject.projectId"
+          placeholder="请输入项目名称" />
+      </label>
+
+      <div class="project-info-grid">
+        <div>
+          <span>项目 ID</span>
+          <strong>{{ projectInfoProject.projectId }}</strong>
+        </div>
+        <div>
+          <span>开发板</span>
+          <strong>{{ projectInfoProject.boardNickname || projectInfoProject.boardName || '未选择开发板' }}</strong>
+        </div>
+        <div>
+          <span>编辑器</span>
+          <strong>{{ projectInfoProject.editor === 'code' ? '代码' : '图形化' }}</strong>
+        </div>
+        <div>
+          <span>更新时间</span>
+          <strong>
+            @if (getProjectUpdatedText(projectInfoProject)) {
+            {{ getProjectUpdatedText(projectInfoProject) | date:'yyyy/MM/dd HH:mm' }}
+            } @else {
+            -
+            }
+          </strong>
+        </div>
+      </div>
+    </div>
+    }
+  </ng-template>
 </div>

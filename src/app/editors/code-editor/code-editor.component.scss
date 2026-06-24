@@ -4,7 +4,7 @@
     width: 100%;
     position: relative;
     box-sizing: border-box;
-    padding-top: var(--floating-header-safe-top, 74px);
+    padding-top: var(--floating-header-height, 62px);
     overflow: hidden;
     color: var(--text-primary);
     background: var(--app-background);
@@ -43,18 +43,31 @@ nz-content {
     display: flex;
     height: 100%;
     width: 100%;
-    flex-direction: column; 
+    flex-direction: column;
     position: relative;
 
     app-monaco-editor {
+        flex: 1 1 auto;
+        min-height: 0;
         width: 100%;
-        height: 100%;
+        height: auto;
     }
 }
 
-nz-tabset {
-    background: var(--surface-subtle);
+.editor-bar {
+    flex: 0 0 auto;
+    min-width: 0;
     width: 100%;
+    display: flex;
+    align-items: stretch;
+    background: var(--surface-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+nz-tabset {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--surface-subtle);
 
     ::ng-deep {
         nz-tabs-nav {
@@ -123,6 +136,40 @@ nz-tabset {
                     background: #1890ff;
                 }
             }
+        }
+    }
+}
+
+.editor-tools {
+    flex: 0 0 auto;
+    height: 30px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border-left: 1px solid var(--border-subtle);
+    background: var(--surface-subtle);
+
+    button {
+        width: 26px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 5px;
+        color: var(--text-secondary);
+        background: transparent;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+            background 150ms ease,
+            color 150ms ease;
+
+        &:hover,
+        &:focus-visible {
+            color: var(--text-primary);
+            background: var(--hover-bg);
         }
     }
 }
