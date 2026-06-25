@@ -4,6 +4,8 @@ import { FlatTreeControl } from '@angular/cdk/tree';
 import { SelectionModel } from '@angular/cdk/collections';
 import { NzTreeViewModule } from 'ng-zorro-antd/tree-view';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzModalService } from 'ng-zorro-antd/modal';
+import { HttpErrorResponse } from '@angular/common/http';
 import { FileService } from '../../services/file.service';
 import { CommonModule } from '@angular/common';
 import { BehaviorSubject, Observable, merge } from 'rxjs';
@@ -322,7 +324,6 @@ class DynamicFileDataSource implements DataSource<FlatFileNode> {
   styleUrl: './file-tree.component.scss'
 })
 export class FileTreeComponent implements OnInit, OnChanges {
-
   @Input() rootPath: string;
   @Input() selectedFile;
   @Input() hideHidden = false;
@@ -366,10 +367,19 @@ export class FileTreeComponent implements OnInit, OnChanges {
     nodeKey: '',
     editType: 'rename'
   };
+  private inlineEditSubmitting = false;
+  private uploadTargetNode: FlatFileNode | null = null;
+  uploadDialogVisible = false;
+  uploadMode: 'file' | 'folder' = 'file';
+  uploadDragActive = false;
+  uploadSubmitting = false;
+  pendingUploadFiles: File[] = [];
+  pendingUploadRelativePaths: string[] = [];
 
   constructor(
     private fileService: FileService,
-    private message: NzMessageService
+    private message: NzMessageService,
+    private modal: NzModalService
   ) {
     // 初始化时创建空的数据源
     this.dataSource = new DynamicFileDataSource(this.treeControl, this.fileService, []);
@@ -569,22 +579,6 @@ export class FileTreeComponent implements OnInit, OnChanges {
     const currentNode = this.currentSelectedNode || this.createRootNode();
 
     switch (menuItem.action) {
-      case 'file-copy':
-      case 'folder-copy':
-      case 'multi-copy':
-        this.copyToClipboard(selectedNodes.length > 1 ? selectedNodes : [currentNode]);
-        break;
-
-      case 'file-cut':
-      case 'folder-cut':
-      case 'multi-cut':
-        this.cutToClipboard(selectedNodes.length > 1 ? selectedNodes : [currentNode]);
-        break;
-
-      case 'folder-paste':
-        this.pasteFromClipboard(currentNode);
-        break;
-
       case 'file-rename':
       case 'folder-rename':
         this.renameNode(currentNode);
@@ -593,7 +587,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       case 'file-delete':
       case 'folder-delete':
       case 'multi-delete':
-        this.deleteNodes(selectedNodes.length > 1 ? selectedNodes : [currentNode]);
+        void this.deleteNodes(selectedNodes.length > 1 ? selectedNodes : [currentNode]);
         break;
 
       case 'folder-new-file':
@@ -604,72 +598,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
         this.createNewFolder(currentNode);
         break;
 
-      case 'file-copy-path':
-      case 'folder-copy-path':
-        this.copyPathToClipboard(currentNode, false);
-        break;
-
-      case 'file-copy-relative-path':
-      case 'folder-copy-relative-path':
-        this.copyPathToClipboard(currentNode, true);
-        break;
-
-      case 'reveal-in-explorer':
-        this.revealInExplorer(currentNode);
-        break;
-
-      case 'open-in-terminal':
-        this.openInTerminal(currentNode);
-        break;
-
-      // case 'file-properties':
-      // case 'folder-properties':
-      //   this.showProperties(currentNode);
-      //   break;
-
-      case 'multi-compress':
-        this.compressMultipleFiles(selectedNodes);
+      case 'folder-upload-files':
+        this.openUploadDialog(currentNode);
         break;
 
       default:
         console.log('Unhandled menu action:', menuItem.action);
-    }
-  }
-
-  // 菜单操作方法的实现 - 通过FileService调用
-  private copyToClipboard(nodes: FlatFileNode[]) {
-    this.fileService.copyToClipboard(nodes);
-  }
-
-  private cutToClipboard(nodes: FlatFileNode[]) {
-    this.fileService.cutToClipboard(nodes);
-  }
-
-  private async pasteFromClipboard(targetNode: FlatFileNode) {
-    // 获取剪贴板状态，判断是否是剪切操作
-    const clipboardStatus = this.fileService.getClipboardStatus();
-    const isCutOperation = clipboardStatus.operation === 'cut';
-
-    const result = await this.fileService.pasteFromClipboard(targetNode);
-    if (result.success && result.newFiles) {
-      // 确定实际的目标路径
-      let targetPath = targetNode.path;
-      if (targetNode.isLeaf) {
-        // 如果是文件，使用其父目录
-        targetPath = dirname(targetPath);
-      }
-
-      // 如果是剪切操作，先从原位置删除文件节点
-      if (isCutOperation && clipboardStatus.nodes.length > 0) {
-        for (const originalNode of clipboardStatus.nodes) {
-          this.removeFileNode(originalNode.path);
-        }
-      }
-
-      // 增量添加新文件，避免全量刷新
-      for (const newFile of result.newFiles) {
-        this.addFileNodeDirect(targetPath, newFile.name, newFile.isLeaf);
-      }
     }
   }
 
@@ -678,52 +612,36 @@ export class FileTreeComponent implements OnInit, OnChanges {
     this.startInlineEdit(node, 'rename');
   }
 
-  private deleteNodes(nodes: FlatFileNode[]) {
+  private async deleteNodes(nodes: FlatFileNode[]): Promise<void> {
     console.log('Starting delete operation for nodes:', nodes.map(n => n.path));
 
-    this.fileService.deleteNodes(nodes, (deletedPaths: string[]) => {
+    const deletedPaths = await this.fileService.deleteNodes(nodes);
+    if (deletedPaths.length === 0) {
+      return;
+    }
+
+    try {
       console.log('Delete callback received for paths:', deletedPaths);
 
-      try {
-        // 发出文件删除事件，通知父组件
-        this.filesDeleted.emit(deletedPaths);
+      // 发出文件删除事件，通知父组件
+      this.filesDeleted.emit(deletedPaths);
 
-        // 使用增量更新删除节点
-        deletedPaths.forEach(path => {
-          console.log('Removing node from UI:', path);
-          this.removeFileNode(path);
-        });
+      // 清除已删除节点的选择状态
+      const currentSelected = this.nodeSelection.selected.filter(
+        node => !deletedPaths.includes(this.fileService.normalizeServerPath(node.path))
+      );
+      this.nodeSelection.clear();
+      currentSelected.forEach(node => {
+        this.nodeSelection.select(node);
+      });
 
-        // 清除已删除节点的选择状态
-        const currentSelected = this.nodeSelection.selected.filter(
-          node => !deletedPaths.includes(node.path)
-        );
-        this.nodeSelection.clear();
-        currentSelected.forEach(node => {
-          this.nodeSelection.select(node);
-        });
-
-        console.log('Delete operation completed, UI updated');
-
-        // 验证删除是否成功反映在UI中
-        setTimeout(() => {
-          const currentData = this.dataSource.getCurrentData();
-          const stillExists = deletedPaths.some(path =>
-            currentData.some(node => node.path === path)
-          );
-
-          if (stillExists) {
-            console.warn('Some deleted nodes still exist in UI, forcing refresh');
-            this.refresh();
-          }
-        }, 100);
-
-      } catch (error) {
-        console.error('Error updating UI after delete:', error);
-        // 如果增量更新失败，强制刷新整个树
-        this.refresh();
-      }
-    });
+      await this.loadRootPath();
+      console.log('Delete operation completed, file tree reloaded');
+    } catch (error) {
+      console.error('Error updating UI after delete:', error);
+      // 如果刷新失败，强制刷新整个树
+      this.refresh();
+    }
   }
 
   private createNewFile(parentNode: FlatFileNode) {
@@ -778,30 +696,226 @@ export class FileTreeComponent implements OnInit, OnChanges {
     this.startInlineEdit(tempNode, 'newFolder', parentPath);
   }
 
-  private copyPathToClipboard(node: FlatFileNode, relative: boolean) {
-    this.fileService.copyPathToClipboard(node, relative, this.rootPath);
+  private openUploadDialog(targetNode: FlatFileNode): void {
+    this.uploadTargetNode = targetNode;
+    this.uploadDialogVisible = true;
+    this.uploadDragActive = false;
+    this.uploadSubmitting = false;
+    this.uploadMode = 'file';
+    this.clearPendingUpload();
   }
 
-  private getRelativePath(absolutePath: string): string {
-    return this.fileService.getRelativePath(absolutePath, this.rootPath);
+  closeUploadDialog(): void {
+    if (this.uploadSubmitting) return;
+    this.uploadDialogVisible = false;
+    this.uploadDragActive = false;
+    this.clearPendingUpload();
   }
 
-  private revealInExplorer(node: FlatFileNode) {
-    this.fileService.revealInExplorer(node);
+  setUploadMode(mode: 'file' | 'folder'): void {
+    if (this.uploadMode === mode) return;
+    this.uploadMode = mode;
+    this.clearPendingUpload();
   }
 
-  private openInTerminal(node: FlatFileNode) {
-    this.fileService.openInTerminal(node);
+  onDialogFileInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.setPendingUpload(Array.from(input.files || []), [], 'file');
+    input.value = '';
   }
 
-  // private showProperties(node: FlatFileNode) {
-  //   this.fileService.showProperties(node);
-  // }
+  onDialogFolderInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    const relativePaths = files.map(file => (file as any).webkitRelativePath || file.name);
+    this.setPendingUpload(files, relativePaths, 'folder');
+    input.value = '';
+  }
 
-  private compressMultipleFiles(nodes: FlatFileNode[]) {
-    // TODO: 实现多文件压缩功能
-    console.log('Compress multiple files:', nodes.map(n => n.path));
-    // 这里可以调用 fileService 的压缩方法，或者显示压缩对话框
+  onUploadDragOver(event: DragEvent): void {
+    event.preventDefault();
+    this.uploadDragActive = true;
+  }
+
+  onUploadDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.uploadDragActive = false;
+  }
+
+  async onUploadDrop(event: DragEvent): Promise<void> {
+    event.preventDefault();
+    this.uploadDragActive = false;
+    const items = Array.from(event.dataTransfer?.items || []);
+    if (items.length > 0 && items.some(item => !!(item as any).webkitGetAsEntry)) {
+      const dropped = await this.readDroppedEntries(items);
+      if (dropped.files.length > 0) {
+        const hasDirectory = dropped.relativePaths.some(path => path.includes('/'));
+        this.setPendingUpload(dropped.files, dropped.relativePaths, hasDirectory || dropped.files.length > 1 ? 'folder' : 'file');
+        return;
+      }
+    }
+    const files = Array.from(event.dataTransfer?.files || []);
+    this.setPendingUpload(files, files.map(file => file.name), files.length > 1 ? 'folder' : 'file');
+  }
+
+  async confirmUpload(): Promise<void> {
+    if (!this.uploadTargetNode || this.pendingUploadFiles.length === 0) {
+      this.message.error('请选择要上传的文件或文件夹');
+      return;
+    }
+    if (!this.validatePendingUpload()) {
+      return;
+    }
+
+    const targetPath = this.uploadTargetNode.isLeaf
+      ? dirname(this.uploadTargetNode.path)
+      : this.uploadTargetNode.path;
+    this.uploadSubmitting = true;
+    try {
+      if (this.uploadMode === 'folder') {
+        await this.fileService.uploadFolder(targetPath, this.pendingUploadFiles, this.pendingUploadRelativePaths, false);
+        this.message.success(`已上传 ${this.pendingUploadFiles.length} 个文件`);
+      } else {
+        await this.fileService.uploadFile(targetPath, this.pendingUploadFiles[0], false);
+        this.message.success('文件上传成功');
+      }
+      this.uploadDialogVisible = false;
+      this.clearPendingUpload();
+      await this.loadRootPath();
+    } catch (error) {
+      if (this.isConflictError(error)) {
+        const overwrite = await this.confirmOverwrite(this.uploadMode === 'folder'
+          ? '所选文件夹中的同名文件'
+          : this.pendingUploadFiles[0].name);
+        if (overwrite) {
+          await this.confirmUploadOverwrite(targetPath);
+        }
+      } else {
+        const uploadError = error as any;
+        this.message.error(uploadError?.error?.message || uploadError?.message || '上传失败');
+      }
+    } finally {
+      this.uploadSubmitting = false;
+    }
+  }
+
+  private async confirmUploadOverwrite(targetPath: string): Promise<void> {
+    try {
+      if (this.uploadMode === 'folder') {
+        await this.fileService.uploadFolder(targetPath, this.pendingUploadFiles, this.pendingUploadRelativePaths, true);
+        this.message.success(`已上传 ${this.pendingUploadFiles.length} 个文件`);
+      } else {
+        await this.fileService.uploadFile(targetPath, this.pendingUploadFiles[0], true);
+        this.message.success('文件上传成功');
+      }
+      this.uploadDialogVisible = false;
+      this.clearPendingUpload();
+      await this.loadRootPath();
+    } catch (error: any) {
+      this.message.error(error?.error?.message || error?.message || '上传失败');
+    }
+  }
+
+  private setPendingUpload(files: File[], relativePaths: string[], mode: 'file' | 'folder'): void {
+    if (files.length === 0) return;
+    this.uploadMode = mode;
+    this.pendingUploadFiles = mode === 'file' ? files.slice(0, 1) : files;
+    this.pendingUploadRelativePaths = mode === 'file'
+      ? [this.pendingUploadFiles[0].name]
+      : this.pendingUploadFiles.map((file, index) => relativePaths[index] || file.name);
+    this.validatePendingUpload();
+  }
+
+  private validatePendingUpload(): boolean {
+    if (this.uploadMode === 'file') {
+      if (this.pendingUploadFiles.length !== 1) {
+        this.message.error('单次只能上传 1 个文件');
+        return false;
+      }
+      if (this.pendingUploadFiles[0].size >= FileService.MAX_UPLOAD_BYTES) {
+        this.message.error(`文件 ${this.pendingUploadFiles[0].name} 必须小于 5MB`);
+        return false;
+      }
+      return true;
+    }
+
+    if (this.pendingUploadFiles.length > FileService.MAX_FOLDER_UPLOAD_FILES) {
+      this.message.error('文件夹文件数量不能超过 5000 个');
+      return false;
+    }
+    if (this.pendingUploadTotalSize >= FileService.MAX_FOLDER_UPLOAD_BYTES) {
+      this.message.error('文件夹大小必须小于 20MB');
+      return false;
+    }
+    return true;
+  }
+
+  private clearPendingUpload(): void {
+    this.pendingUploadFiles = [];
+    this.pendingUploadRelativePaths = [];
+  }
+
+  get pendingUploadTotalSize(): number {
+    return this.pendingUploadFiles.reduce((sum, file) => sum + file.size, 0);
+  }
+
+  get uploadTargetLabel(): string {
+    if (!this.uploadTargetNode) return '';
+    return this.uploadTargetNode.isLeaf ? dirname(this.uploadTargetNode.path) || '项目根目录' : this.uploadTargetNode.path || '项目根目录';
+  }
+
+  private async readDroppedEntries(items: DataTransferItem[]): Promise<{ files: File[]; relativePaths: string[] }> {
+    const results: Array<{ file: File; path: string }> = [];
+    for (const item of items) {
+      const entry = (item as any).webkitGetAsEntry?.();
+      if (entry) {
+        results.push(...await this.readDroppedEntry(entry, ''));
+      }
+    }
+    return {
+      files: results.map(result => result.file),
+      relativePaths: results.map(result => result.path)
+    };
+  }
+
+  private async readDroppedEntry(entry: any, parentPath: string): Promise<Array<{ file: File; path: string }>> {
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
+      return [{ file, path: joinPath(parentPath, file.name) }];
+    }
+    if (!entry.isDirectory) return [];
+
+    const directoryPath = joinPath(parentPath, entry.name);
+    const reader = entry.createReader();
+    const children: any[] = [];
+    while (true) {
+      const batch = await new Promise<any[]>((resolve, reject) => reader.readEntries(resolve, reject));
+      if (batch.length === 0) break;
+      children.push(...batch);
+    }
+    const results: Array<{ file: File; path: string }> = [];
+    for (const child of children) {
+      results.push(...await this.readDroppedEntry(child, directoryPath));
+    }
+    return results;
+  }
+
+  private isConflictError(error: unknown): boolean {
+    return error instanceof HttpErrorResponse && error.status === 409;
+  }
+
+  private confirmOverwrite(fileName: string): Promise<boolean> {
+    return new Promise(resolve => {
+      this.modal.confirm({
+        nzTitle: '确认覆盖文件',
+        nzContent: `目标目录已存在「${fileName}」，是否覆盖？`,
+        nzOkText: '覆盖',
+        nzOkDanger: true,
+        nzCancelText: '取消',
+        nzOnOk: () => resolve(true),
+        nzOnCancel: () => resolve(false)
+      });
+    });
   }
 
   // 获取当前数据
@@ -927,7 +1041,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       case 'Delete':
         if (this.nodeSelection.selected.length > 0) {
           event.preventDefault();
-          this.deleteNodes(this.nodeSelection.selected);
+          void this.deleteNodes(this.nodeSelection.selected);
         }
         break;
 
@@ -935,33 +1049,6 @@ export class FileTreeComponent implements OnInit, OnChanges {
         if (this.nodeSelection.selected.length === 1) {
           event.preventDefault();
           this.renameNode(this.nodeSelection.selected[0]);
-        }
-        break;
-
-      case 'c':
-      case 'C':
-        if (isCtrlPressed && this.nodeSelection.selected.length > 0) {
-          event.preventDefault();
-          this.copyToClipboard(this.nodeSelection.selected);
-        }
-        break;
-
-      case 'x':
-      case 'X':
-        if (isCtrlPressed && this.nodeSelection.selected.length > 0) {
-          event.preventDefault();
-          this.cutToClipboard(this.nodeSelection.selected);
-        }
-        break;
-
-      case 'v':
-      case 'V':
-        if (isCtrlPressed) {
-          event.preventDefault();
-          // 如果有选中的文件夹，粘贴到第一个文件夹；否则粘贴到根目录
-          const targetNode = this.nodeSelection.selected.find(node => !node.isLeaf)
-            || this.createRootNode();
-          this.pasteFromClipboard(targetNode);
         }
         break;
     }
@@ -1153,8 +1240,8 @@ export class FileTreeComponent implements OnInit, OnChanges {
   }
 
   // 完成内联编辑
-  finishInlineEdit(inputValue: string) {
-    if (!this.inlineEditState.isEditing) {
+  async finishInlineEdit(inputValue: string): Promise<void> {
+    if (!this.inlineEditState.isEditing || this.inlineEditSubmitting) {
       return;
     }
 
@@ -1165,23 +1252,27 @@ export class FileTreeComponent implements OnInit, OnChanges {
       return;
     }
 
-    switch (this.inlineEditState.editType) {
-      case 'rename':
-        this.performRename(trimmedValue);
-        break;
-      case 'newFile':
-        this.performCreateFile(trimmedValue);
-        break;
-      case 'newFolder':
-        this.performCreateFolder(trimmedValue);
-        break;
+    this.inlineEditSubmitting = true;
+    try {
+      switch (this.inlineEditState.editType) {
+        case 'rename':
+          await this.performRename(trimmedValue);
+          break;
+        case 'newFile':
+          await this.performCreateFile(trimmedValue);
+          break;
+        case 'newFolder':
+          await this.performCreateFolder(trimmedValue);
+          break;
+      }
+    } finally {
+      this.inlineEditSubmitting = false;
+      this.inlineEditState = {
+        isEditing: false,
+        nodeKey: '',
+        editType: 'rename'
+      };
     }
-
-    this.inlineEditState = {
-      isEditing: false,
-      nodeKey: '',
-      editType: 'rename'
-    };
   }
 
   // 检查节点是否正在编辑
@@ -1226,7 +1317,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
   }
 
   // 执行重命名
-  private performRename(newName: string) {
+  private async performRename(newName: string): Promise<void> {
     const node = this.dataSource.getCurrentData().find(n => n.key === this.inlineEditState.nodeKey);
     if (!node) {
       return;
@@ -1244,7 +1335,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       return;
     }
 
-    const result = this.fileService.renameNodeInline(node.path, newName);
+    const result = await this.fileService.renameNodeInline(node.path, newName);
     if (result.success) {
       this.message.success('重命名成功');
 
@@ -1263,12 +1354,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
   }
 
   // 执行创建文件
-  private performCreateFile(fileName: string) {
+  private async performCreateFile(fileName: string): Promise<void> {
     if (!this.inlineEditState.parentPath) {
       return;
     }
 
-    const result = this.fileService.createFileInline(this.inlineEditState.parentPath, fileName);
+    const result = await this.fileService.createFileInline(this.inlineEditState.parentPath, fileName);
 
     if (result.success) {
       this.message.success('文件创建成功');
@@ -1281,12 +1372,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
   }
 
   // 执行创建文件夹
-  private performCreateFolder(folderName: string) {
+  private async performCreateFolder(folderName: string): Promise<void> {
     if (!this.inlineEditState.parentPath) {
       return;
     }
 
-    const result = this.fileService.createFolderInline(this.inlineEditState.parentPath, folderName);
+    const result = await this.fileService.createFolderInline(this.inlineEditState.parentPath, folderName);
 
     if (result.success) {
       this.message.success('文件夹创建成功');
@@ -1315,7 +1406,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       case 'Enter':
         event.preventDefault();
         event.stopPropagation();
-        this.finishInlineEdit(inputElement.value);
+        void this.finishInlineEdit(inputElement.value);
         break;
       case 'Escape':
         event.preventDefault();
@@ -1330,7 +1421,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
     // 延迟一小段时间，允许其他事件（如Enter键）先处理
     setTimeout(() => {
       if (this.inlineEditState.isEditing) {
-        this.finishInlineEdit(inputElement.value);
+        void this.finishInlineEdit(inputElement.value);
       }
     }, 100);
   }

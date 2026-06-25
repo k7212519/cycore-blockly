@@ -138,3 +138,136 @@
         width: 24px;
     }
 }
+
+.upload-dialog-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.upload-dialog {
+    width: min(520px, calc(100vw - 32px));
+    background: var(--surface-elevated);
+    padding: 16px 18px;
+}
+
+.upload-dialog-header,
+.upload-dialog-footer,
+.upload-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.upload-title {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.upload-target,
+.upload-drop-meta,
+.upload-summary {
+    color: var(--text-tertiary);
+}
+
+.dialog-icon-btn,
+.dialog-btn,
+.upload-mode-tabs button,
+.upload-pick-btn {
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.upload-drop-zone {
+    margin-top: 12px;
+    padding: 26px 18px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+    text-align: center;
+
+    &.drag-active {
+        border-color: #1890ff;
+        background: rgba(24, 144, 255, 0.08);
+    }
+}
+
+.upload-pick-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 7px 14px;
+    border: 1px solid #1890ff;
+    background: #1890ff;
+    color: #fff;
+    overflow: hidden;
+
+    input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        font-size: 0;
+    }
+}
+
+.upload-mode-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+
+    button {
+        padding: 8px;
+        border: 1px solid var(--border-color);
+        background: var(--control-bg);
+        color: var(--text-secondary);
+
+        &.active {
+            border-color: #1890ff;
+            color: #1890ff;
+        }
+    }
+}
+
+.upload-summary {
+    margin-top: 12px;
+    padding: 8px;
+    background: var(--control-bg);
+
+    span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+.upload-dialog-footer {
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
+.dialog-btn {
+    height: 32px;
+    border: 1px solid var(--border-color);
+    background: var(--control-bg);
+    color: var(--text-primary);
+
+    &.primary {
+        border-color: #1890ff;
+        background: #1890ff;
+        color: #fff;
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+    }
+}

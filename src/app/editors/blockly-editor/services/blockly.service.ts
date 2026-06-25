@@ -116,6 +116,7 @@ export class BlocklyService {
       return;
     }
     await this.waitForWorkspaceReady();
+    await this.ensureBoardConfigReady();
     await this.withToolboxBatch(async () => {
       if (this.projectService.isServerProject) {
         await this.loadServerLibraries(libraries, onProgress);
@@ -141,6 +142,7 @@ export class BlocklyService {
     }
 
     this.ensureCodeGenerationWorkspace();
+    await this.ensureBoardConfigReady();
     await this.withToolboxBatch(async () => {
       if (this.projectService.isServerProject) {
         await this.loadServerLibraries(libraries, onProgress);
@@ -206,6 +208,34 @@ export class BlocklyService {
     );
   }
 
+  private async ensureBoardConfigReady(): Promise<void> {
+    if (this.isUsableBoardConfig(this.boardConfig)) {
+      return;
+    }
+
+    if (this.isUsableBoardConfig(this.projectService.currentBoardConfig)) {
+      this.boardConfig = this.projectService.currentBoardConfig;
+      (window as any).boardConfig = this.boardConfig;
+      return;
+    }
+
+    if (this.projectService.isServerProject) {
+      const boardConfig = await this.projectService.getBoardJson();
+      if (this.isUsableBoardConfig(boardConfig)) {
+        this.projectService.currentBoardConfig = boardConfig;
+        this.boardConfig = boardConfig;
+        (window as any).boardConfig = boardConfig;
+        return;
+      }
+    }
+
+    throw new Error('[BlocklyService] 开发板配置尚未加载，无法解析 block.json 中的 ${board.*} 下拉选项');
+  }
+
+  private isUsableBoardConfig(boardConfig: any): boolean {
+    return !!boardConfig && typeof boardConfig === 'object' && !Array.isArray(boardConfig);
+  }
+
   // 通过node_modules加载库
   async loadLibrary(libPackageName, projectPath) {
     if (this.projectService.isServerProject) {
@@ -262,7 +292,12 @@ export class BlocklyService {
         }
         // 替换block中静态图片路径
         const staticFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'static'));
-        this.loadLibBlocks(blocks, staticFileIsExist ? this.browserService.pathJoin(libPackagePath, 'static') : null);
+        blocks = this.prepareLibraryBlocks(
+          libPackageName,
+          blocks,
+          staticFileIsExist ? this.browserService.pathJoin(libPackagePath, 'static') : null,
+        );
+        this.loadLibBlocks(blocks);
         // 加载toolbox
         const toolboxFileIsExist = this.browserService.exists(this.browserService.pathJoin(libPackagePath, 'toolbox.json'));
         if (toolboxFileIsExist) {
@@ -361,7 +396,8 @@ export class BlocklyService {
         return;
       }
 
-      this.loadLibBlocks(blocks, null);
+      blocks = this.prepareLibraryBlocks(libPackageName, blocks, null);
+      this.loadLibBlocks(blocks);
 
       if (resource.toolboxJson) {
         let toolbox = JSON.parse(resource.toolboxJson);
@@ -424,7 +460,7 @@ export class BlocklyService {
     this.loadedLibraries.delete(libraryKey);
   }
 
-  loadLibBlocks(blocks, libStaticPath) {
+  loadLibBlocks(blocks) {
     for (let index = 0; index < blocks.length; index++) {
       let block = blocks[index];
       if (block?.type && block?.icon) {
@@ -433,15 +469,64 @@ export class BlocklyService {
           JSON.parse(JSON.stringify(block.icon))
         );
       }
-      block = processJsonVar(block, this.boardConfig); // 替换开发板相关变量
-      if (libStaticPath) {
-        block = processStaticFilePath(block, libStaticPath);
-      }
       if (block?.type && Blockly.Blocks[block.type]) {
         continue;
       }
       Blockly.defineBlocksWithJsonArray([block]);
     }
+  }
+
+  private prepareLibraryBlocks(libPackageName: string, blocks: any[], libStaticPath: string | null): any[] {
+    if (!Array.isArray(blocks)) {
+      throw new Error(`[BlocklyService] 库 ${libPackageName} 的 block.json 必须是数组`);
+    }
+
+    return blocks.map((block, index) => {
+      const blockType = block?.type || `#${index}`;
+      let processedBlock = processJsonVar(block, this.boardConfig, {
+        strict: true,
+        context: `${libPackageName}/${blockType}`,
+      });
+      if (libStaticPath) {
+        processedBlock = processStaticFilePath(processedBlock, libStaticPath);
+      }
+      this.assertDropdownFieldOptions(libPackageName, processedBlock, index);
+      return processedBlock;
+    });
+  }
+
+  private assertDropdownFieldOptions(libPackageName: string, block: any, blockIndex: number): void {
+    Object.keys(block || {})
+      .filter(key => /^args\d+$/.test(key) && Array.isArray(block[key]))
+      .forEach(argsKey => {
+        block[argsKey].forEach((arg: any, argIndex: number) => {
+          if (arg?.type !== 'field_dropdown') {
+            return;
+          }
+          if (this.isValidDropdownOptions(arg.options)) {
+            return;
+          }
+          const blockType = block?.type || `#${blockIndex}`;
+          const fieldName = arg?.name || `arg${argIndex}`;
+          throw new Error(
+            `[BlocklyService] 库 ${libPackageName} 的块 ${blockType}.${fieldName} 下拉选项无效；` +
+            `field_dropdown.options 必须解析为非空的 [humanReadableValue, languageNeutralValue] 二元组数组`,
+          );
+        });
+      });
+  }
+
+  private isValidDropdownOptions(options: any): boolean {
+    return Array.isArray(options)
+      && options.length > 0
+      && options.every(option =>
+        Array.isArray(option)
+        && option.length >= 2
+        && option[0] !== undefined
+        && option[0] !== null
+        && option[1] !== undefined
+        && option[1] !== null
+      );
   }
 
   private ensureLibraryBlockExtensionsRegistered(

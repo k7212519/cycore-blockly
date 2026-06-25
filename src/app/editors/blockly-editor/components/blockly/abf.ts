@@ -1,22 +1,44 @@
 
+interface ProcessJsonVarOptions {
+    strict?: boolean;
+    context?: string;
+}
+
 /**
  * 替换json配置中的board相关变量
  * @param {object} sourceJson - 需要处理的JSON对象
  * @returns {object} - 处理后的JSON对象
  */
-export function processJsonVar(sourceJson, boardConfig) {
+export function processJsonVar(sourceJson, boardConfig, options: ProcessJsonVarOptions = {}) {
     let jsonString = JSON.stringify(sourceJson)
-    let result = jsonString.match(/"\$\{board\.(\S*?)\}"/g)
+    const result = jsonString.match(/"\$\{board\.([^"}]+)\}"/g)
     if (result != null) {
-        // console.log(result);
         result.forEach(item => {
-            let itemName = item.replace('"${', '').replace('}"', '')
-            let data = JSON.parse(JSON.stringify(boardConfig))
-            data = data[getLastElement(itemName.split('.'))]
+            const itemName = item.replace('"${board.', '').replace('}"', '')
+            const data = resolveBoardConfigValue(boardConfig, itemName)
+            if (data === undefined) {
+                const message = `未找到开发板配置变量 board.${itemName}${options.context ? `（${options.context}）` : ''}`
+                if (options.strict) {
+                    throw new Error(message)
+                }
+                console.warn(message)
+            }
             jsonString = jsonString.replace(item, JSON.stringify(data ?? null))
         });
     }
     return JSON.parse(jsonString)
+}
+
+function resolveBoardConfigValue(boardConfig, path: string) {
+    if (!boardConfig || typeof boardConfig !== 'object') {
+        return undefined
+    }
+    return path.split('.').reduce((value, key) => {
+        if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, key)) {
+            return value[key]
+        }
+        return undefined
+    }, boardConfig)
 }
 
 /**
@@ -176,11 +198,4 @@ function processToolboxContents(contents, labels) {
             processToolboxContents(item.contents, labels);
         }
     }
-}
-
-function getLastElement<T>(array: T[]): T | undefined {
-    if (array.length === 0) {
-        return undefined;
-    }
-    return array[array.length - 1];
 }

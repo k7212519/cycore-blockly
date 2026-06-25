@@ -83,6 +83,12 @@ export interface ServerFileNode {
   children?: ServerFileNode[];
 }
 
+export interface ServerFileMutation {
+  name: string;
+  path: string;
+  directory: boolean;
+}
+
 export interface ServerCompileResult {
   success: boolean;
   text: string;
@@ -729,6 +735,76 @@ export class ProjectService {
   async saveServerFile(path: string, content: string, projectId = this.currentProjectId): Promise<void> {
     await this.unwrap<void>(
       this.http.put<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/files`, { path, content })
+    );
+  }
+
+  async createServerFile(path: string, directory: boolean, projectId = this.currentProjectId): Promise<ServerFileMutation> {
+    return this.unwrap<ServerFileMutation>(
+      this.http.post<ApiResult<ServerFileMutation>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/files`,
+        { path, directory }
+      )
+    );
+  }
+
+  async renameServerFile(path: string, newName: string, projectId = this.currentProjectId): Promise<ServerFileMutation> {
+    return this.unwrap<ServerFileMutation>(
+      this.http.patch<ApiResult<ServerFileMutation>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/files`,
+        { path, newName }
+      )
+    );
+  }
+
+  async deleteServerFile(path: string, projectId = this.currentProjectId): Promise<void> {
+    await this.unwrap<void>(
+      this.http.delete<ApiResult<void>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/files?path=${encodeURIComponent(path)}`
+      )
+    );
+  }
+
+  async uploadServerFile(
+    parentPath: string,
+    file: File,
+    overwrite = false,
+    projectId = this.currentProjectId
+  ): Promise<ServerFileMutation> {
+    const formData = new FormData();
+    formData.append('parentPath', parentPath || '');
+    formData.append('file', file, file.name);
+    formData.append('overwrite', String(overwrite));
+    return this.unwrap<ServerFileMutation>(
+      this.http.post<ApiResult<ServerFileMutation>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/files/upload`,
+        formData
+      )
+    );
+  }
+
+  async importServerFiles(
+    parentPath: string,
+    files: File[],
+    relativePaths: string[],
+    directory: boolean,
+    overwrite = false,
+    projectId = this.currentProjectId
+  ): Promise<ServerFileMutation[]> {
+    const formData = new FormData();
+    formData.append('parentPath', parentPath || '');
+    formData.append('directory', String(directory));
+    formData.append('overwrite', String(overwrite));
+    files.forEach((file, index) => {
+      formData.append('files', file, file.name);
+      if (directory) {
+        formData.append('relativePaths', relativePaths[index] || file.name);
+      }
+    });
+    return this.unwrap<ServerFileMutation[]>(
+      this.http.post<ApiResult<ServerFileMutation[]>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/files/import`,
+        formData
+      )
     );
   }
 

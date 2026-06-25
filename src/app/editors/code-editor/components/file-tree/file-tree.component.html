@@ -89,3 +89,83 @@
 <app-menu class="ports" [position]="rightClickMenuPosition" [menuList]="menuList" [width]="260"
     (itemClickEvent)="onMenuItemClick($event)" (closeEvent)="showRightClickMenu = false"></app-menu>
 }
+@if (uploadDialogVisible) {
+<div class="upload-dialog-mask" (click)="closeUploadDialog()">
+    <div class="upload-dialog bborder" (click)="$event.stopPropagation()">
+        <div class="upload-dialog-header">
+            <div>
+                <div class="upload-title">上传文件</div>
+                <div class="upload-target ellipsis">目标：{{uploadTargetLabel}}</div>
+            </div>
+            <button class="dialog-icon-btn" type="button" (click)="closeUploadDialog()" [disabled]="uploadSubmitting">
+                <i class="fa-light fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="upload-mode-tabs">
+            <button type="button" [class.active]="uploadMode === 'file'" (click)="setUploadMode('file')">
+                <i class="fa-light fa-file-arrow-up"></i>
+                文件
+            </button>
+            <button type="button" [class.active]="uploadMode === 'folder'" (click)="setUploadMode('folder')">
+                <i class="fa-light fa-folder-arrow-up"></i>
+                文件夹
+            </button>
+        </div>
+
+        <div class="upload-drop-zone" [class.drag-active]="uploadDragActive" (dragover)="onUploadDragOver($event)"
+            (dragleave)="onUploadDragLeave($event)" (drop)="onUploadDrop($event)">
+            <div class="upload-drop-icon">
+                <i class="fa-light {{uploadMode === 'folder' ? 'fa-folder-arrow-up' : 'fa-file-arrow-up'}}"></i>
+            </div>
+            <div class="upload-drop-title">
+                @if (pendingUploadFiles.length > 0) {
+                已选择 {{pendingUploadFiles.length}} 个文件
+                } @else {
+                拖动{{uploadMode === 'folder' ? '文件夹' : '文件'}}到此处
+                }
+            </div>
+            <div class="upload-drop-meta">
+                @if (uploadMode === 'folder') {
+                文件夹限制：小于 20MB，最多 5000 个文件
+                } @else {
+                单文件限制：小于 5MB
+                }
+            </div>
+            <div class="upload-actions-row">
+                @if (uploadMode === 'folder') {
+                <button class="upload-pick-btn" type="button">
+                    <i class="fa-light fa-folder-open"></i>
+                    选择文件夹
+                    <input type="file" multiple webkitdirectory directory (change)="onDialogFolderInputChange($event)" />
+                </button>
+                } @else {
+                <button class="upload-pick-btn" type="button">
+                    <i class="fa-light fa-file"></i>
+                    选择文件
+                    <input type="file" (change)="onDialogFileInputChange($event)" />
+                </button>
+                }
+            </div>
+        </div>
+
+        @if (pendingUploadFiles.length > 0) {
+        <div class="upload-summary">
+            <span>{{pendingUploadFiles[0].name}}</span>
+            @if (pendingUploadFiles.length > 1) {
+            <span>等 {{pendingUploadFiles.length}} 个文件</span>
+            }
+            <span>{{(pendingUploadTotalSize / 1024 / 1024).toFixed(2)}} MB</span>
+        </div>
+        }
+
+        <div class="upload-dialog-footer">
+            <button type="button" class="dialog-btn" (click)="closeUploadDialog()" [disabled]="uploadSubmitting">取消</button>
+            <button type="button" class="dialog-btn primary" (click)="confirmUpload()"
+                [disabled]="uploadSubmitting || pendingUploadFiles.length === 0">
+                {{uploadSubmitting ? '上传中...' : '确定'}}
+            </button>
+        </div>
+    </div>
+</div>
+}

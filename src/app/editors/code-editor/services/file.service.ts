@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzTreeNodeOptions } from 'ng-zorro-antd/tree';
-import { ProjectService, ServerFileNode } from '../../../services/project.service';
+import { ProjectService, ServerFileMutation, ServerFileNode } from '../../../services/project.service';
 
 interface FileNode {
   title: string;
@@ -11,14 +11,21 @@ interface FileNode {
   children?: FileNode[];
 }
 
+function joinPath(...parts: string[]): string {
+  return parts.filter(part => part !== undefined && part !== null && String(part) !== '')
+    .join('/')
+    .replace(/\/+/g, '/')
+    .replace(/^\/+/, '');
+}
+
 @Injectable({ providedIn: 'root' })
 export class FileService {
+  static readonly MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+  static readonly MAX_FOLDER_UPLOAD_BYTES = 20 * 1024 * 1024;
+  static readonly MAX_FOLDER_UPLOAD_FILES = 5000;
+
   currentPath = '';
   private serverTreeCache = new Map<string, NzTreeNodeOptions[]>();
-  private clipboard: { nodes: FileNode[]; operation: 'copy' | 'cut' | null } = {
-    nodes: [],
-    operation: null,
-  };
 
   constructor(
     private message: NzMessageService,
@@ -44,75 +51,80 @@ export class FileService {
     return '';
   }
 
-  copyToClipboard(nodes: FileNode[]): void {
-    this.clipboard = { nodes: [...nodes], operation: 'copy' };
-    void navigator.clipboard?.writeText(nodes.map(node => node.path).join('\n'));
-  }
-
-  cutToClipboard(nodes: FileNode[]): void {
-    this.clipboard = { nodes: [...nodes], operation: 'cut' };
-    this.message.info('浏览器版暂不支持移动项目文件');
-  }
-
-  async pasteFromClipboard(_targetNode: FileNode): Promise<{
-    success: boolean;
-    newFiles?: Array<{ name: string; isLeaf: boolean; path: string }>;
-  }> {
-    this.message.info('浏览器版暂不支持复制项目文件');
-    return { success: false };
-  }
-
-  getClipboardStatus() {
-    return {
-      hasItems: this.clipboard.nodes.length > 0,
-      operation: this.clipboard.operation,
-      count: this.clipboard.nodes.length,
-      nodes: [...this.clipboard.nodes],
-    };
-  }
-
-  clearClipboard(): void {
-    this.clipboard = { nodes: [], operation: null };
-  }
-
-  deleteNodes(_nodes: FileNode[], _onSuccess?: (deletedPaths: string[]) => void): void {
-    this.message.info('浏览器版暂不支持删除项目文件');
+  async deleteNodes(nodes: FileNode[], onSuccess?: (deletedPaths: string[]) => void): Promise<string[]> {
+    try {
+      const deletedPaths = nodes
+        .map(node => this.normalizeServerPath(node.path))
+        .sort((left, right) => right.length - left.length);
+      for (const path of deletedPaths) {
+        await this.projectService.deleteServerFile(path);
+      }
+      await this.loadServerTree();
+      onSuccess?.(deletedPaths);
+      this.message.success(nodes.length > 1 ? '删除成功' : '文件删除成功');
+      return deletedPaths;
+    } catch (error: any) {
+      this.message.error(error?.error?.message || error?.message || '删除项目文件失败');
+      return [];
+    }
   }
 
   validateFileName(name: string): { valid: boolean; error?: string } {
     const value = (name || '').trim();
     if (!value) return { valid: false, error: '名称不能为空' };
+    if (value === '.' || value === '..') return { valid: false, error: '名称包含非法字符' };
     if (/[\\/:*?"<>|]/.test(value)) return { valid: false, error: '名称包含非法字符' };
     return { valid: true };
   }
 
-  createFileInline(_parentPath: string, _fileName: string): {
+  async createFileInline(parentPath: string, fileName: string): Promise<{
     success: boolean;
     error?: string;
     filePath?: string;
-  } {
-    return { success: false, error: '浏览器版暂不支持新建项目文件' };
+  }> {
+    const validation = this.validateFileName(fileName);
+    if (!validation.valid) return { success: false, error: validation.error };
+    try {
+      const filePath = joinPath(this.normalizeServerPath(parentPath), fileName.trim());
+      const result = await this.projectService.createServerFile(filePath, false);
+      await this.loadServerTree();
+      return { success: true, filePath: result.path };
+    } catch (error: any) {
+      return { success: false, error: error?.error?.message || error?.message || '新建项目文件失败' };
+    }
   }
 
-  createFolderInline(_parentPath: string, _folderName: string): {
+  async createFolderInline(parentPath: string, folderName: string): Promise<{
     success: boolean;
     error?: string;
     folderPath?: string;
-  } {
-    return { success: false, error: '浏览器版暂不支持新建项目目录' };
+  }> {
+    const validation = this.validateFileName(folderName);
+    if (!validation.valid) return { success: false, error: validation.error };
+    try {
+      const folderPath = joinPath(this.normalizeServerPath(parentPath), folderName.trim());
+      const result = await this.projectService.createServerFile(folderPath, true);
+      await this.loadServerTree();
+      return { success: true, folderPath: result.path };
+    } catch (error: any) {
+      return { success: false, error: error?.error?.message || error?.message || '新建项目目录失败' };
+    }
   }
 
-  renameNodeInline(_oldPath: string, _newName: string): {
+  async renameNodeInline(oldPath: string, newName: string): Promise<{
     success: boolean;
     error?: string;
     newPath?: string;
-  } {
-    return { success: false, error: '浏览器版暂不支持重命名项目文件' };
-  }
-
-  copyPathToClipboard(node: FileNode, relative: boolean, rootPath = ''): void {
-    const path = relative ? this.getRelativePath(node.path, rootPath) : node.path;
-    void navigator.clipboard?.writeText(path);
+  }> {
+    const validation = this.validateFileName(newName);
+    if (!validation.valid) return { success: false, error: validation.error };
+    try {
+      const result = await this.projectService.renameServerFile(this.normalizeServerPath(oldPath), newName.trim());
+      await this.loadServerTree();
+      return { success: true, newPath: result.path };
+    } catch (error: any) {
+      return { success: false, error: error?.error?.message || error?.message || '重命名项目文件失败' };
+    }
   }
 
   getRelativePath(path: string, rootPath = ''): string {
@@ -123,16 +135,38 @@ export class FileService {
       : normalized;
   }
 
-  revealInExplorer(_node: FileNode): void {
-    this.message.info('浏览器环境没有本机文件管理器');
+  async uploadFile(parentPath: string, file: File, overwrite = false): Promise<ServerFileMutation> {
+    if (file.size >= FileService.MAX_UPLOAD_BYTES) {
+      throw new Error(`文件 ${file.name} 必须小于 5MB`);
+    }
+    const results = await this.projectService.importServerFiles(
+      this.normalizeServerPath(parentPath),
+      [file],
+      [],
+      false,
+      overwrite
+    );
+    await this.loadServerTree();
+    return results[0];
   }
 
-  showProperties(node: FileNode): void {
-    this.message.info(`${node.title}: ${node.path}`);
-  }
-
-  openInTerminal(_node: FileNode): void {
-    this.message.info('浏览器环境不提供本机终端');
+  async uploadFolder(parentPath: string, files: File[], relativePaths: string[], overwrite = false): Promise<ServerFileMutation[]> {
+    if (files.length > FileService.MAX_FOLDER_UPLOAD_FILES) {
+      throw new Error('文件夹文件数量不能超过 5000 个');
+    }
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize >= FileService.MAX_FOLDER_UPLOAD_BYTES) {
+      throw new Error('文件夹大小必须小于 20MB');
+    }
+    const results = await this.projectService.importServerFiles(
+      this.normalizeServerPath(parentPath),
+      files,
+      relativePaths,
+      true,
+      overwrite
+    );
+    await this.loadServerTree();
+    return results;
   }
 
   private indexServerTree(parentPath: string, nodes: ServerFileNode[]): void {
@@ -153,7 +187,7 @@ export class FileService {
     }
   }
 
-  private normalizeServerPath(path: string): string {
+  normalizeServerPath(path: string): string {
     return (path || '')
       .replace(/^server-project:[^/]+\/?/, '')
       .replace(/^\/+/, '')

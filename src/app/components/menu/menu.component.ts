@@ -89,7 +89,9 @@ export class MenuComponent {
   }
 
   handleDocumentClick = (event: MouseEvent) => {
-    event.preventDefault();
+    if (event.type === 'contextmenu') {
+      event.preventDefault();
+    }
     const target = event.target as Node;
 
     // 检查点击是否在主菜单或子菜单内
