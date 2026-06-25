@@ -122,8 +122,8 @@
     <div class="project-info-form">
       <label class="project-info-field">
         <span>项目名称</span>
-        <input nz-input [(ngModel)]="projectInfoName" maxlength="64" [disabled]="renamingProjectId === projectInfoProject.projectId"
-          placeholder="请输入项目名称" />
+        <input class="rename-name-input" nz-input [(ngModel)]="projectInfoName" maxlength="64"
+          [disabled]="renamingProjectId === projectInfoProject.projectId" placeholder="请输入项目名称" />
       </label>
 
       <div class="project-info-grid">

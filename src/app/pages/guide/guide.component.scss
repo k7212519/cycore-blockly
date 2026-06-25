@@ -541,6 +541,37 @@
     font-size: 12px;
     font-weight: 700;
   }
+
+  .rename-name-input {
+    height: 40px;
+    border-color: color-mix(in srgb, var(--guide-accent) 54%, var(--guide-border));
+    border-radius: 10px;
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--guide-accent) 10%, var(--input-bg, #fff));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--guide-accent) 14%, transparent),
+      0 8px 18px color-mix(in srgb, var(--guide-accent) 10%, transparent);
+    font-size: 14px;
+    font-weight: 650;
+    transition:
+      border-color 160ms ease,
+      background 160ms ease,
+      box-shadow 160ms ease;
+
+    &:hover,
+    &:focus {
+      border-color: var(--guide-accent);
+      background: color-mix(in srgb, var(--guide-accent) 14%, var(--input-bg, #fff));
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--guide-accent) 18%, transparent),
+        0 10px 22px color-mix(in srgb, var(--guide-accent) 12%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.72;
+      box-shadow: none;
+    }
+  }
 }
 
 .project-info-grid {
