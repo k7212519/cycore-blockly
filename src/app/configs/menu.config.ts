@@ -103,14 +103,15 @@ export let HEADER_MENU: IMenuItem[] = [
     data: { type: 'window', path: 'settings', alwaysOnTop: true, width: 700, height: 550 },
     icon: 'fa-light fa-gear',
   },
-  {
-    sep: true,
-  },
-  {
-    name: 'MENU.PROJECT_HUB',
-    action: 'example-open',
-    icon: 'fa-light fa-album-collection',
-  },
+  // 暂时隐藏项目广场入口，保留路由与处理逻辑方便后续恢复。
+  // {
+  //   sep: true,
+  // },
+  // {
+  //   name: 'MENU.PROJECT_HUB',
+  //   action: 'example-open',
+  //   icon: 'fa-light fa-album-collection',
+  // },
   {
     sep: true,
   },
@@ -134,12 +135,13 @@ export let GUIDE_MENU: IMenuItem[] = [
   //   data: { type: 'other', action: 'openByBrowser', url: 'https://aily.pro/doc' },
   //   icon: 'fa-light fa-book-open-cover',
   // },
-  {
-    name: 'MENU.PROJECT_HUB',
-    action: 'playground-open',
-    data: { type: 'other', action: 'openByBrowser', url: 'https://aily.pro' },
-    icon: 'fa-light fa-album-collection',
-  },
+  // 暂时隐藏项目广场入口，保留路由与处理逻辑方便后续恢复。
+  // {
+  //   name: 'MENU.PROJECT_HUB',
+  //   action: 'playground-open',
+  //   data: { type: 'other', action: 'openByBrowser', url: 'https://aily.pro' },
+  //   icon: 'fa-light fa-album-collection',
+  // },
 ];
 
 
