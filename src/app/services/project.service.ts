@@ -240,7 +240,11 @@ export class ProjectService {
   async projectNew(newProjectData: NewProjectData) {
     try {
       this.uiService.updateFooterState({ state: 'doing', text: this.translate.instant('PROJECT.CREATING_PROJECT') });
-      const created = await this.createServerProject(newProjectData.name, newProjectData.board.name);
+      const created = await this.createServerProject(
+        newProjectData.name,
+        newProjectData.board.name,
+        newProjectData.editor || 'blockly'
+      );
       this.uiService.updateFooterState({ state: 'done', text: this.translate.instant('PROJECT.PROJECT_CREATED') });
       await this.projectOpenById(created.projectId);
       return;
@@ -519,10 +523,14 @@ export class ProjectService {
     return firstValueFrom(this.loadServerLibraries$(keyword, page, pageSize, lang));
   }
 
-  async createServerProject(name: string, boardName: string): Promise<{ projectId: string; name: string; editor: string; boardName: string }> {
+  async createServerProject(
+    name: string,
+    boardName: string,
+    editor: 'blockly' | 'code' = 'blockly'
+  ): Promise<{ projectId: string; name: string; editor: string; boardName: string }> {
     return this.unwrap(this.http.post<ApiResult<{ projectId: string; name: string; editor: string; boardName: string }>>(
       API.serverProjects,
-      { name, boardName }
+      { name, boardName, editor }
     ));
   }
 

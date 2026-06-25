@@ -12,8 +12,10 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { TranslateModule } from '@ngx-translate/core';
 import { Router } from '@angular/router';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
+import { NzSwitchModule } from 'ng-zorro-antd/switch';
 import { SequentialImgDirective } from './sequential-img.directive';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
+import { API } from '../../configs/api.config';
 
 @Component({
   selector: 'app-project-new',
@@ -25,6 +27,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
     NzSelectModule,
     TranslateModule,
     NzRadioModule,
+    NzSwitchModule,
     SequentialImgDirective,
     NzToolTipModule
   ],
@@ -48,7 +51,8 @@ export class ProjectNewComponent implements OnDestroy {
       nickname: '',
       version: '',
     },
-    devmode: ''
+    devmode: '',
+    editor: 'blockly'
   };
 
   boardVersion = '';
@@ -81,12 +85,7 @@ export class ProjectNewComponent implements OnDestroy {
     this.themeSubscription = this.themeService.theme$.subscribe(theme => {
       this.updateDefaultBoardImage(theme);
     });
-    const boards = (await this.projectService.loadServerBoards()).map(board => this.prepareBoard(board as BoardInfo));
-    this._boardList = boards.sort((a, b) => {
-      if (a.nickname === 'Cycore ESP32S3') return -1;
-      if (b.nickname === 'Cycore ESP32S3') return 1;
-      return 0;
-    });
+    this._boardList = await this.projectService.loadServerBoards();
 
     this.boardList = JSON.parse(JSON.stringify(this._boardList));
 
@@ -110,7 +109,13 @@ export class ProjectNewComponent implements OnDestroy {
     if (!board?.img) {
       return this.defaultBoardImageUrl;
     }
-    return `${this.resourceUrl}/imgs/boards/${board.img}`;
+    const imagePath = board.img.replace(/\\/g, '/');
+    const boardDirectory = board.boardDirectory?.trim();
+    const isBackendBoardImage = !imagePath.includes('/') && /\.(svg|webp|jpg|png)$/i.test(imagePath);
+    if (boardDirectory && isBackendBoardImage) {
+      return `${API.serverProjectBoards}/${encodeURIComponent(boardDirectory)}/image/${encodeURIComponent(imagePath)}`;
+    }
+    return `${this.resourceUrl}/imgs/boards/${imagePath}`;
   }
 
   useDefaultBoardImage(event: Event) {
@@ -156,14 +161,6 @@ export class ProjectNewComponent implements OnDestroy {
     return isWifiduinoEsp32S3Dev || (isEspressif && !isExcludedModel && !isWifiduino32S3);
   }
 
-  private prepareBoard(board: BoardInfo): BoardInfo {
-    const preparedBoard = JSON.parse(JSON.stringify(board));
-    if (this.getBoardIdentity(board).includes('wifiduinoesp32s3dev')) {
-      preparedBoard.nickname = 'Cycore ESP32S3';
-    }
-    return preparedBoard;
-  }
-
   private getBoardIdentity(board: BoardInfo): string {
     return `${board.name || ''} ${board.nickname || ''}`
       .toLowerCase()
@@ -171,6 +168,15 @@ export class ProjectNewComponent implements OnDestroy {
   }
 
   devmodes = [];
+
+  get isCodeEditorMode(): boolean {
+    return this.newProjectData.editor === 'code';
+  }
+
+  set isCodeEditorMode(value: boolean) {
+    this.newProjectData.editor = value ? 'code' : 'blockly';
+  }
+
   selectBoard(boardInfo: BoardInfo) {
     this.currentBoard = boardInfo;
     this.newProjectData.board.name = boardInfo.name;
@@ -262,7 +268,8 @@ export interface BoardInfo {
   "url": string,
   "brand": string,
   "type"?: string, // 开发板类型/核心架构 (如 esp32:esp32, arduino:avr, etc)
-  "mode"?: string[]
+  "mode"?: string[],
+  "boardDirectory"?: string
 }
 
 export interface NewProjectData {
@@ -273,5 +280,6 @@ export interface NewProjectData {
     nickname: string,
     version: string
   },
-  devmode?: string
+  devmode?: string,
+  editor?: 'blockly' | 'code'
 }
