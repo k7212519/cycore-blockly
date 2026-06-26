@@ -720,7 +720,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
 
   onDialogFileInputChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.setPendingUpload(Array.from(input.files || []), [], 'file');
+    this.setPendingUpload(Array.from(input.files || []), [], 'file', true);
     input.value = '';
   }
 
@@ -750,12 +750,12 @@ export class FileTreeComponent implements OnInit, OnChanges {
       const dropped = await this.readDroppedEntries(items);
       if (dropped.files.length > 0) {
         const hasDirectory = dropped.relativePaths.some(path => path.includes('/'));
-        this.setPendingUpload(dropped.files, dropped.relativePaths, hasDirectory || dropped.files.length > 1 ? 'folder' : 'file');
+        this.setPendingUpload(dropped.files, dropped.relativePaths, hasDirectory ? 'folder' : 'file', !hasDirectory);
         return;
       }
     }
     const files = Array.from(event.dataTransfer?.files || []);
-    this.setPendingUpload(files, files.map(file => file.name), files.length > 1 ? 'folder' : 'file');
+    this.setPendingUpload(files, files.map(file => file.name), 'file', true);
   }
 
   async confirmUpload(): Promise<void> {
@@ -776,8 +776,8 @@ export class FileTreeComponent implements OnInit, OnChanges {
         await this.fileService.uploadFolder(targetPath, this.pendingUploadFiles, this.pendingUploadRelativePaths, false);
         this.message.success(`已上传 ${this.pendingUploadFiles.length} 个文件`);
       } else {
-        await this.fileService.uploadFile(targetPath, this.pendingUploadFiles[0], false);
-        this.message.success('文件上传成功');
+        await this.fileService.uploadFiles(targetPath, this.pendingUploadFiles, false);
+        this.message.success(`已上传 ${this.pendingUploadFiles.length} 个文件`);
       }
       this.uploadDialogVisible = false;
       this.clearPendingUpload();
@@ -786,7 +786,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       if (this.isConflictError(error)) {
         const overwrite = await this.confirmOverwrite(this.uploadMode === 'folder'
           ? '所选文件夹中的同名文件'
-          : this.pendingUploadFiles[0].name);
+          : '所选文件中的同名文件');
         if (overwrite) {
           await this.confirmUploadOverwrite(targetPath);
         }
@@ -805,8 +805,8 @@ export class FileTreeComponent implements OnInit, OnChanges {
         await this.fileService.uploadFolder(targetPath, this.pendingUploadFiles, this.pendingUploadRelativePaths, true);
         this.message.success(`已上传 ${this.pendingUploadFiles.length} 个文件`);
       } else {
-        await this.fileService.uploadFile(targetPath, this.pendingUploadFiles[0], true);
-        this.message.success('文件上传成功');
+        await this.fileService.uploadFiles(targetPath, this.pendingUploadFiles, true);
+        this.message.success(`已上传 ${this.pendingUploadFiles.length} 个文件`);
       }
       this.uploadDialogVisible = false;
       this.clearPendingUpload();
@@ -816,24 +816,109 @@ export class FileTreeComponent implements OnInit, OnChanges {
     }
   }
 
-  private setPendingUpload(files: File[], relativePaths: string[], mode: 'file' | 'folder'): void {
+  private setPendingUpload(files: File[], relativePaths: string[], mode: 'file' | 'folder', append = false): void {
     if (files.length === 0) return;
+    const filtered = this.filterHiddenUploadEntries(files, relativePaths, mode);
+    if (filtered.files.length === 0) {
+      this.message.warning(filtered.invalidCount > 0 ? '所选文件名不符合规则，没有可上传的文件' : '隐藏文件已过滤，没有可上传的文件');
+      return;
+    }
+    if (filtered.hiddenCount > 0) {
+      this.message.info(`已过滤 ${filtered.hiddenCount} 个隐藏文件或目录`);
+    }
+    if (filtered.invalidCount > 0) {
+      this.message.warning(filtered.invalidMessage || `已过滤 ${filtered.invalidCount} 个文件名不符合规则的文件`);
+    }
+
+    const previousFiles = this.pendingUploadFiles;
+    const previousPaths = this.pendingUploadRelativePaths;
+    const previousMode = this.uploadMode;
     this.uploadMode = mode;
-    this.pendingUploadFiles = mode === 'file' ? files.slice(0, 1) : files;
+    this.pendingUploadFiles = mode === 'file' && append && previousMode === 'file'
+      ? [...previousFiles, ...filtered.files]
+      : filtered.files;
     this.pendingUploadRelativePaths = mode === 'file'
-      ? [this.pendingUploadFiles[0].name]
-      : this.pendingUploadFiles.map((file, index) => relativePaths[index] || file.name);
-    this.validatePendingUpload();
+      ? this.pendingUploadFiles.map(file => file.name)
+      : this.pendingUploadFiles.map((file, index) => filtered.relativePaths[index] || file.name);
+    if (!this.validatePendingUpload()) {
+      this.pendingUploadFiles = previousFiles;
+      this.pendingUploadRelativePaths = previousPaths;
+      this.uploadMode = previousMode;
+    }
+  }
+
+  private filterHiddenUploadEntries(files: File[], relativePaths: string[], mode: 'file' | 'folder'): {
+    files: File[];
+    relativePaths: string[];
+    hiddenCount: number;
+    invalidCount: number;
+    invalidMessage?: string;
+  } {
+    const visibleFiles: File[] = [];
+    const visiblePaths: string[] = [];
+    let hiddenCount = 0;
+    let invalidCount = 0;
+    let invalidMessage = '';
+
+    files.forEach((file, index) => {
+      const uploadPath = mode === 'folder' ? (relativePaths[index] || file.name) : file.name;
+      if (this.isHiddenUploadPath(uploadPath)) {
+        hiddenCount++;
+        return;
+      }
+      const validationError = this.getUploadPathValidationError(uploadPath);
+      if (validationError) {
+        invalidCount++;
+        invalidMessage ||= validationError;
+        return;
+      }
+      visibleFiles.push(file);
+      visiblePaths.push(uploadPath);
+    });
+
+    return {
+      files: visibleFiles,
+      relativePaths: visiblePaths,
+      hiddenCount,
+      invalidCount,
+      invalidMessage
+    };
+  }
+
+  private isHiddenUploadPath(path: string): boolean {
+    return (path || '')
+      .replace(/\\/g, '/')
+      .split('/')
+      .some(segment => segment.startsWith('.'));
+  }
+
+  private getUploadPathValidationError(path: string): string {
+    const segments = (path || '').replace(/\\/g, '/').split('/').filter(Boolean);
+    for (const segment of segments) {
+      if (/[\u3400-\u9FFF\uF900-\uFAFF]/.test(segment)) {
+        return `文件名不能包含中文字符：${segment}`;
+      }
+      if (segment === '.' || segment === '..' || !/^[A-Za-z0-9._-]+$/.test(segment)) {
+        return `文件名只能包含英文、数字、点、横线和下划线：${segment}`;
+      }
+    }
+    return '';
   }
 
   private validatePendingUpload(): boolean {
     if (this.uploadMode === 'file') {
-      if (this.pendingUploadFiles.length !== 1) {
-        this.message.error('单次只能上传 1 个文件');
+      const oversizedFile = this.pendingUploadFiles.find(file => file.size >= FileService.MAX_UPLOAD_BYTES);
+      if (oversizedFile) {
+        this.message.error(`文件 ${oversizedFile.name} 必须小于 10MB`);
         return false;
       }
-      if (this.pendingUploadFiles[0].size >= FileService.MAX_UPLOAD_BYTES) {
-        this.message.error(`文件 ${this.pendingUploadFiles[0].name} 必须小于 5MB`);
+      if (this.pendingUploadTotalSize >= FileService.MAX_UPLOAD_TOTAL_BYTES) {
+        this.message.error('上传文件总大小必须小于 50MB');
+        return false;
+      }
+      const fileNames = new Set(this.pendingUploadFiles.map(file => file.name));
+      if (fileNames.size !== this.pendingUploadFiles.length) {
+        this.message.error('上传文件存在重名，请去掉重复文件');
         return false;
       }
       return true;
@@ -844,7 +929,7 @@ export class FileTreeComponent implements OnInit, OnChanges {
       return false;
     }
     if (this.pendingUploadTotalSize >= FileService.MAX_FOLDER_UPLOAD_BYTES) {
-      this.message.error('文件夹大小必须小于 20MB');
+      this.message.error('文件夹大小必须小于 50MB');
       return false;
     }
     return true;
@@ -879,6 +964,9 @@ export class FileTreeComponent implements OnInit, OnChanges {
   }
 
   private async readDroppedEntry(entry: any, parentPath: string): Promise<Array<{ file: File; path: string }>> {
+    if (entry?.name && this.isHiddenUploadPath(entry.name)) {
+      return [];
+    }
     if (entry.isFile) {
       const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
       return [{ file, path: joinPath(parentPath, file.name) }];

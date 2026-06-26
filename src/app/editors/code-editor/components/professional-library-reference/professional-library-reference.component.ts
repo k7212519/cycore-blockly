@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import * as Blockly from 'blockly';
+import { Subscription } from 'rxjs';
 import { ProjectService, ServerBlocklyLibraryResource } from '../../../../services/project.service';
 import { LibManagerComponent } from '../../../blockly-editor/components/lib-manager/lib-manager.component';
 import { BlocklyService } from '../../../blockly-editor/services/blockly.service';
@@ -35,6 +36,7 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
   loading = false;
   error = '';
   showLibraryManager = false;
+  private librariesChangedSubscription?: Subscription;
 
   constructor(
     private projectService: ProjectService,
@@ -43,10 +45,16 @@ export class ProfessionalLibraryReferenceComponent implements OnInit, OnDestroy 
   ) { }
 
   async ngOnInit(): Promise<void> {
+    this.librariesChangedSubscription = this.projectService.serverProjectLibrariesChanged$.subscribe(projectId => {
+      if (projectId === this.projectService.currentProjectId) {
+        void this.loadReferences();
+      }
+    });
     await this.loadReferences();
   }
 
   ngOnDestroy(): void {
+    this.librariesChangedSubscription?.unsubscribe();
     document.body.classList.remove('lib-manager-overlay-open');
   }
 

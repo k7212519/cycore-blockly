@@ -20,8 +20,9 @@ function joinPath(...parts: string[]): string {
 
 @Injectable({ providedIn: 'root' })
 export class FileService {
-  static readonly MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-  static readonly MAX_FOLDER_UPLOAD_BYTES = 20 * 1024 * 1024;
+  static readonly MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+  static readonly MAX_UPLOAD_TOTAL_BYTES = 50 * 1024 * 1024;
+  static readonly MAX_FOLDER_UPLOAD_BYTES = 50 * 1024 * 1024;
   static readonly MAX_FOLDER_UPLOAD_FILES = 5000;
 
   currentPath = '';
@@ -73,7 +74,8 @@ export class FileService {
     const value = (name || '').trim();
     if (!value) return { valid: false, error: '名称不能为空' };
     if (value === '.' || value === '..') return { valid: false, error: '名称包含非法字符' };
-    if (/[\\/:*?"<>|]/.test(value)) return { valid: false, error: '名称包含非法字符' };
+    if (/[\u3400-\u9FFF\uF900-\uFAFF]/.test(value)) return { valid: false, error: '名称不能包含中文字符' };
+    if (!/^[A-Za-z0-9._-]+$/.test(value)) return { valid: false, error: '名称只能包含英文、数字、点、横线和下划线' };
     return { valid: true };
   }
 
@@ -135,19 +137,24 @@ export class FileService {
       : normalized;
   }
 
-  async uploadFile(parentPath: string, file: File, overwrite = false): Promise<ServerFileMutation> {
-    if (file.size >= FileService.MAX_UPLOAD_BYTES) {
-      throw new Error(`文件 ${file.name} 必须小于 5MB`);
+  async uploadFiles(parentPath: string, files: File[], overwrite = false): Promise<ServerFileMutation[]> {
+    const oversizedFile = files.find(file => file.size >= FileService.MAX_UPLOAD_BYTES);
+    if (oversizedFile) {
+      throw new Error(`文件 ${oversizedFile.name} 必须小于 10MB`);
+    }
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize >= FileService.MAX_UPLOAD_TOTAL_BYTES) {
+      throw new Error('上传文件总大小必须小于 50MB');
     }
     const results = await this.projectService.importServerFiles(
       this.normalizeServerPath(parentPath),
-      [file],
+      files,
       [],
       false,
       overwrite
     );
     await this.loadServerTree();
-    return results[0];
+    return results;
   }
 
   async uploadFolder(parentPath: string, files: File[], relativePaths: string[], overwrite = false): Promise<ServerFileMutation[]> {
@@ -156,7 +163,7 @@ export class FileService {
     }
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
     if (totalSize >= FileService.MAX_FOLDER_UPLOAD_BYTES) {
-      throw new Error('文件夹大小必须小于 20MB');
+      throw new Error('文件夹大小必须小于 50MB');
     }
     const results = await this.projectService.importServerFiles(
       this.normalizeServerPath(parentPath),

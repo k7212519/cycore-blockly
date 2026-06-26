@@ -118,6 +118,7 @@ export class CodeEditorComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     // 注销当前组件
     this._ProjectService.unregisterCodeEditor();
+    this._ProjectService.destroy();
 
     // 保存当前标签页状态
     this.saveCurrentTabState();

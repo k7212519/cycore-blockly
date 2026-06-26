@@ -97,6 +97,8 @@ export interface ServerCompileResult {
   artifactPath?: string;
   artifactId?: string;
   flashFiles?: ServerFlashFile[];
+  autoImportedLibraries?: string[];
+  manualLibraryPaths?: string[];
 }
 
 export interface ServerFlashFile {
@@ -174,6 +176,8 @@ export class ProjectService {
   currentProjectPath$ = this.currentProjectPathSubject.asObservable();
   private currentProjectIdSubject = new BehaviorSubject<string>('');
   currentProjectId$ = this.currentProjectIdSubject.asObservable();
+  private serverProjectLibrariesChangedSubject = new Subject<string>();
+  serverProjectLibrariesChanged$ = this.serverProjectLibrariesChangedSubject.asObservable();
   private readonly serverProjectLibrariesCache = new Map<string, any[]>();
   private readonly serverProjectLibrariesInFlight = new Map<string, Promise<any[]>>();
   private readonly serverBlocklyResourceCache = new Map<string, ServerBlocklyLibraryResource>();
@@ -651,6 +655,7 @@ export class ProjectService {
     this.serverProjectLibrariesCache.set(projectId, libraries);
     this.syncServerLibraryDependencies(libraries);
     this.clearServerBlocklyResourceCache(projectId);
+    this.serverProjectLibrariesChangedSubject.next(projectId);
     return this.cloneLibraryList(libraries);
   }
 
@@ -663,6 +668,7 @@ export class ProjectService {
     this.serverProjectLibrariesCache.set(projectId, libraries);
     this.syncServerLibraryDependencies(libraries);
     this.clearServerBlocklyResourceCache(projectId);
+    this.serverProjectLibrariesChangedSubject.next(projectId);
     return this.cloneLibraryList(libraries);
   }
 
@@ -794,11 +800,11 @@ export class ProjectService {
     formData.append('parentPath', parentPath || '');
     formData.append('directory', String(directory));
     formData.append('overwrite', String(overwrite));
-    files.forEach((file, index) => {
+    if (directory) {
+      formData.append('relativePaths', JSON.stringify(relativePaths));
+    }
+    files.forEach(file => {
       formData.append('files', file, file.name);
-      if (directory) {
-        formData.append('relativePaths', relativePaths[index] || file.name);
-      }
     });
     return this.unwrap<ServerFileMutation[]>(
       this.http.post<ApiResult<ServerFileMutation[]>>(
@@ -826,6 +832,18 @@ export class ProjectService {
     const result = await this.unwrap<ServerCompileResult>(
       this.http.post<ApiResult<ServerCompileResult>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/compile`, { code })
     );
+    if (result?.autoImportedLibraries?.length) {
+      try {
+        const libraries = await this.getServerProjectLibraries(projectId, true);
+        if (projectId === this.currentProjectId) {
+          this.syncServerLibraryDependencies(libraries);
+        }
+        this.clearServerBlocklyResourceCache(projectId);
+        this.serverProjectLibrariesChangedSubject.next(projectId);
+      } catch (error) {
+        console.warn('自动补库后刷新项目库列表失败:', error);
+      }
+    }
     this.lastServerCompileResult = result;
     return result;
   }
