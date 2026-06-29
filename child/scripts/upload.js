@@ -166,7 +166,6 @@ async function main() {
         // 1. 路径准备
         const tempPath = path.join(currentProjectPath, '.temp');
         // const buildPath = path.join(tempPath, 'build');
-        const compilerPath = path.join(appDataPath, 'compiler');
         const sdkPath = path.join(appDataPath, 'sdk');
         const toolsPath = path.join(appDataPath, 'tools');
 

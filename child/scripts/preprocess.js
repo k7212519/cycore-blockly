@@ -63,7 +63,6 @@ async function main() {
     const sketchFilePath = path.join(sketchPath, 'sketch.ino');
     const librariesPath = path.join(tempPath, 'libraries');
     
-    const compilerPath = path.join(appDataPath, 'compiler');
     const sdkPath = path.join(appDataPath, 'sdk');
     const toolsPath = path.join(appDataPath, 'tools');
 
@@ -183,8 +182,18 @@ async function main() {
         }
 
         // 6. 配置路径和参数
-        const fullCompilerPath = path.join(compilerPath, compiler);
         const fullSdkPath = path.join(sdkPath, sdk);
+
+        if (!fs.existsSync(fullSdkPath)) {
+            throw new Error(`未找到SDK目录: ${fullSdkPath}`);
+        }
+
+        const missingToolPaths = toolVersions
+            .filter(tool => !toolDirectoryExists(toolsPath, tool))
+            .map(tool => path.join(toolsPath, tool));
+        if (missingToolPaths.length > 0) {
+            throw new Error(`未找到工具目录: ${missingToolPaths.join(', ')}`);
+        }
         
         // 7. 获取编译命令
         let compilerParam = boardJson.compilerParam;
@@ -266,10 +275,7 @@ async function main() {
 
         compilerParam += buildProperties;
 
-        // 9. 同步编译器工具
-        await syncCompilerToolsToToolsPath(fullCompilerPath, toolsPath);
-
-        // 10. 执行预编译
+        // 9. 执行预编译
         const preprocessCachePath = path.join(tempPath, 'preprocess.json');
         
         logger.log('开始预编译...');
@@ -563,19 +569,24 @@ function linkItem(src, dest) {
     }
 }
 
-async function syncCompilerToolsToToolsPath(compilerPath, toolsPath) {
-    if (!fs.existsSync(compilerPath)) return;
-    mkdirp(toolsPath);
-    
-    const compilerDirName = path.basename(compilerPath);
-    const targetCompilerPath = path.join(toolsPath, compilerDirName);
-    
-    if (fs.existsSync(targetCompilerPath)) return;
-    
+function toolDirectoryExists(toolsPath, toolSpec) {
+    const exactPath = path.join(toolsPath, toolSpec);
+    if (fs.existsSync(exactPath) && fs.statSync(exactPath).isDirectory()) {
+        return true;
+    }
+
+    const versionSeparator = toolSpec.lastIndexOf('@');
+    if (versionSeparator <= 0 || !fs.existsSync(toolsPath)) {
+        return false;
+    }
+
+    const toolName = toolSpec.slice(0, versionSeparator);
+    const prefix = `${toolName}@`;
     try {
-        linkItem(compilerPath, targetCompilerPath);
+        return fs.readdirSync(toolsPath, { withFileTypes: true })
+            .some(item => item.isDirectory() && item.name.startsWith(prefix));
     } catch (e) {
-        logger.warn('Failed to link compiler:', e);
+        return false;
     }
 }
 
