@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { lastValueFrom, Subject } from 'rxjs';
-import { API, setServerUrl, setRegistryUrl, setToolWebUrl } from '../configs/api.config';
+import { API, getApiBaseUrl, setRegistryUrl, setToolWebUrl } from '../configs/api.config';
 
 @Injectable({
   providedIn: 'root',
@@ -66,7 +66,6 @@ export class ConfigService {
     this.data = { ...this.createBrowserDefaultConfig(), ...storedConfig };
     this.data.selectedLanguage ||= this.get_lang_filename(navigator.language);
     setRegistryUrl(this.getCurrentNpmRegistry());
-    setServerUrl(this.getCurrentApiServer());
     setToolWebUrl(this.getCurrentRegionConfig()?.tool_web || 'https://tool.aily.pro');
 
     const [boardList, libraryList] = await Promise.all([
@@ -107,7 +106,6 @@ export class ConfigService {
       regions: {
         cn: {
           name: 'China',
-          api_server: 'https://aapi.diandeng.tech',
           web: 'https://aily.pro',
           tool_web: 'https://tool.aily.pro',
           npm_registry: 'https://registry.diandeng.tech',
@@ -115,7 +113,6 @@ export class ConfigService {
         },
         eu: {
           name: 'Europe',
-          api_server: 'https://api.aily.pro',
           web: 'https://aily.pro',
           tool_web: 'https://tool.aily.pro',
           npm_registry: 'https://registry.aily.pro',
@@ -174,7 +171,7 @@ export class ConfigService {
    * 获取当前区域的API Server URL
    */
   getCurrentApiServer(): string {
-    return this.getCurrentRegionConfig()?.api_server || '';
+    return getApiBaseUrl();
   }
 
   /**
@@ -212,9 +209,7 @@ export class ConfigService {
       this.data.region = regionKey;
       const regionConfig = this.data.regions[regionKey];
       
-      // 更新 API 配置模块的缓存
       setRegistryUrl(regionConfig.npm_registry);
-      setServerUrl(regionConfig.api_server);
       setToolWebUrl(regionConfig.tool_web);
       
       // 保存配置
@@ -797,7 +792,6 @@ interface AppConfig {
   regions: {
     [key: string]: {
       name: string;
-      api_server: string;
       web?: string;
       tool_web: string;
       npm_registry: string;

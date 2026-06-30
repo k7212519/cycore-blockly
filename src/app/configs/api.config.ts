@@ -1,16 +1,12 @@
-// 模块级缓存变量，用于存储当前的服务器地址
-// 这些变量可以通过 setServerUrl/setRegistryUrl 在运行时更新
-let _cachedServerUrl: string | null = null;
+// 模块级缓存变量，用于存储当前的 Registry/工具站地址
+import { environment } from '../../environments/environment';
+
 let _cachedRegistryUrl: string | null = null;
 let _cachedToolWebUrl: string | null = null;
 
-// 从 process.env 读取初始值（如果可用）
-function getInitialServerUrl(): string {
+export function getApiBaseUrl(): string {
   const edaApiBaseUrl = (window as any).__EDA_API_BASE_URL__;
-  if (edaApiBaseUrl) {
-    return String(edaApiBaseUrl).replace(/\/$/, '');
-  }
-  return 'https://api.aily.pro';
+  return edaApiBaseUrl ? String(edaApiBaseUrl).replace(/\/$/, '') : environment.apiBaseUrl;
 }
 
 function getInitialToolWebUrl(): string {
@@ -19,19 +15,6 @@ function getInitialToolWebUrl(): string {
 
 function getInitialRegistryUrl(): string {
   return 'https://registry.diandeng.tech';
-}
-
-// 动态获取服务器地址，优先使用缓存的值
-function getServerUrl(): string {
-  if (_cachedServerUrl !== null) {
-    return _cachedServerUrl;
-  }
-  return getInitialServerUrl();
-}
-
-function getLocalApiServerUrl(): string {
-  const edaApiBaseUrl = (window as any).__EDA_API_BASE_URL__;
-  return edaApiBaseUrl ? String(edaApiBaseUrl).replace(/\/$/, '') : '';
 }
 
 function getRegistryUrl(): string {
@@ -46,14 +29,6 @@ export function getToolWebUrl(): string {
     return _cachedToolWebUrl;
   }
   return getInitialToolWebUrl();
-}
-
-/**
- * 更新 API 服务器地址（在设置页面更改后调用）
- * @param url 新的服务器地址
- */
-export function setServerUrl(url: string): void {
-  _cachedServerUrl = url;
 }
 
 /**
@@ -74,33 +49,33 @@ export const API = {
   get projectList() { return `${getRegistryUrl()}/-/verdaccio/data/packages`; },
   get projectSearch() { return `${getRegistryUrl()}/-/v1/search`; },
   // ai
-  get startSession() { return `${getServerUrl()}/api/v1/start_session`; },
-  get closeSession() { return `${getServerUrl()}/api/v1/close_session`; },
-  get streamConnect() { return `${getServerUrl()}/api/v1/stream`; },
-  get sendMessage() { return `${getServerUrl()}/api/v1/send_message`; },
+  get startSession() { return `${getApiBaseUrl()}/api/v1/start_session`; },
+  get closeSession() { return `${getApiBaseUrl()}/api/v1/close_session`; },
+  get streamConnect() { return `${getApiBaseUrl()}/api/v1/stream`; },
+  get sendMessage() { return `${getApiBaseUrl()}/api/v1/send_message`; },
   /** 无状态聊天请求：每次请求携带完整 messages[]，返回 SSE 流 */
-  get chatRequest() { return `${getServerUrl()}/api/v1/chat`; },
-  get getHistory() { return `${getServerUrl()}/api/v1/conversation_history`; },
-  get stopSession() { return `${getServerUrl()}/api/v1/stop_session`; },
-  get cancelTask() { return `${getServerUrl()}/api/v1/cancel_task`; },
-  get generateTitle() { return `${getServerUrl()}/api/v1/generate_title`; },
+  get chatRequest() { return `${getApiBaseUrl()}/api/v1/chat`; },
+  get getHistory() { return `${getApiBaseUrl()}/api/v1/conversation_history`; },
+  get stopSession() { return `${getApiBaseUrl()}/api/v1/stop_session`; },
+  get cancelTask() { return `${getApiBaseUrl()}/api/v1/cancel_task`; },
+  get generateTitle() { return `${getApiBaseUrl()}/api/v1/generate_title`; },
   // cloud
-  get cloudBase() { return `${getServerUrl()}/api/v1/cloud`; },
-  get cloudSync() { return `${getServerUrl()}/api/v1/cloud/sync`; },
-  get cloudProjects() { return `${getServerUrl()}/api/v1/cloud/projects`; },
-  get cloudPublicProjects() { return `${getServerUrl()}/api/v1/cloud/projects/public`; },
+  get cloudBase() { return `${getApiBaseUrl()}/api/v1/cloud`; },
+  get cloudSync() { return `${getApiBaseUrl()}/api/v1/cloud/sync`; },
+  get cloudProjects() { return `${getApiBaseUrl()}/api/v1/cloud/projects`; },
+  get cloudPublicProjects() { return `${getApiBaseUrl()}/api/v1/cloud/projects/public`; },
   // server-side local projects
-  get serverProjects() { return `${getLocalApiServerUrl()}/api/projects`; },
-  get serverProjectBoards() { return `${getLocalApiServerUrl()}/api/projects/boards`; },
-  get serverProjectLibraries() { return `${getLocalApiServerUrl()}/api/projects/libraries`; },
+  get serverProjects() { return `${getApiBaseUrl()}/api/projects`; },
+  get serverProjectBoards() { return `${getApiBaseUrl()}/api/projects/boards`; },
+  get serverProjectLibraries() { return `${getApiBaseUrl()}/api/projects/libraries`; },
   // feedback
-  get feedback() { return `${getServerUrl()}/api/v1/feedback/submit`; },
-  get feedbackImageUpload() { return `${getServerUrl()}/api/v1/feedback/upload-image`; },
+  get feedback() { return `${getApiBaseUrl()}/api/v1/feedback/submit`; },
+  get feedbackImageUpload() { return `${getApiBaseUrl()}/api/v1/feedback/upload-image`; },
   // model list
-  get modelList() { return `${getServerUrl()}/api/v1/model/list`; },
+  get modelList() { return `${getApiBaseUrl()}/api/v1/model/list`; },
   // model details
-  get modelDetails() { return `${getServerUrl()}/api/v1/model`; },
+  get modelDetails() { return `${getApiBaseUrl()}/api/v1/model`; },
   // firmware info
-  get firmwareInfo() { return `${getServerUrl()}/api/v1/firmware/info`; },
-  get downloadFirmware() { return `${getServerUrl()}/api/v1/firmware/download`; },
+  get firmwareInfo() { return `${getApiBaseUrl()}/api/v1/firmware/info`; },
+  get downloadFirmware() { return `${getApiBaseUrl()}/api/v1/firmware/download`; },
 };

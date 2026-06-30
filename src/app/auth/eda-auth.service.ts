@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, firstValueFrom, map, Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { getApiBaseUrl } from '../configs/api.config';
 import {
   ApiResponse,
   EdaUser,
@@ -17,8 +18,7 @@ const USER_KEY = 'eda_user';
 const USER_ID_KEY = 'userId';
 
 function apiUrl(path: string): string {
-  const configuredBase = (window as any).__EDA_API_BASE_URL__ || '';
-  return `${String(configuredBase).replace(/\/$/, '')}${path}`;
+  return `${getApiBaseUrl()}${path}`;
 }
 
 @Injectable({ providedIn: 'root' })

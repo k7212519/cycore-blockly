@@ -7,6 +7,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "dev": "ng serve --configuration dev",
+    "prod": "ng serve --configuration prod",
     "watch": "ng build --watch --configuration development",
     "build": "ng build --base-href ./"
   },
