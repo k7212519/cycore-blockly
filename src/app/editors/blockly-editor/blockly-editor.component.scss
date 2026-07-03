@@ -33,10 +33,21 @@ blockly-main {
     z-index: 99;
     -webkit-backdrop-filter: saturate(180%) blur(18px);
     backdrop-filter: saturate(180%) blur(18px);
+    transition:
+        transform 220ms ease,
+        opacity 180ms ease,
+        color 160ms ease,
+        background 160ms ease;
 
     &:hover {
         color: #2a74ff;
     }
+}
+
+:host-context(.blockly-toolbox-collapsed) .lib-mangager-btn {
+    transform: translateX(calc(-1 * (var(--blockly-floating-toolbox-width) + var(--blockly-floating-toolbox-inset) + 10px)));
+    opacity: 0;
+    pointer-events: none;
 }
 
 :host-context(.llight) .lib-mangager-btn {

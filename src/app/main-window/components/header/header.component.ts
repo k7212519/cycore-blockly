@@ -14,7 +14,7 @@ import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { UnsaveDialogComponent } from '../unsave-dialog/unsave-dialog.component';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import { BrowserService } from '../../../services/browser.service';
 import { ConfigService } from '../../../services/config.service';
 import { BoardSelectorDialogComponent } from '../board-selector-dialog/board-selector-dialog.component';
@@ -40,6 +40,7 @@ import { ActionService } from '../../../services/action.service';
   styleUrl: './header.component.scss',
 })
 export class HeaderComponent implements OnDestroy {
+  @ViewChild('headerBox') headerBox?: ElementRef<HTMLElement>;
   @ViewChild('projectTitleInput') projectTitleInput?: ElementRef<HTMLInputElement>;
 
   headerBtns = HEADER_BTNS;
@@ -53,10 +54,23 @@ export class HeaderComponent implements OnDestroy {
   }
 
   private serialPortsChangedSubscription?: Subscription;
+  private routeEventsSubscription?: Subscription;
+  private projectTitleResizeObserver?: ResizeObserver;
+  private projectTitleLayoutFrame = 0;
+  private readonly projectTitleMinWidth = 120;
+  private readonly projectTitleSafeGap = 14;
+  private readonly hideProjectActionsWidth = 960;
+  private readonly collapseHeaderToolsWidth = 760;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
   isEditingProjectTitle = false;
   projectTitleDraft = '';
   projectTitleSaving = false;
+  hideProjectTitle = false;
+  projectTitleMaxWidth = 240;
+  hideProjectActions = false;
+  collapseHeaderTools = false;
+  showHeaderToolsMenu = false;
+  headerToolsMenuPosition = { x: 40, y: 64 };
 
   get projectData() {
     return this.projectService.currentPackageData;
@@ -104,6 +118,30 @@ export class HeaderComponent implements OnDestroy {
     return this.router.url.indexOf('/main/guide') > -1;
   }
 
+  get headerToolsMenuList(): IMenuItem[] {
+    const compileItems = this.headerBtns.filter((btn) => btn.action === 'compile' && this.showInRouter(btn));
+    const appItems = this.headerApps.filter((app) => (!app.dev || this.isDevMode) && this.showInRouter(app));
+    const items: IMenuItem[] = [...compileItems];
+
+    if (appItems.length) {
+      if (items.length) {
+        items.push({ sep: true });
+      }
+      items.push(...appItems);
+    }
+
+    if (items.length) {
+      items.push({ sep: true });
+    }
+    items.push({
+      name: this.themeToggleTitle,
+      action: 'theme-toggle',
+      icon: this.themeToggleIcon,
+    });
+
+    return items;
+  }
+
   // 从 AppStoreService 获取要显示在 header 上的 apps
   // get headerApps(): AppItem[] {
   //   return this.appStoreService.getHeaderApps();
@@ -145,6 +183,7 @@ export class HeaderComponent implements OnDestroy {
       const input = this.projectTitleInput?.nativeElement;
       input?.focus();
       input?.select();
+      this.scheduleProjectTitleLayout();
     }, 0);
   }
 
@@ -168,6 +207,7 @@ export class HeaderComponent implements OnDestroy {
     this.isEditingProjectTitle = false;
     this.projectTitleSaving = false;
     this.projectTitleDraft = '';
+    this.scheduleProjectTitleLayout();
   }
 
   async commitProjectTitleEdit(): Promise<void> {
@@ -204,6 +244,9 @@ export class HeaderComponent implements OnDestroy {
   }
 
   async ngAfterViewInit() {
+    this.observeProjectTitleLayout();
+    this.scheduleProjectTitleLayout();
+
     this.projectService.stateSubject.subscribe((state) => {
       if (state == 'loaded' || state == 'saved') {
         // 将headerMenu中有disabled的按钮置为可用
@@ -230,10 +273,17 @@ export class HeaderComponent implements OnDestroy {
       // 使用 setTimeout 将变更检测推迟到下一个变更检测周期，避免 ExpressionChangedAfterItHasBeenCheckedError
       setTimeout(() => {
         this.cd.detectChanges();
+        this.scheduleProjectTitleLayout();
       }, 0);
     });
 
     this.listenShortcutKeys();
+
+    this.routeEventsSubscription = this.router.events.subscribe((event) => {
+      if (event instanceof NavigationEnd) {
+        setTimeout(() => this.scheduleProjectTitleLayout(), 0);
+      }
+    });
 
     this.serialPortsChangedSubscription = this.serialService.portsChanged$.subscribe(async () => {
       if (this.showPortList) {
@@ -241,6 +291,7 @@ export class HeaderComponent implements OnDestroy {
       }
       setTimeout(() => {
         this.cd.detectChanges();
+        this.scheduleProjectTitleLayout();
       }, 0);
     });
 
@@ -257,6 +308,7 @@ export class HeaderComponent implements OnDestroy {
         // 使用 setTimeout 将变更检测推迟到下一个变更检测周期，避免 ExpressionChangedAfterItHasBeenCheckedError
         setTimeout(() => {
           this.cd.detectChanges();
+          this.scheduleProjectTitleLayout();
         }, 0);
       }
     } catch (error) {
@@ -314,6 +366,7 @@ export class HeaderComponent implements OnDestroy {
     }
     this.currentPort = item.name;
     this.closePortList();
+    this.scheduleProjectTitleLayout();
   }
 
   async getDevicePortList() {
@@ -574,6 +627,113 @@ export class HeaderComponent implements OnDestroy {
     if (this.serialPortsChangedSubscription) {
       this.serialPortsChangedSubscription.unsubscribe();
     }
+    this.routeEventsSubscription?.unsubscribe();
+    this.projectTitleResizeObserver?.disconnect();
+    if (this.projectTitleLayoutFrame) {
+      cancelAnimationFrame(this.projectTitleLayoutFrame);
+    }
+  }
+
+  private observeProjectTitleLayout(): void {
+    const header = this.headerBox?.nativeElement;
+    if (!header || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    this.projectTitleResizeObserver = new ResizeObserver(() => this.scheduleProjectTitleLayout());
+    this.projectTitleResizeObserver.observe(header);
+    header.querySelectorAll('.menu, .project-actions, .upload-toolbox, .serial-selector, .header-tools, .compact-tools-toolbox')
+      .forEach((element) => this.projectTitleResizeObserver?.observe(element));
+  }
+
+  private scheduleProjectTitleLayout(): void {
+    if (this.projectTitleLayoutFrame) {
+      cancelAnimationFrame(this.projectTitleLayoutFrame);
+    }
+
+    this.projectTitleLayoutFrame = requestAnimationFrame(() => {
+      this.projectTitleLayoutFrame = 0;
+      this.updateProjectTitleLayout();
+    });
+  }
+
+  private updateProjectTitleLayout(): void {
+    const header = this.headerBox?.nativeElement;
+    if (!header) {
+      return;
+    }
+
+    const headerRect = header.getBoundingClientRect();
+    const headerWidth = headerRect.width;
+    const nextHideProjectActions = headerWidth < this.hideProjectActionsWidth;
+    const nextCollapseHeaderTools = headerWidth < this.collapseHeaderToolsWidth;
+    const center = headerWidth / 2;
+    const leftBoundary = this.getLeftControlsBoundary(header, headerRect.left);
+    const rightBoundary = this.getRightControlsBoundary(header, headerRect.left, headerWidth);
+    const sideRoom = Math.min(
+      center - leftBoundary - this.projectTitleSafeGap,
+      rightBoundary - center - this.projectTitleSafeGap
+    );
+    const nextMaxWidth = Math.max(0, Math.floor(sideRoom * 2));
+    const nextHidden = nextMaxWidth < this.projectTitleMinWidth;
+
+    const compactStateChanged =
+      this.hideProjectActions !== nextHideProjectActions ||
+      this.collapseHeaderTools !== nextCollapseHeaderTools;
+
+    if (
+      this.projectTitleMaxWidth !== nextMaxWidth ||
+      this.hideProjectTitle !== nextHidden ||
+      compactStateChanged
+    ) {
+      this.projectTitleMaxWidth = nextMaxWidth;
+      this.hideProjectTitle = nextHidden;
+      this.hideProjectActions = nextHideProjectActions;
+      this.collapseHeaderTools = nextCollapseHeaderTools;
+      if (!nextCollapseHeaderTools) {
+        this.showHeaderToolsMenu = false;
+      }
+      this.cd.detectChanges();
+      if (compactStateChanged) {
+        this.scheduleProjectTitleLayout();
+      }
+    }
+  }
+
+  private getLeftControlsBoundary(header: HTMLElement, headerLeft: number): number {
+    return ['.menu', '.project-actions']
+      .map((selector) => header.querySelector(selector))
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && this.isVisible(element))
+      .reduce((right, element) => Math.max(right, element.getBoundingClientRect().right - headerLeft), 0);
+  }
+
+  private getRightControlsBoundary(header: HTMLElement, headerLeft: number, fallbackWidth: number): number {
+    return Array.from(header.querySelectorAll('.upload-toolbox, .serial-selector, .header-tools, .compact-tools-toolbox'))
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && this.isVisible(element))
+      .reduce((left, element) => Math.min(left, element.getBoundingClientRect().left - headerLeft), fallbackWidth);
+  }
+
+  private isVisible(element: HTMLElement): boolean {
+    return element.offsetParent !== null && element.getBoundingClientRect().width > 0;
+  }
+
+  openHeaderToolsMenu(event: MouseEvent): void {
+    this.headerToolsMenuPosition = this.calculateDropdownPosition(event, 220, 260);
+    this.showHeaderToolsMenu = !this.showHeaderToolsMenu;
+  }
+
+  closeHeaderToolsMenu(): void {
+    this.showHeaderToolsMenu = false;
+  }
+
+  async onHeaderToolsMenuClick(item: IMenuItem): Promise<void> {
+    if (item.action === 'theme-toggle') {
+      await this.toggleTheme();
+    } else {
+      await this.process(item);
+    }
+    this.closeHeaderToolsMenu();
+    this.scheduleProjectTitleLayout();
   }
 
   // 快捷键功能，监听键盘事件,执行对应的操作

@@ -1,4 +1,11 @@
-<div class="header-box">
+<div
+  #headerBox
+  class="header-box"
+  [class.hide-project-actions]="hideProjectActions"
+  [class.collapse-header-tools]="collapseHeaderTools"
+  [class.title-hidden]="hideProjectTitle"
+  [style.--project-title-width]="projectTitleMaxWidth + 'px'"
+>
   <div class="menu ccenter">
     <button type="button" class="menu-pill ccenter" [class.active]="showMenu" (click)="openMenu($event)"
       [attr.aria-expanded]="showMenu">
@@ -59,7 +66,8 @@
   </button>
   }
 
-  <div class="toolbox">
+  @if (!collapseHeaderTools) {
+  <div class="toolbox header-tools">
     <div class="zone ccenter">
       @for (btn of headerBtns; track $index) {
       @if(btn.action === 'compile' && showInRouter(btn)){
@@ -100,6 +108,15 @@
       </div>
     </div> -->
   </div>
+  } @else {
+  <div class="toolbox compact-tools-toolbox">
+    <button type="button" class="btn compact-tools-btn ccenter" nz-tooltip
+      nzTooltipPlacement="bottomRight" nzTooltipTitle="{{ 'MENU.MENU' | translate }}"
+      (click)="openHeaderToolsMenu($event)" [attr.aria-expanded]="showHeaderToolsMenu">
+      <i class="fa-light fa-ellipsis"></i>
+    </button>
+  </div>
+  }
 </div>
 <!-- menu -->
 @if (showMenu) {
@@ -111,4 +128,8 @@
 <app-menu class="ports" [position]="portListPosition" [width]="260" [menuList]="configList"
   (closeEvent)="closePortList()" [keywords]="boardKeywords" (itemClickEvent)="selectPort($event)"
   (subItemClickEvent)="selectSubItem($event)"></app-menu>
+}
+@if (showHeaderToolsMenu) {
+<app-menu [position]="headerToolsMenuPosition" [width]="220" [menuList]="headerToolsMenuList"
+  (closeEvent)="closeHeaderToolsMenu()" (itemClickEvent)="onHeaderToolsMenuClick($event)"></app-menu>
 }

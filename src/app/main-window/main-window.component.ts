@@ -196,7 +196,7 @@ export class MainWindowComponent {
   }
 
   bottomHeight = 210;
-  siderWidth = 450;
+  siderWidth = 400;
 
   onSideResize({ width }: NzResizeEvent): void {
     this.siderWidth = width!;

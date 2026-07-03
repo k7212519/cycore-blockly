@@ -1,4 +1,23 @@
-<div class="blocklyBox" id="blocklyDiv" #blocklyDiv></div>
+<div
+  class="blocklyBox"
+  id="blocklyDiv"
+  #blocklyDiv
+  [class.toolbox-auto-collapse]="toolboxAutoCollapse"
+  [class.toolbox-collapsed]="toolboxCollapsed"
+></div>
+
+@if (toolboxAutoCollapse) {
+  <button
+    class="blockly-toolbox-toggle"
+    [class.collapsed]="toolboxCollapsed"
+    type="button"
+    [attr.aria-label]="toolboxCollapsed ? '展开积木列表' : '折叠积木列表'"
+    [attr.title]="toolboxCollapsed ? '展开积木列表' : '折叠积木列表'"
+    (click)="toggleToolboxCollapsed()"
+  >
+    <i class="fa-light" [class.fa-chevron-right]="toolboxCollapsed" [class.fa-chevron-left]="!toolboxCollapsed"></i>
+  </button>
+}
 
 <div class="blockly-spin" 
      *ngIf="showSpinOverlay"

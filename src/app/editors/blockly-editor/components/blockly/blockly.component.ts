@@ -146,12 +146,23 @@ class OverlayFlyoutMetricsManager extends (Blockly as any).MetricsManager {
       (this as any).workspace_?.getToolbox?.() &&
       metrics.position == (Blockly as any).TOOLBOX_AT_LEFT
     ) {
+      if (this.isFloatingToolboxCollapsed_()) {
+        return {
+          ...metrics,
+          width: 0,
+        };
+      }
       return {
         ...metrics,
         width: metrics.width + this.getFloatingToolboxOffset_(),
       };
     }
     return metrics;
+  }
+
+  private isFloatingToolboxCollapsed_(): boolean {
+    const svg = (this as any).workspace_?.getParentSvg?.();
+    return !!svg?.closest?.('.toolbox-auto-collapse.toolbox-collapsed');
   }
 
   private getFloatingToolboxOffset_(): number {
@@ -240,6 +251,12 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   private minimapSyncSubject = new Subject<void>();
   private destroy$ = new Subject<void>();
   private minimap: Minimap | null = null;
+  private resizeObserver?: ResizeObserver;
+  private toolboxResponsiveFrame: number | null = null;
+  private toolboxMetricsFrame: number | null = null;
+  private shouldCollapseToolboxAfterDrag = false;
+  private componentDestroyed = false;
+  readonly toolboxAutoCollapseBreakpoint = 720;
   private readonly lightDefaultRootTypes = new Set([
     'arduino_global',
     'arduino_setup',
@@ -257,6 +274,8 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   showSpinOverlay = false;
   isFadingOut = false;
   private fadeOutTimer: any = null;
+  toolboxAutoCollapse = false;
+  toolboxCollapsed = false;
 
   get workspace() {
     return this.blocklyService.workspace;
@@ -473,9 +492,18 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.componentDestroyed = true;
     if (this.rootColourFrame !== null) {
       cancelAnimationFrame(this.rootColourFrame);
     }
+    if (this.toolboxResponsiveFrame !== null) {
+      cancelAnimationFrame(this.toolboxResponsiveFrame);
+    }
+    if (this.toolboxMetricsFrame !== null) {
+      cancelAnimationFrame(this.toolboxMetricsFrame);
+    }
+    this.resizeObserver?.disconnect();
+    this.syncToolboxBodyClasses(true);
     // 清理 RxJS 订阅
     this.destroy$.next();
     this.destroy$.complete();
@@ -610,11 +638,13 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
       this.workspace.addChangeListener(BlockDynamicConnection.finalizeConnections);
 
-      // 监听容器尺寸变化，刷新Blockly工作区
-      const resizeObserver = new ResizeObserver(() => {
+      // 监听容器尺寸变化，刷新 Blockly 工作区并同步窄屏工具箱折叠状态
+      this.resizeObserver = new ResizeObserver(() => {
+        this.scheduleResponsiveToolboxSync();
         Blockly.svgResize(this.workspace);
       });
-      resizeObserver.observe(this.blocklyDiv.nativeElement);
+      this.resizeObserver.observe(this.blocklyDiv.nativeElement);
+      this.scheduleResponsiveToolboxSync();
 
       (window as any)['Blockly'] = Blockly;
       // 设置全局工作区引用，供 editBlockTool 使用
@@ -632,6 +662,10 @@ export class BlocklyComponent implements OnInit, OnDestroy {
           this.minimapSyncSubject.next();
         }
 
+        if (event.type === Blockly.Events.BLOCK_DRAG) {
+          this.handleResponsiveToolboxBlockDrag(event);
+        }
+
         // 监听 block 选中事件，更新 selectedBlockSubject
         if (event.type === Blockly.Events.SELECTED) {
           this.blocklyService.selectedBlockSubject.next(event.newElementId || null);
@@ -639,6 +673,93 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       });
       this.initLanguage();
     }, 100);
+  }
+
+  toggleToolboxCollapsed(): void {
+    if (!this.toolboxAutoCollapse) return;
+    this.setToolboxCollapsed(!this.toolboxCollapsed);
+  }
+
+  private handleResponsiveToolboxBlockDrag(event: any): void {
+    if (!this.toolboxAutoCollapse) return;
+    if (event.isStart) {
+      this.shouldCollapseToolboxAfterDrag = !this.toolboxCollapsed;
+      return;
+    }
+    if (!this.shouldCollapseToolboxAfterDrag) return;
+    this.shouldCollapseToolboxAfterDrag = false;
+    requestAnimationFrame(() => this.setToolboxCollapsed(true));
+  }
+
+  private scheduleResponsiveToolboxSync(): void {
+    if (this.toolboxResponsiveFrame !== null) return;
+    this.toolboxResponsiveFrame = requestAnimationFrame(() => {
+      this.toolboxResponsiveFrame = null;
+      this.updateResponsiveToolboxState();
+    });
+  }
+
+  private updateResponsiveToolboxState(): void {
+    if (this.componentDestroyed) return;
+    const width = this.blocklyDiv.nativeElement.getBoundingClientRect().width;
+    const shouldAutoCollapse = width > 0 && width <= this.toolboxAutoCollapseBreakpoint;
+    const enteredAutoCollapse = shouldAutoCollapse && !this.toolboxAutoCollapse;
+    const leftAutoCollapse = !shouldAutoCollapse && this.toolboxAutoCollapse;
+
+    this.toolboxAutoCollapse = shouldAutoCollapse;
+    if (enteredAutoCollapse) {
+      this.setToolboxCollapsed(true, false);
+    } else if (leftAutoCollapse) {
+      this.setToolboxCollapsed(false, false);
+    } else {
+      this.syncToolboxBodyClasses();
+    }
+
+    this.detectToolboxStateChanges();
+    this.refreshBlocklyMetrics();
+  }
+
+  private setToolboxCollapsed(collapsed: boolean, refresh = true): void {
+    if (this.componentDestroyed) return;
+    if (collapsed && !this.toolboxAutoCollapse) return;
+    if (this.toolboxCollapsed === collapsed) {
+      this.syncToolboxBodyClasses();
+      return;
+    }
+    this.toolboxCollapsed = collapsed;
+    if (collapsed) {
+      this.workspace?.getFlyout?.()?.hide?.();
+    }
+    this.syncToolboxBodyClasses();
+    this.detectToolboxStateChanges();
+    if (refresh) {
+      this.refreshBlocklyMetrics();
+    }
+  }
+
+  private refreshBlocklyMetrics(): void {
+    if (this.toolboxMetricsFrame !== null) return;
+    this.toolboxMetricsFrame = requestAnimationFrame(() => {
+      this.toolboxMetricsFrame = null;
+      if (this.workspace) {
+        Blockly.svgResize(this.workspace);
+      }
+    });
+  }
+
+  private syncToolboxBodyClasses(forceClear = false): void {
+    const autoCollapse = !forceClear && this.toolboxAutoCollapse;
+    const collapsed = autoCollapse && this.toolboxCollapsed;
+    document.body.classList.toggle('blockly-toolbox-auto-collapse', autoCollapse);
+    document.body.classList.toggle('blockly-toolbox-collapsed', collapsed);
+  }
+
+  private detectToolboxStateChanges(): void {
+    try {
+      this.cdr.detectChanges();
+    } catch (_) {
+      this.cdr.markForCheck();
+    }
   }
 
   /** 根据配置应用 flyout 自动关闭，支持初始化及配置重载时实时生效 */
