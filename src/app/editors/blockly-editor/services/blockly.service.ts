@@ -10,6 +10,7 @@ import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generator
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
 import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
 import { micropythonGenerator } from '../components/blockly/generators/micropython/micropython';
+import { javascriptGenerator } from 'blockly/javascript';
 import '../components/blockly/plugins/block-plus-minus/src/index.js';
 
 @Injectable({
@@ -737,6 +738,8 @@ export class BlocklyService {
     target.Arduino = arduinoGenerator;
     target.MicropPython = micropythonGenerator;
     target.MPY = micropythonGenerator;
+    target.JavaScript = javascriptGenerator;
+    target.Blockly.JavaScript = javascriptGenerator;
   }
 
   // 获取当前已注册的所有generator函数对应的block类型
@@ -875,8 +878,9 @@ export class BlocklyService {
           console.log(`- delete Python generator for ${blockType}`);
           delete mpyGen.forBlock[blockType];
         }
-        if ((Blockly as any).JavaScript?.forBlock?.[blockType]) {
-          delete (Blockly as any).JavaScript.forBlock[blockType];
+        const jsGen = (window as any).JavaScript;
+        if (jsGen?.forBlock?.[blockType]) {
+          delete jsGen.forBlock[blockType];
         }
       });
       this.loadedGenerators.delete(scriptSrc);
