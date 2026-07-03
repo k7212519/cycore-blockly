@@ -1,17 +1,13 @@
-<app-sub-window [title]="'SETTINGS.TITLE' | translate" [winBtns]="['close']">
+<div class="settings-window">
+  <div class="settings-header">
+    <button type="button" class="back-btn ccenter" (click)="cancel()">
+      <i class="fa-regular fa-chevron-left"></i>
+    </button>
+    <h1>{{ 'SETTINGS.TITLE' | translate }}</h1>
+  </div>
+
   <div class="window-inner">
     <div class="window-content">
-      <div class="left">
-        <div class="left-inner">
-          @for (item of items; track item.name) {
-          <div class="type-btn btn" (click)="scrollToSection(item)"
-            [ngClass]="{ selected: activeSection === item.name }">
-            <div class="icon ccenter"><i class="{{ item.icon }}"></i></div>
-            {{ item.name | translate}}
-          </div>
-          }
-        </div>
-      </div>
       <ngx-simplebar class="right" #scrollContainer [options]="options" (scroll)="onScroll()">
         <div class="right-inner-container">
           <!-- 基础设置 -->
@@ -59,7 +55,6 @@
               </div>
             </div>
           </div>
-
         </div>
       </ngx-simplebar>
     </div>
@@ -70,4 +65,4 @@
       </div>
     </div>
   </div>
-</app-sub-window>
+</div>

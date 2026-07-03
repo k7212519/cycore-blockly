@@ -652,7 +652,11 @@
         "UNINSTALLING_CURRENT_BOARD": "Uninstalling current board...",
         "INSTALLING_NEW_BOARD": "Installing new board...",
         "UPDATING_PROJECT_CONFIG": "Updating project configuration...",
-        "BOARD_SWITCH_FAILED": "Board switch failed: "
+        "BOARD_SWITCH_FAILED": "Board switch failed: ",
+        "RENAME_TITLE_HINT": "Double-click to rename project title",
+        "RENAME_TITLE_EMPTY": "Project title cannot be empty",
+        "RENAME_TITLE_SUCCESS": "Project title updated",
+        "RENAME_TITLE_FAILED": "Failed to update project title"
     },
     "NOTIFICATION": {
         "STOP": "Stop",

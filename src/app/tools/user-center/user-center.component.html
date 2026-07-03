@@ -1,34 +1,107 @@
 <app-tool-container [title]="'个人中心'" (closeEvent)="close()">
   <section class="profile">
     <div class="identity">
-      <div class="avatar" aria-hidden="true">
-        <i class="fa-light fa-user"></i>
+      <div class="avatar" [class.student-vip-avatar]="isStudentVip" [class.teacher-avatar]="isTeacher" aria-hidden="true">
+        @if (isStudentVip) {
+          <svg class="avatar-svg" viewBox="0 0 64 64" role="img" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4">
+            <circle class="avatar-circle" cx="32" cy="32" r="28" fill="rgba(48,38,20,.62)" stroke="rgba(255,217,135,.36)" stroke-width="1.4"></circle>
+            <path d="M18 24 32 17l14 7-14 7-14-7Z" fill="rgba(255,217,135,.18)"></path>
+            <path d="M23 28v7c0 4 4 7 9 7s9-3 9-7v-7"></path>
+            <path d="M22 45c2.4-5 6-7 10-7s7.6 2 10 7"></path>
+            <circle cx="26" cy="31" r="1.6" fill="currentColor" stroke="none"></circle>
+            <circle cx="38" cy="31" r="1.6" fill="currentColor" stroke="none"></circle>
+            <path d="M30 35c1.3.9 2.7.9 4 0"></path>
+            <path d="M19 47c4-2 8-2 13 0 5-2 9-2 13 0v-7c-4-2-8-2-13 0-5-2-9-2-13 0v7Z" fill="rgba(255,217,135,.18)"></path>
+          </svg>
+        } @else {
+          <svg class="avatar-svg" viewBox="0 0 64 64" role="img" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4">
+            <circle class="avatar-circle" cx="32" cy="32" r="28" fill="rgba(10,34,37,.54)" stroke="rgba(125,219,210,.24)" stroke-width="1.4"></circle>
+            <path d="M22 27c1-7 5-11 10-11s9 4 10 11c-4-3-7-4-10-4s-6 1-10 4Z" fill="rgba(37,63,72,.82)" stroke-width="2.2"></path>
+            <circle cx="32" cy="32" r="11" fill="rgba(125,219,210,.16)"></circle>
+            <circle cx="28" cy="32" r="1.5" fill="currentColor" stroke="none"></circle>
+            <circle cx="36" cy="32" r="1.5" fill="currentColor" stroke="none"></circle>
+            <path d="M29 37c2 1.2 4 1.2 6 0"></path>
+            <path d="M18 51c2.3-7 7-10 14-10s11.7 3 14 10" fill="rgba(159,216,255,.16)"></path>
+            <path d="M30 42h4l2 9h-8l2-9Z" fill="rgba(255,217,135,.34)" stroke-width="2"></path>
+            <path d="M44 22l8-5"></path>
+            <path d="M43 24h10v8H43z" fill="rgba(159,216,255,.16)"></path>
+          </svg>
+        }
       </div>
-      <div>
+      <div class="identity-copy">
         <div class="eyebrow">当前登录账号</div>
-        <h2>{{ currentUser?.realName || currentUser?.username || '用户' }}</h2>
+        <div class="name-row">
+          <h2>{{ currentUser?.realName || currentUser?.username || '用户' }}</h2>
+          <span class="account-badge" [class.student-vip-badge]="isStudentVip" [class.teacher-badge]="isTeacher">
+            @if (isStudentVip) {
+              <i class="fa-light fa-crown"></i>
+            } @else {
+              <i class="fa-light fa-chalkboard-user"></i>
+            }
+            {{ accountTypeLabel }}
+          </span>
+        </div>
         @if (currentUser?.realName && currentUser?.username) {
           <p>&#64;{{ currentUser?.username }}</p>
         }
       </div>
+      <button type="button" class="profile-close-btn" aria-label="关闭个人中心" (click)="close()">
+        <i class="fa-light fa-xmark"></i>
+      </button>
     </div>
 
-    <dl class="details">
-      <div>
+    <section class="capacity-card" [class.student-vip-card]="isStudentVip">
+      <div class="capacity-head">
+        <div>
+          <div class="capacity-label">当前容量</div>
+          <strong>{{ capacityText }}</strong>
+        </div>
+        <span>MCU 项目</span>
+      </div>
+      <div class="capacity-track" aria-hidden="true">
+        <div class="capacity-fill" [style.width.%]="capacityPercent"></div>
+      </div>
+      <div class="capacity-foot">
+        @if (capacityError) {
+          <span class="capacity-error">{{ capacityError }}</span>
+        } @else if (capacity) {
+          <span>剩余 {{ capacity.remaining }} 个</span>
+          <span>{{ capacityPercent }}%</span>
+        } @else {
+          <span>正在同步容量</span>
+          <span>--</span>
+        }
+      </div>
+    </section>
+
+    <dl class="details-panel">
+      <div class="detail-row">
         <dt>用户 ID</dt>
         <dd>{{ currentUser?.userId || '-' }}</dd>
       </div>
-      <div>
+      <div class="detail-row">
         <dt>账号类型</dt>
-        <dd>{{ currentUser?.userType || '普通用户' }}</dd>
+        <dd>{{ accountTypeLabel }}</dd>
       </div>
-      <div>
-        <dt>登录状态</dt>
-        <dd class="online"><span></span>已登录</dd>
+      <div class="detail-row">
+        <dt>当前容量</dt>
+        <dd>{{ capacityDetailText }}</dd>
       </div>
     </dl>
 
+    <section class="login-status-card">
+      <div class="status-icon" aria-hidden="true">
+        <span></span>
+      </div>
+      <div>
+        <div class="status-title">登录状态</div>
+        <div class="status-text">账号已在线，可同步云端项目</div>
+      </div>
+      <strong>已登录</strong>
+    </section>
+
     <button
+      class="logout-button"
       nz-button
       nzType="default"
       nzDanger

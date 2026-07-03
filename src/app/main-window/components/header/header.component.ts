@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, isDevMode, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, isDevMode, OnDestroy, ViewChild } from '@angular/core';
 import { HEADER_BTNS, HEADER_MENU } from '../../../configs/menu.config';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { ProjectService } from '../../../services/project.service';
@@ -40,6 +40,8 @@ import { ActionService } from '../../../services/action.service';
   styleUrl: './header.component.scss',
 })
 export class HeaderComponent implements OnDestroy {
+  @ViewChild('projectTitleInput') projectTitleInput?: ElementRef<HTMLInputElement>;
+
   headerBtns = HEADER_BTNS;
   headerMenu = HEADER_MENU;
   headerApps = APP_LIST;
@@ -52,9 +54,16 @@ export class HeaderComponent implements OnDestroy {
 
   private serialPortsChangedSubscription?: Subscription;
   private unsaveDialogOpen = false; // 标记未保存对话框是否已打开
+  isEditingProjectTitle = false;
+  projectTitleDraft = '';
+  projectTitleSaving = false;
 
   get projectData() {
     return this.projectService.currentPackageData;
+  }
+
+  get projectTitle(): string {
+    return this.projectData?.nickname || this.projectData?.name || '';
   }
 
   get openToolList() {
@@ -123,6 +132,75 @@ export class HeaderComponent implements OnDestroy {
   async toggleTheme(): Promise<void> {
     const nextTheme = this.themeService.isLight ? 'dark' : 'light';
     await this.themeService.confirm(nextTheme);
+  }
+
+  startProjectTitleEdit(): void {
+    if (!this.isLoaded() || this.projectTitleSaving || this.isEditingProjectTitle || !this.projectService.currentProjectId) {
+      return;
+    }
+    this.projectTitleDraft = this.projectTitle;
+    this.isEditingProjectTitle = true;
+    this.cd.detectChanges();
+    setTimeout(() => {
+      const input = this.projectTitleInput?.nativeElement;
+      input?.focus();
+      input?.select();
+    }, 0);
+  }
+
+  onProjectTitleInput(event: Event): void {
+    this.projectTitleDraft = (event.target as HTMLInputElement).value;
+  }
+
+  onProjectTitleKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void this.commitProjectTitleEdit();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cancelProjectTitleEdit();
+    }
+  }
+
+  cancelProjectTitleEdit(): void {
+    this.isEditingProjectTitle = false;
+    this.projectTitleSaving = false;
+    this.projectTitleDraft = '';
+  }
+
+  async commitProjectTitleEdit(): Promise<void> {
+    if (!this.isEditingProjectTitle || this.projectTitleSaving) {
+      return;
+    }
+    const nextTitle = (this.projectTitleDraft || '').trim();
+    const currentTitle = (this.projectTitle || '').trim();
+    if (!nextTitle) {
+      this.message.warning(this.translate.instant('PROJECT.RENAME_TITLE_EMPTY'));
+      setTimeout(() => this.projectTitleInput?.nativeElement?.focus(), 0);
+      return;
+    }
+    if (nextTitle === currentTitle) {
+      this.cancelProjectTitleEdit();
+      return;
+    }
+
+    this.projectTitleSaving = true;
+    try {
+      const projectInfo = await this.projectService.updateServerProject(this.projectService.currentProjectId, nextTitle);
+      const packageJson = projectInfo.packageJson || { name: projectInfo.name };
+      const displayTitle = packageJson.nickname || packageJson.name || projectInfo.name;
+      this.browserService.setTitle(`CYCORE-MCU-DevCloud - ${displayTitle}`);
+      this.message.success(this.translate.instant('PROJECT.RENAME_TITLE_SUCCESS'));
+      this.cancelProjectTitleEdit();
+      this.cd.detectChanges();
+    } catch (error) {
+      const fallback = this.translate.instant('PROJECT.RENAME_TITLE_FAILED');
+      this.message.error(error?.error?.message || error?.message || fallback);
+      this.projectTitleSaving = false;
+      setTimeout(() => this.projectTitleInput?.nativeElement?.focus(), 0);
+    }
   }
 
   async ngAfterViewInit() {

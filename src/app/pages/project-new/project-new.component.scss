@@ -703,11 +703,11 @@
 
   .desc-box {
     flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
   }
 
   .preview {
-    width: 100%;
-    min-height: 150px;
-    flex-basis: auto;
+    display: none;
   }
 }

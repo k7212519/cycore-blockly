@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, firstValueFrom, Observable, Subject } from 'rxjs';
 import { map as rxMap } from 'rxjs/operators';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { UiService } from './ui.service';
 import { BrowserService } from './browser.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
@@ -159,6 +159,14 @@ export interface ServerProjectPage<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface ServerProjectCapacity {
+  userType: string;
+  accountTypeLabel: string;
+  used: number;
+  limit: number;
+  remaining: number;
 }
 
 @Injectable({
@@ -576,6 +584,12 @@ export class ProjectService {
     );
   }
 
+  async getServerProjectCapacity(): Promise<ServerProjectCapacity> {
+    return this.unwrap<ServerProjectCapacity>(
+      this.http.get<ApiResult<ServerProjectCapacity>>(`${API.serverProjects}/capacity`)
+    );
+  }
+
   async deleteServerProject(projectId: string): Promise<void> {
     await this.unwrap<void>(
       this.http.delete<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`)
@@ -583,9 +597,13 @@ export class ProjectService {
   }
 
   async updateServerProject(projectId: string, name: string): Promise<ServerProjectInfo> {
-    return this.unwrap<ServerProjectInfo>(
+    const projectInfo = await this.unwrap<ServerProjectInfo>(
       this.http.put<ApiResult<ServerProjectInfo>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`, { name })
     );
+    if (projectId === this.currentProjectId) {
+      this.currentPackageData = projectInfo.packageJson || { name: projectInfo.name };
+    }
+    return projectInfo;
   }
 
   async isServerProjectNameTaken(name: string): Promise<boolean> {
@@ -853,8 +871,12 @@ export class ProjectService {
   }
 
   private async unwrap<T>(request: any): Promise<T> {
-    const response = await firstValueFrom(request) as ApiResult<T>;
-    return this.unwrapResponse(response);
+    try {
+      const response = await firstValueFrom(request) as ApiResult<T>;
+      return this.unwrapResponse(response);
+    } catch (error) {
+      throw new Error(this.requestErrorMessage(error));
+    }
   }
 
   private unwrapResponse<T>(response: ApiResult<T>): T {
@@ -862,6 +884,14 @@ export class ProjectService {
       throw new Error(response?.message || '服务端请求失败');
     }
     return response.data;
+  }
+
+  private requestErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      const body = error.error as Partial<ApiResult<unknown>> | undefined;
+      return body?.message || error.message || '服务端请求失败';
+    }
+    return error instanceof Error ? error.message : '服务端请求失败';
   }
 
   private cloneLibraryList(libraries: any[]): any[] {

@@ -732,14 +732,67 @@ export class BlocklyService {
     // initialization. Library generator scripts are classic scripts and read
     // `window.Blockly`, so preserving that placeholder makes APIs such as
     // Extensions and getMainWorkspace unavailable until the component later
-    // overwrites it. Always expose the actual module instances before a
-    // library script can execute.
-    target.Blockly = Blockly;
+    // overwrites it. The ESM namespace returned by `import * as Blockly` is
+    // read-only in some runtimes, so expose a mutable facade for legacy
+    // generator scripts instead of attaching language generators to the module
+    // namespace object itself.
+    const blocklyGlobal = this.ensureWritableBlocklyGlobal(target);
     target.Arduino = arduinoGenerator;
     target.MicropPython = micropythonGenerator;
     target.MPY = micropythonGenerator;
     target.JavaScript = javascriptGenerator;
-    target.Blockly.JavaScript = javascriptGenerator;
+    this.setBlocklyGlobalProperty(blocklyGlobal, 'Arduino', arduinoGenerator);
+    this.setBlocklyGlobalProperty(blocklyGlobal, 'MicropPython', micropythonGenerator);
+    this.setBlocklyGlobalProperty(blocklyGlobal, 'MPY', micropythonGenerator);
+    this.setBlocklyGlobalProperty(blocklyGlobal, 'JavaScript', javascriptGenerator);
+  }
+
+  private ensureWritableBlocklyGlobal(target: any): any {
+    const current = target.Blockly;
+    if (current?.__cycoreWritableBlocklyGlobal === true) {
+      return current;
+    }
+
+    const blocklyModule = Blockly as any;
+    const blocklyGlobal = Object.create(blocklyModule);
+    Object.defineProperty(blocklyGlobal, '__cycoreWritableBlocklyGlobal', {
+      value: true,
+      enumerable: false,
+      configurable: false,
+    });
+
+    if (current && typeof current === 'object') {
+      this.copyBlocklyGlobalOwnProperties(current, blocklyGlobal);
+    }
+
+    target.Blockly = blocklyGlobal;
+    return blocklyGlobal;
+  }
+
+  private copyBlocklyGlobalOwnProperties(source: any, target: any): void {
+    Object.getOwnPropertyNames(source).forEach(name => {
+      if (name === '__cycoreWritableBlocklyGlobal' || name in target) {
+        return;
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(source, name);
+      if (!descriptor) {
+        return;
+      }
+      try {
+        Object.defineProperty(target, name, descriptor);
+      } catch (error) {
+        console.warn(`[BlocklyService] 无法复制 window.Blockly.${name} 全局属性`, error);
+      }
+    });
+  }
+
+  private setBlocklyGlobalProperty(target: any, name: string, value: any): void {
+    Object.defineProperty(target, name, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 
   // 获取当前已注册的所有generator函数对应的block类型

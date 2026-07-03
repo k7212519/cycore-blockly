@@ -1,37 +1,63 @@
-$footer-height: 30px;
-$footer-inner-height: 28px;
-
 .footer-box {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  height: $footer-height;
-  background: var(--app-bg);
-  border-top: 2px solid var(--border-color);
+  height: 0;
+  width: 100%;
   position: relative;
+  pointer-events: none;
 }
 
 .btn {
-  width: $footer-inner-height;
-  height: $footer-inner-height;
+  width: 44px;
+  height: 18px;
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-color) 78%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  opacity: 0.42;
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+
+  i {
+    font-size: 12px;
+    line-height: 1;
+  }
 
   &:hover {
+    opacity: 0.78;
+    color: var(--text-primary);
     background: var(--hover-bg);
+    transform: translateX(-50%) translateY(-1px);
   }
 
   &.active {
-    background: #007acc;
-    color: #fff;
+    opacity: 0.56;
   }
 }
 
 .state {
   position: absolute;
-  top: 0;
-  right: 10px;
+  right: 12px;
+  bottom: 6px;
   height: 26px;
   display: flex;
   align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-color) 84%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
 
   .icon {
     width: 26px;

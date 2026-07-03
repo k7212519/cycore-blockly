@@ -1,5 +1,4 @@
 import { Component, ElementRef, OnDestroy, ViewChild } from '@angular/core';
-import { SubWindowComponent } from '../../components/sub-window/sub-window.component';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -18,7 +17,6 @@ import { ThemeMode, ThemeService } from '../../services/theme.service';
   imports: [
     CommonModule,
     FormsModule,
-    SubWindowComponent,
     NzButtonModule,
     NzRadioModule,
     SimplebarAngularModule,

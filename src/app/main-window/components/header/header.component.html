@@ -17,7 +17,17 @@
   </div>
 
   <div class="null-box"></div>
-  <div class="project-box ccenter" [class.hidden-on-guide]="isGuideRoute">{{ projectData.nickname || projectData.name}}</div>
+  <div class="project-box ccenter" [class.hidden-on-guide]="isGuideRoute" [class.editing]="isEditingProjectTitle"
+    (dblclick)="startProjectTitleEdit()" nz-tooltip nzTooltipPlacement="bottom"
+    [nzTooltipTitle]="isLoaded() && !isEditingProjectTitle ? ('PROJECT.RENAME_TITLE_HINT' | translate) : null">
+    @if (isEditingProjectTitle) {
+    <input #projectTitleInput class="project-title-input" type="text" [value]="projectTitleDraft"
+      [disabled]="projectTitleSaving" maxlength="64" (input)="onProjectTitleInput($event)"
+      (keydown)="onProjectTitleKeydown($event)" (blur)="commitProjectTitleEdit()" />
+    } @else {
+    <span class="project-title-text">{{ projectTitle }}</span>
+    }
+  </div>
 
   @for (btn of headerBtns; track $index) {
   @if(btn.action === 'upload' && showInRouter(btn)){

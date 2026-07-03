@@ -46,7 +46,7 @@ $header-inner-height: 46px;
 
   .project-actions {
     height: 42px;
-    margin: 10px 6px 10px 6px;
+    margin: 10px 6px 10px 8px;
     padding: 2px;
     gap: 2px;
     border: 1px solid var(--glass-border);
@@ -278,10 +278,52 @@ $header-inner-height: 46px;
     position: absolute;
     width: 20vw;
     left: 40vw;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    pointer-events: auto;
     white-space: nowrap;
+    color: var(--text-primary);
+    transition:
+      background 160ms ease,
+      box-shadow 160ms ease;
 
     &.hidden-on-guide {
       display: none;
+    }
+
+    &:not(.editing):hover {
+      background: rgba(255, 255, 255, 0.055);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.055);
+    }
+  }
+
+  .project-title-text {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: text;
+    user-select: none;
+  }
+
+  .project-title-input {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    outline: none;
+    color: var(--text-primary);
+    background: var(--control-bg);
+    text-align: center;
+    font: inherit;
+    font-size: 14px;
+    box-shadow: var(--shadow-soft);
+
+    &:focus {
+      border-color: rgba(104, 184, 255, 0.6);
     }
   }
 

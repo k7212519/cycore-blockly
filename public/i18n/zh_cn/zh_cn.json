@@ -652,7 +652,11 @@
         "UNINSTALLING_CURRENT_BOARD": "正在卸载当前开发板...",
         "INSTALLING_NEW_BOARD": "正在安装新开发板...",
         "UPDATING_PROJECT_CONFIG": "正在更新项目配置...",
-        "BOARD_SWITCH_FAILED": "开发板切换失败: "
+        "BOARD_SWITCH_FAILED": "开发板切换失败: ",
+        "RENAME_TITLE_HINT": "双击修改项目标题",
+        "RENAME_TITLE_EMPTY": "项目标题不能为空",
+        "RENAME_TITLE_SUCCESS": "项目标题已更新",
+        "RENAME_TITLE_FAILED": "项目标题更新失败"
     },
     "NOTIFICATION": {
         "STOP": "终止",

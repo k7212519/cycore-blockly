@@ -7,7 +7,7 @@
     top: 0;
     left: 0;
     right: 0;
-    bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+    bottom: env(safe-area-inset-bottom, 0px);
     z-index: 7000;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
@@ -166,10 +166,8 @@
             width: 100%;
             max-width: 292px;
             height: 140px;
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.035)),
-                var(--surface-raised);
-            border: 1px solid var(--glass-border);
+            background: #1f1f1f;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 15px;
             padding: 11px;
             position: relative;
@@ -187,10 +185,8 @@
 
             &:hover {
                 transform: translateY(-1px);
-                border-color: var(--border-strong);
-                background:
-                    linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.045)),
-                    var(--surface-elevated);
+                border-color: rgba(255, 255, 255, 0.1);
+                background: #252525;
                 box-shadow: var(--shadow-soft);
             }
 
@@ -221,7 +217,7 @@
                     position: absolute;
                     right: 11px;
                     font-size: 12px;
-                    color: var(--text-tertiary);
+                    color: rgba(255, 255, 255, 0.58);
                     max-width: 68px;
                     overflow: hidden;
                     white-space: nowrap;
@@ -230,7 +226,7 @@
             }
 
             .desc {
-                color: var(--text-secondary);
+                color: rgba(255, 255, 255, 0.76);
                 flex-grow: 1;
                 font-size: 12px;
                 white-space: normal;
@@ -385,21 +381,21 @@
 
     .lib-list .lib-item {
         color: #1f2937;
-        background:
-            linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 253, 0.94)),
-            var(--surface-raised);
-        border-color: rgba(72, 91, 128, 0.14);
+        background: #e4e8ef;
+        border-color: rgba(72, 91, 128, 0.1);
 
         &:hover {
-            background:
-                linear-gradient(145deg, #ffffff, #f4f7fd),
-                var(--surface-raised);
-            border-color: rgba(80, 99, 190, 0.28);
+            border-color: rgba(72, 91, 128, 0.16);
+            background: #dde3ec;
             box-shadow: 0 14px 30px rgba(59, 78, 116, 0.1);
         }
 
         .name {
             color: #111827;
+
+            span {
+                color: rgba(17, 24, 39, 0.58);
+            }
         }
 
         .desc {

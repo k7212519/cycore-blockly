@@ -1,7 +1,12 @@
 .blocklyBox {
-    --blockly-floating-toolbox-width: 164px;
+    --blockly-floating-toolbox-width: 172px;
     --blockly-floating-toolbox-inset: 12px;
     --blockly-floating-flyout-gap: 8px;
+    --blockly-floating-toolbox-top-gap: 2px;
+    --blockly-floating-toolbox-bottom-gap: 10px;
+    --blockly-floating-toolbox-inner-x: 8px;
+    --blockly-floating-toolbox-radius: 18px 18px 20px 20px;
+    --blockly-floating-toolbox-surface: var(--surface-elevated);
 
     width: 100%;
     flex: 1;
@@ -13,17 +18,15 @@
 
         .blocklyToolboxDiv {
             width: var(--blockly-floating-toolbox-width) !important;
-            top: calc(var(--floating-header-safe-top, 74px) + 10px) !important;
+            top: calc(var(--floating-header-height, 62px) + var(--blockly-floating-toolbox-top-gap)) !important;
             left: var(--blockly-floating-toolbox-inset) !important;
-            height: calc(100% - var(--floating-header-safe-top, 74px) - 24px) !important;
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
-                var(--glass-bg);
+            height: calc(100% - var(--floating-header-height, 62px) - var(--blockly-floating-toolbox-top-gap) - var(--blockly-floating-toolbox-bottom-gap)) !important;
+            background: var(--blockly-floating-toolbox-surface);
             border: 1px solid var(--glass-border);
-            border-radius: 18px;
-            padding: 8px 0 54px;
+            border-radius: var(--blockly-floating-toolbox-radius);
+            padding: 6px 0 0;
             overflow-x: hidden;
-            overflow-y: auto;
+            overflow-y: hidden;
             -webkit-backdrop-filter: saturate(180%) blur(18px);
             backdrop-filter: saturate(180%) blur(18px);
             box-shadow: var(--shadow-soft);
@@ -31,14 +34,18 @@
             scrollbar-color: var(--scrollbar-thumb) transparent;
 
             .blocklyTreeIcon {
-                width: 16px;
-                flex: 0 0 16px;
+                width: 14px;
+                flex: 0 0 14px;
             }
 
             .blocklyToolboxContents {
                 width: 100%;
+                height: 100%;
                 box-sizing: border-box;
-                padding: 0 6px;
+                padding: 0 var(--blockly-floating-toolbox-inner-x) 44px;
+                flex-wrap: nowrap;
+                overflow-y: auto;
+                overflow-x: hidden;
 
                 .blocklyTreeSeparator {
                     display: none;
@@ -47,7 +54,7 @@
 
             .blocklyToolboxCategory {
                 .blocklyTreeRow {
-                    height: 37px;
+                    height: 34px;
                     display: flex;
                     align-items: center;
                     cursor: pointer;
@@ -55,8 +62,8 @@
                     box-sizing: border-box;
                     transition: all 0.3s;
                     margin: 0 0 2px;
-                    padding: 0 6px !important;
-                    border-radius: 12px;
+                    padding: 0 8px !important;
+                    border-radius: 11px;
                     border: none !important;
                     color: var(--text-secondary);
 
@@ -80,9 +87,9 @@
 
                     .tbc-icon-box {
                         margin-top: 1px;
-                        font-size: 20px;
-                        width: 22px;
-                        flex: 0 0 22px;
+                        font-size: 18px;
+                        width: 20px;
+                        flex: 0 0 20px;
                         display: flex;
                         align-items: center;
                         justify-content: center;
@@ -96,42 +103,39 @@
                     overflow: hidden;
                     white-space: nowrap;
                     text-overflow: ellipsis;
-                    font-size: 15px;
+                    font-size: 14px;
                     font-weight: 400;
                     letter-spacing: 0;
                 }
 
-                // 搜索框例外
-                &:first-child {
-                    position: sticky;
-                    top: 0;
-                    z-index: 3;
-                    display: block;
-                    padding-bottom: 7px;
-                    background: transparent;
+            }
 
-                    .blocklyTreeRow,
-                    .blocklyTreeRow:hover {
-                        background: transparent !important;
-                    }
+            // 搜索框例外，仅作用于实际包含搜索框的分类，避免影响嵌套子菜单。
+            .blocklyToolboxCategory:has(.search-box) {
+                position: sticky;
+                top: 0;
+                z-index: 5;
+                display: block;
+                margin: 0 calc(-1 * var(--blockly-floating-toolbox-inner-x));
+                padding: 0 var(--blockly-floating-toolbox-inner-x) 7px;
+                background: var(--blockly-floating-toolbox-surface);
 
-                    &:hover .search-box {
-                        background: var(--hover-bg);
-                        border-color: transparent;
-                        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
-                    }
-
-                    .blocklyTreeSelected {
-                        background: transparent !important;
-
-                        &:hover {
-                            background: transparent !important;
-                        }
-                    }
+                .blocklyTreeRow,
+                .blocklyTreeRow:hover {
+                    background: transparent !important;
+                    padding: 0 !important;
                 }
 
-                &:last-child {
-                    padding-bottom: 70px;
+                &:hover .search-box {
+                    background: rgba(255, 255, 255, 0.07);
+                }
+
+                .blocklyTreeSelected {
+                    background: transparent !important;
+
+                    &:hover {
+                        background: transparent !important;
+                    }
                 }
             }
 
@@ -166,24 +170,23 @@
         }
 
         .search-box {
-            border-radius: 14px;
+            border-radius: var(--blockly-floating-toolbox-radius);
             margin: 0;
-            padding: 0 10px;
+            padding: 0 8px;
             width: 100%;
             box-sizing: border-box;
             height: 30px;
             color: var(--text-primary);
-            background: var(--control-bg);
-            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.045);
+            border: none;
             outline: none;
+            box-shadow: none;
             transition:
                 background 160ms ease,
-                border-color 160ms ease,
-                box-shadow 160ms ease;
+                color 160ms ease;
 
             &:focus {
-                background: var(--hover-bg);
-                border-color: rgba(104, 184, 255, 0.48);
+                background: rgba(104, 184, 255, 0.12);
             }
         }
 
@@ -212,11 +215,11 @@
 }
 
 :host-context(.llight) .blocklyBox {
+    --blockly-floating-toolbox-surface: var(--surface-base);
+
     ::ng-deep {
         .blocklyToolboxDiv {
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.9)),
-                var(--glass-bg);
+            background: var(--blockly-floating-toolbox-surface);
             border-color: rgba(82, 102, 139, 0.17);
 
             .blocklyToolboxCategory {
@@ -259,7 +262,7 @@
 
         .search-box {
             color: #111827;
-            background: rgba(255, 255, 255, 0.94);
+            background: rgba(17, 24, 39, 0.045);
 
             &::placeholder {
                 color: #7a8699;
