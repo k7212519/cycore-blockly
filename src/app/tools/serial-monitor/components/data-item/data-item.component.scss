@@ -98,3 +98,26 @@
   background-color: rgba(255, 235, 59, 0.15);
   border-left: 3px solid #ffeb3b;
 }
+
+:host-context(.llight) {
+  .item {
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .dir {
+      background-color: rgba(0, 0, 0, 0.06) !important;
+      color: rgba(0, 0, 0, 0.56) !important;
+
+      &.tx {
+        background-color: rgba(57, 135, 252, 0.15) !important;
+        color: #2a6fc2 !important;
+      }
+
+      &.sys {
+        background-color: rgba(11, 136, 0, 0.12) !important;
+        color: #0b8800 !important;
+      }
+    }
+  }
+}

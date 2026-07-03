@@ -1,6 +1,6 @@
 .settings {
     background: var(--surface-subtle);
-    margin: -17px 10px 10px 10px;
+    margin: -17px 10px 0 10px;
     padding-top: 7px;
     border-radius: 5px;
 
@@ -9,6 +9,13 @@
         align-items: center;
         position: relative;
         flex-wrap: wrap;
+    }
+}
+
+:host-context(.side-panel-mode) {
+    .settings {
+        margin: 0 12px 0 12px;
+        border-radius: 0;
     }
 }
 
@@ -29,7 +36,7 @@
         height: 24px;
         width: 90px;
         background-color: var(--border-strong);
-        border-radius: 2px;
+        border-radius: 99px;
         position: relative;
         display: flex;
         justify-content: flex-start;

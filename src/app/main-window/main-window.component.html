@@ -53,7 +53,7 @@
         </nz-resize-handle>
         <div class="right-box">
           @for (tool of openToolList; track tool) {
-            <div class="tool-panel" [style.z-index]="tool === topTool ? 100 : 1">
+            <div class="tool-panel" [class.tool-panel-code-viewer]="tool === 'code-viewer'" [style.z-index]="tool === topTool ? 100 : 1">
               @switch (tool) {
               @case ("code-viewer") {
               <app-code-viewer></app-code-viewer>

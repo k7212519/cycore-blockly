@@ -190,6 +190,10 @@ app-guide {
         box-sizing: border-box;
         padding-top: var(--floating-header-safe-top);
         background: var(--surface-base);
+
+        &.tool-panel-code-viewer {
+          background: #1e1e1e;
+        }
       }
 }
 
@@ -240,4 +244,12 @@ nz-header,
   width: 100%;
   height: 5px;
   border-bottom: 2px solid var(--border-color);
+}
+
+:host-context(.llight) {
+  .right-box .tool-panel {
+    &.tool-panel-code-viewer {
+      background: #ffffff;
+    }
+  }
 }

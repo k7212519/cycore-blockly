@@ -787,6 +787,9 @@ export class HeaderComponent implements OnDestroy {
   }
 
   showInRouter(menuItem: IMenuItem) {
+    if ((menuItem as any).id === 'lib-manager') {
+      return false;
+    }
     if (!menuItem.router) {
       return true;
     } else {

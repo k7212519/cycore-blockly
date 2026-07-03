@@ -82,6 +82,17 @@
     padding: 8px 8px 6px;
     border-radius: 0 0 8px 8px;
   }
+
+  .sender .s-box {
+    .settings {
+      margin: 10px 12px 0 12px;
+      border-radius: 8px 8px 0 0;
+    }
+    .input-box {
+      margin: 0 12px 12px 12px;
+      border-radius: 0 0 8px 8px;
+    }
+  }
 }
 
 .left-bar {
@@ -118,6 +129,7 @@
   background: var(--surface-subtle);
   margin: 10px;
   border-radius: 5px;
+  overflow: hidden;
 
   .line {
     display: flex;
@@ -143,7 +155,7 @@
       height: 24px;
       width: 90px;
       background-color: var(--border-strong);
-      border-radius: 2px;
+      border-radius: 99px;
       position: relative;
       display: flex;
       justify-content: flex-start;
@@ -226,13 +238,13 @@
 }
 
 .serial-close-btn {
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
   margin-left: 0;
-  margin-right: -4px;
+  margin-right: 8px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -247,7 +259,7 @@
 
   i {
     margin: 0;
-    font-size: 24px;
+    font-size: 18px;
   }
 }
 
@@ -354,6 +366,8 @@
     height: 100%;
     position: absolute;
     top: 0;
+    display: flex;
+    flex-direction: column;
 
     .item-setting {
       height: 24px;
@@ -362,20 +376,19 @@
       cursor: pointer;
     }
 
-    .input-box {
-      // margin: 10px;
-      // padding: 0 10px;
-      // height: calc(100% - 20px);
-      // border-radius: 5px;
-      // position: relative;
-      // background: var(--surface-subtle);
+    .settings {
+      margin: 10px 10px 0 10px;
+      border-radius: 5px 5px 0 0;
+    }
 
+    .input-box {
       display: flex;
       flex-direction: column;
-      height: calc(100% - 70px);
-      margin: 10px;
+      flex: 1 1 0;
+      min-height: 0;
+      margin: 0 10px 10px 10px;
       padding: 5px;
-      border-radius: 5px;
+      border-radius: 0 0 5px 5px;
       position: relative;
       background: var(--surface-subtle);
 
@@ -387,8 +400,6 @@
         outline: none;
         padding: 7px 0 0 5px;
         background: transparent;
-        // width: calc(100% + 10px);
-        // height: calc(100% - 33px);
       }
     }
 
@@ -408,9 +419,7 @@
 
 nz-resize-handle {
   .line {
-    margin-top: 5px;
-    height: 1px;
-    background: var(--border-color);
+    display: none;
   }
 }
 
@@ -420,6 +429,10 @@ nz-resize-handle {
   .sender .s-box .input-box {
     background: #fff;
     border: 1px solid var(--border-color);
+  }
+
+  .sender .s-box .input-box {
+    border-top: 0;
   }
 
   .settings .item .item-inner {

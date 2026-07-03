@@ -4,12 +4,21 @@
 </app-sub-window>
 } @else {
 <app-tool-container [title]="'CODE VIEWER'" (closeEvent)="close()">
-  <div header-btns class="professional-mode-btn" [class.loading]="converting" (click)="openProfessionalModeConfirm()"
-    nz-tooltip nzTooltipTitle="切换为不可逆的代码编辑模式">
-    <i class="fa-light" [class.fa-spinner-third]="converting" [class.fa-user-gear]="!converting"></i>
-    <span>专业模式</span>
+  <div class="code-viewer-container">
+    <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
+
+    <!-- 悬浮在底部的半透明专业模式按钮 -->
+    <div class="professional-mode-floating-btn" [class.loading]="converting" (click)="openProfessionalModeConfirm()"
+      nz-tooltip nzTooltipTitle="切换为不可逆的代码编辑模式">
+      <i class="fa-light" [class.fa-spinner-third]="converting" [class.fa-user-gear]="!converting"></i>
+      <span>专业模式</span>
+    </div>
+
+    <!-- 右上角关闭按钮 -->
+    <button type="button" class="code-close-btn" aria-label="关闭代码查看器" (click)="close()">
+      <i class="fa-light fa-xmark"></i>
+    </button>
   </div>
-  <ng-container *ngTemplateOutlet="windowBoxTemplate"></ng-container>
 </app-tool-container>
 }
 <ng-template #windowBoxTemplate>

@@ -43,7 +43,10 @@ export class CodeViewerComponent implements OnDestroy {
     theme: 'vs-dark',
     lineNumbers: 'on',
     automaticLayout: true,
-    readOnly: true
+    readOnly: true,
+    padding: {
+      top: 16
+    }
   }
 
   // Monaco 编辑器实例
