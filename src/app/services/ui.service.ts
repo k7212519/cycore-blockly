@@ -12,6 +12,7 @@ import { EdaAuthService } from '../auth/eda-auth.service';
 })
 export class UiService {
   private readonly disabledCloudTools = new Set(['aily-chat', 'cloud-space', 'model-store']);
+  private readonly exclusiveRightTools = new Set(['code-viewer', 'serial-monitor', 'user-center']);
 
   // 用来控制窗口和工具的显示和隐藏
   actionSubject = new Subject();
@@ -127,7 +128,13 @@ export class UiService {
     //   this.openTerminal();
     //   return;
     // }
-    this.openToolList = this.openToolList.filter((e) => e !== name);
+    const isExclusiveRightTool = this.exclusiveRightTools.has(name);
+    this.openToolList = this.openToolList.filter((e) => {
+      if (e === name) {
+        return false;
+      }
+      return !isExclusiveRightTool || !this.exclusiveRightTools.has(e);
+    });
     this.openToolList.push(name);
     this.actionSubject.next({ action: 'open', type: 'tool', data: name });
   }

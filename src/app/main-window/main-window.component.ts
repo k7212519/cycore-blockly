@@ -23,6 +23,7 @@ import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
 import { UserCenterComponent } from '../tools/user-center/user-center.component';
 import { OnboardingComponent } from '../components/onboarding/onboarding.component';
 import { OnboardingService } from '../services/onboarding.service';
+import { NotificationComponent } from '../components/notification/notification.component';
 
 @Component({
   selector: 'app-main-window',
@@ -44,7 +45,8 @@ import { OnboardingService } from '../services/onboarding.service';
     NzToolTipModule,
     NzModalModule,
     UserCenterComponent,
-    OnboardingComponent
+    OnboardingComponent,
+    NotificationComponent
   ],
   templateUrl: './main-window.component.html',
   styleUrl: './main-window.component.scss',

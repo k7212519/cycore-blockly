@@ -35,6 +35,10 @@ export class SerialMonitorService {
 
   // 串口相关属性
   private serialPort: any = null;
+  private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+  private readLoopTask: Promise<void> | null = null;
+  private writeTask: Promise<void> | null = null;
   private lastDataTime = 0;
   private firstDataTime = 0; // 当前记录首次接收数据的时间
   private isConnected = false;
@@ -96,7 +100,7 @@ export class SerialMonitorService {
       });
       this.isConnected = true;
       this.connectionStatus.next(true);
-      void this.readLoop();
+      this.readLoopTask = this.readLoop();
       this.dataList.push({
         time: new Date().toLocaleTimeString(),
         data: Buffer.from(`[串口已连接: ${options.path} ${options.baudRate}波特]`),
@@ -120,14 +124,26 @@ export class SerialMonitorService {
   private async readLoop(): Promise<void> {
     while (this.isConnected && this.serialPort?.readable) {
       const reader = this.serialPort.readable.getReader();
+      this.reader = reader;
       try {
         while (this.isConnected) {
           const { value, done } = await reader.read();
           if (done) break;
           if (value) this.processReceivedData(Buffer.from(value));
         }
+      } catch (error) {
+        if (this.isConnected) {
+          console.error('读取串口数据失败:', error);
+        }
       } finally {
-        reader.releaseLock();
+        if (this.reader === reader) {
+          this.reader = null;
+        }
+        try {
+          reader.releaseLock();
+        } catch {
+          // ignore release errors while the browser is tearing down the stream
+        }
       }
     }
   }
@@ -265,9 +281,9 @@ export class SerialMonitorService {
       }
 
       try {
-        const writer = this.serialPort.writable.getWriter();
-        await writer.write(bufferToSend);
-        writer.releaseLock();
+        this.writer = this.serialPort.writable.getWriter();
+        this.writeTask = this.writer.write(bufferToSend);
+        await this.writeTask;
         this.dataList.push({
           time: new Date().toLocaleTimeString(),
           data: bufferToSend,
@@ -279,6 +295,16 @@ export class SerialMonitorService {
       } catch (error) {
         console.error('发送数据失败:', error);
         resolve(false);
+      } finally {
+        if (this.writer) {
+          try {
+            this.writer.releaseLock();
+          } catch {
+            // ignore release errors while the browser is tearing down the stream
+          }
+          this.writer = null;
+        }
+        this.writeTask = null;
       }
     });
   }
@@ -298,15 +324,70 @@ export class SerialMonitorService {
 
     try {
       this.isConnected = false;
-      await this.serialPort.close();
       this.connectionStatus.next(false);
+
+      if (this.reader) {
+        try {
+          await this.reader.cancel();
+        } catch (error) {
+          if (!this.isExpectedSerialCloseError(error)) {
+            console.warn('取消串口读取失败:', error);
+          }
+        }
+      }
+
+      if (this.readLoopTask) {
+        try {
+          await this.readLoopTask;
+        } catch (error) {
+          if (!this.isExpectedSerialCloseError(error)) {
+            console.warn('等待串口读取循环结束失败:', error);
+          }
+        } finally {
+          this.readLoopTask = null;
+        }
+      }
+
+      if (this.writer) {
+        if (this.writeTask) {
+          try {
+            await this.writeTask;
+          } catch (error) {
+            if (!this.isExpectedSerialCloseError(error)) {
+              console.warn('等待串口写入结束失败:', error);
+            }
+          } finally {
+            this.writeTask = null;
+          }
+        }
+        try {
+          this.writer.releaseLock();
+        } catch {
+          // ignore release errors while the browser is tearing down the stream
+        }
+        this.writer = null;
+      }
+
+      await this.serialPort.close();
       this.serialPort = null;
       return true;
     } catch (error) {
+      if (this.isExpectedSerialCloseError(error)) {
+        this.serialPort = null;
+        return true;
+      }
       console.error('关闭串口失败:', error);
       this.message.error(`关闭串口失败: ${error?.message || error}`);
       return false;
     }
+  }
+
+  private isExpectedSerialCloseError(error: unknown): boolean {
+    const name = (error as any)?.name || '';
+    const message = String((error as any)?.message || error || '');
+    return name === 'NetworkError'
+      || message.includes('The device has been lost')
+      || message.includes('device has been lost');
   }
 
   /**

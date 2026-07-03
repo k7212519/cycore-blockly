@@ -20,7 +20,7 @@ import { NewProjectData } from '../pages/project-new/project-new.component';
 import { WorkflowService } from './workflow.service';
 import { TranslateService } from '@ngx-translate/core';
 import { NoticeService } from './notice.service';
-import { API } from '../configs/api.config';
+import { API, getApiBaseUrl } from '../configs/api.config';
 
 interface ProjectPackageData {
   name: string;
@@ -867,7 +867,18 @@ export class ProjectService {
   }
 
   async downloadServerArtifactFile(file: ServerFlashFile): Promise<ArrayBuffer> {
-    return firstValueFrom(this.http.get(file.url, { responseType: 'arraybuffer' }));
+    return firstValueFrom(this.http.get(this.resolveServerArtifactUrl(file.url), { responseType: 'arraybuffer' }));
+  }
+
+  private resolveServerArtifactUrl(url: string): string {
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+    const apiBaseUrl = getApiBaseUrl();
+    if (!apiBaseUrl) {
+      return url;
+    }
+    return `${apiBaseUrl.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
   }
 
   private async unwrap<T>(request: any): Promise<T> {

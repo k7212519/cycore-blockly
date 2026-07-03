@@ -117,7 +117,7 @@
                 z-index: 5;
                 display: block;
                 margin: 0 calc(-1 * var(--blockly-floating-toolbox-inner-x));
-                padding: 0 var(--blockly-floating-toolbox-inner-x) 7px;
+                padding: 3px var(--blockly-floating-toolbox-inner-x) 6px;
                 background: var(--blockly-floating-toolbox-surface);
 
                 .blocklyTreeRow,
@@ -171,11 +171,13 @@
 
         .search-box {
             border-radius: var(--blockly-floating-toolbox-radius);
-            margin: 0;
-            padding: 0 8px;
-            width: 100%;
+            margin: 0 auto;
+            padding: 0 10px 0 12px;
+            width: calc(100% - 8px);
             box-sizing: border-box;
-            height: 30px;
+            height: 28px;
+            font-size: 13px;
+            text-align: left;
             color: var(--text-primary);
             background: rgba(255, 255, 255, 0.045);
             border: none;

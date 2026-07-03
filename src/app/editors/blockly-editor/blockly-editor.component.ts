@@ -1,6 +1,5 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { LibManagerComponent } from './components/lib-manager/lib-manager.component';
-import { NotificationComponent } from '../../components/notification/notification.component';
 import { UiService } from '../../services/ui.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ActivatedRoute } from '@angular/router';
@@ -28,7 +27,6 @@ import { BlocklySvgExportService } from './services/blockly-svg-export.service';
   imports: [
     BlocklyComponent,
     LibManagerComponent,
-    NotificationComponent,
     TranslateModule,
     DevToolComponent,
   ],

@@ -8,7 +8,7 @@
 </app-tool-container>
 }
 <ng-template #windowBoxTemplate>
-  <div class="window-box">
+  <div class="window-box" [class.side-panel-mode]="currentUrl != '/serial-monitor'">
     <!-- <div class="left-bar">
       <div class="btn ccenter selected" nz-tooltip nzTooltipTitle="基础设置" nzTooltipPlacement="left">
         <i class="fa-light fa-gear"></i>
@@ -61,6 +61,11 @@
           <div class="switch">
             <nz-switch [(ngModel)]="switchValue" (ngModelChange)="switchPort()"></nz-switch>
           </div>
+          @if (currentUrl != "/serial-monitor") {
+          <button type="button" class="serial-close-btn" aria-label="关闭串口工具" (click)="close()">
+            <i class="fa-light fa-xmark"></i>
+          </button>
+          }
         </div>
       </div>
       @if(showMoreSettings){
