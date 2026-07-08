@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, isDevMode, OnDestroy, ViewChild } from '@angular/core';
 import { HEADER_BTNS, HEADER_MENU } from '../../../configs/menu.config';
 import { NzToolTipModule } from 'ng-zorro-antd/tooltip';
@@ -23,9 +24,10 @@ import { PlatformService } from '../../../services/platform.service';
 import { AppItem } from '../../../tools/app-store/app-store.config';
 import { APP_LIST } from '../../../configs/tool.config';
 import { EdaAuthService } from '../../../auth/eda-auth.service';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { ThemeService } from '../../../services/theme.service';
 import { ActionService } from '../../../services/action.service';
+import { getApiBaseUrl } from '../../../configs/api.config';
 
 @Component({
   selector: 'app-header',
@@ -164,6 +166,7 @@ export class HeaderComponent implements OnDestroy {
     private platformService: PlatformService,
     private themeService: ThemeService,
     private actionService: ActionService,
+    private http: HttpClient,
     // private appStoreService: AppStoreService
   ) { }
 
@@ -583,6 +586,9 @@ export class HeaderComponent implements OnDestroy {
           queryParams: { returnUrl: this.router.url }
         });
         break;
+      case 'iot-development-open':
+        await this.openIotPlatform();
+        break;
       case 'user-logout':
         this.logout();
         break;
@@ -600,6 +606,27 @@ export class HeaderComponent implements OnDestroy {
       default:
         console.log('未处理的操作:', item.action);
         break;
+    }
+  }
+
+  private async openIotPlatform(): Promise<void> {
+    try {
+      const response = await firstValueFrom(this.http.post<{ code: number; message: string; data: { ticket: string } }>(
+        `${getApiBaseUrl()}/api/iot/launch-tickets`,
+        {}
+      ));
+      if (response.code !== 200 || !response.data?.ticket) {
+        throw new Error(response.message || '无法创建物联网访问票据');
+      }
+      const configuredUrl = (window as any).__CYCORE_IOT_URL__;
+      const baseUrl = configuredUrl
+        ? String(configuredUrl)
+        : 'http://localhost:4201/';
+      const url = new URL(baseUrl, window.location.href);
+      url.searchParams.set('ticket', response.data.ticket);
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      this.message.error(error?.message || '打开物联网开发平台失败');
     }
   }
 
