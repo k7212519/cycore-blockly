@@ -10,7 +10,9 @@
     "dev": "ng serve --configuration dev",
     "prod": "ng serve --configuration prod",
     "watch": "ng build --watch --configuration development",
-    "build": "ng build --base-href ./"
+    "build": "ng build --base-href ./",
+    "build:prod": "ng build --configuration prod --base-href ./",
+    "build:dev": "ng build --configuration dev --base-href ./"
   },
   "private": true,
   "dependencies": {
