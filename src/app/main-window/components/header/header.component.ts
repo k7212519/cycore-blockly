@@ -28,6 +28,7 @@ import { firstValueFrom, Subscription } from 'rxjs';
 import { ThemeService } from '../../../services/theme.service';
 import { ActionService } from '../../../services/action.service';
 import { getApiBaseUrl } from '../../../configs/api.config';
+import { ProcessState, WorkflowService } from '../../../services/workflow.service';
 
 @Component({
   selector: 'app-header',
@@ -57,6 +58,7 @@ export class HeaderComponent implements OnDestroy {
 
   private serialPortsChangedSubscription?: Subscription;
   private routeEventsSubscription?: Subscription;
+  private workflowStateSubscription?: Subscription;
   private projectTitleResizeObserver?: ResizeObserver;
   private projectTitleLayoutFrame = 0;
   private readonly projectTitleMinWidth = 120;
@@ -167,6 +169,7 @@ export class HeaderComponent implements OnDestroy {
     private themeService: ThemeService,
     private actionService: ActionService,
     private http: HttpClient,
+    private workflowService: WorkflowService,
     // private appStoreService: AppStoreService
   ) { }
 
@@ -296,6 +299,22 @@ export class HeaderComponent implements OnDestroy {
         this.cd.detectChanges();
         this.scheduleProjectTitleLayout();
       }, 0);
+    });
+
+    this.workflowStateSubscription = this.workflowService.state$.subscribe((state) => {
+      if (state !== ProcessState.ERROR) return;
+      const error = this.workflowService.currentError || '';
+      const actionState: RunState['state'] = /cancel|\u53d6\u6d88/i.test(error) ? 'warn' : 'error';
+      let changed = false;
+      this.headerBtns.forEach((btn) => {
+        if (btn.state === 'doing') {
+          btn.state = actionState;
+          changed = true;
+        }
+      });
+      if (changed) {
+        setTimeout(() => this.cd.detectChanges(), 0);
+      }
     });
 
     this.checkAndSetDefaultPort();
@@ -610,6 +629,14 @@ export class HeaderComponent implements OnDestroy {
   }
 
   private async openIotPlatform(): Promise<void> {
+    const platformWindow = window.open('about:blank', '_blank');
+    if (!platformWindow) {
+      this.message.error('浏览器阻止了新窗口，请允许弹出窗口后重试');
+      return;
+    }
+    platformWindow.opener = null;
+    platformWindow.document.title = '正在打开 Cycore IoT…';
+    platformWindow.document.body.innerHTML = '<p style="font:14px sans-serif;color:#8aa7b5;background:#030b13;margin:0;padding:32px">Cycore IoT 安全票据生成中…</p>';
     try {
       const response = await firstValueFrom(this.http.post<{ code: number; message: string; data: { ticket: string } }>(
         `${getApiBaseUrl()}/api/iot/launch-tickets`,
@@ -624,8 +651,9 @@ export class HeaderComponent implements OnDestroy {
         : 'http://localhost:4201/';
       const url = new URL(baseUrl, window.location.href);
       url.searchParams.set('ticket', response.data.ticket);
-      window.open(url.toString(), '_blank', 'noopener,noreferrer');
+      platformWindow.location.replace(url.toString());
     } catch (error: any) {
+      platformWindow.close();
       this.message.error(error?.message || '打开物联网开发平台失败');
     }
   }
@@ -655,6 +683,7 @@ export class HeaderComponent implements OnDestroy {
       this.serialPortsChangedSubscription.unsubscribe();
     }
     this.routeEventsSubscription?.unsubscribe();
+    this.workflowStateSubscription?.unsubscribe();
     this.projectTitleResizeObserver?.disconnect();
     if (this.projectTitleLayoutFrame) {
       cancelAnimationFrame(this.projectTitleLayoutFrame);

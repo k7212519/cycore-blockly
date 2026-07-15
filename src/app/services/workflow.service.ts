@@ -25,6 +25,10 @@ export class WorkflowService {
     return this._state.value;
   }
 
+  get currentError(): string | null {
+    return this._error.value;
+  }
+
   // IDLE -> INSTALLING
   startInstall(): boolean {
     if (this.currentState === ProcessState.IDLE || this.currentState === ProcessState.ERROR) {
@@ -111,5 +115,14 @@ export class WorkflowService {
     } else {
       console.warn(`Cannot reset from state: ${this.currentState}`);
     }
+  }
+
+  /**
+   * Immediately publish a user cancellation so UI consumers do not have to
+   * wait for a pending HTTP or serial operation to settle.
+   */
+  cancelCurrent(errorMsg: string = 'Cancelled by user') {
+    this._error.next(errorMsg);
+    this._state.next(ProcessState.ERROR);
   }
 }

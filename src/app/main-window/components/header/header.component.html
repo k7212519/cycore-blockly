@@ -126,6 +126,7 @@
 <!-- device port list -->
 @if (showPortList) {
 <app-menu class="ports" [position]="portListPosition" [width]="260" [menuList]="configList"
+  submenuDirection="left"
   (closeEvent)="closePortList()" [keywords]="boardKeywords" (itemClickEvent)="selectPort($event)"
   (subItemClickEvent)="selectSubItem($event)"></app-menu>
 }

@@ -57,6 +57,11 @@ export class _UploaderService {
   }
 
   async upload(): Promise<ActionState> {
+    if (this.uploadInProgress) {
+      const text = this.cancelled ? '上一次上传正在终止' : '上传正在进行中';
+      this.message.warning(`${text}，请稍后再试`);
+      return Promise.reject({ state: 'warn', text });
+    }
     if (this.workflowService.currentState === ProcessState.BUILDING) {
       this.message.warning('当前正在编译中，请稍后再试');
       return Promise.reject({ state: 'warn', text: '当前正在编译中，请稍后再试' });
@@ -70,10 +75,11 @@ export class _UploaderService {
 
     this.cancelled = false;
     this.uploadInProgress = true;
-    await this.blocklyProjectService.saveCurrentProject(false);
-    const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
 
     try {
+      await this.blocklyProjectService.saveCurrentProject(false);
+      if (this.cancelled) throw { state: 'warn', text: '上传已取消' };
+      const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
       const needsBuild = !this.builderService.passed
         || code !== this.builderService.lastCode
         || this.projectService.currentProjectPath !== this.builderService.currentProjectPath
@@ -89,19 +95,24 @@ export class _UploaderService {
 
       this.builderService.isUploading = true;
       const result = await this.serverFlashService.flashLastCompile(serialPort);
+      if (this.cancelled) throw { state: 'warn', text: '上传已取消' };
       this.workflowService.finishUpload(true);
       return result;
     } catch (error: any) {
-      const state = error?.state || 'error';
-      const text = error?.text || error?.message || '上传失败';
-      this.workflowService.finishUpload(false, text);
-      this.noticeService.update({
-        title: state === 'warn' ? '上传未完成' : '上传失败',
-        text,
-        detail: error?.detail || text,
-        state,
-        setTimeout: state === 'warn' ? 5000 : 600000,
-      });
+      const state = error?.state || (this.cancelled ? 'warn' : 'error');
+      const text = error?.text || error?.message || (this.cancelled ? '上传已取消' : '上传失败');
+      if (this.workflowService.currentState === ProcessState.UPLOADING) {
+        this.workflowService.finishUpload(false, text);
+      }
+      if (!this.cancelled) {
+        this.noticeService.update({
+          title: state === 'warn' ? '上传未完成' : '上传失败',
+          text,
+          detail: error?.detail || text,
+          state,
+          setTimeout: state === 'warn' ? 5000 : 600000,
+        });
+      }
       throw { state, text };
     } finally {
       this.uploadInProgress = false;
@@ -112,13 +123,12 @@ export class _UploaderService {
   cancel(): void {
     if (!this.uploadInProgress) return;
     this.cancelled = true;
-    this.uploadInProgress = false;
     this.builderService.isUploading = false;
     this.serverFlashService.cancel();
     if (this.workflowService.currentState === ProcessState.BUILDING) {
       this.builderService.cancel();
     }
-    this.workflowService.finishUpload(false, 'Cancelled by user');
+    this.workflowService.cancelCurrent('上传已取消');
     this.noticeService.update({
       title: '上传已取消',
       text: '上传已取消',

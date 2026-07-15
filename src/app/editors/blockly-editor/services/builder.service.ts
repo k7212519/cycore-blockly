@@ -17,6 +17,7 @@ export class _BuilderService {
   passed = false;
   cancelled = false;
   isUploading = false;
+  buildInProgress = false;
 
   private initialized = false;
   private progressTimer: ReturnType<typeof setInterval> | null = null;
@@ -70,6 +71,11 @@ export class _BuilderService {
   }
 
   async build(): Promise<ActionState> {
+    if (this.buildInProgress) {
+      const text = this.cancelled ? '上一次编译正在终止' : '编译正在进行中';
+      this.message.warning(`${text}，请稍后再试`);
+      return Promise.reject({ state: 'warn', text });
+    }
     if (!this.workflowService.startBuild()) {
       const state = this.workflowService.currentState;
       const text = state === ProcessState.BUILDING
@@ -85,13 +91,20 @@ export class _BuilderService {
 
     this.cancelled = false;
     this.passed = false;
-    await this.blocklyProjectService.saveCurrentProject(false);
-    this.startProgress();
+    this.buildInProgress = true;
 
     try {
+      await this.blocklyProjectService.saveCurrentProject(false);
+      if (this.cancelled) {
+        throw { state: 'warn', text: '编译已取消' };
+      }
+      this.startProgress();
       const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
       this.lastCode = code;
       const result = await this.projectService.compileServerProject(code);
+      if (this.cancelled) {
+        throw { state: 'warn', text: '编译已取消' };
+      }
       this.logService.update({
         detail: [result.fullStdOut, result.fullStdErr].filter(Boolean).join('\n'),
         state: result.success ? 'done' : 'error',
@@ -112,10 +125,15 @@ export class _BuilderService {
       this.currentProjectPath = this.projectService.currentProjectPath;
       return { state: 'done', text: result.text };
     } catch (error: any) {
-      this.workflowService.finishBuild(false, error?.message || '服务端编译失败');
-      return Promise.reject({ state: 'error', text: error?.message || '服务端编译失败' });
+      const state = error?.state || (this.cancelled ? 'warn' : 'error');
+      const text = error?.text || error?.message || (this.cancelled ? '编译已取消' : '服务端编译失败');
+      if (this.workflowService.currentState === ProcessState.BUILDING) {
+        this.workflowService.finishBuild(false, text);
+      }
+      return Promise.reject({ state, text });
     } finally {
       this.clearProgressTimer();
+      this.buildInProgress = false;
     }
   }
 
@@ -124,7 +142,7 @@ export class _BuilderService {
     this.cancelled = true;
     this.passed = false;
     this.clearProgressTimer();
-    this.workflowService.finishBuild(false, 'Cancelled by user');
+    this.workflowService.cancelCurrent('编译已取消');
     this.noticeService.update({
       title: '编译已取消',
       text: '编译已取消',

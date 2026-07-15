@@ -36,6 +36,8 @@ export class MenuComponent {
 
   @Input() maxHeight: number | null = null;
 
+  @Input() submenuDirection: 'left' | 'right' | 'auto' = 'right';
+
   @Output() itemClickEvent = new EventEmitter();
 
   @Output() subItemClickEvent = new EventEmitter();
@@ -52,6 +54,7 @@ export class MenuComponent {
   submenuPosition = { left: '0px', top: '0px' };
   submenuMaxHeight = 'none';
   submenuOverflow = 'visible';
+  submenuOpensLeft = false;
 
   constructor(
     private router: Router,
@@ -168,9 +171,18 @@ export class MenuComponent {
       const menuBoxRect = menuBoxElement.getBoundingClientRect();
       const itemRect = menuItemElement.getBoundingClientRect();
 
-      // 子菜单显示在主菜单右侧
-      const left = menuBoxRect.right + 2;
+      const submenuWidth = this.submenuBox?.nativeElement?.getBoundingClientRect().width || 180;
+      const shouldOpenLeft = this.submenuDirection === 'left'
+        || (this.submenuDirection === 'auto'
+          && menuBoxRect.right + submenuWidth + 2 > window.innerWidth
+          && menuBoxRect.left - submenuWidth - 2 >= 0);
+      const preferredLeft = shouldOpenLeft
+        ? menuBoxRect.left - submenuWidth - 2
+        : menuBoxRect.right + 2;
+      const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - submenuWidth - 8));
       const top = itemRect.top;
+
+      this.submenuOpensLeft = shouldOpenLeft;
 
       this.submenuPosition = {
         left: left + 'px',

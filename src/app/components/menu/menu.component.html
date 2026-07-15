@@ -22,7 +22,9 @@
       </div>
       }
       @if(item.children){
-      <div class="arrow"><i class="fa-light fa-chevron-right"></i></div>
+      <div class="arrow">
+        <i class="fa-light" [ngClass]="submenuDirection === 'left' || (activeSubmenuIndex === $index && submenuOpensLeft) ? 'fa-chevron-left' : 'fa-chevron-right'"></i>
+      </div>
       }
     </div>
     }

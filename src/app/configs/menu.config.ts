@@ -97,11 +97,11 @@ export let HEADER_MENU: IMenuItem[] = [
   // {
   //   sep: true,
   // },
-  // {
-  //   name: 'MENU.IOT_DEVELOPMENT',
-  //   action: 'iot-development-open',
-  //   icon: 'fa-light fa-sensor-cloud',
-  // },
+  {
+    name: 'MENU.IOT_DEVELOPMENT',
+    action: 'iot-development-open',
+    icon: 'fa-light fa-sensor-cloud',
+  },
   {
     sep: true,
   },

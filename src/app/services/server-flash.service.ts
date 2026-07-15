@@ -5,22 +5,36 @@ import { NoticeService } from './notice.service';
 import { LogService } from './log.service';
 import { ActionState } from './ui.service';
 import { SerialService } from './serial.service';
+import { ProcessState, WorkflowService } from './workflow.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ServerFlashService {
+  private cancelled = false;
+  private running = false;
 
   constructor(
     private projectService: ProjectService,
     private espLoaderService: EspLoaderService,
     private noticeService: NoticeService,
     private logService: LogService,
-    private serialService: SerialService
+    private serialService: SerialService,
+    private workflowService: WorkflowService
   ) { }
 
   cancel(): void {
+    this.cancelled = true;
     this.espLoaderService.requestCancel();
+    if (this.workflowService.currentState === ProcessState.UPLOADING) {
+      this.workflowService.cancelCurrent('上传已取消');
+    }
+    this.noticeService.update({
+      title: '上传已取消',
+      text: '上传已取消',
+      state: 'warn',
+      setTimeout: 5000,
+    });
   }
 
   async flashLastCompile(serialPortInput: any): Promise<ActionState> {
@@ -37,7 +51,24 @@ export class ServerFlashService {
     if (!serialPort) {
       throw new Error('请先选择串口');
     }
+    if (this.running) {
+      const error = new Error('上一次烧录正在终止') as Error & { state: 'warn'; text: string };
+      error.state = 'warn';
+      error.text = '上一次烧录正在终止';
+      throw error;
+    }
 
+    this.running = true;
+    this.cancelled = false;
+
+    try {
+      return await this.performFlash(serialPort, flashFiles);
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async performFlash(serialPort: any, flashFiles: any[]): Promise<ActionState> {
     this.noticeService.update({
       title: '上传中',
       text: '正在下载固件',
@@ -50,6 +81,7 @@ export class ServerFlashService {
     const fileArray: FlashFile[] = [];
     for (const file of flashFiles) {
       const buffer = await this.projectService.downloadServerArtifactFile(file);
+      this.throwIfCancelled();
       fileArray.push({
         address: file.address,
         data: this.arrayBufferToBinaryString(buffer)
@@ -73,18 +105,19 @@ export class ServerFlashService {
       stop: () => this.cancel()
     });
 
-    const initialized = await this.espLoaderService.initializeWithPort(
-      serialPort,
-      uploadConfig.baudRate,
-      terminalHandler,
-      uploadConfig.beforeReset
-    );
-    if (!initialized) {
-      throw new Error('连接开发板失败，请确认串口权限和开发板状态');
-    }
-
     try {
-      await this.espLoaderService.flash({
+      const initialized = await this.espLoaderService.initializeWithPort(
+        serialPort,
+        uploadConfig.baudRate,
+        terminalHandler,
+        uploadConfig.beforeReset
+      );
+      this.throwIfCancelled();
+      if (!initialized) {
+        throw new Error('连接开发板失败，请确认串口权限和开发板状态');
+      }
+
+      const flashSucceeded = await this.espLoaderService.flash({
         fileArray,
         flashSize: uploadConfig.flashSize,
         flashMode: uploadConfig.flashMode,
@@ -108,6 +141,10 @@ export class ServerFlashService {
           });
         }
       });
+      this.throwIfCancelled();
+      if (!flashSucceeded) {
+        throw new Error('烧录固件失败，请检查串口连接和开发板状态');
+      }
       this.noticeService.update({
         title: '上传中',
         text: '正在重启开发板',
@@ -117,6 +154,7 @@ export class ServerFlashService {
         stop: () => this.cancel()
       });
       await this.espLoaderService.after(uploadConfig.afterReset);
+      this.throwIfCancelled();
       this.noticeService.update({
         title: '上传完成',
         text: '上传完成',
@@ -125,9 +163,27 @@ export class ServerFlashService {
         setTimeout: 55000
       });
       return { state: 'done', text: '上传完成' };
+    } catch (error: any) {
+      if (this.cancelled || error?.message?.includes('用户取消')) {
+        throw this.createCancelledError();
+      }
+      throw error;
     } finally {
       await this.espLoaderService.disconnect();
     }
+  }
+
+  private throwIfCancelled(): void {
+    if (this.cancelled) {
+      throw this.createCancelledError();
+    }
+  }
+
+  private createCancelledError(): Error & { state: 'warn'; text: string } {
+    const error = new Error('上传已取消') as Error & { state: 'warn'; text: string };
+    error.state = 'warn';
+    error.text = '上传已取消';
+    return error;
   }
 
   private async getUploadConfig(): Promise<BrowserUploadConfig> {
