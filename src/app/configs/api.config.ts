@@ -9,6 +9,11 @@ export function getApiBaseUrl(): string {
   return edaApiBaseUrl ? String(edaApiBaseUrl).replace(/\/$/, '') : environment.apiBaseUrl;
 }
 
+export function getIotPlatformUrl(): string {
+  const configuredUrl = (window as any).__CYCORE_IOT_URL__;
+  return configuredUrl ? String(configuredUrl) : environment.iotPlatformUrl;
+}
+
 function getInitialToolWebUrl(): string {
   return 'https://tool.aily.pro';
 }

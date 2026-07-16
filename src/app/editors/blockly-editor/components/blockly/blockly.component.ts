@@ -610,6 +610,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       const currentLang = this.translateService.currentLang || 'zh_cn';
       const locale = BLOCKLY_LOCALES[currentLang] || BLOCKLY_LOCALES['en'] || zhHans;
       Blockly.setLocale(locale);
+      this.registerCodeStyleLogicCompareBlock();
       
       // 在工作区创建前设置 block registry 拦截
       this.setupBlockRegistryInterception();
@@ -839,6 +840,42 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     // 根据当前语言设置 Blockly locale
     const currentLang = this.translateService.currentLang || 'zh_cn';
     this.updateBlocklyLocale(currentLang);
+  }
+
+  /**
+   * Blockly's built-in comparison block renders mathematical symbols (=, ≠,
+   * ≤, ≥). Keep its stable serialized values (EQ, NEQ, LTE, GTE) for
+   * existing projects, but render the C/C++ operators shown in generated code.
+   */
+  private registerCodeStyleLogicCompareBlock(): void {
+    Blockly.Blocks['logic_compare'] = {
+      init: function(this: Blockly.Block) {
+        this.jsonInit({
+          message0: '%1 %2 %3',
+          args0: [
+            { type: 'input_value', name: 'A' },
+            {
+              type: 'field_dropdown',
+              name: 'OP',
+              options: [
+                ['==', 'EQ'],
+                ['!=', 'NEQ'],
+                ['<', 'LT'],
+                ['<=', 'LTE'],
+                ['>', 'GT'],
+                ['>=', 'GTE'],
+              ],
+            },
+            { type: 'input_value', name: 'B' },
+          ],
+          inputsInline: true,
+          output: 'Boolean',
+          style: 'logic_blocks',
+          helpUrl: '%{BKY_LOGIC_COMPARE_HELPURL}',
+          extensions: ['logic_compare', 'logic_op_tooltip'],
+        });
+      },
+    };
   }
 
   /**

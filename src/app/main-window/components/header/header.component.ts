@@ -27,7 +27,7 @@ import { EdaAuthService } from '../../../auth/eda-auth.service';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { ThemeService } from '../../../services/theme.service';
 import { ActionService } from '../../../services/action.service';
-import { getApiBaseUrl } from '../../../configs/api.config';
+import { getApiBaseUrl, getIotPlatformUrl } from '../../../configs/api.config';
 import { ProcessState, WorkflowService } from '../../../services/workflow.service';
 
 @Component({
@@ -645,11 +645,7 @@ export class HeaderComponent implements OnDestroy {
       if (response.code !== 200 || !response.data?.ticket) {
         throw new Error(response.message || '无法创建物联网访问票据');
       }
-      const configuredUrl = (window as any).__CYCORE_IOT_URL__;
-      const baseUrl = configuredUrl
-        ? String(configuredUrl)
-        : 'http://localhost:4201/';
-      const url = new URL(baseUrl, window.location.href);
+      const url = new URL(getIotPlatformUrl(), window.location.href);
       url.searchParams.set('ticket', response.data.ticket);
       platformWindow.location.replace(url.toString());
     } catch (error: any) {

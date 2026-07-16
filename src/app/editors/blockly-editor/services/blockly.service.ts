@@ -6,9 +6,8 @@ import { processI18n, processJsonVar, processStaticFilePath, processToolboxI18n 
 import { TranslateService } from '@ngx-translate/core';
 import { BrowserService } from '../../../services/browser.service';
 import { ProjectService, ServerBlocklyLibraryResource } from '../../../services/project.service';
-import { BlockCodeMapping, CodeLineRange } from '../components/blockly/generators/arduino/arduino';
+import { arduinoGenerator, BlockCodeMapping, CodeLineRange, Order } from '../components/blockly/generators/arduino/arduino';
 import { convertBlockTreeToAbs, convertAbiToAbsWithLineMap } from '../../../tools/aily-chat/public-api';
-import { arduinoGenerator } from '../components/blockly/generators/arduino/arduino';
 import { micropythonGenerator } from '../components/blockly/generators/micropython/micropython';
 import { javascriptGenerator } from 'blockly/javascript';
 import '../components/blockly/plugins/block-plus-minus/src/index.js';
@@ -625,6 +624,7 @@ export class BlocklyService {
       // 检查是否已加载
       if (this.loadedGenerators.has(filePath)) {
         console.warn(`Generator ${filePath} 已加载,跳过重复加载`);
+        this.applyCoreGeneratorOverrides();
         resolve(true);
         return;
       }
@@ -662,6 +662,7 @@ export class BlocklyService {
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
         this.loadedGenerators.set(filePath, new Set(newBlockTypes));
         console.log(`Generator loaded from ${filePath}, registered blocks:`, newBlockTypes);
+        this.applyCoreGeneratorOverrides();
         finish(true);
       };
 
@@ -678,6 +679,7 @@ export class BlocklyService {
     return new Promise((resolve) => {
       this.ensureLibraryScriptGlobals();
       if (this.loadedGenerators.has(sourceKey)) {
+        this.applyCoreGeneratorOverrides();
         resolve(true);
         return;
       }
@@ -715,6 +717,7 @@ export class BlocklyService {
         const blockTypesAfter = this.getRegisteredGenerators();
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
         this.loadedGenerators.set(sourceKey, new Set(newBlockTypes));
+        this.applyCoreGeneratorOverrides();
         finish(true);
       };
 
@@ -745,6 +748,21 @@ export class BlocklyService {
     this.setBlocklyGlobalProperty(blocklyGlobal, 'MicropPython', micropythonGenerator);
     this.setBlocklyGlobalProperty(blocklyGlobal, 'MPY', micropythonGenerator);
     this.setBlocklyGlobalProperty(blocklyGlobal, 'JavaScript', javascriptGenerator);
+  }
+
+  /**
+   * Keep Blockly's built-in Boolean field values (TRUE/FALSE) out of Arduino
+   * source even when a dynamically loaded library registers a faulty handler.
+   */
+  private applyCoreGeneratorOverrides(): void {
+    if (typeof arduinoGenerator.forBlock['logic_boolean'] !== 'function') {
+      return;
+    }
+
+    arduinoGenerator.forBlock['logic_boolean'] = (block: Blockly.Block): [string, Order] => {
+      const value = String(block.getFieldValue('BOOL')).trim().toUpperCase();
+      return [value === 'TRUE' ? 'true' : 'false', Order.ATOMIC];
+    };
   }
 
   private ensureWritableBlocklyGlobal(target: any): any {
