@@ -9,6 +9,13 @@ export function getApiBaseUrl(): string {
   return edaApiBaseUrl ? String(edaApiBaseUrl).replace(/\/$/, '') : environment.apiBaseUrl;
 }
 
+export function getProjectHubApiBaseUrl(): string {
+  const projectHubApiBaseUrl = (window as any).__PROJECT_HUB_API_BASE_URL__;
+  return projectHubApiBaseUrl
+    ? String(projectHubApiBaseUrl).replace(/\/$/, '')
+    : 'https://api.aily.pro';
+}
+
 export function getIotPlatformUrl(): string {
   const configuredUrl = (window as any).__CYCORE_IOT_URL__;
   return configuredUrl ? String(configuredUrl) : environment.iotPlatformUrl;
@@ -64,11 +71,12 @@ export const API = {
   get stopSession() { return `${getApiBaseUrl()}/api/v1/stop_session`; },
   get cancelTask() { return `${getApiBaseUrl()}/api/v1/cancel_task`; },
   get generateTitle() { return `${getApiBaseUrl()}/api/v1/generate_title`; },
-  // cloud
-  get cloudBase() { return `${getApiBaseUrl()}/api/v1/cloud`; },
-  get cloudSync() { return `${getApiBaseUrl()}/api/v1/cloud/sync`; },
-  get cloudProjects() { return `${getApiBaseUrl()}/api/v1/cloud/projects`; },
-  get cloudPublicProjects() { return `${getApiBaseUrl()}/api/v1/cloud/projects/public`; },
+  // Project Hub is hosted by the external cloud service, independently of the
+  // local Spring Boot backend used by serverProjects/serverProjectBoards/etc.
+  get cloudBase() { return `${getProjectHubApiBaseUrl()}/api/v1/cloud`; },
+  get cloudSync() { return `${getProjectHubApiBaseUrl()}/api/v1/cloud/sync`; },
+  get cloudProjects() { return `${getProjectHubApiBaseUrl()}/api/v1/cloud/projects`; },
+  get cloudPublicProjects() { return `${getProjectHubApiBaseUrl()}/api/v1/cloud/projects/public`; },
   // server-side local projects
   get serverProjects() { return `${getApiBaseUrl()}/api/projects`; },
   get serverProjectBoards() { return `${getApiBaseUrl()}/api/projects/boards`; },
