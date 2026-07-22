@@ -123,6 +123,10 @@
                     letter-spacing: 0;
                 }
 
+                .blocklyTreeLabelAutoScrolling {
+                    text-overflow: clip;
+                }
+
             }
 
             // 搜索框例外，仅作用于实际包含搜索框的分类，避免影响嵌套子菜单。

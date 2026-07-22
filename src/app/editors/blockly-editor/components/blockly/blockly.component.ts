@@ -254,6 +254,9 @@ export class BlocklyComponent implements OnInit, OnDestroy {
   private resizeObserver?: ResizeObserver;
   private toolboxResponsiveFrame: number | null = null;
   private toolboxMetricsFrame: number | null = null;
+  private toolboxLabelScrollFrame: number | null = null;
+  private toolboxLabelScrollDelay: ReturnType<typeof setTimeout> | null = null;
+  private scrollingToolboxLabel: HTMLElement | null = null;
   private shouldCollapseToolboxAfterDrag = false;
   private componentDestroyed = false;
   readonly toolboxAutoCollapseBreakpoint = 720;
@@ -502,6 +505,15 @@ export class BlocklyComponent implements OnInit, OnDestroy {
     if (this.toolboxMetricsFrame !== null) {
       cancelAnimationFrame(this.toolboxMetricsFrame);
     }
+    this.stopToolboxLabelScroll(true);
+    this.blocklyDiv.nativeElement.removeEventListener(
+      'pointerover',
+      this.handleToolboxLabelPointerOver,
+    );
+    this.blocklyDiv.nativeElement.removeEventListener(
+      'pointerout',
+      this.handleToolboxLabelPointerOut,
+    );
     this.resizeObserver?.disconnect();
     this.syncToolboxBodyClasses(true);
     // 清理 RxJS 订阅
@@ -619,6 +631,7 @@ export class BlocklyComponent implements OnInit, OnDestroy {
 
       this.options.toolbox = this.toolbox;
       this.workspace = Blockly.inject('blocklyDiv', this.options);
+      this.initToolboxLabelAutoScroll();
 
       // 根据配置决定 flyout 拖出 block 后是否自动关闭（配置重载时会通过 configReloaded$ 实时应用）
       this.applyFlyoutAutoClose();
@@ -674,6 +687,137 @@ export class BlocklyComponent implements OnInit, OnDestroy {
       });
       this.initLanguage();
     }, 100);
+  }
+
+  /**
+   * Blockly 会在运行时创建和刷新工具箱节点，因此在稳定的外层容器上代理事件。
+   * 从当前行反查直属标签，以同时覆盖一级分类和所有嵌套子分类。
+   * 标签确实溢出时，悬停后才横向滚动以预览被截断的右侧文字。
+   */
+  private initToolboxLabelAutoScroll(): void {
+    const container = this.blocklyDiv.nativeElement as HTMLElement;
+    container.addEventListener('pointerover', this.handleToolboxLabelPointerOver);
+    container.addEventListener('pointerout', this.handleToolboxLabelPointerOut);
+  }
+
+  private readonly handleToolboxLabelPointerOver = (event: PointerEvent): void => {
+    const label = this.getToolboxLabel(event.target);
+    if (!label || this.getToolboxLabel(event.relatedTarget) === label) return;
+
+    this.stopToolboxLabelScroll(true);
+    const overflowDistance = label.scrollWidth - label.clientWidth;
+    if (overflowDistance <= 1) return;
+
+    this.scrollingToolboxLabel = label;
+    label.classList.add('blocklyTreeLabelAutoScrolling');
+
+    const startScrolling = () => {
+      this.toolboxLabelScrollDelay = null;
+      const pixelsPerSecond = 32;
+      const duration = Math.min(
+        2800,
+        Math.max(700, (overflowDistance / pixelsPerSecond) * 1000),
+      );
+      this.animateToolboxLabelScroll(label, overflowDistance, duration);
+    };
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      label.scrollLeft = overflowDistance;
+      return;
+    }
+    this.toolboxLabelScrollDelay = setTimeout(startScrolling, 350);
+  };
+
+  private readonly handleToolboxLabelPointerOut = (event: PointerEvent): void => {
+    const label = this.getToolboxLabel(event.target);
+    if (
+      !label ||
+      this.getToolboxLabel(event.relatedTarget) === label ||
+      this.scrollingToolboxLabel !== label
+    ) {
+      return;
+    }
+
+    if (this.toolboxLabelScrollDelay !== null) {
+      clearTimeout(this.toolboxLabelScrollDelay);
+      this.toolboxLabelScrollDelay = null;
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.finishToolboxLabelScroll(label);
+      return;
+    }
+    this.animateToolboxLabelScroll(label, 0, 220, true);
+  };
+
+  private getToolboxLabel(target: EventTarget | null): HTMLElement | null {
+    if (!(target instanceof Element)) return null;
+    const directLabel = target.closest<HTMLElement>(
+      '.blocklyToolboxDiv .blocklyTreeLabel',
+    );
+    const row = target.closest<HTMLElement>('.blocklyToolboxDiv .blocklyTreeRow');
+    const label = directLabel ?? row?.querySelector<HTMLElement>(
+      ':scope > .blocklyTreeRowContentContainer > .blocklyTreeLabel',
+    );
+    return label && this.blocklyDiv.nativeElement.contains(label) ? label : null;
+  }
+
+  private animateToolboxLabelScroll(
+    label: HTMLElement,
+    targetScrollLeft: number,
+    duration: number,
+    resetAfter = false,
+  ): void {
+    if (this.toolboxLabelScrollFrame !== null) {
+      cancelAnimationFrame(this.toolboxLabelScrollFrame);
+    }
+
+    const startScrollLeft = label.scrollLeft;
+    const distance = targetScrollLeft - startScrollLeft;
+    if (Math.abs(distance) <= 1 || duration <= 0) {
+      label.scrollLeft = targetScrollLeft;
+      if (resetAfter) this.finishToolboxLabelScroll(label);
+      return;
+    }
+
+    const startTime = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const easedProgress = resetAfter
+        ? 1 - Math.pow(1 - progress, 3)
+        : progress;
+      label.scrollLeft = startScrollLeft + distance * easedProgress;
+
+      if (progress < 1) {
+        this.toolboxLabelScrollFrame = requestAnimationFrame(step);
+        return;
+      }
+
+      this.toolboxLabelScrollFrame = null;
+      if (resetAfter) this.finishToolboxLabelScroll(label);
+    };
+    this.toolboxLabelScrollFrame = requestAnimationFrame(step);
+  }
+
+  private finishToolboxLabelScroll(label: HTMLElement): void {
+    label.scrollLeft = 0;
+    label.classList.remove('blocklyTreeLabelAutoScrolling');
+    if (this.scrollingToolboxLabel === label) {
+      this.scrollingToolboxLabel = null;
+    }
+  }
+
+  private stopToolboxLabelScroll(reset: boolean): void {
+    if (this.toolboxLabelScrollDelay !== null) {
+      clearTimeout(this.toolboxLabelScrollDelay);
+      this.toolboxLabelScrollDelay = null;
+    }
+    if (this.toolboxLabelScrollFrame !== null) {
+      cancelAnimationFrame(this.toolboxLabelScrollFrame);
+      this.toolboxLabelScrollFrame = null;
+    }
+    if (reset && this.scrollingToolboxLabel) {
+      this.finishToolboxLabelScroll(this.scrollingToolboxLabel);
+    }
   }
 
   toggleToolboxCollapsed(): void {
