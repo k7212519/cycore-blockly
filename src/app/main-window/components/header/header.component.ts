@@ -478,14 +478,6 @@ export class HeaderComponent implements OnDestroy {
       }
     }
 
-    // 添加切换开发板功能
-    portList0.push({ sep: true });
-    portList0.push({
-      name: this.translate.instant('BOARD_SELECTOR.TITLE'),
-      icon: 'fa-light fa-layer-group',
-      action: 'board-select',
-      // children: boardList
-    })
     this.configList = portList0;
     // 使用 setTimeout 将变更检测推迟到下一个变更检测周期，避免 ExpressionChangedAfterItHasBeenCheckedError
     setTimeout(() => {

@@ -191,7 +191,7 @@ export class ServerFlashService {
     const projectConfig = packageJson?.projectConfig || {};
 
     return {
-      baudRate: this.toNumber(projectConfig.UploadSpeed, 921600),
+      baudRate: this.toNumber(projectConfig.UploadSpeed, 460800),
       beforeReset: this.toBeforeReset(projectConfig.UploadMode || projectConfig.BeforeReset),
       afterReset: this.toAfterReset(projectConfig.AfterReset),
       flashMode: this.toFlashMode(projectConfig.FlashMode),

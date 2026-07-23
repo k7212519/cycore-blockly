@@ -138,6 +138,7 @@ export class _BuilderService {
   }
 
   cancel(): void {
+    if (!this.buildInProgress) return;
     if (this.cancelled) return;
     this.cancelled = true;
     this.passed = false;

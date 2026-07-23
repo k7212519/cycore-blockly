@@ -213,7 +213,7 @@ async function main() {
         if (core === 'arduino') {
             defaultBaudRate = '115200';
         } else {
-            defaultBaudRate = '921600';
+            defaultBaudRate = '460800';
         }
 
         console.log('使用的核心:', core);
