@@ -69,6 +69,11 @@ export let HEADER_MENU: IMenuItem[] = [
     icon: 'fa-light fa-folder-open',
   },
   {
+    name: 'MENU.PROJECT_IMPORT',
+    action: 'project-import',
+    icon: 'fa-light fa-cloud-arrow-down',
+  },
+  {
     name: 'MENU.PROJECT_SAVE',
     text: 'Ctrl/⌘ + S',
     action: 'project-save',
@@ -136,6 +141,11 @@ export let GUIDE_MENU: IMenuItem[] = [
     action: 'project-new',
     data: { type: 'project-new', path: 'project-new', alwaysOnTop: true, width: 820, height: 550 },
     icon: 'fa-light fa-file-circle-plus',
+  },
+  {
+    name: 'MENU.PROJECT_IMPORT',
+    action: 'project-import',
+    icon: 'fa-light fa-cloud-arrow-down',
   },
   // {
   //   name: 'MENU.USER_MANUAL',

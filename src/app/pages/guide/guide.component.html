@@ -22,6 +22,10 @@
           (click)="loadProjects()">
           <i class="fa-regular fa-rotate-right" [class.spinning]="loadingProjects"></i>
         </button>
+        <button nz-button class="import-project-btn" (click)="openImportProjectDialog()">
+          <i class="fa-light fa-cloud-arrow-down"></i>
+          <span>导入项目</span>
+        </button>
         <button nz-button nzType="primary" class="new-project-btn" (click)="process({ action: 'project-new' })">
           <i class="fa-light fa-file-circle-plus"></i>
           <span>新建项目</span>
@@ -50,7 +54,10 @@
     <div class="state-card">
       <img src="imgs/folder.svg" alt="" draggable="false">
       <h3>暂无保存的项目</h3>
-      <button nz-button nzType="primary" (click)="process({ action: 'project-new' })">新建项目</button>
+      <div class="empty-actions">
+        <button nz-button (click)="openImportProjectDialog()">导入项目</button>
+        <button nz-button nzType="primary" (click)="process({ action: 'project-new' })">新建项目</button>
+      </div>
     </div>
     } @else {
     <div class="project-grid">

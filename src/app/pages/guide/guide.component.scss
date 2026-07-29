@@ -152,6 +152,28 @@
   }
 }
 
+.import-project-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border-color: var(--guide-border);
+  color: var(--guide-text);
+  background: var(--guide-card);
+  font-size: 13px;
+  font-weight: 700;
+
+  i {
+    margin-right: 7px;
+    color: var(--guide-accent);
+  }
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--guide-accent) 54%, var(--guide-border));
+    color: var(--guide-text);
+    background: var(--guide-card-hover);
+  }
+}
+
 .refresh-btn {
   width: 38px;
   height: 38px;
@@ -455,6 +477,12 @@
   }
 }
 
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
 .state-icon {
   width: 58px;
   height: 58px;
@@ -636,6 +664,11 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .list-actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .project-grid {

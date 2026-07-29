@@ -169,6 +169,18 @@ export interface ServerProjectCapacity {
   remaining: number;
 }
 
+export interface ServerProjectShare {
+  shareCode: string;
+  expireTime: string;
+}
+
+export interface ServerProjectCreated {
+  projectId: string;
+  name: string;
+  editor: string;
+  boardName: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -593,6 +605,32 @@ export class ProjectService {
   async deleteServerProject(projectId: string): Promise<void> {
     await this.unwrap<void>(
       this.http.delete<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}`)
+    );
+  }
+
+  async shareServerProject(projectId: string, expiresInDays: number): Promise<ServerProjectShare> {
+    return this.unwrap<ServerProjectShare>(
+      this.http.post<ApiResult<ServerProjectShare>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/share`,
+        { expiresInDays }
+      )
+    );
+  }
+
+  async getServerProjectShare(projectId: string): Promise<ServerProjectShare | null> {
+    return this.unwrap<ServerProjectShare | null>(
+      this.http.get<ApiResult<ServerProjectShare | null>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/share`
+      )
+    );
+  }
+
+  async importSharedProject(shareCode: string): Promise<ServerProjectCreated> {
+    return this.unwrap<ServerProjectCreated>(
+      this.http.post<ApiResult<ServerProjectCreated>>(
+        `${API.serverProjects}/import-share`,
+        { shareCode: (shareCode || '').trim().toUpperCase() }
+      )
     );
   }
 

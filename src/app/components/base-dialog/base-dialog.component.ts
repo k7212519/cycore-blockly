@@ -35,6 +35,9 @@ export class BaseDialogComponent {
   
   // 自定义类名
   @Input() customClass: string = '';
+
+  // 是否显示组件自身边框；嵌入已有边框的 Modal 时可关闭
+  @Input() bordered: boolean = true;
   
   // 是否加载中
   @Input() loading: boolean = false;

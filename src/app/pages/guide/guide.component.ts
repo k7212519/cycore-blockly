@@ -16,6 +16,8 @@ import { ConfigService } from '../../services/config.service';
 import { NzModalService } from 'ng-zorro-antd/modal';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { MenuComponent } from '../../components/menu/menu.component';
+import { ProjectShareDialogComponent } from '../../components/project-share-dialog/project-share-dialog.component';
+import { ProjectImportDialogComponent } from '../../components/project-import-dialog/project-import-dialog.component';
 
 interface SelectionRect {
   left: number;
@@ -81,6 +83,12 @@ export class GuideComponent implements OnInit, OnDestroy {
   get projectContextMenu() {
     const count = Math.max(this.selectedProjects.length, 1);
     return [
+      {
+        name: '分享项目',
+        icon: 'fa-light fa-share-nodes',
+        action: 'share-project',
+        disabled: count !== 1
+      },
       {
         name: '重命名',
         icon: 'fa-light fa-pen-to-square',
@@ -226,7 +234,7 @@ export class GuideComponent implements OnInit, OnDestroy {
 
     this.projectContextMenuPosition = {
       x: Math.min(event.clientX, Math.max(8, window.innerWidth - this.contextMenuWidth - 8)),
-      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 54))
+      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 112))
     };
     this.showProjectContextMenu = true;
   }
@@ -234,6 +242,9 @@ export class GuideComponent implements OnInit, OnDestroy {
   onProjectContextMenuClick(item: any) {
     this.closeProjectContextMenu();
     switch (item?.action) {
+      case 'share-project':
+        this.openProjectShareDialog();
+        break;
       case 'rename-project':
         this.openProjectInfoModal();
         break;
@@ -302,6 +313,42 @@ export class GuideComponent implements OnInit, OnDestroy {
       nzOkText: '保存',
       nzCancelText: '取消',
       nzOnOk: () => this.renameProject()
+    });
+  }
+
+  private openProjectShareDialog() {
+    const project = this.selectedProjects[0];
+    if (!project) {
+      return;
+    }
+    this.modal.create({
+      nzTitle: null,
+      nzFooter: null,
+      nzClosable: false,
+      nzBodyStyle: { padding: '0' },
+      nzWidth: '480px',
+      nzContent: ProjectShareDialogComponent,
+      nzData: {
+        projectId: project.projectId,
+        projectName: project.name
+      }
+    });
+  }
+
+  openImportProjectDialog() {
+    const modalRef = this.modal.create({
+      nzTitle: null,
+      nzFooter: null,
+      nzClosable: false,
+      nzBodyStyle: { padding: '0' },
+      nzWidth: '440px',
+      nzContent: ProjectImportDialogComponent
+    });
+    modalRef.afterClose.subscribe(result => {
+      if (result?.project) {
+        this.selectedProjectIds.clear();
+        void this.loadProjects(1);
+      }
     });
   }
 
@@ -448,6 +495,9 @@ export class GuideComponent implements OnInit, OnDestroy {
       case 'project-new':
         this.router.navigate(['/main/project-new']);
         // this.uiService.openWindow(item.data);
+        break;
+      case 'project-import':
+        this.openImportProjectDialog();
         break;
       case 'browser-open':
         this.browserService.openUrl(item.data.url);

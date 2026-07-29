@@ -1,0 +1,263 @@
+:host {
+  display: block;
+}
+
+.dialog-hero {
+  margin: 8px 4px 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+
+  strong {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 750;
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+}
+
+.hero-icon {
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 20px;
+}
+
+.field-heading {
+  margin: 0 2px 9px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+
+  span {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 720;
+  }
+
+  small {
+    color: var(--text-tertiary);
+    font-size: 11px;
+  }
+}
+
+.expiry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-block: 1px solid var(--border-color);
+}
+
+.expiry-option {
+  position: relative;
+  min-width: 0;
+  padding: 13px 9px 12px;
+  border: 0;
+  border-right: 1px solid var(--border-color);
+  color: var(--text-primary);
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  }
+
+  &.selected {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    box-shadow: inset 0 -2px var(--accent);
+  }
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  strong {
+    font-size: 14px;
+    font-weight: 760;
+  }
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 10px;
+  }
+
+  i {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    color: var(--accent);
+    font-size: 10px;
+  }
+}
+
+.share-result {
+  margin: 0 4px;
+  padding: 18px 0 16px;
+  border-block: 1px solid var(--border-color);
+  text-align: center;
+
+  .result-label {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+
+  p {
+    margin: 10px 0 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+.share-code-row {
+  margin: 10px auto 0;
+  max-width: 390px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.share-code {
+  width: 100%;
+  height: 50px;
+  padding: 0 6px 2px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 46%, var(--border-color));
+  outline: none;
+  color: var(--text-primary);
+  background: transparent;
+  font-family: 'MiSans', sans-serif;
+  font-size: clamp(24px, 6vw, 32px);
+  font-weight: 850;
+  letter-spacing: .14em;
+  text-indent: .14em;
+  text-align: center;
+  cursor: text;
+  user-select: all;
+
+  &:focus {
+    border-bottom-color: var(--accent);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
+
+.copy-code-btn {
+  min-width: 108px;
+  height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 720;
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+}
+
+.security-note {
+  margin: 16px 4px 2px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.55;
+
+  i {
+    margin-top: 2px;
+    color: #36b37e;
+  }
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dialog-action {
+  height: 42px;
+  min-width: 108px;
+  padding: 0 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 720;
+
+  &:disabled {
+    opacity: .55;
+  }
+
+  &.secondary {
+    color: var(--text-secondary);
+    background: transparent;
+  }
+
+  &.primary {
+    border-color: var(--accent);
+    color: #fff;
+    background: var(--accent);
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.06);
+    }
+  }
+}
+
+.close-action {
+  min-width: 142px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.spinning {
+  animation: share-spin 850ms linear infinite;
+}
+
+@keyframes share-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .expiry-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .share-code-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-actions,
+  .dialog-action {
+    width: 100%;
+  }
+}

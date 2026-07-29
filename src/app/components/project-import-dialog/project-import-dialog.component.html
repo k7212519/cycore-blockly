@@ -1,0 +1,45 @@
+<app-base-dialog title="导入分享项目" [loading]="loading" [bordered]="false"
+  customClass="project-transfer-dialog" (closeDialog)="onClose()">
+  <div class="import-visual">
+    <span class="import-icon"><i class="fa-light fa-cloud-arrow-down"></i></span>
+    <div class="transfer-line">
+      <i></i><i></i><i></i>
+    </div>
+    <span class="folder-icon"><i class="fa-light fa-folder-plus"></i></span>
+  </div>
+
+  <div class="import-copy">
+    <strong>输入 8 位项目分享码</strong>
+    <p>校验成功后，项目会创建为你的独立副本。</p>
+  </div>
+
+  <label class="code-field">
+    <span>分享码</span>
+    <input #codeInput type="text" inputmode="text" autocomplete="off" autocapitalize="characters"
+      spellcheck="false" maxlength="8" [ngModel]="shareCode" [disabled]="loading"
+      placeholder="XXXXXXXX" (ngModelChange)="onCodeInput($event)" (keydown)="onKeydown($event)"
+      aria-describedby="share-code-hint" autofocus />
+  </label>
+
+  <div id="share-code-hint" class="code-hint" [class.ready]="codeValid">
+    <i [class]="codeValid ? 'fa-solid fa-circle-check' : 'fa-light fa-circle-info'"></i>
+    <span>{{ codeValid ? '分享码格式正确，可以导入' : '仅支持 8 位大写英文字母' }}</span>
+  </div>
+
+  <div class="independent-note">
+    <i class="fa-light fa-copy"></i>
+    <span>导入后可自由编辑，不会影响分享者的原项目。</span>
+  </div>
+
+  <div footer class="dialog-actions">
+    <button type="button" class="dialog-action secondary" [disabled]="loading"
+      (click)="onClose()">取消</button>
+    <button type="button" class="dialog-action primary" [disabled]="!codeValid || loading"
+      (click)="onButtonClick('import')">
+      @if (loading) {
+      <i class="fa-light fa-spinner-third spinning"></i>
+      }
+      <span>导入项目</span>
+    </button>
+  </div>
+</app-base-dialog>

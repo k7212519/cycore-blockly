@@ -29,6 +29,7 @@ import { ThemeService } from '../../../services/theme.service';
 import { ActionService } from '../../../services/action.service';
 import { getApiBaseUrl, getIotPlatformUrl } from '../../../configs/api.config';
 import { ProcessState, WorkflowService } from '../../../services/workflow.service';
+import { ProjectImportDialogComponent } from '../../../components/project-import-dialog/project-import-dialog.component';
 
 @Component({
   selector: 'app-header',
@@ -528,6 +529,9 @@ export class HeaderComponent implements OnDestroy {
         }
         this.router.navigate(['/main/guide']);
         break;
+      case 'project-import':
+        this.openImportProjectDialog();
+        break;
       case 'project-save':
         this.projectService.save();
         break;
@@ -644,6 +648,17 @@ export class HeaderComponent implements OnDestroy {
       platformWindow.close();
       this.message.error(error?.message || '打开物联网开发平台失败');
     }
+  }
+
+  private openImportProjectDialog(): void {
+    this.modal.create({
+      nzTitle: null,
+      nzFooter: null,
+      nzClosable: false,
+      nzBodyStyle: { padding: '0' },
+      nzWidth: '440px',
+      nzContent: ProjectImportDialogComponent
+    });
   }
 
   private resolveActionErrorState(err: any, nestedKeys: string[] = []): RunState['state'] {

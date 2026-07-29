@@ -1,0 +1,69 @@
+<app-base-dialog title="分享项目" [loading]="loading" [bordered]="false"
+  customClass="project-transfer-dialog" (closeDialog)="onClose()">
+  <div class="dialog-hero">
+    <i class="hero-icon fa-light fa-share-nodes"></i>
+    <div>
+      <strong>{{ data.projectName }}</strong>
+      <p>生成分享码后，其他用户可将此项目复制到自己的账户。</p>
+    </div>
+  </div>
+
+  @if (!share) {
+  <section class="expiry-section">
+    <div class="field-heading">
+      <span>设置有效期</span>
+      <small>到期后分享码将自动失效</small>
+    </div>
+    <div class="expiry-grid" role="radiogroup" aria-label="分享有效期">
+      @for (option of expiryOptions; track option.days) {
+      <button type="button" class="expiry-option" [class.selected]="expiresInDays === option.days"
+        [attr.aria-checked]="expiresInDays === option.days" role="radio" (click)="selectExpiry(option.days)">
+        <strong>{{ option.label }}</strong>
+        <span>{{ option.note }}</span>
+        @if (expiresInDays === option.days) {
+        <i class="fa-solid fa-circle-check"></i>
+        }
+      </button>
+      }
+    </div>
+  </section>
+  } @else {
+  <section class="share-result" aria-live="polite">
+    <span class="result-label">项目分享码</span>
+    <div class="share-code-row">
+      <input #shareCodeInput class="share-code" type="text" readonly [value]="share.shareCode"
+        aria-label="项目分享码" (click)="shareCodeInput.select()" />
+      <button type="button" class="copy-code-btn" (click)="copyShareCode()" aria-label="复制项目分享码"
+        title="复制分享码">
+        <i class="fa-light fa-copy"></i>
+        <span>一键复制</span>
+      </button>
+    </div>
+    <p>
+      <i class="fa-light fa-clock"></i>
+      有效期至 {{ share.expireTime | date:'yyyy年MM月dd日 HH:mm' }}
+    </p>
+  </section>
+  }
+
+  <div class="security-note">
+    <i class="fa-light fa-shield-check"></i>
+    <span>导入者获得的是独立副本，后续修改不会影响你的原项目。</span>
+  </div>
+
+  <div footer class="dialog-actions">
+    @if (share) {
+    <button type="button" class="dialog-action secondary close-action" (click)="onClose()">关闭</button>
+    } @else {
+    <button type="button" class="dialog-action secondary" [disabled]="loading"
+      (click)="onClose()">取消</button>
+    <button type="button" class="dialog-action primary" [disabled]="loading"
+      (click)="onButtonClick('share')">
+      @if (loading) {
+      <i class="fa-light fa-spinner-third spinning"></i>
+      }
+      <span>生成分享码</span>
+    </button>
+    }
+  </div>
+</app-base-dialog>

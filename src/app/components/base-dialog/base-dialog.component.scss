@@ -5,6 +5,11 @@
     width: 100%;
     overflow: hidden;
 
+    &.embedded {
+        // 外层 Modal 为 12px 圆角并带 1px 边框，内层使用 11px 贴合内容边缘。
+        border-radius: 11px;
+    }
+
     &.loading {
         pointer-events: none;
         opacity: 0.7;

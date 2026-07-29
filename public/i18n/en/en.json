@@ -3,6 +3,7 @@
         "MENU": "Menu",
         "PROJECT_NEW": "New Project",
         "PROJECT_OPEN": "Project List",
+        "PROJECT_IMPORT": "Import Project",
         "PROJECT_SAVE": "Save Project",
         "PROJECT_SAVE_AS": "Export to Local",
         "EXPORT_BLOCKS_SVG": "Export Blocks as SVG",

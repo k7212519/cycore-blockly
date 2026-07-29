@@ -1,4 +1,5 @@
-<div class="prompt-box bborder" [class]="customClass" [class.loading]="loading">
+<div class="prompt-box" [class]="customClass" [class.bborder]="bordered"
+    [class.embedded]="!bordered" [class.loading]="loading">
     <div class="header">
         <div class="title">{{title}}</div>
         <div class="win-btns">

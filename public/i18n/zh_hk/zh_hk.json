@@ -3,6 +3,7 @@
         "MENU": "選單",
         "PROJECT_NEW": "新建專案",
         "PROJECT_OPEN": "專案列表",
+        "PROJECT_IMPORT": "匯入專案",
         "PROJECT_SAVE": "儲存專案",
         "PROJECT_SAVE_AS": "匯出到本地",
         "EXPORT_BLOCKS_SVG": "匯出積木圖（SVG）",
