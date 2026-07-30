@@ -47,11 +47,23 @@ export class LoginPageComponent {
       .login(value)
       .pipe(finalize(() => (this.submitting = false)))
       .subscribe({
-        next: () => {
+        next: (response) => {
           if (value.rememberMe) {
             localStorage.setItem('eda_saved_username', value.username.trim());
           } else {
             localStorage.removeItem('eda_saved_username');
+          }
+
+          if (response.data.productAccess?.status !== 'ACTIVE') {
+            this.message.warning(
+              response.data.productAccess?.status === 'REVOKED'
+                ? 'L2 产品权限已被撤销，请联系管理员或输入新的 L2 激活码'
+                : '账号登录成功，请输入 L2 激活码开通使用权限'
+            );
+            void this.router.navigate(['/activate'], {
+              queryParams: { redirect: this.safeRedirect(this.route.snapshot.queryParamMap.get('redirect')) },
+            });
+            return;
           }
 
           this.message.success('登录成功');

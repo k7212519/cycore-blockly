@@ -1,0 +1,36 @@
+<main class="auth-page">
+  <section class="auth-shell login-shell" aria-labelledby="activate-title">
+    <div class="auth-panel">
+      <div class="brand">
+        <img src="/imgs/logo-horizen.svg" alt="Cycore MCU DevCloud" />
+      </div>
+      <h1 id="activate-title">激活 L2 产品权限</h1>
+      <p class="intro">账号已登录，但尚未获得 CyCore Blockly 使用权限</p>
+
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <div class="field">
+          <label for="activationCode">L2 激活码</label>
+          <input
+            id="activationCode"
+            type="text"
+            formControlName="activationCode"
+            autocomplete="off"
+            placeholder="请输入 L2 激活码"
+          />
+          <div class="field-error">
+            @if (form.controls.activationCode.invalid && form.controls.activationCode.touched) {
+              请输入有效的 L2 激活码
+            }
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="primary-button" type="submit" [disabled]="submitting">
+            {{ submitting ? '激活中...' : '激活并进入' }}
+          </button>
+          <button class="secondary-button" type="button" (click)="logout()">切换账号</button>
+        </div>
+      </form>
+    </div>
+    <aside class="visual-panel" aria-hidden="true"></aside>
+  </section>
+</main>

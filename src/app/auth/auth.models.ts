@@ -2,6 +2,14 @@ export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
   data: T;
+  errorCode?: string;
+}
+
+export type ProductAccessStatus = 'ACTIVE' | 'NOT_ACTIVATED' | 'REVOKED';
+
+export interface ProductAccess {
+  status: ProductAccessStatus;
+  activatedTime?: string;
 }
 
 export interface EdaUser {
@@ -10,6 +18,8 @@ export interface EdaUser {
   realName?: string;
   userType?: string;
   expireTime?: number;
+  productCode?: 'L2';
+  productAccess?: ProductAccess;
 }
 
 export interface LoginResponse extends EdaUser {
@@ -20,6 +30,7 @@ export interface LoginRequest {
   username: string;
   password: string;
   rememberMe: boolean;
+  productCode?: 'L2';
 }
 
 export interface RegisterRequest {
@@ -30,6 +41,7 @@ export interface RegisterRequest {
   email?: string;
   phone?: string;
   realName?: string;
+  productCode?: 'L2';
 }
 
 export interface RecoverRequest {

@@ -8,6 +8,7 @@ import {
   EdaUser,
   LoginRequest,
   LoginResponse,
+  ProductAccess,
   RecoverRequest,
   RecoveryCodeResult,
   RegisterRequest,
@@ -18,6 +19,7 @@ const USER_KEY = 'eda_user';
 const USER_ID_KEY = 'userId';
 const SESSION_REVALIDATE_INTERVAL_MS = 10_000;
 const SESSION_INVALID_MESSAGE = '当前登录已失效，账号可能已在其他设备登录，请重新登录';
+const PRODUCT_CODE = 'L2' as const;
 
 function apiUrl(path: string): string {
   return `${getApiBaseUrl()}${path}`;
@@ -26,6 +28,9 @@ function apiUrl(path: string): string {
 @Injectable({ providedIn: 'root' })
 export class EdaAuthService {
   private readonly authenticatedSubject = new BehaviorSubject(false);
+  private readonly productAccessSubject = new BehaviorSubject<ProductAccess | null>(
+    this.readStoredUser()?.productAccess ?? null
+  );
   private readonly userSubject = new BehaviorSubject<EdaUser | null>(this.readStoredUser());
   private readonly sessionInvalidatedSubject = new ReplaySubject<string>(1);
   private validatedToken: string | null = null;
@@ -34,6 +39,7 @@ export class EdaAuthService {
   private sessionMonitorId?: number;
 
   readonly authenticated$ = this.authenticatedSubject.asObservable();
+  readonly productAccess$ = this.productAccessSubject.asObservable();
   readonly user$ = this.userSubject.asObservable();
   readonly sessionInvalidated$ = this.sessionInvalidatedSubject.asObservable();
 
@@ -64,6 +70,16 @@ export class EdaAuthService {
 
   get isAuthenticated(): boolean {
     return this.authenticatedSubject.value;
+  }
+
+  get hasProductAccess(): boolean {
+    return this.productAccessSubject.value?.status === 'ACTIVE';
+  }
+
+  markProductAccessUnavailable(revoked = false): void {
+    this.productAccessSubject.next({
+      status: revoked ? 'REVOKED' : 'NOT_ACTIVATED',
+    });
   }
 
   async initialize(): Promise<boolean> {
@@ -102,7 +118,10 @@ export class EdaAuthService {
   }
 
   login(request: LoginRequest): Observable<ApiResponse<LoginResponse>> {
-    return this.request<LoginResponse>('POST', '/eda/login', request).pipe(
+    return this.request<LoginResponse>('POST', '/eda/login', {
+      ...request,
+      productCode: PRODUCT_CODE,
+    }).pipe(
       map((response) => {
         this.saveSession(response.data, request.rememberMe);
         return response;
@@ -140,11 +159,35 @@ export class EdaAuthService {
   }
 
   register(request: RegisterRequest): Observable<ApiResponse<string>> {
-    return this.request<string>('POST', '/eda/register', request);
+    return this.request<string>('POST', '/eda/register', {
+      ...request,
+      productCode: PRODUCT_CODE,
+    });
   }
 
   validateActivationCode(code: string): Observable<ApiResponse<boolean>> {
-    return this.request<boolean>('GET', `/eda/register/validate-code/${encodeURIComponent(code)}`);
+    return this.request<boolean>('POST', '/eda/product-access/validate-code', {
+      productCode: PRODUCT_CODE,
+      activationCode: code,
+    });
+  }
+
+  activateProduct(activationCode: string): Observable<ApiResponse<ProductAccess>> {
+    return this.request<ProductAccess>('POST', '/eda/product-access/activate', {
+      productCode: PRODUCT_CODE,
+      activationCode,
+    }).pipe(
+      map((response) => {
+        const user = this.userSubject.value;
+        this.productAccessSubject.next(response.data);
+        if (user) {
+          const updated = { ...user, productCode: PRODUCT_CODE, productAccess: response.data };
+          this.userSubject.next(updated);
+          this.storeUser(updated);
+        }
+        return response;
+      })
+    );
   }
 
   checkUsername(username: string): Observable<ApiResponse<boolean>> {
@@ -169,6 +212,7 @@ export class EdaAuthService {
     this.validatedToken = null;
     this.userSubject.next(null);
     this.authenticatedSubject.next(false);
+    this.productAccessSubject.next(null);
   }
 
   private saveSession(response: LoginResponse, rememberMe: boolean): void {
@@ -184,6 +228,7 @@ export class EdaAuthService {
     this.storeUser(response);
     this.userSubject.next(response);
     this.authenticatedSubject.next(true);
+    this.productAccessSubject.next(response.productAccess);
     this.startSessionMonitor();
   }
 
@@ -220,7 +265,7 @@ export class EdaAuthService {
             if (response.code === 401) {
               this.invalidateSession(SESSION_INVALID_MESSAGE, requestToken);
             }
-            throw new Error(response.message || '请求失败');
+            throw new EdaApiError(response.message || '请求失败', response.errorCode, response.code);
           }
           return response;
         }),
@@ -229,11 +274,16 @@ export class EdaAuthService {
             this.invalidateSession(SESSION_INVALID_MESSAGE, requestToken);
           }
 
-          const message =
-            error instanceof Error
-              ? error.message
-              : '网络连接失败，请稍后重试';
-          return throwError(() => new Error(message));
+          if (error instanceof EdaApiError) {
+            return throwError(() => error);
+          }
+          if (error instanceof HttpErrorResponse) {
+            const errorCode = error.error?.errorCode;
+            const message = error.error?.message || error.message || '请求失败';
+            return throwError(() => new EdaApiError(message, errorCode, error.status));
+          }
+          const message = error instanceof Error ? error.message : '网络连接失败，请稍后重试';
+          return throwError(() => new EdaApiError(message));
         })
       );
   }
@@ -248,6 +298,7 @@ export class EdaAuthService {
       this.validatedToken = token;
       this.userSubject.next(response.data);
       this.authenticatedSubject.next(true);
+      this.productAccessSubject.next(response.data.productAccess ?? null);
       this.storeUser(response.data);
       return true;
     } catch {
@@ -286,5 +337,16 @@ export class EdaAuthService {
     window.removeEventListener('focus', this.revalidateActiveSession);
     window.removeEventListener('storage', this.handleTokenStorageChange);
     document.removeEventListener('visibilitychange', this.revalidateActiveSession);
+  }
+}
+
+export class EdaApiError extends Error {
+  constructor(
+    message: string,
+    readonly errorCode?: string,
+    readonly status?: number
+  ) {
+    super(message);
+    this.name = 'EdaApiError';
   }
 }

@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './auth/auth.guard';
+import { activationGuard, authGuard, guestGuard } from './auth/auth.guard';
 
 export const routes: Routes = [
     {
@@ -21,6 +21,11 @@ export const routes: Routes = [
         path: 'account-recover',
         canActivate: [guestGuard],
         loadComponent: () => import('./auth/recover-page.component').then(m => m.RecoverPageComponent)
+    },
+    {
+        path: 'activate',
+        canActivate: [activationGuard],
+        loadComponent: () => import('./auth/activate-page.component').then(m => m.ActivatePageComponent)
     },
     {
         path: 'main',
