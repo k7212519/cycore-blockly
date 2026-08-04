@@ -6,13 +6,25 @@
     {{data.dir}}
   </div>
   <div class="data vsfont"
-    [ngClass]="{ 'tx': data.dir == 'TX', 'sys':data.dir == 'SYS', error: data.isError,'nowrap': !viewMode.autoWrap }"
-    [innerHTML]="viewMode.showHex||data.showHex ? (data.data | showHex) : (viewMode.showCtrlChar ? (data.data | showNR) : (data.data| addNewLine))">
+    [ngClass]="{ 'tx': data.dir == 'TX', 'sys':data.dir == 'SYS', error: data.isError,'nowrap': !viewMode.autoWrap }">
+    @if (viewMode.showHex || data.showHex) {
+      <span [textContent]="data.data | showHex"></span>
+    } @else if (viewMode.showCtrlChar) {
+      <span [innerHTML]="data.data | showNR"></span>
+    } @else {
+      <span [textContent]="data.data | addNewLine"></span>
+    }
   </div>
 </div>
 }@else{
 <span class="data vsfont"
-  [ngClass]="{ 'tx': data.dir == 'TX', 'sys':data.dir == 'SYS', error: data.isError,'nowrap': !viewMode.autoWrap }"
-  [innerHTML]="viewMode.showHex ? (data.data | showHex) : (viewMode.showCtrlChar ? (data.data | showNR) : (data.data | addNewLine))">
+  [ngClass]="{ 'tx': data.dir == 'TX', 'sys':data.dir == 'SYS', error: data.isError,'nowrap': !viewMode.autoWrap }">
+  @if (viewMode.showHex) {
+    <span [textContent]="data.data | showHex"></span>
+  } @else if (viewMode.showCtrlChar) {
+    <span [innerHTML]="data.data | showNR"></span>
+  } @else {
+    <span [textContent]="data.data | addNewLine"></span>
+  }
 </span>
 }

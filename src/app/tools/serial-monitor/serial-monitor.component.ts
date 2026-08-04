@@ -705,14 +705,7 @@ export class SerialMonitorComponent {
 
   openChartBox() {
     this.showChartBox = !this.showChartBox;
-    if (this.showChartBox) {
-      // 延迟初始化图表，确保 DOM 元素已渲染
-      setTimeout(() => {
-        if (this.serialChartRef) {
-          this.serialChartRef.initChart();
-        }
-      }, 100);
-    } else {
+    if (!this.showChartBox) {
       if (this.serialChartRef) {
         this.serialChartRef.destroyChart();
       }

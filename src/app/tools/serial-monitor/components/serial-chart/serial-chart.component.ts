@@ -34,7 +34,7 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
   private lastChartTime = 0; // 上一个数据点的时间戳
 
   // 用于跟踪已处理的数据
-  private lastProcessedItemIndex = -1;
+  private lastProcessedItem: dataItem | null = null;
   private lastProcessedDataLength = 0;
 
   // ResizeObserver 引用，用于清理
@@ -220,7 +220,7 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dataBuffer = '';
     this.pendingDataStr = '';
     this.lastProcessedDataLength = 0;
-    this.lastProcessedItemIndex = -1;
+    this.lastProcessedItem = null;
     this.lastChartTime = 0;
 
     // 订阅串口数据更新
@@ -240,26 +240,39 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
     const dataList = this.serialMonitorService.dataList;
     if (dataList.length === 0) return;
 
-    const lastIndex = dataList.length - 1;
-    const lastItem = dataList[lastIndex];
-
-    if (lastItem.dir !== 'RX') return;
-
-    const currentData = lastItem.data;
-    const currentLength = currentData.length;
-
-    if (lastIndex !== this.lastProcessedItemIndex) {
-      this.lastProcessedItemIndex = lastIndex;
-      this.lastProcessedDataLength = 0;
+    let startIndex: number;
+    if (!this.lastProcessedItem) {
+      // 保持原有行为：打开图表后从最新记录开始，不回放全部历史数据。
+      startIndex = dataList.length - 1;
+      while (startIndex > 0 && dataList[startIndex].dir !== 'RX') {
+        startIndex--;
+      }
+    } else {
+      const previousIndex = dataList.indexOf(this.lastProcessedItem);
+      // 历史数据被裁剪时，避免重新解析整份缓存，只从最新记录继续。
+      startIndex = previousIndex >= 0 ? previousIndex : dataList.length - 1;
     }
 
-    if (currentLength > this.lastProcessedDataLength) {
-      const slicedData = currentData.slice(this.lastProcessedDataLength);
-      const newDataStr = Buffer.isBuffer(slicedData)
+    let newDataStr = '';
+    for (let index = startIndex; index < dataList.length; index++) {
+      const item = dataList[index];
+      if (item.dir !== 'RX') continue;
+
+      const data = item.data;
+      const offset = item === this.lastProcessedItem ? this.lastProcessedDataLength : 0;
+      if (data.length <= offset) continue;
+
+      const slicedData = data.slice(offset);
+      newDataStr += Buffer.isBuffer(slicedData)
         ? slicedData.toString('utf-8')
         : Buffer.from(slicedData).toString('utf-8');
-      this.lastProcessedDataLength = currentLength;
+    }
 
+    const lastItem = dataList[dataList.length - 1];
+    this.lastProcessedItem = lastItem;
+    this.lastProcessedDataLength = lastItem.dir === 'RX' ? lastItem.data.length : 0;
+
+    if (newDataStr) {
       this.pendingDataStr += newDataStr;
       this.scheduleChartUpdate();
     }
@@ -419,7 +432,7 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
     this.chartDataMap.clear();
     this.dataBuffer = '';
     this.pendingDataStr = '';
-    this.lastProcessedItemIndex = -1;
+    this.lastProcessedItem = null;
     this.lastProcessedDataLength = 0;
     this.lastChartTime = 0;
   }
@@ -431,7 +444,7 @@ export class SerialChartComponent implements OnInit, AfterViewInit, OnDestroy {
     this.chartTimeIndex = 0;
     this.dataBuffer = '';
     this.pendingDataStr = '';
-    this.lastProcessedItemIndex = -1;
+    this.lastProcessedItem = null;
     this.lastProcessedDataLength = 0;
     this.lastChartTime = 0;
     this.hasChartData = false;
