@@ -64,7 +64,7 @@
     } @else {
     <div class="project-grid">
       @for (project of projects; track project.projectId) {
-      <article class="project-card" [class.opening]="openingProjectId === project.projectId"
+      <article class="project-card" [class.opening]="openingProjectId === project.projectId || isProjectBackingUp(project.projectId)"
         [class.selected]="isProjectSelected(project.projectId)" [class.deleting]="isProjectDeleting(project.projectId)"
         [attr.data-project-id]="project.projectId" (click)="onProjectCardClick($event, project)"
         (contextmenu)="onProjectCardContextMenu($event, project)">
@@ -98,7 +98,7 @@
           </div>
         </div>
 
-        @if (openingProjectId === project.projectId || isProjectDeleting(project.projectId)) {
+        @if (openingProjectId === project.projectId || isProjectDeleting(project.projectId) || isProjectBackingUp(project.projectId)) {
         <i class="fa-light fa-spinner-third opening-spinner"></i>
         }
       </article>

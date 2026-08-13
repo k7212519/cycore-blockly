@@ -47,6 +47,7 @@ export class GuideComponent implements OnInit, OnDestroy {
   loadError = '';
   selectedProjectIds = new Set<string>();
   deletingProjectIds = new Set<string>();
+  backingUpProjectId = '';
   selectionRect: SelectionRect | null = null;
   showProjectContextMenu = false;
   projectContextMenuPosition = { x: 0, y: 0 };
@@ -94,6 +95,12 @@ export class GuideComponent implements OnInit, OnDestroy {
         icon: 'fa-light fa-pen-to-square',
         action: 'rename-project',
         disabled: count !== 1
+      },
+      {
+        name: '一键备份',
+        icon: 'fa-light fa-copy',
+        action: 'backup-project',
+        disabled: count !== 1 || !!this.backingUpProjectId
       },
       {
         name: count > 1 ? `删除 ${count} 个项目` : '删除项目',
@@ -167,7 +174,7 @@ export class GuideComponent implements OnInit, OnDestroy {
   }
 
   async openServerProject(project: ServerProjectListItem) {
-    if (!project?.projectId || this.openingProjectId) {
+    if (!project?.projectId || this.openingProjectId || this.backingUpProjectId) {
       return;
     }
     this.openingProjectId = project.projectId;
@@ -234,7 +241,7 @@ export class GuideComponent implements OnInit, OnDestroy {
 
     this.projectContextMenuPosition = {
       x: Math.min(event.clientX, Math.max(8, window.innerWidth - this.contextMenuWidth - 8)),
-      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 112))
+      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 152))
     };
     this.showProjectContextMenu = true;
   }
@@ -247,6 +254,9 @@ export class GuideComponent implements OnInit, OnDestroy {
         break;
       case 'rename-project':
         this.openProjectInfoModal();
+        break;
+      case 'backup-project':
+        void this.backupSelectedProject();
         break;
       case 'delete-projects':
         this.confirmDeleteSelectedProjects();
@@ -266,6 +276,10 @@ export class GuideComponent implements OnInit, OnDestroy {
 
   isProjectDeleting(projectId: string) {
     return this.deletingProjectIds.has(projectId);
+  }
+
+  isProjectBackingUp(projectId: string) {
+    return this.backingUpProjectId === projectId;
   }
 
   @HostListener('document:keydown.escape')
@@ -397,6 +411,26 @@ export class GuideComponent implements OnInit, OnDestroy {
       this.message.error(error?.message || '项目删除失败');
     } finally {
       this.deletingProjectIds.clear();
+    }
+  }
+
+  private async backupSelectedProject() {
+    const project = this.selectedProjects[0];
+    if (!project || this.backingUpProjectId) {
+      return;
+    }
+
+    this.backingUpProjectId = project.projectId;
+    try {
+      const backup = await this.projectService.duplicateServerProject(project.projectId);
+      this.message.success(`项目已备份为「${backup.name}」`);
+      this.selectedProjectIds.clear();
+      await this.loadProjects(1);
+      this.selectedProjectIds = new Set([backup.projectId]);
+    } catch (error) {
+      this.message.error(error?.message || '项目备份失败');
+    } finally {
+      this.backingUpProjectId = '';
     }
   }
 

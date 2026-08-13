@@ -147,8 +147,16 @@ export class EdaAuthService {
   }
 
   invalidateSession(message = SESSION_INVALID_MESSAGE, invalidToken?: string | null): void {
-    if (invalidToken && this.token?.trim() !== invalidToken.trim()) {
-      return;
+    if (invalidToken !== undefined) {
+      const currentToken = this.token?.trim() || null;
+      const requestToken = invalidToken?.trim() || null;
+
+      // 401 可能来自登录前已经发出的请求。该请求返回时，用户可能已经
+      // 完成了重新登录；只有失败请求使用的 token 仍是当前 token 时，
+      // 才允许它清理会话，避免旧响应把刚保存的新会话误删。
+      if (currentToken !== requestToken) {
+        return;
+      }
     }
 
     const hadSession = Boolean(this.token) || this.authenticatedSubject.value || Boolean(this.userSubject.value);

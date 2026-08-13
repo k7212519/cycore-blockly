@@ -75,12 +75,10 @@ export class BlocklyEditorComponent implements OnInit, OnDestroy {
     this.activatedRoute.queryParams.subscribe((params) => {
       if (params['projectId']) {
         console.log('project id', params['projectId']);
-        try {
-          this.loadServerProject(params['projectId']);
-        } catch (error) {
+        void this.loadServerProject(params['projectId']).catch(error => {
           console.error('加载项目失败', error);
           this.message.error('加载项目失败，请检查项目文件是否完整');
-        }
+        });
       } else {
         this.message.error('没有找到项目');
       }

@@ -608,6 +608,15 @@ export class ProjectService {
     );
   }
 
+  async duplicateServerProject(projectId: string): Promise<ServerProjectCreated> {
+    return this.unwrap<ServerProjectCreated>(
+      this.http.post<ApiResult<ServerProjectCreated>>(
+        `${API.serverProjects}/${encodeURIComponent(projectId)}/duplicate`,
+        {}
+      )
+    );
+  }
+
   async shareServerProject(projectId: string, expiresInDays: number): Promise<ServerProjectShare> {
     return this.unwrap<ServerProjectShare>(
       this.http.post<ApiResult<ServerProjectShare>>(

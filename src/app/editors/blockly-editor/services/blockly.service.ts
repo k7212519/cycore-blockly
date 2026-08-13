@@ -43,6 +43,8 @@ export class BlocklyService {
   loadedGenerators = new Map<string, Set<string>>(); // filePath -> Set of block types
   // 追踪已加载的库,避免重复加载
   loadedLibraries = new Set<string>(); // libPackagePath
+  private readonly generatorLoadsInFlight = new Map<string, Promise<boolean>>();
+  private readonly serverLibraryLoadsInFlight = new Map<string, Promise<void>>();
   private toolboxBatchDepth = 0;
   private pendingToolboxRefresh = false;
 
@@ -368,6 +370,24 @@ export class BlocklyService {
       return;
     }
 
+    const existingLoad = this.serverLibraryLoadsInFlight.get(libraryKey);
+    if (existingLoad) {
+      return existingLoad;
+    }
+
+    const loadPromise = this.performServerLibraryLoad(resource, libraryKey);
+    this.serverLibraryLoadsInFlight.set(libraryKey, loadPromise);
+    try {
+      await loadPromise;
+    } finally {
+      if (this.serverLibraryLoadsInFlight.get(libraryKey) === loadPromise) {
+        this.serverLibraryLoadsInFlight.delete(libraryKey);
+      }
+    }
+  }
+
+  private async performServerLibraryLoad(resource: ServerBlocklyLibraryResource, libraryKey: string): Promise<void> {
+    const libPackageName = resource.name;
     try {
       if (!resource.blockJson) {
         console.warn(`服务端库缺少 block.json: ${libPackageName}`, resource.missingFiles || []);
@@ -619,7 +639,7 @@ export class BlocklyService {
   }
 
   loadLibGenerator(filePath): Promise<boolean> {
-    return new Promise((resolve, reject) => {
+    return this.runGeneratorLoadOnce(filePath, () => new Promise((resolve) => {
       this.ensureLibraryScriptGlobals();
       // 检查是否已加载
       if (this.loadedGenerators.has(filePath)) {
@@ -647,16 +667,22 @@ export class BlocklyService {
         cleanup();
         resolve(success);
       };
-      const onRuntimeError = (event: ErrorEvent) => {
-        if (event.filename && event.filename !== script.src) {
+      const onRuntimeError = (event: Event) => {
+        if (!this.isRuntimeErrorFromScript(event, script.src)) {
           return;
         }
-        console.error(`Generator execution failed: ${filePath}`, event.error || event.message);
+        const runtimeError = event as ErrorEvent;
+        console.error(`Generator execution failed: ${filePath}`, runtimeError.error || runtimeError.message);
         finish(false);
       };
       window.addEventListener('error', onRuntimeError, true);
 
       script.onload = () => {
+        // A runtime error and the script load event may both fire. Once failed,
+        // do not mark a partially executed generator as successfully loaded.
+        if (settled) {
+          return;
+        }
         // 加载后检测新增的generator函数
         const blockTypesAfter = this.getRegisteredGenerators();
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
@@ -672,11 +698,11 @@ export class BlocklyService {
       };
 
       document.getElementsByTagName('head')[0].appendChild(script);
-    });
+    }));
   }
 
   private loadLibGeneratorFromSource(sourceKey: string, source: string): Promise<boolean> {
-    return new Promise((resolve) => {
+    return this.runGeneratorLoadOnce(sourceKey, () => new Promise((resolve) => {
       this.ensureLibraryScriptGlobals();
       if (this.loadedGenerators.has(sourceKey)) {
         this.applyCoreGeneratorOverrides();
@@ -704,16 +730,20 @@ export class BlocklyService {
         cleanup();
         resolve(success);
       };
-      const onRuntimeError = (event: ErrorEvent) => {
-        if (event.filename && event.filename !== objectUrl) {
+      const onRuntimeError = (event: Event) => {
+        if (!this.isRuntimeErrorFromScript(event, objectUrl)) {
           return;
         }
-        console.error(`Generator execution failed: ${sourceKey}`, event.error || event.message);
+        const runtimeError = event as ErrorEvent;
+        console.error(`Generator execution failed: ${sourceKey}`, runtimeError.error || runtimeError.message);
         finish(false);
       };
       window.addEventListener('error', onRuntimeError, true);
 
       script.onload = () => {
+        if (settled) {
+          return;
+        }
         const blockTypesAfter = this.getRegisteredGenerators();
         const newBlockTypes = blockTypesAfter.filter(type => !blockTypesBefore.includes(type));
         this.loadedGenerators.set(sourceKey, new Set(newBlockTypes));
@@ -726,7 +756,38 @@ export class BlocklyService {
       };
 
       document.getElementsByTagName('head')[0].appendChild(script);
+    }));
+  }
+
+  private runGeneratorLoadOnce(key: string, load: () => Promise<boolean>): Promise<boolean> {
+    const existingLoad = this.generatorLoadsInFlight.get(key);
+    if (existingLoad) {
+      return existingLoad;
+    }
+
+    const loadPromise = load();
+    const trackedPromise = loadPromise.finally(() => {
+      if (this.generatorLoadsInFlight.get(key) === trackedPromise) {
+        this.generatorLoadsInFlight.delete(key);
+      }
     });
+    this.generatorLoadsInFlight.set(key, trackedPromise);
+    return trackedPromise;
+  }
+
+  private isRuntimeErrorFromScript(event: Event, scriptUrl: string): event is ErrorEvent {
+    // Resource load errors (for example, an <img> or font failure) are also
+    // visible to a capture listener on window, but have an element as target
+    // and no filename. They must not be attributed to the generator currently
+    // being loaded.
+    if (event.target !== window) {
+      return false;
+    }
+
+    const runtimeError = event as ErrorEvent;
+    return typeof runtimeError.filename === 'string'
+      && runtimeError.filename.length > 0
+      && runtimeError.filename === scriptUrl;
   }
 
   private ensureLibraryScriptGlobals(): void {
@@ -977,6 +1038,8 @@ export class BlocklyService {
     this.blockDefinitionsMap.clear();
     this.loadedGenerators.clear();
     this.loadedLibraries.clear();
+    this.generatorLoadsInFlight.clear();
+    this.serverLibraryLoadsInFlight.clear();
     this.codeGenerationWorkspace?.dispose();
     this.codeGenerationWorkspace = null;
     delete (window as any).workspace;
