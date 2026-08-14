@@ -238,10 +238,13 @@ export class MenuComponent {
   }
 
   subItemClick(event, subItem) {
-    this.menuList[this.activeSubmenuIndex].children.forEach(item => {
-      item['check'] = false
-    });
-    subItem['check'] = true
+    const parentItem = this.menuList[this.activeSubmenuIndex];
+    if (parentItem.selectable !== false) {
+      parentItem.children.forEach(item => {
+        item['check'] = false
+      });
+      subItem['check'] = true
+    }
     this.subItemClickEvent.emit(subItem);
   }
 }

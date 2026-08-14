@@ -512,6 +512,12 @@ export class HeaderComponent implements OnDestroy {
     this.closeMenu();
   }
 
+  onMenuSubItemClick(item: IMenuItem): void {
+    if (item.disabled) return;
+    void this.process(item);
+    this.closeMenu();
+  }
+
   async process(item: IMenuItem, event = null) {
     switch (item.action) {
       case 'project-new':
@@ -603,6 +609,9 @@ export class HeaderComponent implements OnDestroy {
         break;
       case 'iot-development-open':
         await this.openIotPlatform();
+        break;
+      case 'browser-open':
+        this.browserService.openUrl(item.data?.url);
         break;
       case 'user-logout':
         this.logout();

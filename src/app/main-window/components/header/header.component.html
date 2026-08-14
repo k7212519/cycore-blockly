@@ -121,7 +121,7 @@
 <!-- menu -->
 @if (showMenu) {
 <app-menu [position]="headerMenuPosition" [menuList]="headerMenu" [width]="250" (closeEvent)="closeMenu()"
-  (itemClickEvent)="onMenuClick($event)"></app-menu>
+  (itemClickEvent)="onMenuClick($event)" (subItemClickEvent)="onMenuSubItemClick($event)"></app-menu>
 }
 <!-- device port list -->
 @if (showPortList) {

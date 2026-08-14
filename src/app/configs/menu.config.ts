@@ -16,6 +16,8 @@ export interface IMenuItem {
   extra?: any,
   check?: boolean,
   key?: string; // 用于标识编译和上传配置
+  /** 二级菜单是否为单选配置，默认为 true */
+  selectable?: boolean;
   /** 行内操作按钮，如重命名/删除 */
   actions?: { icon: string; action: string; title?: string }[];
 }
@@ -115,6 +117,27 @@ export let HEADER_MENU: IMenuItem[] = [
     action: 'settings-open',
     data: { type: 'window', path: 'settings', alwaysOnTop: true, width: 700, height: 550 },
     icon: 'fa-light fa-gear',
+  },
+  {
+    name: 'MENU.TROUBLESHOOTING',
+    icon: 'fa-light fa-life-ring',
+    selectable: false,
+    children: [
+      {
+        name: 'MENU.BROWSER_COMPATIBILITY',
+        action: 'browser-open',
+        data: {
+          url: 'https://mcn74s1u9508.feishu.cn/docx/APqTdnv2Lot9F3x5FS5c0iCznvb?from=from_copylink'
+        }
+      },
+      {
+        name: 'MENU.DOMESTIC_LINUX_CONNECTION',
+        action: 'browser-open',
+        data: {
+          url: 'https://mcn74s1u9508.feishu.cn/docx/RuCUd12mroPVPgxVv8Rc3BwgnGM?from=from_copylink'
+        }
+      }
+    ]
   },
   // 暂时隐藏项目广场入口，保留路由与处理逻辑方便后续恢复。
   // {
