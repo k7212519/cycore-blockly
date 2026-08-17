@@ -17,6 +17,9 @@ export interface EdaUser {
   username: string;
   realName?: string;
   userType?: string;
+  l1Quota?: number;
+  l2Quota?: number;
+  l3Quota?: number;
   expireTime?: number;
   productCode?: 'L2';
   productAccess?: ProductAccess;
