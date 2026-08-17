@@ -44,7 +44,11 @@ export class BlocklyService {
   // 追踪已加载的库,避免重复加载
   loadedLibraries = new Set<string>(); // libPackagePath
   private readonly generatorLoadsInFlight = new Map<string, Promise<boolean>>();
-  private readonly serverLibraryLoadsInFlight = new Map<string, Promise<void>>();
+  private readonly serverLibraryLoadsInFlight = new Map<
+    string,
+    { generation: number; promise: Promise<void> }
+  >();
+  private serverLibraryLoadGeneration = 0;
   private toolboxBatchDepth = 0;
   private pendingToolboxRefresh = false;
 
@@ -94,6 +98,9 @@ export class BlocklyService {
   ) {
     this.ensureLibraryScriptGlobals();
     (window as any).__ailyBlockDefinitionsMap = this.blockDefinitionsMap;
+    this.projectService.currentProjectId$.subscribe(() => {
+      this.serverLibraryLoadGeneration++;
+    });
   }
 
   // 加载blockly的json数据
@@ -332,14 +339,26 @@ export class BlocklyService {
       return;
     }
 
+    const projectId = this.projectService.currentProjectId;
+    const loadGeneration = this.serverLibraryLoadGeneration;
+    if (!projectId) {
+      return;
+    }
     const dependencyVersions = this.serverLibraryDependencyVersions();
     const resources = await this.projectService.getServerBlocklyLibraryResources(
       libPackageNames,
       dependencyVersions,
       this.translateService.currentLang,
+      projectId,
     );
+    if (!this.isServerLibraryLoadActive(projectId, loadGeneration)) {
+      return;
+    }
     const resourceMap = new Map(resources.map(resource => [resource.name, resource]));
     for (let index = 0; index < libPackageNames.length; index++) {
+      if (!this.isServerLibraryLoadActive(projectId, loadGeneration)) {
+        return;
+      }
       const libPackageName = libPackageNames[index];
       onProgress?.(libPackageName, index + 1, libPackageNames.length);
       const resource = resourceMap.get(libPackageName);
@@ -347,48 +366,87 @@ export class BlocklyService {
         console.warn(`服务端库资源缺失: ${libPackageName}`);
         continue;
       }
-      await this.loadServerLibraryResource(resource);
+      await this.loadServerLibraryResource(resource, projectId, loadGeneration);
     }
   }
 
   private async loadServerLibrary(libPackageName: string) {
+    const projectId = this.projectService.currentProjectId;
+    const loadGeneration = this.serverLibraryLoadGeneration;
+    if (!projectId) {
+      return;
+    }
     const resources = await this.projectService.getServerBlocklyLibraryResources(
       [libPackageName],
       this.serverLibraryDependencyVersions(),
       this.translateService.currentLang,
+      projectId,
     );
+    if (!this.isServerLibraryLoadActive(projectId, loadGeneration)) {
+      return;
+    }
     const resource = resources.find(item => item.name === libPackageName);
     if (resource) {
-      await this.loadServerLibraryResource(resource);
+      await this.loadServerLibraryResource(resource, projectId, loadGeneration);
     }
   }
 
-  private async loadServerLibraryResource(resource: ServerBlocklyLibraryResource) {
+  private async loadServerLibraryResource(
+    resource: ServerBlocklyLibraryResource,
+    projectId: string,
+    loadGeneration: number,
+  ) {
+    if (!this.isServerLibraryLoadActive(projectId, loadGeneration)) {
+      return;
+    }
     const libPackageName = resource.name;
-    const libraryKey = `server:${this.projectService.currentProjectId}:${libPackageName}`;
+    const libraryKey = `server:${projectId}:${libPackageName}`;
     if (this.loadedLibraries.has(libraryKey)) {
       return;
     }
 
     const existingLoad = this.serverLibraryLoadsInFlight.get(libraryKey);
     if (existingLoad) {
-      return existingLoad;
+      if (existingLoad.generation === loadGeneration) {
+        return existingLoad.promise;
+      }
+      await existingLoad.promise;
+      if (!this.isServerLibraryLoadActive(projectId, loadGeneration)
+        || this.loadedLibraries.has(libraryKey)) {
+        return;
+      }
     }
 
-    const loadPromise = this.performServerLibraryLoad(resource, libraryKey);
-    this.serverLibraryLoadsInFlight.set(libraryKey, loadPromise);
+    const loadPromise = this.performServerLibraryLoad(
+      resource,
+      libraryKey,
+      projectId,
+      loadGeneration,
+    );
+    this.serverLibraryLoadsInFlight.set(libraryKey, {
+      generation: loadGeneration,
+      promise: loadPromise,
+    });
     try {
       await loadPromise;
     } finally {
-      if (this.serverLibraryLoadsInFlight.get(libraryKey) === loadPromise) {
+      if (this.serverLibraryLoadsInFlight.get(libraryKey)?.promise === loadPromise) {
         this.serverLibraryLoadsInFlight.delete(libraryKey);
       }
     }
   }
 
-  private async performServerLibraryLoad(resource: ServerBlocklyLibraryResource, libraryKey: string): Promise<void> {
+  private async performServerLibraryLoad(
+    resource: ServerBlocklyLibraryResource,
+    libraryKey: string,
+    projectId: string,
+    loadGeneration: number,
+  ): Promise<void> {
     const libPackageName = resource.name;
     try {
+      if (!this.isServerLibraryLoadActive(projectId, loadGeneration)) {
+        return;
+      }
       if (!resource.blockJson) {
         console.warn(`服务端库缺少 block.json: ${libPackageName}`, resource.missingFiles || []);
         return;
@@ -412,6 +470,11 @@ export class BlocklyService {
         }
       }
 
+      if (!this.isServerLibraryLoadActive(projectId, loadGeneration)) {
+        this.removeLibGenerator(libraryKey);
+        return;
+      }
+
       if (!this.ensureLibraryBlockExtensionsRegistered(libPackageName, blocks, !!resource.generatorJs)) {
         return;
       }
@@ -433,6 +496,12 @@ export class BlocklyService {
     } catch (error) {
       console.error('加载服务端库失败:', libPackageName, error);
     }
+  }
+
+  private isServerLibraryLoadActive(projectId: string, loadGeneration: number): boolean {
+    return !!projectId
+      && this.projectService.currentProjectId === projectId
+      && this.serverLibraryLoadGeneration === loadGeneration;
   }
 
   private serverLibraryDependencyVersions(): Record<string, string> {
@@ -713,7 +782,8 @@ export class BlocklyService {
       const blockTypesBefore = this.getRegisteredGenerators();
       const script = document.createElement('script');
       script.type = 'text/javascript';
-      const objectUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+      const isolatedSource = this.wrapGeneratorSource(source);
+      const objectUrl = URL.createObjectURL(new Blob([isolatedSource], { type: 'text/javascript' }));
       script.src = objectUrl;
       script.setAttribute('data-generator-path', sourceKey);
 
@@ -757,6 +827,13 @@ export class BlocklyService {
 
       document.getElementsByTagName('head')[0].appendChild(script);
     }));
+  }
+
+  private wrapGeneratorSource(source: string): string {
+    // A plain block keeps top-level let/const/class declarations local, while
+    // classic-script function declarations retain the legacy global behavior
+    // used by older libraries to share helpers such as isBlockConnected.
+    return `{\n${source}\n}`;
   }
 
   private runGeneratorLoadOnce(key: string, load: () => Promise<boolean>): Promise<boolean> {
@@ -1034,6 +1111,7 @@ export class BlocklyService {
   reset() {
     console.log('开始重置 BlocklyService...');
 
+    this.serverLibraryLoadGeneration++;
     this.iconsMap.clear();
     this.blockDefinitionsMap.clear();
     this.loadedGenerators.clear();

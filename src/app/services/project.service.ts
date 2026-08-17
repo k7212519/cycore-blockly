@@ -201,6 +201,7 @@ export class ProjectService {
   private readonly serverProjectLibrariesCache = new Map<string, any[]>();
   private readonly serverProjectLibrariesInFlight = new Map<string, Promise<any[]>>();
   private readonly serverBlocklyResourceCache = new Map<string, ServerBlocklyLibraryResource>();
+  private readonly serverMacroMutationQueues = new Map<string, Promise<void>>();
 
   currentPackageData: ProjectPackageData = {
     name: 'Cycore MCU DevCloud',
@@ -388,104 +389,152 @@ export class ProjectService {
   }
 
   // 获取当前项目的package.json
-  async getPackageJson() {
-    if (!this.currentProjectId) {
+  async getPackageJson(projectId = this.currentProjectId) {
+    if (!projectId) {
       return null;
     }
-    const projectInfo = await this.getServerProject(this.currentProjectId);
+    const projectInfo = await this.getServerProject(projectId);
     return projectInfo.packageJson;
   }
 
-  async setPackageJson(data: any) {
-    if (!this.currentProjectId) {
+  async setPackageJson(data: any, projectId = this.currentProjectId) {
+    if (!projectId) {
       throw new Error('当前项目 ID 未设置');
     }
-    const currentPackageJson = await this.getPackageJson();
+    const currentPackageJson = await this.getPackageJson(projectId);
+    this.ensureProjectContext(projectId, '保存 package.json');
     if (JSON.stringify(currentPackageJson) === JSON.stringify(data)) {
       return;
     }
     if (currentPackageJson) {
       data = { ...currentPackageJson, ...data };
     }
-    await this.saveServerFile('package.json', JSON.stringify(data, null, 2));
-    this.currentPackageData = data;
+    await this.saveServerFile('package.json', JSON.stringify(data, null, 2), projectId);
+    if (this.currentProjectId === projectId) {
+      this.currentPackageData = data;
+    }
   }
 
   /**
    * 添加或更新宏定义
    * @param macro 宏定义字符串，如 "BOARD_SCREEN_COMBO=501"
    */
-  async addMacro(macro: string) {
-    const pkg = await this.getPackageJson();
-    if (!pkg.MACROS) {
-      pkg.MACROS = [];
+  async addMacro(macro: string, projectId = this.currentProjectId) {
+    if (!projectId) {
+      return;
     }
+    const stableProjectId = projectId;
+    return this.enqueueServerMacroMutation(stableProjectId, async () => {
+      const pkg = await this.readPackageJsonForMutation(stableProjectId, '添加宏定义');
+      if (!pkg) {
+        return;
+      }
+      const normalized = this.normalizeMacros(pkg.MACROS);
+      const macroName = macro.split('=')[0];
+      const existingIndex = normalized.findIndex(entry => entry.split('=')[0] === macroName);
 
-    // 规范化为字符串数组（如果存储为 [[...], [...]] 则取首元素）
-    const normalized: string[] = (pkg.MACROS || []).map((m: any) => {
-      if (Array.isArray(m)) return String(m[0] || '').trim();
-      return String(m || '').trim();
-    }).filter((s: string) => s.length > 0);
+      if (existingIndex !== -1) {
+        normalized[existingIndex] = macro;
+      } else {
+        normalized.push(macro);
+      }
 
-    // 提取宏名称（等号前的部分），并支持无等号的宏定义
-    const macroName = macro.split('=')[0];
-
-    // 查找已有的同名项（以名称为准，不区分是否带赋值）
-    const existingIndex = normalized.findIndex((entry) => {
-      const entryName = entry.split('=')[0];
-      return entryName === macroName;
+      await this.writeMacros(stableProjectId, pkg, normalized, '添加宏定义');
+      console.log('✅ 添加宏定义:', macro, '当前宏列表:', pkg.MACROS);
     });
-
-    if (existingIndex !== -1) {
-      // 替换同名项
-      normalized[existingIndex] = macro;
-    } else {
-      // 追加新宏
-      normalized.push(macro);
-    }
-
-    // 在写入前再次读取最新的 package.json，防止并发写入覆盖
-    const latestPkg = await this.getPackageJson();
-    if (!latestPkg.MACROS) latestPkg.MACROS = [];
-
-    // 规范化并写回到最新 pkg
-    latestPkg.MACROS = normalized.map(s => [s]);
-
-    console.log('addMacro -> normalized macros to write:', latestPkg.MACROS);
-    await this.setPackageJson(latestPkg);
-    console.log('✅ 添加宏定义:', macro, '当前宏列表:', latestPkg.MACROS);
   }
 
   /**
    * 删除宏定义
    * @param macroName 宏名称，如 "BOARD_SCREEN_COMBO"
    */
-  async removeMacro(macroName: string) {
-    const pkg = await this.getPackageJson();
-    if (!pkg.MACROS || pkg.MACROS.length === 0) {
+  async removeMacro(macroName: string, projectId = this.currentProjectId) {
+    if (!projectId) {
       return;
     }
+    const stableProjectId = projectId;
+    return this.enqueueServerMacroMutation(stableProjectId, async () => {
+      const pkg = await this.readPackageJsonForMutation(stableProjectId, '删除宏定义');
+      if (!pkg) {
+        return;
+      }
+      const normalized = this.normalizeMacros(pkg.MACROS);
+      if (normalized.length === 0) {
+        return;
+      }
 
-    // 规范化为字符串数组（兼容 ['A'] 或 [['A=1']] 等存储形式）
-    const normalized: string[] = (pkg.MACROS || []).map((m: any) => {
-      if (Array.isArray(m)) return String(m[0] || '').trim();
-      return String(m || '').trim();
-    }).filter((s: string) => s.length > 0);
+      const filtered = normalized.filter(entry => entry.split('=')[0] !== macroName);
+      if (filtered.length === normalized.length) {
+        return;
+      }
 
-    // 过滤掉名称匹配的宏（既匹配 "NAME" 又匹配 "NAME=..."）
-    const filtered = normalized.filter(entry => {
-      const name = entry.split('=')[0];
-      return name !== macroName;
+      await this.writeMacros(stableProjectId, pkg, filtered, '删除宏定义');
+      console.log('🗑️ 删除宏定义:', macroName, '当前宏列表:', pkg.MACROS);
     });
+  }
 
-    // 在写入前再次读取最新的 package.json，防止并发写入覆盖
-    const latestPkg = await this.getPackageJson();
-    if (!latestPkg.MACROS) latestPkg.MACROS = [];
+  private requireProjectId(projectId: string, operation: string): string {
+    if (!projectId) {
+      throw new Error(`${operation}失败：当前项目 ID 未设置`);
+    }
+    return projectId;
+  }
 
-    latestPkg.MACROS = filtered.map(s => [s]);
-    console.log('removeMacro -> normalized macros to write:', latestPkg.MACROS);
-    await this.setPackageJson(latestPkg);
-    console.log('🗑️ 删除宏定义:', macroName, '当前宏列表:', latestPkg.MACROS);
+  private ensureProjectContext(projectId: string, operation: string): void {
+    if (this.currentProjectId !== projectId) {
+      throw new Error(`${operation}已取消：项目上下文已变化 (${projectId} -> ${this.currentProjectId || 'none'})`);
+    }
+  }
+
+  private enqueueServerMacroMutation(projectId: string, mutation: () => Promise<void>): Promise<void> {
+    const previous = this.serverMacroMutationQueues.get(projectId) || Promise.resolve();
+    const current = previous.catch(() => undefined).then(mutation);
+    const tracked = current.finally(() => {
+      if (this.serverMacroMutationQueues.get(projectId) === tracked) {
+        this.serverMacroMutationQueues.delete(projectId);
+      }
+    });
+    this.serverMacroMutationQueues.set(projectId, tracked);
+    return tracked;
+  }
+
+  private async readPackageJsonForMutation(projectId: string, operation: string): Promise<any | null> {
+    if (this.currentProjectId !== projectId) {
+      return null;
+    }
+    const pkg = await this.getPackageJson(projectId);
+    if (this.currentProjectId !== projectId) {
+      console.debug(`${operation}已取消：项目上下文已变化`);
+      return null;
+    }
+    if (!pkg) {
+      throw new Error(`${operation}失败：项目 package.json 不存在`);
+    }
+    return pkg;
+  }
+
+  private normalizeMacros(macros: any): string[] {
+    return (Array.isArray(macros) ? macros : [])
+      .map((item: any) => Array.isArray(item) ? item[0] : item)
+      .map((item: any) => String(item || '').trim())
+      .filter((item: string) => item.length > 0);
+  }
+
+  private async writeMacros(
+    projectId: string,
+    pkg: any,
+    macros: string[],
+    operation: string,
+  ): Promise<void> {
+    if (this.currentProjectId !== projectId) {
+      console.debug(`${operation}已取消：项目上下文已变化`);
+      return;
+    }
+    pkg.MACROS = macros.map(macro => [macro]);
+    await this.saveServerFile('package.json', JSON.stringify(pkg, null, 2), projectId);
+    if (this.currentProjectId === projectId) {
+      this.currentPackageData = pkg;
+    }
   }
 
   /**
@@ -795,17 +844,19 @@ export class ProjectService {
   }
 
   async readServerFile(path: string, projectId = this.currentProjectId): Promise<string> {
+    const stableProjectId = this.requireProjectId(projectId, '读取项目文件');
     const result = await this.unwrap<{ path: string; content: string }>(
       this.http.get<ApiResult<{ path: string; content: string }>>(
-        `${API.serverProjects}/${encodeURIComponent(projectId)}/files?path=${encodeURIComponent(path)}`
+        `${API.serverProjects}/${encodeURIComponent(stableProjectId)}/files?path=${encodeURIComponent(path)}`
       )
     );
     return result?.content || '';
   }
 
   async saveServerFile(path: string, content: string, projectId = this.currentProjectId): Promise<void> {
+    const stableProjectId = this.requireProjectId(projectId, '保存项目文件');
     await this.unwrap<void>(
-      this.http.put<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(projectId)}/files`, { path, content })
+      this.http.put<ApiResult<void>>(`${API.serverProjects}/${encodeURIComponent(stableProjectId)}/files`, { path, content })
     );
   }
 
