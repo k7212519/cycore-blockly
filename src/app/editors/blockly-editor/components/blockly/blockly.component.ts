@@ -37,6 +37,7 @@ import './custom-field/field-bitmap-u8g2';
 import './custom-field/field-u8g2-animation';
 import './custom-field/field-image';
 import './custom-field/field-image-preview';
+import './custom-field/field-nes-rom';
 import './custom-field/field-led-matrix';
 import './custom-field/field-led-pattern-selector';
 import './custom-field/field-tone';
