@@ -1,0 +1,9 @@
+# Keep Angular's modern browser targets and also downlevel bundles for Chrome 79.
+# This controls bundled JS/CSS, not runtime API polyfills or copied assets.
+Chrome >= 79
+last 1 Firefox version
+last 2 Edge major versions
+last 2 Safari major versions
+last 2 iOS major versions
+last 2 Android major versions
+Firefox ESR

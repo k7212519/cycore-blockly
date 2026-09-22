@@ -71,6 +71,7 @@ export class _BuilderService {
   }
 
   async build(): Promise<ActionState> {
+    if ((window as any).cycoreVideoConversions?.size) throw new Error('视频正在转换，请完成后再编译');
     if (this.buildInProgress) {
       const text = this.cancelled ? '上一次编译正在终止' : '编译正在进行中';
       this.message.warning(`${text}，请稍后再试`);
@@ -100,6 +101,12 @@ export class _BuilderService {
       }
       this.startProgress();
       const code = arduinoGenerator.workspaceToCode(this.blocklyService.workspace);
+      const invalidVideo = code.match(/^\s*#error CYCORE_VIDEO_INVALID (.+)$/m);
+      if (invalidVideo) {
+        let detail = invalidVideo[1];
+        try { detail = JSON.parse(detail); } catch { /* Keep readable compiler message. */ }
+        throw new Error('视频尚未准备好：' + detail);
+      }
       this.lastCode = code;
       const result = await this.projectService.compileServerProject(code);
       if (this.cancelled) {
@@ -109,6 +116,11 @@ export class _BuilderService {
         detail: [result.fullStdOut, result.fullStdErr].filter(Boolean).join('\n'),
         state: result.success ? 'done' : 'error',
       });
+      if (result.success && result.videoCapacity) {
+        const c=result.videoCapacity;
+        const mib=(n:number)=>(n/1024/1024).toFixed(2)+' MiB';
+        result.text += `；固件 ${mib(c.firmwareBytes)} / 程序分区 ${mib(c.appPartitionBytes)}，文件空间 ${mib(c.fileSystemBytes)}${c.partitionChanged ? '（已自动扩容，需 USB 烧录）' : ''}`;
+      }
       this.workflowService.finishBuild(result.success, result.text);
       this.noticeService.update({
         title: result.success ? '编译成功' : '编译失败',

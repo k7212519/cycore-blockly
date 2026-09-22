@@ -57,6 +57,16 @@
                 "glob": "ng-zorro-antd.dark.css",
                 "input": "node_modules/ng-zorro-antd",
                 "output": "/themes"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/@ffmpeg/core/dist/esm",
+                "output": "assets/ffmpeg/core"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/@ffmpeg/ffmpeg/dist/esm",
+                "output": "assets/ffmpeg/worker"
               }
             ],
             "styles": [

@@ -117,12 +117,20 @@ export class ServerFlashService {
         throw new Error('连接开发板失败，请确认串口权限和开发板状态');
       }
 
+      const videoCapacity = this.projectService.lastServerCompileResult?.videoCapacity;
+      if (videoCapacity) {
+        const table = fileArray.find(file => file.address === 0x8000);
+        if (!table) throw new Error('视频固件缺少分区表');
+        await this.espLoaderService.verifyVideoFlash(videoCapacity.flashBytes, table.data);
+        this.throwIfCancelled();
+      }
+
       const flashSucceeded = await this.espLoaderService.flash({
         fileArray,
         flashSize: uploadConfig.flashSize,
         flashMode: uploadConfig.flashMode,
         flashFreq: uploadConfig.flashFreq,
-        eraseAll: uploadConfig.eraseAll,
+        eraseAll: videoCapacity ? false : uploadConfig.eraseAll,
         compress: uploadConfig.compress,
         reportProgress: (fileIndex, written) => {
           const completedBefore = fileArray

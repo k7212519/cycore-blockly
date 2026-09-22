@@ -177,6 +177,28 @@ export class EspLoaderService {
    * @param options 烧录选项
    * @returns Promise<boolean>
    */
+  async verifyVideoFlash(flashBytes: number, partitionData: string): Promise<void> {
+    if (!this.esploader) throw new Error('开发板未连接');
+    const actual = (await this.esploader.getFlashSize()) * 1024;
+    // esptool-js 0.5.x reports capacity in KiB.
+    if (!actual || actual < flashBytes) throw new Error('开发板实际 Flash 容量小于视频固件配置，已停止烧录');
+    const current = await this.esploader.readFlash(0x8000, 0xc00);
+    const next = Uint8Array.from(partitionData, c => c.charCodeAt(0));
+    const fat = (bytes: Uint8Array): string | null => {
+      const partitions: string[] = [];
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      for (let off = 0; off + 32 <= bytes.length && view.getUint16(off, true) === 0x50aa; off += 32) {
+        if (bytes[off+2] === 1 && [0x81,0x82,0x83].includes(bytes[off+3]))
+          partitions.push(`${bytes[off+3]}:${view.getUint32(off+4,true)}:${view.getUint32(off+8,true)}`);
+      }
+      return partitions.length ? partitions.join(',') : null;
+    };
+    const oldFat=fat(current), newFat=fat(next);
+    const hasOldTable=current[0]===0xaa && current[1]===0x50;
+    if (hasOldTable && oldFat !== newFat && !window.confirm('视频固件需要调整文件存储分区，已有文件或游戏存档可能丢失。请先备份。确认通过 USB 完整烧录？'))
+      throw new Error('已取消分区变更烧录');
+  }
+
   async flash(options: FlashOptions): Promise<boolean> {
     if (!this.esploader) {
       console.error('ESPLoader 未初始化');

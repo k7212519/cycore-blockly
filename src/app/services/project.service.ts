@@ -89,7 +89,12 @@ export interface ServerFileMutation {
   directory: boolean;
 }
 
+export interface VideoCapacity {
+  firmwareBytes: number; appPartitionBytes: number; fileSystemBytes: number; flashBytes: number;
+  partitionChanged: boolean; requiresUsb: boolean; fileSystemMayBeLost: boolean;
+}
 export interface ServerCompileResult {
+  videoCapacity?: VideoCapacity;
   success: boolean;
   text: string;
   fullStdOut: string;

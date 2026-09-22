@@ -1,0 +1,13 @@
+Cycore local video conversion
+
+@ffmpeg/ffmpeg 0.12.15: MIT
+@ffmpeg/core 0.12.10 (single-thread WebAssembly build): GPL-2.0-or-later
+
+Upstream project, build scripts and source instructions:
+https://github.com/ffmpegwasm/ffmpeg.wasm
+https://github.com/ffmpegwasm/ffmpeg.wasm/tree/main/packages/core
+https://ffmpegwasm.netlify.app/docs/overview/
+
+The core incorporates FFmpeg and codec libraries. Their respective copyright
+and license terms apply. The distributed core is loaded on demand from this
+website; user video conversion executes inside the browser.

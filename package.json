@@ -29,6 +29,8 @@
     "@blockly/field-colour-hsv-sliders": "^5.0.19",
     "@blockly/workspace-minimap": "^0.2.16",
     "@ctrl/tinycolor": "^4.1.0",
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@ngx-translate/core": "^16.0.3",
     "@splidejs/splide": "^4.1.4",
